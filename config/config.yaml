@@ -1,0 +1,62 @@
+# 天衍云平台配置
+tianyan:
+  api_key: ${TIANYAN_API_KEY}
+  api_secret: ${TIANYAN_API_SECRET}
+  base_url: "https://api.tianyanyun.cn/v1"
+  timeout: 30
+
+# 量子计算配置
+quantum:
+  backend: "tianyan-287"  # 天衍-287真机
+  simulator: "qiskit-aer"
+  shots: 1024
+  max_qubits: 287
+  
+# 经典计算配置
+classical:
+  max_cpu_utilization: 0.95
+  memory_limit: 16384  # MB
+  
+# 调度引擎配置
+scheduler:
+  algorithm: "DQN"  # DQN, A3C, PPO
+  learning_rate: 3e-4
+  gamma: 0.99
+  epsilon_start: 1.0
+  epsilon_end: 0.01
+  epsilon_decay: 0.995
+  batch_size: 64
+  replay_buffer_size: 10000
+  
+# 量子退火加速配置
+annealing:
+  enabled: true
+  num_qubits: 10
+  annealing_time: 1.0  # 微秒
+  num_reads: 100
+  simulation_mode: true  # 开发阶段用仿真
+  
+# 系统配置
+system:
+  max_queue_size: 100
+  max_wait_time: 3600  # 秒
+  max_steps: 1000
+  log_level: "INFO"
+  
+# Web界面配置
+web:
+  host: "0.0.0.0"
+  port: 8000
+  debug: true
+  
+# 数据库配置
+database:
+  type: "sqlite"  # sqlite, mysql, postgresql
+  path: "data/scheduler.db"
+  
+# 缓存配置
+cache:
+  type: "redis"  # redis, memory
+  host: "localhost"
+  port: 6379
+  db: 0
