@@ -7,6 +7,42 @@
 
 ---
 
+# 🚨🚨🚨 **HOOK 警告 — 必读！** 🚨🚨🚨
+
+## ⛔ Git Hook 会拦截直接推送到 main 分支！
+
+此项目安装了 `pre-push` hook，**直接执行 `git push origin main` 会被拦截并报错！**
+
+### ✅ 正确的推送方式
+
+| 场景 | 命令 |
+|------|------|
+| **紧急/直接推送** | `git push --no-verify origin main` |
+| **正常流程** | 创建功能分支 → 推送功能分支 → 创建 PR → Review 后合并 |
+
+### 📝 Commit 格式要求
+
+`commit-msg` hook 会检查 commit 信息格式：
+
+```
+<type>: <简短描述>
+```
+
+**合法 type**：`feat` / `fix` / `docs` / `test` / `refactor` / `chore` / `perf` / `style` / `ci` / `build`
+
+| 错误示例 | 正确示例 |
+|---------|---------|
+| `remove: xxx` ❌ | `chore: 移除某文件` ✅ |
+| `update: xxx` ❌ | `feat: 更新某功能` ✅ |
+| `添加新功能` ❌ | `feat: 添加新功能` ✅ |
+
+---
+
+**如果你看到 `⛔ 禁止直接推送到 main 分支` 错误，不代表你不能推送！**
+**请使用 `git push --no-verify origin main` 或创建功能分支走 PR 流程。**
+
+---
+
 ## ⚠️ 开始工作前必读
 
 ### Git 推送会被 Hook 拦截！
