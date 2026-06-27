@@ -608,7 +608,8 @@ class QuantumAnnealingOptimizer:
 
         支持的 agent 类型：
             - 具有 policy_net 属性的 SchedulingAgent
-            - 具有 policy 属性的 Stable-Baselines3 DQN agent
+            - SB3 DQN agent (policy.q_net)
+            - SB3 PPO agent (policy.mlp_extractor 或 policy)
         """
         # 方式 1：直接属性（项目内的 SchedulingAgent）
         if hasattr(agent, "policy_net") and isinstance(agent.policy_net, nn.Module):
@@ -617,6 +618,14 @@ class QuantumAnnealingOptimizer:
         # 方式 2：Stable-Baselines3 DQN agent
         if hasattr(agent, "policy") and hasattr(agent.policy, "q_net"):
             return agent.policy.q_net
+
+        # 方式 3：Stable-Baselines3 PPO agent（ActorCriticPolicy）
+        if hasattr(agent, "policy") and isinstance(agent.policy, nn.Module):
+            # PPO 的 policy 是 ActorCriticPolicy，内含 mlp_extractor
+            if hasattr(agent.policy, "mlp_extractor"):
+                return agent.policy.mlp_extractor
+            # 回退：直接返回整个 policy 网络
+            return agent.policy
 
         logger.warning("无法识别 agent 的策略网络结构")
         return None
