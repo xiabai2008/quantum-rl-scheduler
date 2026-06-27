@@ -42,6 +42,7 @@ from stable_baselines3.common.torch_layers import (
     create_mlp,
 )
 from stable_baselines3 import PPO
+from src.quantum.annealing import QuantumAnnealingOptimizer
 import gymnasium as gym
 from gymnasium import spaces
 import torch
@@ -642,6 +643,51 @@ class SchedulerAgent:
 
 
 # ---------------------------------------------------------------------------
+# 量子退火回调
+# ---------------------------------------------------------------------------
+
+class AnnealingCallback(BaseCallback):
+    """
+    每 N 步用量子退火优化 PPO 网络权重的回调。
+
+    量子退火可以加速 PPO 的策略优化，通过在退火过程中探索
+    更优的权重组合来提升策略性能。
+
+    Attributes:
+        optimizer: 量子退火优化器
+        interval: 退火间隔（步数）
+        best_reward: 最佳奖励值
+        optimized_count: 累计优化次数
+    """
+
+    def __init__(self, optimizer, interval=1000, verbose=0):
+        super().__init__(verbose)
+        self.optimizer = optimizer
+        self.interval = interval
+        self.best_reward = -float("inf")
+        self.optimized_count = 0
+
+    def _on_step(self) -> bool:
+        """每步检查是否需要触发退火优化。"""
+        if self.n_calls % self.interval == 0 and self.n_calls > 0:
+            try:
+                # 获取当前网络权重 → QUBO → 退火 → 优化后权重
+                optimized = self.optimizer.optimize_policy(self.model)
+
+                if optimized and optimized.get("quality", 0) > self.best_reward:
+                    self.best_reward = optimized["quality"]
+                    self.optimized_count += 1
+
+                    if self.verbose:
+                        print(f"[退火] 步数{self.n_calls}: 优化完成 (质量={optimized['quality']:.4f}, "
+                              f"累计优化{self.optimized_count}次)")
+            except Exception as e:
+                if self.verbose:
+                    print(f"[退火] 步数{self.n_calls}: 退火跳过 ({e})")
+        return True
+
+
+# ---------------------------------------------------------------------------
 # PPO 智能体
 # ---------------------------------------------------------------------------
 
@@ -692,6 +738,18 @@ class PPOAgent:
 
         self.observation_space = env.observation_space
         self.action_space = env.action_space
+
+        # 量子退火器初始化（可选功能）
+        self.use_annealing = kwargs.get("use_annealing", False)
+        self.annealing_optimizer = None
+        self.anneal_interval = kwargs.get("anneal_interval", 1000)
+        if self.use_annealing:
+            self.annealing_optimizer = QuantumAnnealingOptimizer(
+                num_qubits=kwargs.get("anneal_qubits", 10),
+                annealing_time=kwargs.get("annealing_time", 20.0),
+                shots=kwargs.get("anneal_shots", 1000),
+            )
+            print(f"[PPOAgent] 量子退火器已启用，退火间隔={self.anneal_interval}步")
 
     def _build_model(self) -> PPO:
         """
@@ -754,11 +812,26 @@ class PPOAgent:
             deterministic=True,
         )
 
+        # 构建回调列表
+        callbacks = [eval_callback]
+
+        # 如果启用了量子退火，添加退火回调
+        if self.use_annealing and self.annealing_optimizer:
+            annealing_callback = AnnealingCallback(
+                optimizer=self.annealing_optimizer,
+                interval=self.anneal_interval,
+                verbose=1,
+            )
+            callbacks.append(annealing_callback)
+
+        # 合并回调
+        callback = CallbackList(callbacks) if len(callbacks) > 1 else callbacks[0]
+
         tb_log_name = log_dir if log_dir else "ppo_scheduling"
 
         self.model.learn(
             total_timesteps=total_timesteps,
-            callback=eval_callback,
+            callback=callback,
             tb_log_name=tb_log_name,
             reset_num_timesteps=True,
             **kwargs,
