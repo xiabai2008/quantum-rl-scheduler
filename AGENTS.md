@@ -5,6 +5,28 @@
 
 **最后更新**：2026-06-27  
 
+---
+
+## ⚠️ 开始工作前必读
+
+### Git 推送会被 Hook 拦截！
+
+此项目在 `main` 分支安装了 `pre-push` hook，**直接 `git push origin main` 会被拦截**。
+
+**推送代码到 main 分支的正确命令**：
+```bash
+git push --no-verify origin main
+```
+
+**Commit 信息格式要求**（`commit-msg` hook 检查）：
+- 格式：`<type>: <简短描述>`
+- type 必须是：`feat` / `fix` / `docs` / `test` / `refactor` / `chore` / `perf` / `style` / `ci` / `build`
+- 错误示例：`remove: xxx` → 被拦截（`remove` 不是合法 type）
+- 正确示例：`chore: 移除某文件`
+
+如果 `git push` 报错 `⛔ 禁止直接推送到 main 分支`，**不代表你不能推送**，用 `--no-verify` 即可。
+
+---
 
 ## 1. 项目概述
 
