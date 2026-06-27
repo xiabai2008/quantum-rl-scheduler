@@ -84,16 +84,13 @@ def load_config(config_path: str):
 
 def build_env_from_config(config: dict):
     """根据配置创建调度环境"""
-    from src.scheduler.env import SchedulingEnv
+    from src.scheduler.env import QuantumSchedulingEnv
 
     quantum_cfg = config.get("quantum", {})
     system_cfg = config.get("system", {})
 
-    env = SchedulingEnv(
+    env = QuantumSchedulingEnv(
         max_qubits=quantum_cfg.get("max_qubits", 287),
-        max_queue_size=system_cfg.get("max_queue_size", 100),
-        max_wait_time=float(system_cfg.get("max_wait_time", 3600)),
-        simulation_mode=True,
     )
     return env
 
@@ -106,13 +103,13 @@ def build_agent_from_config(env, config: dict, log_dir: str, seed=None):
 
     agent = SchedulerAgent(
         env=env,
-        learning_rate=sched_cfg.get("learning_rate", 3e-4),
-        buffer_size=sched_cfg.get("replay_buffer_size", 10000),
-        batch_size=sched_cfg.get("batch_size", 64),
-        gamma=sched_cfg.get("gamma", 0.99),
-        epsilon_start=sched_cfg.get("epsilon_start", 1.0),
-        epsilon_end=sched_cfg.get("epsilon_end", 0.01),
-        epsilon_decay=sched_cfg.get("epsilon_decay", 0.995),
+        learning_rate=float(sched_cfg.get("learning_rate", 3e-4)),
+        buffer_size=int(sched_cfg.get("replay_buffer_size", 10000)),
+        batch_size=int(sched_cfg.get("batch_size", 64)),
+        gamma=float(sched_cfg.get("gamma", 0.99)),
+        epsilon_start=float(sched_cfg.get("epsilon_start", 1.0)),
+        epsilon_end=float(sched_cfg.get("epsilon_end", 0.01)),
+        epsilon_decay=float(sched_cfg.get("epsilon_decay", 0.995)),
         log_dir=log_dir,
         verbose=1,
         seed=seed,
@@ -310,7 +307,8 @@ def train(args):
             return True
 
     # Epsilon 探索回调
-    epsilon_callback = agent.EpsilonExplorationCallback(
+    from src.scheduler.agent import EpsilonExplorationCallback
+    epsilon_callback = EpsilonExplorationCallback(
         epsilon_start=agent.epsilon_start,
         epsilon_end=agent.epsilon_end,
         epsilon_decay=agent.epsilon_decay,
@@ -331,7 +329,11 @@ def train(args):
 
     callback_list = CallbackList([epsilon_callback, eval_save_callback])
 
-    # 7. 开始训练
+    # 7. 构建模型（如尚未构建）
+    if agent.model is None:
+        agent.model = agent._build_model()
+
+    # 8. 开始训练
     print(f"\n[训练] 开始训练，总步数: {total_timesteps}")
     print(f"[训练] 评估频率: 每 {eval_freq} 步 | 保存频率: 每 {save_freq} 步")
     print(f"[训练] 模型保存路径: {save_path}")
