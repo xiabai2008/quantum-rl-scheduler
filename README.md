@@ -48,6 +48,132 @@ quantum-rl-scheduler/
 | 量子模拟 | Qiskit / Pennylane |
 | Web框架 | FastAPI（后端）+ Vue3（前端） |
 | 数据可视化 | Echarts / Plotly |
+
+## 🚀 快速开始（Mock 模式，无需真实平台）
+
+> **重要**：开发阶段使用 Mock 模式，无需申请天衍云平台权限即可完整开发！
+
+### 1. 克隆仓库
+
+```bash
+git clone https://github.com/xiabai2004/quantum-rl-scheduler.git
+cd quantum-rl-scheduler
+```
+
+### 2. 安装依赖
+
+```bash
+pip install -r requirements.txt
+```
+
+### 3. 配置环境变量
+
+```bash
+# 复制环境变量模板
+cp .env.example .env
+
+# 无需修改！默认已启用 Mock 模式
+# TIANYAN_MOCK_MODE=true
+```
+
+### 4. 验证 Mock API
+
+```bash
+# 运行 Mock API 测试脚本
+python scripts/test_mock_api.py
+```
+
+预期输出：
+```
+✅ MockTianyanClient 导入成功
+✅ Mock 客户端创建成功
+✅ 认证验证通过（Mock 模式始终返回 True）
+✅ 量子任务提交成功
+✅ 任务结果获取成功
+✅ Mock API 客户端功能完整
+```
+
+### 5. 开始开发！
+
+```python
+# 示例代码：使用 Mock 客户端开发
+from src.api.mock_client import MockTianyanClient
+
+# 创建 Mock 客户端（模拟天衍云平台）
+client = MockTianyanClient(mock_delay=0.5)
+
+# 验证认证（Mock 模式始终通过）
+if client.authenticate():
+    print("✅ 认证通过")
+
+# 提交量子任务（Mock 模式返回虚拟 task_id）
+qasm = """
+OPENQASM 2.0;
+include "qelib1.inc";
+qreg q[2];
+creg c[2];
+h q[0];
+cx q[0], q[1];
+measure q -> c;
+"""
+task_id = client.submit_quantum_task(circuit_qasm=qasm, shots=1024)
+print(f"任务提交成功，task_id={task_id}")
+
+# 等待任务完成（Mock 模式自动模拟状态轮转）
+result = client.wait_for_task(task_id, poll_interval=0.5, timeout=10.0)
+print(f"任务结果: {result}")
+```
+
+### 6. Mock 模式配置说明
+
+| 配置项 | 位置 | 说明 |
+|--------|------|------|
+| `TIANYAN_MOCK_MODE=true` | `.env` 或环境变量 | 启用 Mock 模式（默认开启） |
+| `TIANYAN_MOCK_DELAY=1.0` | `.env` 或环境变量 | 模拟网络延迟（秒） |
+| `TIANYAN_MOCK_FAILURE_RATE=0.0` | `.env` 或环境变量 | 模拟失败率（0-1） |
+| `tianyan.mock_mode: true` | `config/config.yaml` | 配置文件中的 Mock 开关 |
+
+### 7. 切换到真实 API（获得平台权限后）
+
+```bash
+# 方法 1：修改 .env
+TIANYAN_MOCK_MODE=false
+TIANYAN_API_KEY=你的真实API密钥
+
+# 方法 2：修改 config/config.yaml
+tianyan:
+  mock_mode: false
+
+# 方法 3：代码中显式指定
+from src.api.tianyan_client import TianyanClient
+client = TianyanClient(mock_mode=False)
+```
+
+## 📚 Mock API 功能列表
+
+`MockTianyanClient` 完全模拟天衍云平台 API，支持：
+
+| 方法 | 功能 | 说明 |
+|------|------|------|
+| `authenticate()` | 认证验证 | Mock 模式始终返回 `True` |
+| `submit_quantum_task()` | 提交量子任务 | 返回 `mock-xxxxxxxxxxxx` 格式 ID |
+| `get_task_status()` | 查询任务状态 | 自动轮转：PENDING → RUNNING → COMPLETED |
+| `get_task_result()` | 获取任务结果 | 返回模拟测量计数 |
+| `list_backends()` | 列出可用后端 | 返回 2 个模拟后端（tianyan-287, tianyan-simulator） |
+| `get_backend_info()` | 获取后端详情 | 返回模拟的后端信息 |
+| `submit_classical_task()` | 提交经典任务 | 立即返回完成状态 |
+| `get_queue_status()` | 获取队列状态 | 返回模拟队列统计 |
+| `wait_for_task()` | 等待任务完成 | 自动轮询直到完成 |
+
+## 🧪 运行测试
+
+```bash
+# 运行 Mock API 测试
+python scripts/test_mock_api.py
+
+# 运行单元测试（需先安装 pytest）
+pytest tests/ -v
+```
 | 数据存储 | SQLite（开发）/ Redis（缓存） |
 
 ## 快速开始
