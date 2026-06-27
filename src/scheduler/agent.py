@@ -41,6 +41,7 @@ from stable_baselines3.common.torch_layers import (
     BaseFeaturesExtractor,
     create_mlp,
 )
+from stable_baselines3 import PPO
 import gymnasium as gym
 from gymnasium import spaces
 import torch
@@ -636,6 +637,266 @@ class SchedulerAgent:
             f"  gamma={config['gamma']},\n"
             f"  探索率={config['epsilon_start']}->{config['epsilon_end']},\n"
             f"  衰减率={config['epsilon_decay']}\n"
+            f")"
+        )
+
+
+# ---------------------------------------------------------------------------
+# PPO 智能体
+# ---------------------------------------------------------------------------
+
+class PPOAgent:
+    """
+    PPO (Proximal Policy Optimization) 调度智能体
+
+    使用 PPO 算法进行量子-经典混合计算任务调度。
+    PPO 在连续动作空间和高维状态空间中通常表现更稳定。
+
+    Attributes:
+        env: 训练环境
+        model: 训练好的 PPO 模型
+        learning_rate: 学习率
+        n_steps: 每次更新的步数
+        batch_size: 批次大小
+        n_epochs: 每次更新的 epoch 数
+        gamma: 折扣因子
+        verbose: 日志详细程度
+    """
+
+    def __init__(self, env, **kwargs):
+        """
+        初始化 PPO 智能体。
+
+        Args:
+            env: Gymnasium 环境实例
+            **kwargs: PPO 超参数
+        """
+        self.env = env
+        self.model = None
+
+        self.learning_rate = kwargs.get("learning_rate", 3e-4)
+        self.n_steps = kwargs.get("n_steps", 2048)
+        self.batch_size = kwargs.get("batch_size", 64)
+        self.n_epochs = kwargs.get("n_epochs", 10)
+        self.gamma = kwargs.get("gamma", 0.99)
+        self.gae_lambda = kwargs.get("gae_lambda", 0.95)
+        self.clip_range = kwargs.get("clip_range", 0.2)
+        self.ent_coef = kwargs.get("ent_coef", 0.01)
+        self.vf_coef = kwargs.get("vf_coef", 0.5)
+        self.max_grad_norm = kwargs.get("max_grad_norm", 0.5)
+        self.verbose = kwargs.get("verbose", 1)
+        self.seed = kwargs.get("seed", None)
+        self.log_dir = kwargs.get("log_dir", "./logs/")
+
+        os.makedirs(self.log_dir, exist_ok=True)
+
+        self.observation_space = env.observation_space
+        self.action_space = env.action_space
+
+    def _build_model(self) -> PPO:
+        """
+        构建 PPO 模型。
+
+        Returns:
+            构建好的 PPO 模型实例
+        """
+        model = PPO(
+            "MlpPolicy",
+            self.env,
+            learning_rate=self.learning_rate,
+            n_steps=self.n_steps,
+            batch_size=self.batch_size,
+            n_epochs=self.n_epochs,
+            gamma=self.gamma,
+            gae_lambda=self.gae_lambda,
+            clip_range=self.clip_range,
+            ent_coef=self.ent_coef,
+            vf_coef=self.vf_coef,
+            max_grad_norm=self.max_grad_norm,
+            verbose=self.verbose,
+            seed=self.seed,
+            tensorboard_log=self.log_dir,
+            policy_kwargs={"net_arch": [128, 64]},
+        )
+        return model
+
+    def train(
+        self,
+        total_timesteps: int = 50000,
+        eval_freq: int = 5000,
+        n_eval_episodes: int = 10,
+        log_dir: Optional[str] = None,
+        **kwargs,
+    ) -> PPO:
+        """
+        训练 PPO 调度智能体。
+
+        Args:
+            total_timesteps: 总训练步数
+            eval_freq: 评估频率
+            n_eval_episodes: 每次评估的回合数
+            log_dir: 日志目录
+            **kwargs: 额外参数
+
+        Returns:
+            训练好的 PPO 模型
+        """
+        if self.model is None:
+            self.model = self._build_model()
+
+        eval_env = Monitor(self.env)
+        eval_callback = EvalCallback(
+            eval_env=eval_env,
+            best_model_save_path=os.path.join(self.log_dir, "best_model"),
+            log_path=os.path.join(self.log_dir, "eval_results"),
+            eval_freq=eval_freq,
+            n_eval_episodes=n_eval_episodes,
+            deterministic=True,
+        )
+
+        tb_log_name = log_dir if log_dir else "ppo_scheduling"
+
+        self.model.learn(
+            total_timesteps=total_timesteps,
+            callback=eval_callback,
+            tb_log_name=tb_log_name,
+            reset_num_timesteps=True,
+            **kwargs,
+        )
+
+        return self.model
+
+    def predict(
+        self,
+        state: np.ndarray,
+        deterministic: bool = True,
+    ) -> int:
+        """
+        使用训练好的模型进行调度决策。
+
+        Args:
+            state: 当前环境状态向量
+            deterministic: 是否使用确定性策略
+
+        Returns:
+            动作索引
+        """
+        if self.model is None:
+            raise RuntimeError(
+                "模型尚未训练！请先调用 train() 方法或使用 load() 加载已训练模型。"
+            )
+
+        if state.ndim == 1:
+            state = state.reshape(1, -1)
+
+        action, _ = self.model.predict(state, deterministic=deterministic)
+        return int(action.item())
+
+    def evaluate(
+        self,
+        num_episodes: int = 10,
+        deterministic: bool = True,
+    ) -> Dict[str, float]:
+        """
+        评估训练好的智能体性能。
+
+        Args:
+            num_episodes: 评估回合数
+            deterministic: 是否使用确定性策略
+
+        Returns:
+            评估结果字典
+        """
+        if self.model is None:
+            raise RuntimeError(
+                "模型尚未训练！请先调用 train() 方法或使用 load() 加载已训练模型。"
+            )
+
+        episode_rewards = []
+        episode_success_rates = []
+
+        for ep in range(num_episodes):
+            obs, info = self.env.reset()
+            total_reward = 0.0
+            done = False
+
+            while not done:
+                action = self.predict(obs, deterministic=deterministic)
+                obs, reward, terminated, truncated, info = self.env.step(action)
+                total_reward += reward
+                done = terminated or truncated
+
+            episode_rewards.append(total_reward)
+            completion_rate = info.get("completion_rate", 0.0)
+            episode_success_rates.append(completion_rate)
+
+        result = {
+            "mean_reward": float(np.mean(episode_rewards)),
+            "std_reward": float(np.std(episode_rewards)),
+            "success_rate": float(np.mean(episode_success_rates)),
+            "num_episodes": num_episodes,
+        }
+
+        return result
+
+    def save(self, path: str) -> None:
+        """
+        保存训练好的模型到指定路径。
+
+        Args:
+            path: 模型保存路径
+        """
+        if self.model is None:
+            raise RuntimeError("没有可保存的模型！请先训练或加载模型。")
+
+        self.model.save(path)
+        print(f"[PPOAgent] 模型已保存至: {path}.zip")
+
+    def load(self, path: str) -> None:
+        """
+        从文件加载已训练的模型。
+
+        Args:
+            path: 模型文件路径
+        """
+        self.model = PPO.load(path, env=self.env)
+        print(f"[PPOAgent] 模型已从 {path} 加载")
+
+    def get_config(self) -> Dict[str, Any]:
+        """
+        获取智能体配置信息。
+
+        Returns:
+            配置字典
+        """
+        return {
+            "observation_dim": self.observation_space.shape[0],
+            "action_dim": self.action_space.n,
+            "learning_rate": self.learning_rate,
+            "n_steps": self.n_steps,
+            "batch_size": self.batch_size,
+            "n_epochs": self.n_epochs,
+            "gamma": self.gamma,
+            "gae_lambda": self.gae_lambda,
+            "clip_range": self.clip_range,
+            "ent_coef": self.ent_coef,
+            "vf_coef": self.vf_coef,
+            "max_grad_norm": self.max_grad_norm,
+            "architecture": "PPO",
+        }
+
+    def __repr__(self) -> str:
+        """智能体的字符串表示"""
+        config = self.get_config()
+        return (
+            f"PPOAgent(\n"
+            f"  架构={config['architecture']},\n"
+            f"  状态维度={config['observation_dim']},\n"
+            f"  动作维度={config['action_dim']},\n"
+            f"  学习率={config['learning_rate']},\n"
+            f"  gamma={config['gamma']},\n"
+            f"  n_steps={config['n_steps']},\n"
+            f"  batch_size={config['batch_size']}\n"
             f")"
         )
 

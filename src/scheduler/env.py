@@ -87,12 +87,13 @@ class Task:
     表示队列中的单个待调度任务。
 
     Attributes:
-        task_id      : 唯一任务标识符
-        task_type    : 任务类型，"quantum"（仅量子可执行）、"classical"（仅经典可执行）、"universal"（两者皆可）
-        qubit_count  : 该任务所需的量子比特数
-        wait_steps   : 该任务已在队列中等待的步数
-        urgency      : 紧急程度 0-1，越高越紧急
-        priority     : 优先级 1-5
+        task_id        : 唯一任务标识符
+        task_type      : 任务类型，"quantum"（仅量子可执行）、"classical"（仅经典可执行）、"universal"（两者皆可）
+        qubit_count    : 该任务所需的量子比特数
+        wait_steps     : 该任务已在队列中等待的步数
+        urgency        : 紧急程度 0-1，越高越紧急
+        priority       : 优先级 1-5
+        execution_time : 预估执行时间（步数），与任务规模正相关
     """
     task_id: str
     task_type: str  # "quantum", "classical", "universal"
@@ -100,6 +101,7 @@ class Task:
     wait_steps: int = 0
     urgency: float = 0.5
     priority: int = 3
+    execution_time: int = 3
 
 
 @dataclass
@@ -204,6 +206,7 @@ class QuantumSchedulingEnv(gym.Env):
         self._quantum: QuantumResource = QuantumResource(total_qubits=max_qubits)
         self._classical: ClassicalResource = ClassicalResource()
         self._time_of_day: float = 0.0
+        self._quantum_available: bool = True
 
         # 统计信息（用于 info 字典和渲染）
         self._total_scheduled: int = 0
@@ -267,6 +270,7 @@ class QuantumSchedulingEnv(gym.Env):
         self._quantum.available_ratio = rng.uniform(0.3, 1.0)
         self._quantum.fidelity = rng.uniform(0.85, 0.99)
         self._quantum.quantum_queue = 0
+        self._quantum_available = True
 
         # 随机初始化经典计算负载
         self._classical.load = rng.uniform(0.1, 0.7)
@@ -329,19 +333,37 @@ class QuantumSchedulingEnv(gym.Env):
                     self._task_queue.append(task)
                 log_msg = f"[步骤{self._current_step}] 任务{task.task_id} 分配到不兼容资源(action={action})，惩罚{REWARD_MISMATCH}"
             else:
-                # ---- 兼容分配：计算执行奖励 ----
-                reward += self._compute_execution_reward(task, action, rng)
-                scheduled = True
-                self._total_scheduled += 1
+                # ---- 检查量子资源可用性 ----
+                quantum_action = action in (ACTION_QUANTUM, ACTION_HYBRID)
+                quantum_unavailable = not self._quantum_available
 
-                if action == ACTION_QUANTUM:
-                    self._quantum_success += 1
-                elif action == ACTION_CLASSICAL:
-                    self._classical_success += 1
+                if quantum_action and quantum_unavailable:
+                    if action == ACTION_QUANTUM:
+                        reward += REWARD_MISMATCH * 0.5
+                        task.wait_steps += 1
+                        if len(self._task_queue) < MAX_QUEUE_SIZE:
+                            self._task_queue.append(task)
+                        log_msg = f"[步骤{self._current_step}] 量子资源不可用，任务{task.task_id} 重新入队，惩罚{REWARD_MISMATCH * 0.5:.1f}"
+                    else:
+                        reward += self._compute_execution_reward(task, ACTION_CLASSICAL, rng)
+                        scheduled = True
+                        self._total_scheduled += 1
+                        self._classical_success += 1
+                        log_msg = f"[步骤{self._current_step}] 量子资源不可用，混合任务{task.task_id}降级为经典执行，reward={reward:.2f}"
                 else:
-                    self._hybrid_success += 1
+                    # ---- 兼容分配：计算执行奖励 ----
+                    reward += self._compute_execution_reward(task, action, rng)
+                    scheduled = True
+                    self._total_scheduled += 1
 
-                log_msg = f"[步骤{self._current_step}] 任务{task.task_id}({task.task_type}) → action={action}, reward={reward:.2f}"
+                    if action == ACTION_QUANTUM:
+                        self._quantum_success += 1
+                    elif action == ACTION_CLASSICAL:
+                        self._classical_success += 1
+                    else:
+                        self._hybrid_success += 1
+
+                    log_msg = f"[步骤{self._current_step}] 任务{task.task_id}({task.task_type}) → action={action}, reward={reward:.2f}"
 
             self._render_log.append(log_msg)
 
@@ -461,10 +483,13 @@ class QuantumSchedulingEnv(gym.Env):
 
     def _generate_random_task(self, rng: np.random.Generator, task_id: int) -> Task:
         """
-        生成一个随机任务。
+        生成具有真实差异性的随机任务（异质化版本）。
 
-        任务类型从 {"quantum", "classical", "universal"} 中均匀采样。
-        量子比特数根据类型设定，紧急程度在 [0, 1] 间随机。
+        任务参数采用不均匀分布，模拟真实场景中的任务多样性：
+            - qubits: 偏向中小规模，但偶发大规模（长尾分布）
+            - urgency: 大部分正常，少数紧急
+            - execution_time: 与 qubits 正相关
+            - task_type: 混合分布，量子任务居多
 
         Args:
             rng     : NumPy 随机数生成器
@@ -473,22 +498,34 @@ class QuantumSchedulingEnv(gym.Env):
         Returns:
             Task: 生成的随机任务对象
         """
-        task_type = rng.choice(["quantum", "classical", "universal"])
+        qubit_options = [2, 3, 5, 5, 8, 10, 10, 15, 20, 30, 50, 100]
+        qubit_probs = [0.15, 0.15, 0.15, 0.10, 0.10, 0.10, 0.05, 0.05, 0.05, 0.05, 0.03, 0.02]
+        qubits = int(rng.choice(qubit_options, p=qubit_probs))
 
-        if task_type == "quantum":
-            qubit_count = int(rng.integers(5, 50))
-        elif task_type == "classical":
+        urgency_options = [0.1, 0.3, 0.5, 0.5, 0.5, 0.7, 0.8, 0.9, 0.95, 1.0]
+        urgency_probs = [0.05, 0.10, 0.20, 0.20, 0.15, 0.10, 0.08, 0.05, 0.05, 0.02]
+        urgency = float(rng.choice(urgency_options, p=urgency_probs))
+
+        base_time = int(qubits ** 0.6)
+        execution_time = max(1, base_time + int(rng.choice([-1, 0, 0, 0, 1, 2])))
+
+        task_type_options = ["quantum", "quantum", "classical", "classical", "universal"]
+        task_type_probs = [0.35, 0.35, 0.10, 0.10, 0.10]
+        task_type = str(rng.choice(task_type_options, p=task_type_probs))
+
+        if task_type == "classical":
             qubit_count = 0
         else:
-            qubit_count = int(rng.integers(2, 20))
+            qubit_count = qubits
 
         return Task(
             task_id=f"T{task_id:04d}",
             task_type=task_type,
             qubit_count=qubit_count,
             wait_steps=0,
-            urgency=float(rng.uniform(0.0, 1.0)),
+            urgency=urgency,
             priority=int(rng.integers(1, 6)),
+            execution_time=execution_time,
         )
 
     # ------------------------------------------------------------------
@@ -618,6 +655,9 @@ class QuantumSchedulingEnv(gym.Env):
         self._quantum.fidelity = np.clip(
             self._quantum.fidelity - 0.002 + rng.uniform(0.0, 0.01), 0.7, 0.999
         )
+        # 量子资源可用性随机波动（模拟真机维护/校准）
+        if rng.random() < 0.05:
+            self._quantum_available = not self._quantum_available
         # 量子队列完成一些任务
         completed_q = 0
         for _ in range(self._quantum.quantum_queue):

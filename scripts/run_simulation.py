@@ -303,6 +303,19 @@ class ClassicalOnlyStrategy(BaseStrategy):
         return 0  # ACTION_CLASSICAL
 
 
+class PPOStrategy(BaseStrategy):
+    """策略 H：PPO 强化学习调度策略。"""
+
+    name = "PPO"
+
+    def __init__(self, model):
+        self.model = model
+
+    def select_action(self, obs: np.ndarray) -> int:
+        action, _ = self.model.predict(obs, deterministic=True)
+        return int(action.item())
+
+
 class GreedyStrategy(BaseStrategy):
     """策略 F：贪心调度策略。
 
@@ -497,6 +510,7 @@ def run_simulation(
     episodes: int = 100,
     tasks_per_episode: int = 100,
     model_path: Optional[str] = None,
+    ppo_model_path: Optional[str] = None,
     output_dir: str = "./results/",
     verbose: bool = False,
 ):
@@ -507,6 +521,7 @@ def run_simulation(
         episodes: 仿真 episode 数
         tasks_per_episode: 每个 episode 的任务数目标
         model_path: 训练好的 DQN 模型路径（.zip），为 None 则使用未训练的随机 DQN
+        ppo_model_path: 训练好的 PPO 模型路径（.zip），为 None 则不包含 PPO 策略
         output_dir: 结果输出目录
         verbose: 是否打印详细日志
     """
@@ -515,7 +530,8 @@ def run_simulation(
     print("=" * 64)
     print(f"  Episodes:           {episodes}")
     print(f"  Tasks/Episode:      {tasks_per_episode}")
-    print(f"  Model Path:         {model_path or '(无，使用随机 DQN)'}")
+    print(f"  DQN Model Path:     {model_path or '(无，使用随机 DQN)'}")
+    print(f"  PPO Model Path:     {ppo_model_path or '(无，不包含 PPO)'}")
     print(f"  Output Dir:         {output_dir}")
     print("=" * 64)
 
@@ -586,6 +602,14 @@ def run_simulation(
 
     # 策略 G：最短作业优先
     strategies.append(ShortestJobFirstStrategy())
+
+    # 策略 H：PPO
+    if ppo_model_path and os.path.isfile(ppo_model_path):
+        print(f"[PPO] 加载已训练模型: {ppo_model_path}")
+        from stable_baselines3 import PPO
+        ppo_env = QuantumSchedulingEnv(**base_env_kwargs)
+        ppo_model = PPO.load(ppo_model_path, env=ppo_env)
+        strategies.append(PPOStrategy(ppo_model))
 
     # ---- 逐策略运行仿真 ----
     results: Dict[str, Dict[str, float]] = {}
@@ -699,6 +723,12 @@ def main():
         help="训练好的 DQN 模型路径（.zip 文件）",
     )
     parser.add_argument(
+        "--ppo-model-path",
+        type=str,
+        default=None,
+        help="训练好的 PPO 模型路径（.zip 文件）",
+    )
+    parser.add_argument(
         "--output-dir",
         type=str,
         default="./results/",
@@ -716,6 +746,7 @@ def main():
         episodes=args.episodes,
         tasks_per_episode=args.tasks_per_episode,
         model_path=args.model_path,
+        ppo_model_path=args.ppo_model_path,
         output_dir=args.output_dir,
         verbose=args.verbose,
     )
