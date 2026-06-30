@@ -5,8 +5,8 @@ tianyan:
   base_url: "https://api.tianyanyun.cn/v1"
   timeout: 30
   mock_mode: true  # 开发阶段使用 Mock 模式（无需真实平台）
-  mock_delay: 1.0  # Mock 模式模拟延迟（秒）
-  mock_failure_rate: 0.0  # Mock 模式模拟失败率（0-1）
+  mock_delay: 75.0  # Mock模式延迟 — 真机校准(tianyan_s: H门93s, H2门57s, 均值≈75s)
+  mock_failure_rate: 0.0  # Mock模式失败率 — 真机校准(2/2成功, 0%)
 
 # 量子计算配置
 quantum:
