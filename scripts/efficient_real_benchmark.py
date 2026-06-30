@@ -183,13 +183,12 @@ def analyze(results, annealing, fault):
     for machine_name, strategies in results.items():
         m = {"success": 0, "total": 0, "avg_time": 0, "strategies": {}}
         for strategy, runs in strategies.items():
-            s = {"success": 0, "total": len(runs), "avg_time": 0}
-            times = []
+            s = {"success": 0, "total": len(runs), "avg_time": 0, "times": []}
             for r in runs:
                 if r["success"]:
                     s["success"] += 1
-                    times.append(r["time_s"])
-            s["avg_time"] = round(np.mean(times), 2) if times else 0
+                    s["times"].append(r["time_s"])
+            s["avg_time"] = round(np.mean(s["times"]), 2) if s["times"] else 0
             m["strategies"][strategy] = s
             m["success"] += s["success"]
             m["total"] += s["total"]
@@ -197,8 +196,16 @@ def analyze(results, annealing, fault):
             summary["total_tasks_submitted"] += s["total"]
             summary["per_strategy"][strategy]["success"] += s["success"]
             summary["per_strategy"][strategy]["total"] += s["total"]
+            if "all_times" not in summary["per_strategy"][strategy]:
+                summary["per_strategy"][strategy]["all_times"] = []
+            summary["per_strategy"][strategy]["all_times"].extend(s["times"])
         m["avg_time"] = round(np.mean([s["avg_time"] for s in m["strategies"].values() if s["avg_time"]]), 2)
         summary["per_machine"][machine_name] = m
+
+    # 各策略跨机器平均耗时
+    for s in strategy_names():
+        all_t = summary["per_strategy"][s].pop("all_times", [])
+        summary["per_strategy"][s]["avg_time"] = round(np.mean(all_t), 2) if all_t else 0
 
     # 计算成功率
     summary["overall_success_rate"] = round(
