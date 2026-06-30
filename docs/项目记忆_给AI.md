@@ -126,7 +126,6 @@ quantum-rl-scheduler/
 │   ├── train_agent.py        # RL智能体训练脚本（待实现）
 │   ├── run_simulation.py    # 仿真运行脚本（待实现）
 │   ├── test_mock_api.py     # Mock API测试脚本 ✅
-│   └── install-hooks.sh     # Git Hooks安装脚本 ✅
 │
 ├── tests/                   # 单元测试
 │   ├── test_scheduler.py    # 调度器测试（待补充）
@@ -138,9 +137,6 @@ quantum-rl-scheduler/
 │   ├── 团队分工.md          # 角色职责说明 ✅
 │   └── 开发计划.md         # 详细时间线 ✅
 │
-├── githooks/                # Git钩子
-│   ├── commit-msg           # 检查commit message格式 ✅
-│   └── pre-push            # 阻止直接推main分支 ✅
 │
 ├── data/                    # 数据目录
 │   └── scheduler.db         # SQLite数据库（自动创建）
@@ -162,7 +158,7 @@ quantum-rl-scheduler/
 | **Mock API** | ✅ 100% | `src/api/mock_client.py`（831行） |
 | **配置文件** | ✅ 100% | `config/config.yaml`（含mock_mode开关） |
 | **环境变量** | ✅ 100% | `.env.example`（含TIANYAN_MOCK_MODE） |
-| **Git Hooks** | ✅ 100% | 拦截直接推main + 检查commit格式 |
+| **分支保护** | ✅ GitHub 原生 PR 审批 | ✅ 100% | 拦截直接推main + 检查commit格式 |
 | **团队文档** | ✅ 100% | 新人指南、Git工作流、团队分工 |
 | **Issue任务** | ✅ 100% | 12个任务卡片（含描述、验收标准、工时） |
 | **里程碑** | ✅ 100% | 5个（M1-M5，截止7/10-9/15） |
@@ -226,8 +222,7 @@ quantum-rl-scheduler/
    - 必须关联Issue（在PR描述中添加`Closes #4`）
    - 至少1人Review + Approve
    - 所有检查通过后方可合并
-4. **Hooks拦截**：
-   - `commit-msg`：检查commit message格式
+4. **协作规范**：main 分支受保护，须走 PR 审批流程
    - `pre-push`：阻止直接推main分支
 
 ---
@@ -247,8 +242,7 @@ pip install -r requirements.txt
 cp .env.example .env
 # 无需修改.env，默认TIANYAN_MOCK_MODE=true
 
-# 4. 安装Git Hooks（必做！）
-bash scripts/install-hooks.sh
+# 仓库已公开，直接 clone 即可
 
 # 5. 验证Mock API
 python scripts/test_mock_api.py
@@ -338,7 +332,7 @@ git checkout -b feature/your-module-name
 
 - **报名即将截止**（6月30日），需立即发送申请邮件
 - **Mock API已就绪**，队友可立即开始开发
-- **Git Hooks已配置**，确保团队遵循PR流程
+- **GitHub 分支保护**，确保 PR 审批流程
 - **文档齐全**，新人可按`docs/新人上手指南.md`快速上手
 - **Issue任务已创建**，建议使用GitHub Projects看板管理进度
 
