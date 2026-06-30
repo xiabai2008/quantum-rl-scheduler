@@ -81,6 +81,8 @@ class QuantumAnnealingOptimizer:
         num_qubits: int = 16,
         annealing_time: float = 20.0,
         shots: int = 1000,
+        simulation_mode: bool = True,
+        cqlib_client: Any = None,
     ):
         """
         初始化量子退火策略优化器
@@ -91,10 +93,17 @@ class QuantumAnnealingOptimizer:
                             建议值：≥16（每权重至少 4 bit，含 1 符号位 + 3 数值位）
             annealing_time: 退火时间，单位微秒（默认 20μs），仅在连接 D-Wave 真机时有效。
             shots         : 退火采样次数（默认 1000），多次采样后取能量最低的解。
+            simulation_mode: 是否使用仿真模式。True=纯仿真（numpy/neal）；
+                            False 时若提供了 cqlib_client 且支持退火接口则走真机退火，
+                            否则降级为仿真并打印日志。默认 True。
+            cqlib_client  : 天衍云 cqlib 客户端实例（可选）。simulation_mode=False
+                            且客户端具备 submit_annealing_task 方法时尝试真机退火。
         """
         self.num_qubits = num_qubits
         self.annealing_time = annealing_time
         self.shots = shots
+        self.simulation_mode = bool(simulation_mode)
+        self.cqlib_client = cqlib_client
 
         # 检查比特编码精度，过低则发出警告
         n_bits_per_weight = max(1, num_qubits // 4)
@@ -313,8 +322,14 @@ class QuantumAnnealingOptimizer:
         """
         调用量子退火器（或仿真）求解 QUBO 问题，返回最优比特串
 
-        优先使用 D-Wave Ocean SDK 的 SimulatedAnnealingSampler（如果可用），
-        否则回退到内置的 numpy 模拟退火实现。
+        求解路径优先级：
+            1. 真机退火：``simulation_mode=False`` 且 ``cqlib_client`` 提供
+               ``submit_annealing_task`` 方法时，提交 QUBO 到天衍云量子退火器
+            2. D-Wave neal 模拟退火：若 D-Wave Ocean SDK 可用
+            3. 内置 numpy 模拟退火：始终可用的兜底实现
+
+        天衍云 cqlib 为门控量子计算机 SDK，不提供 QUBO 退火接口；遇到此情况
+        会打印"降级为仿真"日志并回退到 numpy/neal 路径，保证流程不中断。
 
         Args:
             qubo_matrix: QUBO 矩阵 Q，形状为 (N, N)
@@ -322,9 +337,48 @@ class QuantumAnnealingOptimizer:
         Returns:
             best_bitstring: 最优比特串，例如 "10110..."，长度为 N
         """
-        # 将 QUBO 矩阵转换为 dimod 兼容的字典格式 {(i,j): value}
         n = qubo_matrix.shape[0]
 
+        # ---- 路径 1：真机退火（若配置启用且客户端支持） ----
+        if not self.simulation_mode and self.cqlib_client is not None:
+            if hasattr(self.cqlib_client, "submit_annealing_task"):
+                logger.info(
+                    f"[退火] 尝试真机退火 (cqlib)，QUBO 规模 {n}x{n}, "
+                    f"shots={self.shots}, annealing_time={self.annealing_time}μs"
+                )
+                try:
+                    result = self.cqlib_client.submit_annealing_task(
+                        qubo_matrix,
+                        shots=self.shots,
+                        annealing_time=self.annealing_time,
+                    )
+                    # 兼容两种返回：直接返回比特串，或返回 {'bitstring': ...}
+                    if isinstance(result, str):
+                        best_bitstring = result
+                    elif isinstance(result, dict):
+                        best_bitstring = str(result.get("bitstring", "")) or \
+                            self._numpy_simulated_annealing(qubo_matrix)
+                    else:
+                        logger.warning(
+                            f"[退火] 真机退火返回类型 {type(result)} 无法识别，降级为仿真"
+                        )
+                        best_bitstring = self._numpy_simulated_annealing(qubo_matrix)
+                    logger.info(
+                        f"[退火] 真机退火完成，比特串长度={len(best_bitstring)}"
+                    )
+                    return best_bitstring
+                except Exception as e:
+                    logger.warning(
+                        f"[退火] 真机退火失败 ({type(e).__name__}: {e})，降级为仿真"
+                    )
+                    # 继续走下方仿真路径
+            else:
+                logger.info(
+                    "[退火] cqlib 为门控量子 SDK，无 submit_annealing_task 接口，"
+                    "当前降级为仿真（numpy 模拟退火）"
+                )
+
+        # ---- 路径 2/3：仿真退火 ----
         if self.use_dw:
             # ---- 使用 D-Wave neal 求解器 ----
             logger.debug(f"anneal: 使用 D-Wave neal 求解器, QUBO 规模 {n}x{n}")
@@ -460,6 +514,8 @@ class QuantumAnnealingOptimizer:
         learning_rate: float = 0.01,
         callback: Optional[Any] = None,
         replay_buffer: Optional[Any] = None,
+        head_only: bool = True,
+        max_head_tensors: int = 4,
     ) -> Any:
         """
         主优化循环：用量子退火加速策略更新（v2 - 梯度引导）
@@ -473,12 +529,16 @@ class QuantumAnnealingOptimizer:
             6. 接受准则：只有当 loss 下降时才接受更新（防止 loss 增加）
 
         Args:
-            agent         : RL 智能体（需具有 policy_net 属性，为 nn.Module）
-            num_iterations: 量子退火优化迭代次数（默认 10）
-            learning_rate : 权重更新学习率（默认 0.01），控制更新幅度
-            callback      : 可选的回调函数，签名为 callback(iteration, loss)
-            replay_buffer : 可选，经验回放缓冲区。若提供，用于计算梯度；
-                            若未提供，退化为基于权重正则化的优化。
+            agent          : RL 智能体（需具有 policy_net 属性，为 nn.Module）
+            num_iterations : 量子退火优化迭代次数（默认 10）
+            learning_rate  : 权重更新学习率（默认 0.01），控制更新幅度
+            callback       : 可选的回调函数，签名为 callback(iteration, loss)
+            replay_buffer  : 可选，经验回放缓冲区。若提供，用于计算梯度；
+                             若未提供，退化为基于权重正则化的优化。
+            head_only       : 是否仅优化网络输出头权重（默认 True）。
+                             设为 True 时仅优化最后 max_head_tensors 个参数张量，
+                             避免全量参数的 QUBO 矩阵 OOM。
+            max_head_tensors: head_only=True 时，最多优化的尾部参数张量数（默认 4）。
 
         Returns:
             agent: 优化后的智能体（原地修改并返回）
@@ -501,6 +561,21 @@ class QuantumAnnealingOptimizer:
             f"学习率={learning_rate}, 量子比特数={self.num_qubits}"
         )
 
+        # 如果启用了 head_only 模式，计算需要优化的参数张量索引范围
+        # 仅优化网络最后 max_head_tensors 个参数张量（通常是输出头的权重和偏置）
+        if head_only:
+            all_params = list(policy_net.parameters())
+            total_tensors = len(all_params)
+            n_head = min(max_head_tensors, total_tensors)
+            head_start_idx = total_tensors - n_head
+            head_param_count = sum(all_params[i].numel() for i in range(head_start_idx, total_tensors))
+            logger.info(
+                f"[退火] head_only 模式: 仅优化最后 {n_head}/{total_tensors} 个参数张量 "
+                f"({head_param_count} 个标量参数)"
+            )
+        else:
+            head_start_idx = 0
+
         best_loss = float("inf")
         best_weights = None
         history = []
@@ -510,10 +585,25 @@ class QuantumAnnealingOptimizer:
         best_loss = initial_loss
         initial_weights, initial_shapes = self._extract_weights(policy_net)
         best_weights = [w.copy() for w in initial_weights]
+        # 记录初始权重 L2 范数，用于最终计算退火前后权重差异
+        initial_flat = np.concatenate([w.flatten() for w in initial_weights])
+        initial_l2_norm = float(np.linalg.norm(initial_flat))
+        logger.info(
+            f"[退火] 初始权重统计: 参数数={initial_flat.size}, "
+            f"L2 范数={initial_l2_norm:.6f}, loss={initial_loss:.6f}"
+        )
 
         for iteration in range(num_iterations):
             # ---- 步骤 1: 提取当前权重 ----
-            current_weights, original_shapes = self._extract_weights(policy_net)
+            all_weights, all_shapes = self._extract_weights(policy_net)
+
+            # head_only 模式：仅优化最后 N 个参数张量
+            if head_only:
+                current_weights = all_weights[head_start_idx:]
+                original_shapes = all_shapes[head_start_idx:]
+            else:
+                current_weights = all_weights
+                original_shapes = all_shapes
 
             # ---- 步骤 2: 计算梯度（如果有 replay buffer）----
             gradients = None
@@ -521,11 +611,12 @@ class QuantumAnnealingOptimizer:
             current_loss = initial_loss
 
             if replay_buffer is not None and hasattr(replay_buffer, "sample"):
-                # 尝试从 replay buffer 采样并计算梯度
                 try:
                     gradients, td_errors, current_loss = self._compute_gradients(
                         policy_net, replay_buffer, agent
                     )
+                    if head_only and gradients is not None:
+                        gradients = gradients[head_start_idx:]
                     logger.debug(f"  梯度计算成功, TD 误差均值={np.mean(np.abs(td_errors)):.4f}")
                 except Exception as e:
                     logger.warning(f"  梯度计算失败: {e}, 退化为无梯度模式")
@@ -542,23 +633,46 @@ class QuantumAnnealingOptimizer:
             best_bitstring = self.anneal(qubo_matrix)
 
             # ---- 步骤 5: 解码为权重更新（使用当前权重作为基准）----
-            optimized_weights = self.bitstring_to_weights(
+            optimized_head_weights = self.bitstring_to_weights(
                 best_bitstring,
                 original_shapes,
                 current_weights=current_weights,
+            )
+
+            # 退火前后权重差异（L2 范数 + 最大绝对差）
+            delta_flat = np.concatenate([
+                (ow - cw).flatten()
+                for ow, cw in zip(optimized_head_weights, current_weights)
+            ])
+            delta_l2 = float(np.linalg.norm(delta_flat))
+            delta_max = float(np.max(np.abs(delta_flat))) if delta_flat.size else 0.0
+            logger.info(
+                f"[退火] 迭代 {iteration + 1}/{num_iterations}: "
+                f"权重差异 L2={delta_l2:.6e}, 最大绝对差={delta_max:.6e}"
             )
 
             # ---- 步骤 6: 应用权重更新（带接受准则）----
             # 先保存旧权重，用于回滚
             old_weights = [w.copy() for w in current_weights]
 
-            # 应用更新
-            self._apply_weights_v2(
-                policy_net,
-                current_weights,
-                optimized_weights,
-                learning_rate=learning_rate,
-            )
+            # 应用更新（head_only 模式下仅更新尾部参数）
+            if head_only:
+                # 仅更新网络尾部参数
+                all_param_list = list(policy_net.parameters())
+                head_params = all_param_list[head_start_idx:]
+                self._apply_weights_v2_partial(
+                    head_params,
+                    current_weights,
+                    optimized_head_weights,
+                    learning_rate=learning_rate,
+                )
+            else:
+                self._apply_weights_v2(
+                    policy_net,
+                    current_weights,
+                    optimized_head_weights,
+                    learning_rate=learning_rate,
+                )
 
             # ---- 步骤 7: 评估更新后的 loss，决定是否接受 ----
             new_loss = self._evaluate_network_quality(policy_net)
@@ -573,8 +687,12 @@ class QuantumAnnealingOptimizer:
                     best_loss = new_loss
                     best_weights, _ = self._extract_weights(policy_net)
             else:
-                # 回滚到旧权重
-                self._set_weights(policy_net, old_weights)
+                # 回滚：仅回滚被修改的那部分参数
+                if head_only:
+                    head_params = list(policy_net.parameters())[head_start_idx:]
+                    self._set_params_from_weights(head_params, old_weights)
+                else:
+                    self._set_weights(policy_net, old_weights)
                 accepted = False
 
             history.append((iteration, current_loss, new_loss, accepted))
@@ -593,6 +711,26 @@ class QuantumAnnealingOptimizer:
         if best_weights is not None:
             self._set_weights(policy_net, best_weights)
             logger.info(f"已恢复到最佳权重 (loss={best_loss:.6f})")
+
+        # 最终权重差异统计（退火前 initial_weights → 退火后 best_weights）
+        # 用 L2 范数和最大绝对差证明退火确实改变了 PPO 网络权重
+        final_flat = np.concatenate([w.flatten() for w in best_weights]) \
+            if best_weights is not None else initial_flat
+        final_l2_norm = float(np.linalg.norm(final_flat))
+        weight_diff = final_flat - initial_flat
+        diff_l2 = float(np.linalg.norm(weight_diff))
+        diff_max = float(np.max(np.abs(weight_diff))) if weight_diff.size else 0.0
+        diff_relative = diff_l2 / (initial_l2_norm + 1e-12)
+        logger.info(
+            f"[退火] 退火前后权重差异汇总: "
+            f"初始 L2={initial_l2_norm:.6f}, 最终 L2={final_l2_norm:.6f}, "
+            f"差异 L2={diff_l2:.6e}, 相对差异={diff_relative:.6e} ({diff_relative * 100:.4f}%), "
+            f"最大绝对差={diff_max:.6e}"
+        )
+        if diff_l2 > 0:
+            logger.info("[退火] ✅ 退火前后 PPO 网络权重确实不同（验收通过）")
+        else:
+            logger.warning("[退火] ⚠️ 退火前后权重完全相同，请检查退火是否生效")
 
         logger.info(
             f"量子退火策略优化完成: 最佳 loss={best_loss:.6f}, "

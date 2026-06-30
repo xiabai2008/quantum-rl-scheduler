@@ -138,6 +138,78 @@
             color: var(--text-secondary);
         }
         .panel-body { padding: 16px 20px; }
+
+        /* ===== 真机状态徽章颜色 ===== */
+        .badge-success {
+            background: rgba(34, 197, 94, 0.18);
+            color: #4ade80;
+            border: 1px solid rgba(34, 197, 94, 0.4);
+        }
+        .badge-warning {
+            background: rgba(251, 191, 36, 0.18);
+            color: #facc15;
+            border: 1px solid rgba(251, 191, 36, 0.4);
+        }
+        .badge-danger {
+            background: rgba(239, 68, 68, 0.18);
+            color: #f87171;
+            border: 1px solid rgba(239, 68, 68, 0.4);
+        }
+        .badge-secondary {
+            background: rgba(148, 163, 184, 0.18);
+            color: #cbd5e1;
+            border: 1px solid rgba(148, 163, 184, 0.4);
+        }
+        .status-badge {
+            font-size: 11px;
+            padding: 2px 8px;
+            border-radius: 8px;
+            display: inline-block;
+        }
+        .machine-card {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 14px;
+            margin-bottom: 8px;
+            background: var(--bg-tertiary);
+            border-radius: 8px;
+            border-left: 3px solid var(--accent-color);
+        }
+        .machine-card .machine-name {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+        .machine-card .machine-meta {
+            font-size: 11px;
+            color: var(--text-secondary);
+            margin-top: 2px;
+        }
+        .real-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12px;
+        }
+        .real-table th {
+            text-align: left;
+            padding: 6px 8px;
+            color: var(--text-secondary);
+            font-size: 11px;
+            text-transform: uppercase;
+            border-bottom: 1px solid var(--border-color);
+        }
+        .real-table td {
+            padding: 6px 8px;
+            border-bottom: 1px solid var(--border-color);
+            color: var(--text-primary);
+        }
+        .empty-hint {
+            text-align: center;
+            color: var(--text-secondary);
+            font-size: 13px;
+            padding: 24px 0;
+        }
         
         /* ===== 任务队列表格 ===== */
         .task-table {
@@ -367,7 +439,65 @@
                     </div>
                 </div>
             </div>
-            
+
+            <!-- 真机状态 + 真机提交记录（天衍云 cqlib 真实数据） -->
+            <div class="control-grid">
+                <!-- 真机状态卡片 -->
+                <div class="panel">
+                    <div class="panel-header">
+                        <h2>天衍云真机状态</h2>
+                        <span class="badge">{{ status.real_machines.length }} 台</span>
+                    </div>
+                    <div class="panel-body" style="max-height: 320px; overflow-y: auto;">
+                        <div v-if="status.real_machines.length === 0" class="empty-hint">
+                            未配置 TIANYAN_API_KEY 或查询失败<br>（Mock 模式下不显示真机）
+                        </div>
+                        <div v-for="m in status.real_machines" :key="m.name" class="machine-card">
+                            <div>
+                                <div class="machine-name">{{ m.name }}</div>
+                                <div class="machine-meta">类型: {{ m.type }} | ID: {{ m.id }}</div>
+                            </div>
+                            <span class="status-badge" :class="machineStatusClass(m.status)">
+                                {{ machineStatusLabel(m.status) }}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 真机提交记录 -->
+                <div class="panel">
+                    <div class="panel-header">
+                        <h2>真机提交记录</h2>
+                        <span class="badge">{{ status.real_submissions.length }} 条</span>
+                    </div>
+                    <div class="panel-body" style="max-height: 320px; overflow-y: auto;">
+                        <div v-if="status.real_submissions.length === 0" class="empty-hint">
+                            暂无真机提交记录<br>（训练回调 RealMachineCallback 触发后显示）
+                        </div>
+                        <table v-else class="real-table">
+                            <thead>
+                                <tr>
+                                    <th>步数</th>
+                                    <th>任务ID</th>
+                                    <th>机器</th>
+                                    <th>耗时(s)</th>
+                                    <th>状态</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr v-for="(r, i) in status.real_submissions" :key="i">
+                                    <td>{{ r.step }}</td>
+                                    <td>{{ r.task_id }}</td>
+                                    <td>{{ r.machine }}</td>
+                                    <td>{{ r.latency_s }}</td>
+                                    <td>{{ r.status }}</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
             <!-- 控制面板和任务队列 -->
             <div class="control-grid">
                 <!-- 控制面板 -->
@@ -471,6 +601,8 @@
                     current_step: 1024,
                     current_strategy: 'DQN-Reward',
                     strategy_options: ['DQN-Reward', 'DQN-Latency', 'PPO-Balanced', 'QAOA-Hybrid', 'FCFS'],
+                    real_machines: [],          // 天衍云真机列表 [{name, status, type, id}]
+                    real_submissions: [],       // 真机提交记录 [{step, task_id, machine, latency_s, status}]
                     last_update: new Date().toISOString()
                 });
                 
@@ -519,7 +651,30 @@
                     const map = { pending: '等待', running: '运行', completed: '完成', failed: '失败' };
                     return map[status] || status;
                 };
-                
+
+                // 真机状态标签（天衍云返回英文状态，前端转中文展示）
+                const machineStatusLabel = (status) => {
+                    const map = {
+                        running: '运行中',
+                        calibration: '校准中',
+                        calibrating: '校准中',
+                        maintenance: '维护中',
+                        offline: '离线',
+                        busy: '忙碌',
+                        idle: '空闲',
+                    };
+                    return map[(status || '').toLowerCase()] || status || '未知';
+                };
+
+                // 真机状态对应的颜色类名（用于徽章着色）
+                const machineStatusClass = (status) => {
+                    const s = (status || '').toLowerCase();
+                    if (s === 'running' || s === 'idle') return 'badge-success';
+                    if (s === 'calibration' || s === 'calibrating' || s === 'busy') return 'badge-warning';
+                    if (s === 'maintenance' || s === 'offline') return 'badge-danger';
+                    return 'badge-secondary';
+                };
+
                 // WebSocket 连接
                 const connectWS = () => {
                     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -734,6 +889,8 @@
                     strategyChart,
                     taskTypeLabel,
                     statusLabel,
+                    machineStatusLabel,
+                    machineStatusClass,
                     switchStrategy,
                     submitTask
                 };

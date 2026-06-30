@@ -414,6 +414,7 @@ def run_strategy(
         指标字典
     """
     all_rewards = []
+    total_real_submits = 0  # 跨 episode 累计真机提交数（env.reset 会清零单 episode 计数）
 
     for ep in range(num_episodes):
         obs, info = env.reset(seed=None)
@@ -429,17 +430,24 @@ def run_strategy(
             if terminated or truncated:
                 break
 
+        # 本 episode 的真机提交数（reset 前累计，避免下个 episode reset 清零）
+        inner_env = getattr(env, "env", env)
+        ep_real = int(sum(getattr(inner_env, "_machine_real_submits", {}).values()))
+        total_real_submits += ep_real
+
         all_rewards.append(ep_reward)
         env.record_episode_stats(info)
 
         if verbose and (ep + 1) % max(1, num_episodes // 10) == 0:
             print(
                 f"  [{strategy.name}] Episode {ep + 1}/{num_episodes} "
-                f"| reward={ep_reward:.2f} | avg_reward={np.mean(all_rewards[-10:]):.2f}"
+                f"| reward={ep_reward:.2f} | avg_reward={np.mean(all_rewards[-10:]):.2f} "
+                f"| real_submits(ep)={ep_real}"
             )
 
     summary = env.get_summary()
     summary["avg_reward"] = round(float(np.mean(all_rewards)), 4)
+    summary["real_submits"] = total_real_submits
     return summary
 
 
@@ -513,6 +521,8 @@ def run_simulation(
     ppo_model_path: Optional[str] = None,
     output_dir: str = "./results/",
     verbose: bool = False,
+    real_prob: float = 0.0,
+    real_machine: str = "tianyan_s",
 ):
     """
     运行完整的仿真对比实验。
@@ -524,6 +534,9 @@ def run_simulation(
         ppo_model_path: 训练好的 PPO 模型路径（.zip），为 None 则不包含 PPO 策略
         output_dir: 结果输出目录
         verbose: 是否打印详细日志
+        real_prob: 真机抽样概率（0.0=纯仿真，>0 时量子任务以此概率提交真机）。
+                   需配置 TIANYAN_API_KEY；建议 0.01-0.05 控制机时成本。
+        real_machine: 真机抽样目标机器名（默认 tianyan_s，校准中自动切换备用机）
     """
     print("=" * 64)
     print("  量子-经典混合调度系统 — 仿真对比实验")
@@ -532,6 +545,7 @@ def run_simulation(
     print(f"  Tasks/Episode:      {tasks_per_episode}")
     print(f"  DQN Model Path:     {model_path or '(无，使用随机 DQN)'}")
     print(f"  PPO Model Path:     {ppo_model_path or '(无，不包含 PPO)'}")
+    print(f"  Real Prob:          {real_prob} (机器={real_machine})" if real_prob > 0 else "  Real Prob:          0 (纯仿真)")
     print(f"  Output Dir:         {output_dir}")
     print("=" * 64)
 
@@ -551,6 +565,28 @@ def run_simulation(
         print(f"[错误] stable_baselines3 未安装: {e}")
         print("  请运行: pip install stable-baselines3")
         sys.exit(1)
+
+    # ---- 真机抽样客户端（real_prob>0 时启用，需 TIANYAN_API_KEY）----
+    real_client = None
+    if real_prob > 0:
+        from dotenv import load_dotenv
+        load_dotenv()
+        api_key = os.getenv("TIANYAN_API_KEY", "")
+        if not api_key:
+            print("[警告] 未设置 TIANYAN_API_KEY，真机抽样已禁用，退化为纯仿真")
+            real_prob = 0.0
+        else:
+            try:
+                from src.api.tianyan_cqlib import CqlibTianyanClient
+                real_client = CqlibTianyanClient(
+                    login_key=api_key,
+                    machine_name=real_machine,
+                    auto_retry_machine=True,  # 启用 Task 5 故障自动切换
+                )
+                print(f"[真机] 客户端已创建: {real_machine} (prob={real_prob}, auto_retry=True)")
+            except Exception as e:  # noqa: BLE001
+                print(f"[警告] 真机客户端创建失败 ({e})，退化为纯仿真")
+                real_prob = 0.0
 
     # ---- 创建共享的基础环境配置 ----
     base_env_kwargs = dict(
@@ -619,6 +655,10 @@ def run_simulation(
         start_time = time.time()
 
         env = QuantumSchedulingEnv(**base_env_kwargs)
+        # 真机抽样：绑定客户端 + 设置抽样概率（env 内部 _route_to_machine 自动触发）
+        if real_prob > 0 and real_client is not None:
+            env.attach_real_clients({real_machine: real_client})
+            env.real_submit_probability = float(real_prob)
         sim_env = SimulationEnv(
             env=env,
             task_generator=SimulationTaskGenerator(seed=42),
@@ -633,10 +673,12 @@ def run_simulation(
         )
 
         elapsed = time.time() - start_time
+        # real_submits 已由 run_strategy 跨 episode 累计（env.reset 每集清零，故不能直接读 env）
+        real_submits = int(summary.get("real_submits", 0)) if real_prob > 0 else 0
         results[strategy.name] = summary
         summary["elapsed_seconds"] = round(elapsed, 2)
 
-        print(f"  完成 | 耗时 {elapsed:.1f}s")
+        print(f"  完成 | 耗时 {elapsed:.1f}s | 真机提交: {real_submits}")
         for k, v in summary.items():
             print(f"    {k}: {v}")
 
@@ -661,6 +703,10 @@ def run_simulation(
         "平均执行时间",
         "平均奖励",
     ]
+    # 真机抽样启用时，额外展示各策略的真机提交数
+    if real_prob > 0:
+        metric_names.append("real_submits")
+        metric_labels.append("真机提交")
 
     header = f"  {'策略':<16}" + "".join(f"{label:>12}" for label in metric_labels)
     print(header)
@@ -669,7 +715,12 @@ def run_simulation(
     for sname in results:
         row = f"  {sname:<16}"
         for mk in metric_names:
-            row += f"{results[sname].get(mk, 0.0):>12.4f}"
+            val = results[sname].get(mk, 0.0)
+            # real_submits 是整数计数，其余为浮点指标
+            if isinstance(val, int):
+                row += f"{val:>12d}"
+            else:
+                row += f"{val:>12.4f}"
         print(row)
     print("=" * 64)
 
@@ -702,6 +753,7 @@ def main():
   python scripts/run_simulation.py --episodes 50 --model-path ./models/dqn_scheduler.zip
   python scripts/run_simulation.py --episodes 100 --tasks-per-episode 200 --output-dir ./results/
   python scripts/run_simulation.py --episodes 20 --verbose
+  python scripts/run_simulation.py --real-prob 0.05 --tasks-per-episode 200   # 8 策略对比 + 真机抽样
         """,
     )
     parser.add_argument(
@@ -739,6 +791,18 @@ def main():
         action="store_true",
         help="打印详细的逐 episode 日志",
     )
+    parser.add_argument(
+        "--real-prob",
+        type=float,
+        default=0.0,
+        help="真机抽样概率（0.0=纯仿真，>0 时量子任务以此概率提交真机；建议 0.01-0.05）",
+    )
+    parser.add_argument(
+        "--real-machine",
+        type=str,
+        default="tianyan_s",
+        help="真机抽样目标机器名（默认 tianyan_s，校准中自动切换备用机）",
+    )
 
     args = parser.parse_args()
 
@@ -749,6 +813,8 @@ def main():
         ppo_model_path=args.ppo_model_path,
         output_dir=args.output_dir,
         verbose=args.verbose,
+        real_prob=args.real_prob,
+        real_machine=args.real_machine,
     )
 
 

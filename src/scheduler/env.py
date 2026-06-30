@@ -341,6 +341,24 @@ class QuantumSchedulingEnv(gym.Env):
         return len(self._machines)
 
     # ------------------------------------------------------------------
+    # 真机抽样辅助接口（供 RealMachineCallback 等外部模块使用）
+    # ------------------------------------------------------------------
+
+    def get_random_pending_task(self) -> Optional[Task]:
+        """从当前任务队列中随机取一个待处理任务（用于真机抽样提交）。
+
+        优先从 ``_task_queue`` 中随机抽取；队列空时退化为当前正在调度的
+        ``_current_task``；两者皆空时返回 ``None``。
+
+        Returns:
+            一个待处理的 Task，或 None（无任务可提交）。
+        """
+        if self._task_queue:
+            idx = int(self.np_random.integers(0, len(self._task_queue)))
+            return self._task_queue[idx]
+        return self._current_task
+
+    # ------------------------------------------------------------------
     # reset()
     # ------------------------------------------------------------------
 

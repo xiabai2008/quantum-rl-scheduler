@@ -104,6 +104,9 @@ class TianyanClient:
         self.mock_mode = self._detect_mock_mode(mock_mode)
         logger.info(f"Mock 模式: {self.mock_mode}")
 
+        # cqlib 委托客户端（真实模式才创建，先置 None 保证属性始终存在）
+        self._cqlib = None
+
         if self.mock_mode:
             # Mock 模式：创建 Mock 客户端并委托所有 API 调用
             from src.api.mock_client import MockTianyanClient
@@ -127,7 +130,21 @@ class TianyanClient:
         self.base_url = base_url or self._load_base_url_from_config()
         logger.info(f"天衍客户端初始化完成，base_url={self.base_url}")
 
-        # 创建会话并设置 Bearer Token 认证头
+        # 真实模式统一走 cqlib SDK（REST API 被 WAF 拦截，已弃用）
+        machine_name = os.getenv("TIANYAN_MACHINE", "tianyan_s")
+        if self.api_key:
+            try:
+                from src.api.tianyan_cqlib import CqlibTianyanClient
+                self._cqlib = CqlibTianyanClient(
+                    login_key=self.api_key,
+                    machine_name=machine_name,
+                    auto_retry_machine=True,
+                )
+                logger.info(f"✅ 真实模式委托 cqlib（机器={machine_name}）")
+            except Exception as e:
+                logger.warning(f"cqlib 客户端初始化失败: {e}，回退 REST 路径")
+
+        # 创建会话并设置 Bearer Token 认证头（REST 路径，deprecated）
         self.session = requests.Session()
         self.session.headers.update({
             "Content-Type": "application/json",
@@ -300,20 +317,22 @@ class TianyanClient:
     def authenticate(self) -> bool:
         """验证 API 密钥有效性
 
-        向 ``/auth/verify`` 端点发送验证请求，确认当前 API Key 是否合法。
+        真实模式委托 cqlib 认证；Mock 模式委托 Mock 客户端。
 
         Returns:
             ``True`` 表示认证通过，``False`` 表示认证失败。
-
-        Raises:
-            TianyanAPIError: 认证请求本身出现异常（非 401 错误）
         """
         # Mock 模式委托
         if self.mock_mode and hasattr(self, "_mock_client") and self._mock_client:
             return self._mock_client.authenticate()
 
+        # 真实模式委托 cqlib
+        if self._cqlib is not None:
+            return self._cqlib.authenticate()
+
+        # deprecated REST 路径
         try:
-            result = self._request("GET", "/auth/verify")
+            result = self._request("GET", "/auth/verify")  # deprecated
             logger.info("API 密钥验证通过")
             return True
         except TianyanAPIError as e:
@@ -331,46 +350,42 @@ class TianyanClient:
 
     def submit_quantum_task(
         self,
-        circuit_qasm: str,
+        circuit_qasm: str = "",
         shots: int = 1024,
-        backend: str = "tianyan-287",
+        backend: str = "tianyan_s",
+        qcis: str = "",
+        task_name: str = "Scheduler_Task",
     ) -> str:
         """提交量子计算任务
 
-        将 QASM 格式的量子电路提交至指定的量子后端执行。
+        真实模式委托 cqlib（接受 QCIS 格式）；Mock 模式委托 Mock 客户端（QASM 格式）。
 
         Args:
-            circuit_qasm: QASM 格式量子电路字符串，例如::
-
-                    OPENQASM 2.0;
-                    include "qelib1.inc";
-                    qreg q[2];
-                    creg c[2];
-                    h q[0];
-                    cx q[0], q[1];
-                    measure q -> c;
-
+            circuit_qasm: QASM 格式量子电路字符串（Mock 模式用；真实模式建议用 qcis）
             shots: 重复测量次数，默认 1024
-            backend: 量子后端名称，默认 ``tianyan-287``
+            backend: 量子后端名称，真实模式默认 ``tianyan_s``
+            qcis: QCIS 指令字符串（真实模式优先使用，如 ``"H Q0\\nM Q0"``）
+            task_name: 任务名称（真实模式用）
 
         Returns:
             任务 ID（task_id）字符串
-
-        Raises:
-            TianyanAPIError: 提交失败时抛出
-
-        Examples:
-            >>> client = TianyanClient()
-            >>> task_id = client.submit_quantum_task(
-            ...     circuit_qasm="OPENQASM 2.0;\\nqreg q[1];\\ncreg c[1];\\nh q[0];\\nmeasure q -> c;",
-            ...     shots=2048,
-            ... )
         """
+        # Mock 模式委托
         if self.mock_mode and hasattr(self, "_mock_client") and self._mock_client:
             return self._mock_client.submit_quantum_task(
                 circuit_qasm=circuit_qasm, shots=shots, backend=backend
             )
 
+        # 真实模式委托 cqlib
+        if self._cqlib is not None:
+            qcis_str = qcis or circuit_qasm
+            if not qcis_str:
+                raise ValueError("真实模式需提供 qcis 或 circuit_qasm")
+            return self._cqlib.submit_quantum_task(
+                qcis=qcis_str, shots=shots, task_name=task_name,
+            )
+
+        # deprecated REST 路径
         payload = {
             "type": "quantum",
             "format": "qasm",
@@ -378,8 +393,7 @@ class TianyanClient:
             "shots": shots,
             "backend": backend,
         }
-
-        result = self._request("POST", "/tasks", data=payload)
+        result = self._request("POST", "/tasks", data=payload)  # deprecated
         task_id = result.get("task_id", "")
         logger.info(f"量子任务提交成功，task_id={task_id}，后端={backend}，shots={shots}")
         return task_id
@@ -395,16 +409,16 @@ class TianyanClient:
             task_id: 任务 ID
 
         Returns:
-            状态字典，至少包含 ``status`` 字段，取值为
-            ``PENDING`` / ``RUNNING`` / ``COMPLETED`` / ``FAILED``
-
-        Raises:
-            TianyanAPIError: 查询失败时抛出
+            状态字典，至少包含 ``status`` 字段
         """
         if self.mock_mode and hasattr(self, "_mock_client") and self._mock_client:
             return self._mock_client.get_task_status(task_id)
 
-        result = self._request("GET", f"/tasks/{task_id}/status")
+        # 真实模式委托 cqlib
+        if self._cqlib is not None:
+            return self._cqlib.get_task_status(task_id)
+
+        result = self._request("GET", f"/tasks/{task_id}/status")  # deprecated
         logger.debug(f"任务 {task_id} 状态: {result.get('status')}")
         return result
 
@@ -429,7 +443,11 @@ class TianyanClient:
         if self.mock_mode and hasattr(self, "_mock_client") and self._mock_client:
             return self._mock_client.get_task_result(task_id)
 
-        result = self._request("GET", f"/tasks/{task_id}/result")
+        # 真实模式委托 cqlib
+        if self._cqlib is not None:
+            return self._cqlib.get_task_result(task_id)
+
+        result = self._request("GET", f"/tasks/{task_id}/result")  # deprecated
         logger.info(f"获取任务 {task_id} 结果成功")
         return result
 
@@ -450,7 +468,11 @@ class TianyanClient:
         if self.mock_mode and hasattr(self, "_mock_client") and self._mock_client:
             return self._mock_client.list_backends()
 
-        result = self._request("GET", "/backends")
+        # 真实模式委托 cqlib
+        if self._cqlib is not None:
+            return self._cqlib.list_backends()
+
+        result = self._request("GET", "/backends")  # deprecated
         backends = result.get("backends", [])
         logger.info(f"可用后端数量: {len(backends)}")
         return backends
@@ -479,7 +501,11 @@ class TianyanClient:
         if self.mock_mode and hasattr(self, "_mock_client") and self._mock_client:
             return self._mock_client.get_backend_info(backend_name)
 
-        result = self._request("GET", f"/backends/{backend_name}")
+        # 真实模式委托 cqlib
+        if self._cqlib is not None:
+            return self._cqlib.get_backend_info(backend_name)
+
+        result = self._request("GET", f"/backends/{backend_name}")  # deprecated
         logger.debug(f"后端 {backend_name} 信息: {result.get('num_qubits')} qubits")
         return result
 
@@ -537,7 +563,11 @@ class TianyanClient:
         if self.mock_mode and hasattr(self, "_mock_client") and self._mock_client:
             return self._mock_client.get_queue_status()
 
-        result = self._request("GET", "/queue/status")
+        # 真实模式委托 cqlib
+        if self._cqlib is not None:
+            return self._cqlib.get_queue_status()
+
+        result = self._request("GET", "/queue/status")  # deprecated
         logger.info(f"队列状态: {result.get('total_pending', 0)} 待执行, "
                      f"{result.get('total_running', 0)} 执行中")
         return result
@@ -567,6 +597,12 @@ class TianyanClient:
         Raises:
             TianyanAPIError: 任务失败或超时时抛出
         """
+        # 真实模式委托 cqlib（cqlib 内部轮询逻辑）
+        if not self.mock_mode and self._cqlib is not None:
+            return self._cqlib.wait_for_task(
+                task_id, timeout=int(timeout), poll_interval=int(poll_interval)
+            )
+
         elapsed = 0.0
         while elapsed < timeout:
             status_info = self.get_task_status(task_id)

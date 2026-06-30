@@ -5,6 +5,11 @@
 """
 import sys
 import os
+
+# 必须在导入 annealing 模块之前设置，因为 QUANTUM_ACCELERATION_ENABLED
+# 是在模块顶层读取的全局常量
+os.environ["QUANTUM_ACCELERATION_ENABLED"] = "1"
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from src.scheduler.env import QuantumSchedulingEnv
@@ -74,7 +79,7 @@ def test_annealing_ppo():
     print(f"\n[验证] 平均奖励: {avg_reward:.2f}")
 
     print("\n" + "=" * 60)
-    print("✅ 退火 + PPO 联调测试通过!")
+    print("[PASS] 退火 + PPO 联调测试通过!")
     print("=" * 60)
 
     return True
@@ -84,7 +89,7 @@ if __name__ == "__main__":
     try:
         test_annealing_ppo()
     except Exception as e:
-        print(f"\n❌ 测试失败: {e}")
+        print(f"\n[FAIL] 测试失败: {e}")
         import traceback
         traceback.print_exc()
         sys.exit(1)

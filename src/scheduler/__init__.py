@@ -27,9 +27,11 @@ from src.scheduler.env import (
 
 # SchedulerAgent 依赖 stable_baselines3，延迟导入
 try:
-    from src.scheduler.agent import SchedulerAgent
+    from src.scheduler.agent import SchedulerAgent, PPOAgent, RealMachineCallback
 except ImportError:
     SchedulerAgent = None  # type: ignore[assignment, misc]
+    PPOAgent = None  # type: ignore[assignment, misc]
+    RealMachineCallback = None  # type: ignore[assignment, misc]
 
 # parser 模块
 try:
@@ -52,6 +54,8 @@ SchedulingEnv = QuantumSchedulingEnv
 
 __all__ = [
     "SchedulerAgent",
+    "PPOAgent",
+    "RealMachineCallback",
     "QuantumSchedulingEnv",
     "SchedulingEnv",
     "QuantumResource",

@@ -74,6 +74,8 @@ system_status: Dict = {
         "QAOA-Hybrid",
         "FCFS",
     ],
+    "real_machines": [],             # 真机列表 [{name, status, type, id}]
+    "real_submissions": [],          # 真机提交记录 [{step, task_id, machine, latency_s, status}]
     "last_update": datetime.now().isoformat(),
 }
 
@@ -198,6 +200,32 @@ async def root():
 async def get_status():
     """获取当前系统状态（JSON）"""
     return system_status
+
+
+@app.get("/api/real-machines")
+async def get_real_machines():
+    """查询天衍云真实量子计算机状态（实时轮询 cqlib）。
+
+    返回 ``[{id, type, status, name}]``，其中 status 为
+    running/calibrating/maintenance 等真实状态。
+    无 TIANYAN_API_KEY 时返回空列表。
+    """
+    machines = _get_real_machines_status()
+    return {
+        "machines": machines,
+        "count": len(machines),
+        "source": "cqlib" if machines else "unavailable",
+    }
+
+
+@app.get("/api/real-submissions")
+async def get_real_submissions():
+    """查询最近的真机提交记录（从 results/real_times.json 读取）。"""
+    records = _load_real_submissions()
+    return {
+        "submissions": records,
+        "count": len(records),
+    }
 
 
 @app.get("/api/tasks")
@@ -340,6 +368,89 @@ def _get_ppo_model():
             print(f"[PPO] 模型加载失败: {e}")
             _ppo_model = None
     return _ppo_model
+
+
+# ============================================================
+# 真机状态轮询：通过 cqlib 查询天衍云真实量子计算机状态
+# ============================================================
+
+# 懒加载真机 cqlib 客户端（仅在配置了 TIANYAN_API_KEY 时创建）
+_real_cqlib_client = None
+_real_cqlib_checked = False
+
+
+def _get_real_cqlib_client():
+    """懒加载天衍云 cqlib 客户端。
+
+    从 .env 读取 TIANYAN_API_KEY，无 Key 时返回 None（降级为纯仿真展示）。
+    客户端创建失败也返回 None，保证 Web 界面不会因真机不可达而崩溃。
+    """
+    global _real_cqlib_client, _real_cqlib_checked
+    if _real_cqlib_checked:
+        return _real_cqlib_client
+    _real_cqlib_checked = True
+    try:
+        from dotenv import load_dotenv
+        load_dotenv()
+        api_key = os.getenv("TIANYAN_API_KEY", "")
+        if not api_key:
+            print("[Web] 未配置 TIANYAN_API_KEY，真机状态轮询已禁用")
+            return None
+        from src.api.tianyan_cqlib import CqlibTianyanClient
+        _real_cqlib_client = CqlibTianyanClient(
+            login_key=api_key,
+            machine_name="tianyan_s",
+            auto_retry_machine=True,
+        )
+        print(f"[Web] 真机 cqlib 客户端已就绪: tianyan_s")
+    except Exception as e:
+        print(f"[Web] 真机客户端创建失败 ({e})，真机状态降级为离线")
+        _real_cqlib_client = None
+    return _real_cqlib_client
+
+
+def _get_real_machines_status() -> List[Dict]:
+    """查询天衍云真实量子计算机列表及状态。
+
+    调用 ``CqlibTianyanClient.list_backends()``（底层
+    ``platform.query_quantum_computer_list()``），返回包含
+    running/calibrating/maintenance 等真实状态的机器列表。
+
+    Returns:
+        机器字典列表 [{id, type, status, name}]；查询失败或无客户端时返回 []
+    """
+    client = _get_real_cqlib_client()
+    if client is None:
+        return []
+    try:
+        return client.list_backends()
+    except Exception as e:
+        print(f"[Web] 查询真机状态失败: {e}")
+        return []
+
+
+def _load_real_submissions() -> List[Dict]:
+    """从 results/real_times.json 加载最近的真机提交记录。
+
+    训练回调 ``RealMachineCallback`` 会把真机提交记录写入该文件。
+    Web 界面读取后展示真实提交历史（步数/机器/耗时/task_id）。
+
+    Returns:
+        提交记录列表（最多保留最近 50 条）；文件不存在时返回 []
+    """
+    path = os.path.join(_PROJECT_ROOT, "results", "real_times.json")
+    if not os.path.exists(path):
+        return []
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            records = json.load(f)
+        if isinstance(records, list):
+            # 保留最近 50 条，倒序展示
+            return records[-50:][::-1]
+        return []
+    except Exception as e:
+        print(f"[Web] 加载真机提交记录失败: {e}")
+        return []
 
 
 @app.get("/api/ppo/comparison")
@@ -511,10 +622,18 @@ async def websocket_endpoint(websocket: WebSocket):
 # ============================================================
 
 async def simulate_scheduler():
-    """模拟调度引擎行为 — 使用 PPO 模型进行推理决策"""
+    """模拟调度引擎行为 — 使用 PPO 模型进行推理决策。
+
+    每 3 秒推送一次状态更新。其中每 20 个 tick（约 60 秒）轮询一次天衍云
+    真机状态（``query_quantum_computer_list``）和真机提交记录
+    （``results/real_times.json``），将真实机器名/状态（running/calibrating/
+    maintenance）与真实提交历史通过 WebSocket 推送到前端监控卡片。
+    """
     import random
+    tick = 0
     while True:
         await asyncio.sleep(3)
+        tick += 1
         system_status["current_step"] += 1
 
         # 尝试使用 PPO 推理
@@ -544,6 +663,20 @@ async def simulate_scheduler():
             max(0.5, system_status["average_wait_time"] + random.uniform(-0.5, 0.5)), 1
         )
         system_status["last_update"] = datetime.now().isoformat()
+
+        # 每 20 个 tick（约 60 秒）轮询真机状态 + 真机提交记录
+        # 避免高频查询天衍云 API（免费额度有限）
+        if tick % 20 == 0:
+            try:
+                real_machines = _get_real_machines_status()
+                if real_machines:
+                    system_status["real_machines"] = real_machines
+            except Exception as e:
+                print(f"[Web] 轮询真机状态异常: {e}")
+            try:
+                system_status["real_submissions"] = _load_real_submissions()
+            except Exception as e:
+                print(f"[Web] 加载真机提交记录异常: {e}")
 
         # PPO-Balanced 策略：平衡量子/经典资源分配
         pending = [t for t in task_queue if t["status"] == "pending"]

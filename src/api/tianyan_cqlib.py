@@ -115,8 +115,13 @@ class CqlibTianyanClient:
         circuit: Any = None,
         shots: int = 1024,
         task_name: str = "Scheduler_Task",
-    ) -> str:
-        """提交量子任务到真机
+    ) -> Optional[str]:
+        """提交量子任务到真机（含故障自动切换）
+
+        提交策略：
+            1. 预检当前机器状态：若非 running（校准中/维护中），立即跳过，不重试
+            2. 尝试在当前机器提交；失败时按 auto_retry_machine 切换备用机
+            3. 所有机器不可用时返回 None（不抛异常，保证调度循环不中断）
 
         Args:
             qcis: QCIS 指令字符串（"H Q0\\nM Q0"）
@@ -125,7 +130,7 @@ class CqlibTianyanClient:
             task_name: 任务名称
 
         Returns:
-            task_id: 任务 ID 字符串
+            task_id 字符串；全部机器不可用时返回 None
         """
         # 生成 QCIS
         if qcis:
@@ -137,6 +142,15 @@ class CqlibTianyanClient:
 
         logger.info(f"[Cqlib] 提交量子任务: {task_name}, shots={shots}")
         logger.debug(f"[Cqlib] QCIS: {qcis_str[:100]}")
+
+        # 预检当前机器状态（校准中/维护中立即跳过，不重试）
+        if not self._is_machine_available(self.machine_name):
+            logger.warning(
+                f"[Cqlib] {self.machine_name} 不可用（校准/维护中），切换备用机"
+            )
+            if self.auto_retry_machine:
+                return self._retry_other_machine(qcis_str, shots, task_name)
+            return None
 
         try:
             result = self.platform.submit_experiment(
@@ -151,15 +165,77 @@ class CqlibTianyanClient:
                 return task_id
             return str(result)
         except Exception as e:
-            logger.error(f"[Cqlib] 任务提交失败: {e}")
+            err_msg = str(e)
+            logger.error(f"[Cqlib] {self.machine_name} 提交失败: {err_msg}")
+            # 校准/不可用类错误立即切换，不重试当前机器
+            if self._is_unavailable_error(err_msg) and self.auto_retry_machine:
+                return self._retry_other_machine(qcis_str, shots, task_name)
             if self.auto_retry_machine:
                 return self._retry_other_machine(qcis_str, shots, task_name)
-            raise
+            return None
 
-    def _retry_other_machine(self, qcis: str, shots: int, task_name: str) -> str:
-        """当前机器不可用时，尝试其他机器"""
+    def _is_machine_available(self, machine_name: str) -> bool:
+        """检查机器是否在线可用（status == running）。
+
+        通过 query_quantum_computer_list 查询状态。查询本身失败时
+        乐观返回 True（不阻塞提交，让 submit 自行暴露真实错误）。
+
+        Args:
+            machine_name: 机器名
+
+        Returns:
+            bool: running 返回 True，calibration/maintenance/unknown 返回 False
+        """
+        try:
+            machines = self.list_backends()
+            for m in machines:
+                if m.get("name") == machine_name:
+                    return m.get("status") == "running"
+            # 未找到该机器，乐观放行
+            return True
+        except Exception:
+            # 查询失败不阻塞，乐观放行
+            return True
+
+    @staticmethod
+    def _is_unavailable_error(err_msg: str) -> bool:
+        """判断错误是否为机器不可用（校准/维护/忙）类错误。
+
+        Args:
+            err_msg: 异常消息字符串
+
+        Returns:
+            bool: 命中关键词返回 True
+        """
+        keywords = (
+            "校准", "calibration", "维护", "maintenance",
+            "不可用", "unavailable", "忙碌", "busy", "offline",
+        )
+        lower_msg = err_msg.lower()
+        return any(kw.lower() in lower_msg for kw in keywords)
+
+    def _retry_other_machine(
+        self, qcis: str, shots: int, task_name: str
+    ) -> Optional[str]:
+        """当前机器不可用时，按 REAL_MACHINES 列表尝试其他机器。
+
+        每台候选机器先做可用性预检（跳过校准/维护中的），再尝试提交。
+        全部不可用时返回 None（不抛异常）。
+
+        Args:
+            qcis: QCIS 指令字符串
+            shots: 测量次数
+            task_name: 任务名称
+
+        Returns:
+            task_id 字符串；全部失败返回 None
+        """
         for machine in self.REAL_MACHINES:
             if machine == self.machine_name:
+                continue
+            # 预检：跳过不可用机器，避免无效重试
+            if not self._is_machine_available(machine):
+                logger.debug(f"[Cqlib] 跳过 {machine}（不可用）")
                 continue
             try:
                 logger.info(f"[Cqlib] 尝试备用机器: {machine}")
@@ -177,9 +253,11 @@ class CqlibTianyanClient:
                     tid = str(result[0])
                     logger.info(f"[Cqlib] {machine} 提交成功: {tid}")
                     return tid
-            except Exception:
+            except Exception as e:
+                logger.debug(f"[Cqlib] {machine} 失败: {str(e)[:60]}")
                 continue
-        raise RuntimeError("所有可用机器提交失败")
+        logger.error("[Cqlib] 所有备用机器均不可用，放弃提交（返回 None）")
+        return None
 
     def get_task_status(self, task_id: str) -> Dict[str, Any]:
         """查询任务状态"""
