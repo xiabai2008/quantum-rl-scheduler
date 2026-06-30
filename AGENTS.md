@@ -11,14 +11,15 @@
 
 ## ⛔ Git Hook 会拦截直接推送到 main 分支！
 
-此项目安装了 `pre-push` hook，**直接执行 `git push origin main` 会被拦截并报错！**
+此项目安装了 `pre-push` hook，**直接执行 `git push origin main` 会被拦截并报错！**  
+（main 分支已启用 GitHub 分支保护，要求 PR + 1 人审批）
 
 ### ✅ 正确的推送方式
 
 | 场景 | 命令 |
 |------|------|
-| **紧急/直接推送** | `git push --no-verify origin main` |
-| **正常流程** | 创建功能分支 → 推送功能分支 → 创建 PR → Review 后合并 |
+| **团队成员开发** | 创建功能分支 → `git push origin feature/xxx` → 创建 PR → 审批后合并 |
+| **管理员直接推送** | `git push --no-verify origin main`
 
 ### 📝 Commit 格式要求
 
@@ -81,7 +82,7 @@ git push --no-verify origin main
 
 **赛事奖励**：¥26.5万现金 + 价值超¥200万的真机机时  
 **官方邮箱**：saiyuan@chinatelecom.cn（平台申请邮件）  
-**仓库地址**：https://github.com/xiabai2004/quantum-rl-scheduler（Private）
+**仓库地址**：https://github.com/xiabai2004/quantum-rl-scheduler（Public，无 Topic 标签）
 
 
 ## 2. 关键时间节点
@@ -265,7 +266,7 @@ metrics = MetricsCalculator()
 
 ## 7. Git 工作流
 
-- **主分支**：`main`（受保护，禁止直接推送）
+- **主分支**：`main`（受保护，必须通过 PR 合并）
 - **功能分支**：`feature/<模块名>` 或 `fix/<问题>`
 - **Commit 格式**：`<type>: <简短描述>`
   - type: `feat` / `fix` / `docs` / `test` / `refactor` / `chore`
@@ -353,7 +354,7 @@ metrics = MetricsCalculator()
 3. **所有路径使用相对于项目根目录的相对路径**
 4. **TRAE 的 Python 环境**：`D:\\tools\\Python 3.12.9\\python.exe`
 5. **运行命令始终在项目根目录**：`C:\\Users\\HZR\\Desktop\\揭榜挂帅擂台赛\\quantum-rl-scheduler`
-6. **GitHub 仓库为 Private**，比赛结束前不公开
+6. **GitHub 仓库为 Public**，但无 Topics/关键词，不会被搜索引擎发现
 7. **不要删除 docs/ 下的任何指南文件**
 
 

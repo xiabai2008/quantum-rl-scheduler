@@ -229,7 +229,7 @@ git merge upstream/main
 浏览器打开 https://github.com/new
 - Repository name: `quantum-rl-scheduler`
 - Description: 量子RL驱动的天衍云平台智能调度系统 - 2026"揭榜挂帅"擂台赛参赛作品
-- Public / Private: **建议 Private**（比赛结束前不公开）
+- Public / Private: **Public**（已启用分支保护，PR 流程）
 - 不要勾选 "Initialize with README"（我们已有代码）
 
 ### 2. 保护 main 分支
