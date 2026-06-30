@@ -1,65 +1,54 @@
-# 天衍云平台配置
+annealing:
+  annealing_time: 1.0
+  enabled: true
+  num_qubits: 10
+  num_reads: 100
+  simulation_mode: true
+cache:
+  db: 0
+  host: localhost
+  port: 6379
+  type: redis
+classical:
+  max_cpu_utilization: 0.95
+  memory_limit: 16384
+database:
+  path: data/scheduler.db
+  type: sqlite
+quantum:
+  backend: tianyan-287
+  max_qubits: 287
+  shots: 1024
+  simulator: qiskit-aer
+scheduler:
+  algorithm: DQN
+  batch_size: 64
+  epsilon_decay: 0.995
+  epsilon_end: 0.01
+  epsilon_start: 1.0
+  gamma: 0.99
+  learning_rate: 3e-4
+  replay_buffer_size: 10000
+system:
+  log_level: INFO
+  max_queue_size: 100
+  max_steps: 1000
+  max_wait_time: 3600
 tianyan:
   api_key: ${TIANYAN_API_KEY}
   api_secret: ${TIANYAN_API_SECRET}
-  base_url: "https://api.tianyanyun.cn/v1"
+  base_url: https://api.tianyanyun.cn/v1
+  mock_delay: 90.0
+  mock_delay_note: 2026-06-30 真机实测：s=124s, sw=48s, tn=89s
+  mock_failure_rate: 0.0
+  mock_machine_delays:
+    tianyan-287: 120.0
+    tianyan_s: 124.0
+    tianyan_sw: 48.0
+    tianyan_tn: 89.0
+  mock_mode: true
   timeout: 30
-  mock_mode: true  # 开发阶段使用 Mock 模式（无需真实平台）
-  mock_delay: 75.0  # Mock模式延迟 — 真机校准(tianyan_s: H门93s, H2门57s, 均值≈75s)
-  mock_failure_rate: 0.0  # Mock模式失败率 — 真机校准(2/2成功, 0%)
-
-# 量子计算配置
-quantum:
-  backend: "tianyan-287"  # 天衍-287真机
-  simulator: "qiskit-aer"
-  shots: 1024
-  max_qubits: 287
-
-# 经典计算配置
-classical:
-  max_cpu_utilization: 0.95
-  memory_limit: 16384  # MB
-
-# 调度引擎配置
-scheduler:
-  algorithm: "DQN"  # DQN, A3C, PPO
-  learning_rate: 3e-4
-  gamma: 0.99
-  epsilon_start: 1.0
-  epsilon_end: 0.01
-  epsilon_decay: 0.995
-  batch_size: 64
-  replay_buffer_size: 10000
-
-# 量子退火加速配置
-annealing:
-  enabled: true
-  num_qubits: 10
-  annealing_time: 1.0  # 微秒
-  num_reads: 100
-  simulation_mode: true  # 开发阶段用仿真
-
-# 系统配置
-system:
-  max_queue_size: 100
-  max_wait_time: 3600  # 秒
-  max_steps: 1000
-  log_level: "INFO"
-
-# Web界面配置
 web:
-  host: "0.0.0.0"
-  port: 8000
   debug: true
-
-# 数据库配置
-database:
-  type: "sqlite"  # sqlite, mysql, postgresql
-  path: "data/scheduler.db"
-
-# 缓存配置
-cache:
-  type: "redis"  # redis, memory
-  host: "localhost"
-  port: 6379
-  db: 0
+  host: 0.0.0.0
+  port: 8000
