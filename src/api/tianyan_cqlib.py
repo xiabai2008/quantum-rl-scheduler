@@ -230,3 +230,148 @@ class CqlibTianyanClient:
             "running": running,
             "available": [m["name"] for m in machines if m["status"] == "running"],
         }
+
+
+class MultiMachineCqlibCoordinator:
+    """多机器 cqlib 协调器：统一管理多台天衍云真机的提交与状态聚合。
+
+    每台机器对应一个独立的 CqlibTianyanClient 实例（独立 platform 连接），
+    本协调器负责按机器名分发任务、聚合队列状态、汇总真机提交计数。
+
+    使用示例::
+
+        coord = MultiMachineCqlibCoordinator(
+            login_key="xxx",
+            machine_names=["tianyan_s", "tianyan_sw", "tianyan_tn"],
+        )
+        task_id = coord.submit_to_machine("tianyan_s", "H Q0\\nM Q0", shots=512)
+        status = coord.get_all_status()
+    """
+
+    def __init__(
+        self,
+        login_key: str,
+        machine_names: List[str],
+        auto_retry_machine: bool = False,
+    ):
+        """初始化多机器协调器。
+
+        Args:
+            login_key        : 天衍云 API Key
+            machine_names    : 要纳管的机器名列表
+            auto_retry_machine: 单机提交失败时是否自动切换其他机器（默认 False，
+                               多机器场景下由调度器决定路由，通常关闭单机重试）
+        """
+        self.login_key = login_key
+        self.machine_names = list(machine_names)
+        self.auto_retry_machine = auto_retry_machine
+        self._clients: Dict[str, CqlibTianyanClient] = {}
+        self._submit_count: Dict[str, int] = {n: 0 for n in self.machine_names}
+        self._fail_count: Dict[str, int] = {n: 0 for n in self.machine_names}
+
+        logger.info(
+            f"[MultiMachine] 纳管 {len(self.machine_names)} 台机器: {self.machine_names}"
+        )
+
+    def _get_client(self, machine_name: str) -> CqlibTianyanClient:
+        """懒加载指定机器的客户端（避免初始化时连接所有机器）。"""
+        if machine_name not in self._clients:
+            if machine_name not in self.machine_names:
+                raise ValueError(f"机器 {machine_name} 未被纳管")
+            self._clients[machine_name] = CqlibTianyanClient(
+                login_key=self.login_key,
+                machine_name=machine_name,
+                auto_retry_machine=self.auto_retry_machine,
+            )
+        return self._clients[machine_name]
+
+    def submit_to_machine(
+        self,
+        machine_name: str,
+        qcis: str,
+        shots: int = 512,
+        task_name: str = "MultiMachine_Task",
+    ) -> Optional[str]:
+        """向指定机器提交量子任务。
+
+        Args:
+            machine_name: 目标机器名
+            qcis        : QCIS 指令字符串
+            shots       : 测量次数
+            task_name   : 任务名称
+
+        Returns:
+            task_id 字符串；提交失败返回 None
+        """
+        try:
+            client = self._get_client(machine_name)
+            task_id = client.submit_quantum_task(
+                qcis=qcis, shots=shots, task_name=task_name
+            )
+            self._submit_count[machine_name] = self._submit_count.get(machine_name, 0) + 1
+            return task_id
+        except Exception as e:  # noqa: BLE001
+            self._fail_count[machine_name] = self._fail_count.get(machine_name, 0) + 1
+            logger.error(f"[MultiMachine] {machine_name} 提交失败: {e}")
+            return None
+
+    def get_all_status(self) -> Dict[str, Dict[str, Any]]:
+        """聚合所有纳管机器的队列状态。
+
+        Returns:
+            {machine_name: queue_status_dict} 映射
+        """
+        status = {}
+        for name in self.machine_names:
+            try:
+                client = self._get_client(name)
+                status[name] = client.get_queue_status()
+            except Exception as e:  # noqa: BLE001
+                status[name] = {"error": str(e)[:80]}
+        return status
+
+    def get_submit_stats(self) -> Dict[str, Dict[str, int]]:
+        """返回各机器的真机提交统计。
+
+        Returns:
+            {machine_name: {"submit": n, "fail": m}} 映射
+        """
+        return {
+            name: {
+                "submit": self._submit_count.get(name, 0),
+                "fail": self._fail_count.get(name, 0),
+            }
+            for name in self.machine_names
+        }
+
+    def as_client_map(self) -> Dict[str, CqlibTianyanClient]:
+        """返回 {machine_name: client} 映射，便于注入 env.attach_real_clients。
+
+        注意：此方法会触发所有纳管机器的客户端懒加载。
+        """
+        for name in self.machine_names:
+            self._get_client(name)
+        return dict(self._clients)
+
+
+def create_multi_machine_clients(
+    login_key: str,
+    machine_names: List[str],
+) -> Dict[str, CqlibTianyanClient]:
+    """工厂函数：为每台机器创建独立的 cqlib 客户端。
+
+    Args:
+        login_key    : 天衍云 API Key
+        machine_names: 机器名列表
+
+    Returns:
+        {machine_name: CqlibTianyanClient} 映射，可直接传给 env.attach_real_clients
+    """
+    return {
+        name: CqlibTianyanClient(
+            login_key=login_key,
+            machine_name=name,
+            auto_retry_machine=False,
+        )
+        for name in machine_names
+    }

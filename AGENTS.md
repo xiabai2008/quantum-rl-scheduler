@@ -3,65 +3,24 @@
 > 此文件供所有 AI Agent（CodeBuddy / TRAE / Claude / Cursor 等）读取，以快速理解项目全貌。
 > 每次重要变更后请更新本文档的"最后更新"日期和对应章节。
 
-**最后更新**：2026-06-27（v4 — PPO 夺冠）  
+**最后更新**：2026-06-30（公开仓库 + 真机接入）  
 
 ---
 
-# 🚨🚨🚨 **HOOK 警告 — 必读！** 🚨🚨🚨
+## 开始工作前必读
 
-## ⛔ Git Hook 会拦截直接推送到 main 分支！
+### Git 推送规则
 
-此项目安装了 `pre-push` hook，**直接执行 `git push origin main` 会被拦截并报错！**  
-（main 分支已启用 GitHub 分支保护，要求 PR + 1 人审批）
+| 你是谁 | 怎么推送 |
+|--------|---------|
+| **普通队友** | 创建功能分支 → `git push origin feature/xxx` → 创建 PR → 1人审批后合并 |
+| **管理员/瑞哥** | `git push origin main`（GitHub 原生分支保护已启用） |
 
-### ✅ 正确的推送方式
-
-| 场景 | 命令 |
-|------|------|
-| **团队成员开发** | 创建功能分支 → `git push origin feature/xxx` → 创建 PR → 审批后合并 |
-| **管理员直接推送** | `git push --no-verify origin main`
-
-### 📝 Commit 格式要求
-
-`commit-msg` hook 会检查 commit 信息格式：
-
+**Commit 格式**（建议遵守）：
 ```
 <type>: <简短描述>
+feat / fix / docs / test / refactor / chore
 ```
-
-**合法 type**：`feat` / `fix` / `docs` / `test` / `refactor` / `chore` / `perf` / `style` / `ci` / `build`
-
-| 错误示例 | 正确示例 |
-|---------|---------|
-| `remove: xxx` ❌ | `chore: 移除某文件` ✅ |
-| `update: xxx` ❌ | `feat: 更新某功能` ✅ |
-| `添加新功能` ❌ | `feat: 添加新功能` ✅ |
-
----
-
-**如果你看到 `⛔ 禁止直接推送到 main 分支` 错误，不代表你不能推送！**
-**请使用 `git push --no-verify origin main` 或创建功能分支走 PR 流程。**
-
----
-
-## ⚠️ 开始工作前必读
-
-### Git 推送会被 Hook 拦截！
-
-此项目在 `main` 分支安装了 `pre-push` hook，**直接 `git push origin main` 会被拦截**。
-
-**推送代码到 main 分支的正确命令**：
-```bash
-git push --no-verify origin main
-```
-
-**Commit 信息格式要求**（`commit-msg` hook 检查）：
-- 格式：`<type>: <简短描述>`
-- type 必须是：`feat` / `fix` / `docs` / `test` / `refactor` / `chore` / `perf` / `style` / `ci` / `build`
-- 错误示例：`remove: xxx` → 被拦截（`remove` 不是合法 type）
-- 正确示例：`chore: 移除某文件`
-
-如果 `git push` 报错 `⛔ 禁止直接推送到 main 分支`，**不代表你不能推送**，用 `--no-verify` 即可。
 
 ---
 
@@ -131,10 +90,7 @@ quantum-rl-scheduler/
 ├── .trae/
 │   └── documents/
 │       └── development_plan.md   # TRAE 开发计划
-├── githooks/
-│   ├── commit-msg                # Commit 格式检查 hook
-│   └── pre-push                  # 主分支保护 hook
-│
+├── githooks/                # 已移除（改用 GitHub 原生分支保护）
 ├── config/
 │   ├── .env.example              # 环境变量模板
 │   └── config.yaml               # 系统配置（mock_mode: true 表示 Mock 模式）
@@ -172,10 +128,12 @@ quantum-rl-scheduler/
 │   ├── run_simulation.py         # 仿真对比脚本（720行）
 │   ├── e2e_test.py              # 端到端集成测试（181行）
 │   ├── hyperparameter_search.py  # 超参数网格搜索（221行）
-│   ├── diagnose_reward.py       # Reward 诊断脚本（54行）
+│   ├── calibrate_mock.py        # 真机校准 Mock 参数
+│   ├── mock_vs_real.py          # 真机 vs 仿真对比报告
+│   ├── demo_cqlib.py            # cqlib 真机演示
 │   ├── generate_report.py        # 策略对比报告生成器
 │   ├── test_mock_api.py          # Mock API 测试
-│   └── install-hooks.sh          # Git Hooks 安装脚本
+│   └── test_cqlib.py             # 真机连接测试
 │
 ├── tests/                        # 单元测试（待补充）
 │   └── test_scheduler.py
@@ -268,11 +226,9 @@ metrics = MetricsCalculator()
 
 - **主分支**：`main`（受保护，必须通过 PR 合并）
 - **功能分支**：`feature/<模块名>` 或 `fix/<问题>`
-- **Commit 格式**：`<type>: <简短描述>`
-  - type: `feat` / `fix` / `docs` / `test` / `refactor` / `chore`
-- **Hooks**：`commit-msg` 检查格式 + `pre-push` 拦截直接推 main
-- **安装 Hooks**：`bash scripts/install-hooks.sh`
-- **推送时用**：`git push --no-verify origin main`（绕过 hook，仅限紧急情况）
+- **Commit 格式**：`<type>: <简短描述>`（feat/fix/docs/test/refactor/chore）
+- **PR 流程**：推送功能分支 → 创建 PR → 1 人审批 → 合并
+- **仓库**：Public，无 Topics 标签，不会被搜索发现
 
 
 ## 8. 当前开发进度
@@ -402,4 +358,4 @@ uvicorn src.visualization.app:app --reload --port 8000
 docker-compose up -d
 
 # ── Git ──
-git push --no-verify origin main                                # 推送（绕过 hook）
+git push origin main                                          # 推送（分支保护要求 PR 流程）

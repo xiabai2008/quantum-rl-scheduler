@@ -7,13 +7,19 @@ import os
 
 from src.api.tianyan_client import TianyanClient, TianyanAPIError
 from src.api.mock_client import MockTianyanClient, create_tianyan_client
-from src.api.tianyan_cqlib import CqlibTianyanClient
+from src.api.tianyan_cqlib import (
+    CqlibTianyanClient,
+    MultiMachineCqlibCoordinator,
+    create_multi_machine_clients,
+)
 
 __all__ = [
     "TianyanClient",
     "TianyanAPIError",
     "MockTianyanClient",
     "CqlibTianyanClient",
+    "MultiMachineCqlibCoordinator",
+    "create_multi_machine_clients",
     "create_tianyan_client",
     "get_client",
     "get_cqlib_client",

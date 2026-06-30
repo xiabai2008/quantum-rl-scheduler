@@ -26,15 +26,13 @@ main（保护分支，只接受PR合并）
 
 ---
 
-## 二、第一次使用：克隆仓库 + 安装 Hooks + 创建分支
+## 二、第一次使用：克隆仓库 + 创建分支
 
 ```bash
 # 1. 克隆仓库（所有人）
 git clone https://github.com/xiabai2004/quantum-rl-scheduler.git
 cd quantum-rl-scheduler
 
-# 2. 安装 Git Hooks（必做！否则可以直接推 main，违反规范）
-bash scripts/install-hooks.sh
 
 # 3. 安装 Python 依赖
 pip install -r requirements.txt
@@ -48,15 +46,6 @@ git checkout -b feature/你的模块名
 git checkout -b feature/rl-agent
 ```
 
-> **⚠️ 重要：Hook 安装说明**
-> - `bash scripts/install-hooks.sh` 会配置两个本地拦截：
->   - **commit-msg**：提交信息必须符合 `<type>: <描述>` 格式，否则拒绝提交
->   - **pre-push**：直接推送 main 分支会被拦截，必须走 PR 流程
-> - Hook 通过 `git config core.hooksPath githooks` 实现，仅影响本地仓库
-> - 卸载：`git config --unset core.hooksPath`
-> - 绕过（仅紧急情况）：`git push --no-verify`（禁止日常使用）
-
----
 
 ## 三、日常工作流（每个人每天的操作）
 

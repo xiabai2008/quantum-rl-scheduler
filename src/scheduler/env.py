@@ -136,6 +136,61 @@ class ClassicalResource:
     queue: int = 0
 
 
+@dataclass
+class QuantumMachine:
+    """
+    单台量子计算机的资源状态（多机器调度扩展）。
+
+    每台机器独立维护可用比特、保真度、队列与在线状态，
+    并声明其支持的门集合，用于任务-机器兼容性匹配。
+
+    Attributes:
+        name            : 机器名称（如 "tianyan_s"）
+        total_qubits    : 物理机总量子比特数
+        available_ratio : 当前可用量子比特比率（0-1）
+        fidelity        : 当前量子比特平均保真度（0-1）
+        quantum_queue   : 该机器专属队列中的任务数
+        available       : 是否在线可用（False 表示维护/校准中）
+        supported_gates : 支持的门集合（如 ("H","CZ","M")）
+        is_real         : 是否对接真机（True 时可走 cqlib 提交）
+    """
+    name: str = "tianyan_s"
+    total_qubits: int = 287
+    available_ratio: float = 1.0
+    fidelity: float = 0.98
+    quantum_queue: int = 0
+    available: bool = True
+    supported_gates: tuple = ("H", "CZ", "M")
+    is_real: bool = False
+
+
+# 默认多机器配置（基于天衍云真实超导机器列表）
+# is_real=False 表示仅仿真，不消耗真机机时；True 时需 attach 真实客户端
+DEFAULT_MACHINE_CONFIGS: List[Dict[str, Any]] = [
+    {
+        "name": "tianyan_s",
+        "total_qubits": 287,
+        "supported_gates": ("H", "CZ", "M"),
+        "is_real": False,
+    },
+    {
+        "name": "tianyan_sw",
+        "total_qubits": 72,
+        "supported_gates": ("H", "CZ", "M", "X", "Y"),
+        "is_real": False,
+    },
+    {
+        "name": "tianyan_tn",
+        "total_qubits": 176,
+        "supported_gates": ("H", "CZ", "M", "RX", "RY", "RZ"),
+        "is_real": False,
+    },
+]
+
+# 真机提交抽样概率（控制真机机时消耗：每个量子任务以此概率真正上真机）
+REAL_SUBMIT_PROBABILITY_DEFAULT = 0.0
+
+
 # ---------------------------------------------------------------------------
 # 核心环境类
 # ---------------------------------------------------------------------------
@@ -176,23 +231,31 @@ class QuantumSchedulingEnv(gym.Env):
         max_qubits: int = 287,
         render_mode: Optional[str] = None,
         seed: Optional[int] = None,
+        machine_configs: Optional[List[Dict[str, Any]]] = None,
+        real_submit_probability: float = REAL_SUBMIT_PROBABILITY_DEFAULT,
     ):
         """
         初始化量子任务调度环境。
 
         Args:
-            max_steps   : 单个 episode 的最大步数，超过后 episode 终止
-            max_qubits  : 物理机总量子比特数，默认 287（对应天衍-287 真机）
-            render_mode : 渲染模式，支持 "human" 或 "ansi"，None 表示不渲染
-            seed        : 随机种子，用于可复现的实验
+            max_steps               : 单个 episode 的最大步数，超过后 episode 终止
+            max_qubits              : 物理机总量子比特数，默认 287（对应天衍-287 真机）
+            render_mode             : 渲染模式，支持 "human" 或 "ansi"，None 表示不渲染
+            seed                    : 随机种子，用于可复现的实验
+            machine_configs         : 多机器配置列表，None 时退化为单机模式（向后兼容）。
+                                      每项字段见 DEFAULT_MACHINE_CONFIGS。
+            real_submit_probability : 当机器 is_real=True 且已 attach 真实客户端时，
+                                      每个量子任务以此概率真正提交真机（控制机时消耗）。
+                                      0.0 表示纯仿真，1.0 表示每次都上真机。
         """
         super().__init__()
 
         self.max_steps = max_steps
         self.max_qubits = max_qubits
         self.render_mode = render_mode
+        self.real_submit_probability = float(real_submit_probability)
 
-        # Gymnasium 标准空间定义
+        # Gymnasium 标准空间定义（保持 10 维 obs + Discrete(3) 不变，确保 PPO 模型可复用）
         self.observation_space = spaces.Box(
             low=0.0,
             high=1.0,
@@ -201,14 +264,44 @@ class QuantumSchedulingEnv(gym.Env):
         )
         self.action_space = spaces.Discrete(3)
 
+        # ---- 多机器调度扩展 ----
+        # machine_configs=None → 单机模式（与旧版完全等价）
+        if machine_configs is None:
+            machine_configs = [
+                {
+                    "name": "tianyan_s",
+                    "total_qubits": max_qubits,
+                    "supported_gates": ("H", "CZ", "M"),
+                    "is_real": False,
+                }
+            ]
+        self._machines: List[QuantumMachine] = [
+            QuantumMachine(
+                name=cfg.get("name", "tianyan_s"),
+                total_qubits=cfg.get("total_qubits", max_qubits),
+                supported_gates=tuple(cfg.get("supported_gates", ("H", "CZ", "M"))),
+                is_real=bool(cfg.get("is_real", False)),
+            )
+            for cfg in machine_configs
+        ]
+
+        # 真机客户端映射：machine_name -> client（由 attach_real_clients 注入）
+        self._real_clients: Dict[str, Any] = {}
+
         # 内部状态
         self._current_step: int = 0
         self._task_queue: List[Task] = []
         self._current_task: Optional[Task] = None
+        # self._quantum 保留为所有机器的聚合视图，确保旧版 obs/reward 逻辑不变
         self._quantum: QuantumResource = QuantumResource(total_qubits=max_qubits)
         self._classical: ClassicalResource = ClassicalResource()
         self._time_of_day: float = 0.0
         self._quantum_available: bool = True
+
+        # 多机器调度记录
+        self._last_selected_machine: Optional[str] = None
+        self._machine_schedule_count: Dict[str, int] = {m.name: 0 for m in self._machines}
+        self._machine_real_submits: Dict[str, int] = {m.name: 0 for m in self._machines}
 
         # 统计信息（用于 info 字典和渲染）
         self._total_scheduled: int = 0
@@ -220,6 +313,32 @@ class QuantumSchedulingEnv(gym.Env):
 
         # 用于 ANSI 渲染的日志缓冲区
         self._render_log: List[str] = []
+
+    # ------------------------------------------------------------------
+    # 多机器调度：真机客户端接入
+    # ------------------------------------------------------------------
+
+    def attach_real_clients(self, clients: Dict[str, Any]) -> None:
+        """绑定真机客户端，启用选择性真机验证。
+
+        Args:
+            clients: 机器名 -> 客户端实例的映射（如 CqlibTianyanClient）。
+                     绑定后，对应机器的 is_real 会被置为 True。
+        """
+        self._real_clients.update(clients)
+        for m in self._machines:
+            if m.name in clients:
+                m.is_real = True
+
+    @property
+    def machine_names(self) -> List[str]:
+        """返回当前所有机器名称列表。"""
+        return [m.name for m in self._machines]
+
+    @property
+    def num_machines(self) -> int:
+        """返回量子机器数量。"""
+        return len(self._machines)
 
     # ------------------------------------------------------------------
     # reset()
@@ -262,17 +381,25 @@ class QuantumSchedulingEnv(gym.Env):
         self._episode_reward = 0.0
         self._render_log = []
 
+        # 重置多机器调度记录
+        self._last_selected_machine = None
+        self._machine_schedule_count = {m.name: 0 for m in self._machines}
+        self._machine_real_submits = {m.name: 0 for m in self._machines}
+
         # 随机初始化任务队列（5-20 个任务）
         self._task_queue = []
         initial_count = rng.integers(INITIAL_QUEUE_RANGE[0], INITIAL_QUEUE_RANGE[1] + 1)
         for i in range(initial_count):
             self._task_queue.append(self._generate_random_task(rng, task_id=i))
 
-        # 随机初始化量子比特状态
-        self._quantum.available_ratio = rng.uniform(0.3, 1.0)
-        self._quantum.fidelity = rng.uniform(0.85, 0.99)
-        self._quantum.quantum_queue = 0
-        self._quantum_available = True
+        # 随机初始化每台量子机器状态（多机器调度扩展）
+        for m in self._machines:
+            m.available_ratio = rng.uniform(0.3, 1.0)
+            m.fidelity = rng.uniform(0.85, 0.99)
+            m.quantum_queue = 0
+            m.available = True
+        # 聚合到 self._quantum，保证旧版 obs/reward 逻辑不变
+        self._recompute_aggregate()
 
         # 随机初始化经典计算负载
         self._classical.load = rng.uniform(0.1, 0.7)
@@ -333,25 +460,41 @@ class QuantumSchedulingEnv(gym.Env):
                 task.wait_steps += 1
                 if len(self._task_queue) < MAX_QUEUE_SIZE:
                     self._task_queue.append(task)
-                log_msg = f"[步骤{self._current_step}] 任务{task.task_id} 分配到不兼容资源(action={action})，惩罚{REWARD_MISMATCH}"
+                self._last_selected_machine = None
+                log_msg = (
+                    f"[步骤{self._current_step}] 任务{task.task_id} 分配到不兼容资源"
+                    f"(action={action})，惩罚{REWARD_MISMATCH}"
+                )
             else:
-                # ---- 检查量子资源可用性 ----
+                # ---- 多机器调度：为量子任务选择最佳机器 ----
                 quantum_action = action in (ACTION_QUANTUM, ACTION_HYBRID)
-                quantum_unavailable = not self._quantum_available
+                selected_machine = None
+                if quantum_action:
+                    selected_machine = self._select_best_machine(task)
+                # 量子不可用 = 需要量子但没有任何机器能接下该任务
+                quantum_unavailable = quantum_action and selected_machine is None
 
-                if quantum_action and quantum_unavailable:
+                if quantum_unavailable:
                     if action == ACTION_QUANTUM:
                         reward += REWARD_MISMATCH * 0.5
                         task.wait_steps += 1
                         if len(self._task_queue) < MAX_QUEUE_SIZE:
                             self._task_queue.append(task)
-                        log_msg = f"[步骤{self._current_step}] 量子资源不可用，任务{task.task_id} 重新入队，惩罚{REWARD_MISMATCH * 0.5:.1f}"
+                        self._last_selected_machine = None
+                        log_msg = (
+                            f"[步骤{self._current_step}] 量子资源不可用，"
+                            f"任务{task.task_id} 重新入队，惩罚{REWARD_MISMATCH * 0.5:.1f}"
+                        )
                     else:
                         reward += self._compute_execution_reward(task, ACTION_CLASSICAL, rng)
                         scheduled = True
                         self._total_scheduled += 1
                         self._classical_success += 1
-                        log_msg = f"[步骤{self._current_step}] 量子资源不可用，混合任务{task.task_id}降级为经典执行，reward={reward:.2f}"
+                        self._last_selected_machine = None
+                        log_msg = (
+                            f"[步骤{self._current_step}] 量子资源不可用，"
+                            f"混合任务{task.task_id}降级为经典执行，reward={reward:.2f}"
+                        )
                 else:
                     # ---- 兼容分配：计算执行奖励 ----
                     reward += self._compute_execution_reward(task, action, rng)
@@ -360,12 +503,22 @@ class QuantumSchedulingEnv(gym.Env):
 
                     if action == ACTION_QUANTUM:
                         self._quantum_success += 1
+                        self._route_to_machine(selected_machine, task, rng)
                     elif action == ACTION_CLASSICAL:
                         self._classical_success += 1
+                        self._last_selected_machine = None
                     else:
                         self._hybrid_success += 1
+                        # 混合执行同样占用量子机器（若有）
+                        self._route_to_machine(selected_machine, task, rng)
 
-                    log_msg = f"[步骤{self._current_step}] 任务{task.task_id}({task.task_type}) → action={action}, reward={reward:.2f}"
+                    machine_tag = (
+                        f"@{selected_machine.name}" if selected_machine is not None else ""
+                    )
+                    log_msg = (
+                        f"[步骤{self._current_step}] 任务{task.task_id}({task.task_type})"
+                        f" → action={action}{machine_tag}, reward={reward:.2f}"
+                    )
 
             self._render_log.append(log_msg)
 
@@ -421,9 +574,10 @@ class QuantumSchedulingEnv(gym.Env):
         lines = [
             sep,
             f"  量子任务调度环境  |  步骤: {self._current_step}/{self.max_steps}"
-            f"  |  累计奖励: {self._episode_reward:.2f}",
+            f"  |  累计奖励: {self._episode_reward:.2f}"
+            f"  |  机器数: {len(self._machines)}",
             "-" * 64,
-            f"  [量子资源] 可用比率: {self._quantum.available_ratio:.2%}"
+            f"  [量子资源(聚合)] 可用比率: {self._quantum.available_ratio:.2%}"
             f"  |  保真度: {self._quantum.fidelity:.4f}"
             f"  |  量子队列: {self._quantum.quantum_queue}",
             f"  [经典资源] 负载: {self._classical.load:.2%}"
@@ -434,8 +588,26 @@ class QuantumSchedulingEnv(gym.Env):
             f"  |  经典成功: {self._classical_success}"
             f"  |  混合成功: {self._hybrid_success}"
             f"  |  不兼容: {self._mismatch_count}",
-            "-" * 64,
         ]
+
+        # 多机器明细表
+        if len(self._machines) > 1:
+            lines.append("-" * 64)
+            lines.append("  [量子机器明细]")
+            for m in self._machines:
+                status = "在线" if m.available else "维护"
+                real_tag = "真机" if m.is_real else "仿真"
+                sched_cnt = self._machine_schedule_count.get(m.name, 0)
+                lines.append(
+                    f"    {m.name:14s} | {m.total_qubits:3d}q | "
+                    f"可用{m.available_ratio:5.1%} | 保真{m.fidelity:.3f} | "
+                    f"队列{m.quantum_queue:2d} | {status} | {real_tag} | "
+                    f"调度{sched_cnt}"
+                )
+            if self._last_selected_machine:
+                lines.append(f"  [本步路由] → {self._last_selected_machine}")
+
+        lines.append("-" * 64)
 
         # 附加当前任务信息
         if self._current_task is not None:
@@ -563,6 +735,161 @@ class QuantumSchedulingEnv(gym.Env):
             return True
 
     # ------------------------------------------------------------------
+    # 私有方法：多机器调度
+    # ------------------------------------------------------------------
+
+    def _select_best_machine(self, task: Task) -> Optional[QuantumMachine]:
+        """
+        为给定任务选择最合适的量子机器（多机器调度核心启发式）。
+
+        选择策略：
+            1. 过滤：机器在线、可用比特数 >= 任务需求、支持任务所需门集合
+            2. 评分：score = fidelity * available_ratio / (1 + quantum_queue)
+            3. 返回得分最高的机器；若无机器通过过滤，返回 None
+
+        评分兼顾保真度、可用资源与队列负载，倾向于把任务分发给
+        当前质量最好且最空闲的机器，实现负载均衡与质量择优。
+
+        Args:
+            task: 待调度的任务
+
+        Returns:
+            QuantumMachine 或 None（无机器可承接）
+        """
+        candidates = []
+        for m in self._machines:
+            if not m.available:
+                continue
+            # 比特数检查（available_ratio * total_qubits 为估算可用比特）
+            usable_qubits = int(m.total_qubits * m.available_ratio)
+            if usable_qubits < task.qubit_count:
+                continue
+            # 门集合检查（任务所需门需被机器支持；这里按常见量子门粗粒度匹配）
+            if not self._machine_supports_task(m, task):
+                continue
+            candidates.append(m)
+
+        if not candidates:
+            return None
+
+        # 评分：保真度 * 可用比率 / (1 + 队列长度)
+        def _score(m: QuantumMachine) -> float:
+            return m.fidelity * m.available_ratio / (1.0 + m.quantum_queue)
+
+        return max(candidates, key=_score)
+
+    def _machine_supports_task(self, machine: QuantumMachine, task: Task) -> bool:
+        """检查机器门集合是否兼容任务需求。
+
+        当前实现：tianyan_s 仅支持 H/CZ/M（真机实测约束），
+        含参数化门（RX/RY/RZ）的任务需路由到 tianyan_tn 等支持该门集的机器。
+        任务的 required_gates 字段若未声明，默认按机器声明集合宽松放行。
+
+        Args:
+            machine: 候选机器
+            task:    待执行任务
+
+        Returns:
+            bool: 机器能否执行该任务
+        """
+        required = getattr(task, "required_gates", None)
+        if not required:
+            # 任务未声明门需求，默认放行（保持与旧版行为一致）
+            return True
+        return set(required).issubset(set(machine.supported_gates))
+
+    def _route_to_machine(
+        self,
+        machine: Optional[QuantumMachine],
+        task: Task,
+        rng: np.random.Generator,
+    ) -> None:
+        """将任务路由到选定的量子机器，更新队列与调度记录。
+
+        若机器为真机模式（is_real=True 且已 attach 客户端），则以
+        ``real_submit_probability`` 概率真正提交到天衍云真机，控制机时消耗。
+
+        Args:
+            machine: 选定的量子机器（None 时不做任何操作）
+            task:    被执行的任务
+            rng:     随机数生成器（用于抽样是否上真机）
+        """
+        if machine is None:
+            self._last_selected_machine = None
+            return
+
+        machine.quantum_queue += 1
+        self._last_selected_machine = machine.name
+        self._machine_schedule_count[machine.name] = (
+            self._machine_schedule_count.get(machine.name, 0) + 1
+        )
+
+        # 选择性真机提交（控制机时成本）
+        if (
+            machine.is_real
+            and machine.name in self._real_clients
+            and self.real_submit_probability > 0.0
+            and float(rng.random()) < self.real_submit_probability
+        ):
+            self._submit_to_real_machine(machine, task)
+
+    def _submit_to_real_machine(self, machine: QuantumMachine, task: Task) -> None:
+        """向真机提交一个量子任务（异常安全，失败仅记录日志）。
+
+        真机提交在仿真循环中是非阻塞的：提交后不等待结果，仅计入
+        真机提交计数，避免阻塞 RL 训练。结果可在 demo 脚本中单独轮询。
+
+        Args:
+            machine: 目标真机
+            task:    待提交任务
+        """
+        client = self._real_clients.get(machine.name)
+        if client is None:
+            return
+        # 构造一个最小可执行的 QCIS 电路（H 门 + 测量），用于真机验证
+        # 真实场景下应由 parser 从 task 生成 QCIS，这里用占位电路做连通性验证
+        qcis = getattr(task, "qcis", None) or "H Q0\nM Q0"
+        try:
+            client.submit_quantum_task(
+                qcis=qcis,
+                shots=512,
+                task_name=f"RL_{task.task_id}",
+            )
+            self._machine_real_submits[machine.name] = (
+                self._machine_real_submits.get(machine.name, 0) + 1
+            )
+        except Exception as e:  # noqa: BLE001
+            # 真机提交失败不应影响 RL 训练，仅记录
+            self._render_log.append(
+                f"[真机] {machine.name} 提交失败: {str(e)[:60]}"
+            )
+
+    def _recompute_aggregate(self) -> None:
+        """根据所有机器状态重算 self._quantum 聚合视图。
+
+        聚合规则：
+            - available_ratio : 各机器可用比率的加权均值（按 total_qubits 加权）
+            - fidelity        : 各机器保真度的加权均值
+            - quantum_queue   : 所有机器队列长度之和
+            - _quantum_available : 任一机器在线即为 True
+
+        该聚合保证旧版 10 维观测与奖励计算在多机器模式下仍然有效。
+        """
+        if not self._machines:
+            return
+        total_q = sum(m.total_qubits for m in self._machines)
+        if total_q <= 0:
+            total_q = 1
+        self._quantum.available_ratio = float(
+            sum(m.available_ratio * m.total_qubits for m in self._machines) / total_q
+        )
+        self._quantum.fidelity = float(
+            sum(m.fidelity * m.total_qubits for m in self._machines) / total_q
+        )
+        self._quantum.quantum_queue = sum(m.quantum_queue for m in self._machines)
+        self._quantum_available = any(m.available for m in self._machines)
+
+    # ------------------------------------------------------------------
     # 私有方法：执行奖励计算
     # ------------------------------------------------------------------
 
@@ -643,29 +970,34 @@ class QuantumSchedulingEnv(gym.Env):
         推进一个仿真时间步，更新所有资源状态。
 
         更新内容：
-            1. 量子资源：可用比特比率随机波动，保真度缓慢衰减后部分恢复
+            1. 量子资源：每台机器独立波动（可用比特、保真度、在线状态、队列完成）
             2. 经典资源：负载随机波动，任务完成后释放
             3. 队列中任务：每个任务等待步数 +1
             4. 随机生成 0-3 个新任务（泊松分布，均值 1.2）
-            5. 随机完成一些正在执行的任务，释放资源
+            5. 聚合所有机器状态到 self._quantum（保证旧版 obs 一致）
         """
-        # 量子资源波动
-        self._quantum.available_ratio = np.clip(
-            self._quantum.available_ratio + rng.uniform(-0.1, 0.1), 0.05, 1.0
-        )
-        # 保真度衰减 + 随机恢复
-        self._quantum.fidelity = np.clip(
-            self._quantum.fidelity - 0.002 + rng.uniform(0.0, 0.01), 0.7, 0.999
-        )
-        # 量子资源可用性随机波动（模拟真机维护/校准）
-        if rng.random() < 0.05:
-            self._quantum_available = not self._quantum_available
-        # 量子队列完成一些任务
-        completed_q = 0
-        for _ in range(self._quantum.quantum_queue):
-            if rng.random() < 0.15:  # 15% 概率完成一个量子任务
-                completed_q += 1
-        self._quantum.quantum_queue = max(0, self._quantum.quantum_queue - completed_q)
+        # ---- 每台量子机器独立波动 ----
+        for m in self._machines:
+            # 可用比特比率波动
+            m.available_ratio = float(np.clip(
+                m.available_ratio + rng.uniform(-0.1, 0.1), 0.05, 1.0
+            ))
+            # 保真度衰减 + 随机恢复
+            m.fidelity = float(np.clip(
+                m.fidelity - 0.002 + rng.uniform(0.0, 0.01), 0.7, 0.999
+            ))
+            # 在线状态随机波动（模拟真机维护/校准，5% 概率翻转）
+            if rng.random() < 0.05:
+                m.available = not m.available
+            # 该机器队列完成任务
+            completed_m = 0
+            for _ in range(m.quantum_queue):
+                if rng.random() < 0.15:  # 15% 概率完成一个量子任务
+                    completed_m += 1
+            m.quantum_queue = max(0, m.quantum_queue - completed_m)
+
+        # 聚合到 self._quantum（保持旧版 obs/reward 逻辑不变）
+        self._recompute_aggregate()
 
         # 经典资源波动
         self._classical.load = np.clip(
@@ -779,7 +1111,7 @@ class QuantumSchedulingEnv(gym.Env):
         构建环境信息字典，供调试和监控使用。
 
         Returns:
-            dict: 包含当前步数、统计摘要、资源状态等详细信息
+            dict: 包含当前步数、统计摘要、资源状态、多机器调度详情等信息
         """
         info = {
             "current_step": self._current_step,
@@ -795,6 +1127,24 @@ class QuantumSchedulingEnv(gym.Env):
             "fidelity": self._quantum.fidelity,
             "classical_load": self._classical.load,
             "time_of_day": self._time_of_day,
+            # 多机器调度信息
+            "num_machines": len(self._machines),
+            "last_selected_machine": self._last_selected_machine,
+            "machine_schedule_count": dict(self._machine_schedule_count),
+            "machine_real_submits": dict(self._machine_real_submits),
+            "machines": [
+                {
+                    "name": m.name,
+                    "total_qubits": m.total_qubits,
+                    "available_ratio": m.available_ratio,
+                    "fidelity": m.fidelity,
+                    "quantum_queue": m.quantum_queue,
+                    "available": m.available,
+                    "is_real": m.is_real,
+                    "supported_gates": list(m.supported_gates),
+                }
+                for m in self._machines
+            ],
         }
         if self._current_task is not None:
             info["current_task"] = {

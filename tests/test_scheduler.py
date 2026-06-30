@@ -18,7 +18,13 @@ import os
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-from src.scheduler.env import QuantumSchedulingEnv, Task, OBS_DIM
+from src.scheduler.env import (
+    QuantumSchedulingEnv,
+    Task,
+    OBS_DIM,
+    QuantumMachine,
+    DEFAULT_MACHINE_CONFIGS,
+)
 from src.scheduler.agent import SchedulerAgent, DuelingQNetwork
 from src.scheduler.parser import (
     TaskParser, LegacyTaskParser, TaskBuilder,
@@ -135,6 +141,151 @@ class TestQuantumSchedulingEnv(unittest.TestCase):
                          "mismatch_count"]
         for key in expected_keys:
             self.assertIn(key, info)
+
+
+class TestMultiMachineScheduling(unittest.TestCase):
+    """多机器调度扩展测试"""
+
+    def test_quantum_machine_dataclass(self):
+        """测试 QuantumMachine 数据类"""
+        m = QuantumMachine(
+            name="tianyan_test",
+            total_qubits=100,
+            available_ratio=0.8,
+            fidelity=0.95,
+            supported_gates=("H", "CZ", "M"),
+        )
+        self.assertEqual(m.name, "tianyan_test")
+        self.assertEqual(m.total_qubits, 100)
+        self.assertTrue(m.available)
+        self.assertFalse(m.is_real)
+
+    def test_default_machine_configs_valid(self):
+        """默认多机器配置应包含 3 台机器且字段完整"""
+        self.assertEqual(len(DEFAULT_MACHINE_CONFIGS), 3)
+        for cfg in DEFAULT_MACHINE_CONFIGS:
+            self.assertIn("name", cfg)
+            self.assertIn("total_qubits", cfg)
+            self.assertIn("supported_gates", cfg)
+            self.assertGreater(cfg["total_qubits"], 0)
+
+    def test_multi_machine_init(self):
+        """多机器环境初始化应创建指定数量的机器"""
+        env = QuantumSchedulingEnv(
+            max_steps=50,
+            machine_configs=DEFAULT_MACHINE_CONFIGS,
+        )
+        self.assertEqual(env.num_machines, 3)
+        self.assertEqual(len(env.machine_names), 3)
+        self.assertIn("tianyan_s", env.machine_names)
+
+    def test_obs_action_space_unchanged(self):
+        """多机器模式下 obs/action 空间应保持不变（PPO 兼容）"""
+        env = QuantumSchedulingEnv(
+            max_steps=50,
+            machine_configs=DEFAULT_MACHINE_CONFIGS,
+        )
+        self.assertEqual(env.observation_space.shape, (OBS_DIM,))
+        self.assertEqual(env.action_space.n, 3)
+
+    def test_single_machine_backward_compat(self):
+        """machine_configs=None 应退化为单机模式（向后兼容）"""
+        env = QuantumSchedulingEnv(max_steps=50, machine_configs=None)
+        obs, info = env.reset(seed=42)
+        self.assertEqual(obs.shape, (OBS_DIM,))
+        self.assertEqual(info["num_machines"], 1)
+        # 单机模式不应显示多机器明细（render 不报错即可）
+        env.close()
+
+    def test_multi_machine_episode_runs(self):
+        """多机器模式下完整 episode 应正常跑完"""
+        env = QuantumSchedulingEnv(
+            max_steps=80,
+            machine_configs=DEFAULT_MACHINE_CONFIGS,
+        )
+        env.reset(seed=7)
+        for _ in range(80):
+            obs, _, term, trunc, _ = env.step(1)  # 全部走量子资源
+            if term or trunc:
+                break
+        # 至少有任务被路由到某台机器
+        self.assertGreater(sum(env._machine_schedule_count.values()), 0)
+
+    def test_machine_selection_distribution(self):
+        """多机器调度应在多台机器间分布（负载均衡）"""
+        env = QuantumSchedulingEnv(
+            max_steps=200,
+            machine_configs=DEFAULT_MACHINE_CONFIGS,
+        )
+        env.reset(seed=42)
+        for _ in range(200):
+            _, _, term, trunc, _ = env.step(1)
+            if term or trunc:
+                break
+        # 至少有 2 台机器被调度过（负载分摊）
+        used_machines = sum(1 for c in env._machine_schedule_count.values() if c > 0)
+        self.assertGreaterEqual(used_machines, 2)
+
+    def test_gate_set_filtering(self):
+        """需要 RX 门的任务不应路由到仅支持 H/CZ/M 的 tianyan_s"""
+        env = QuantumSchedulingEnv(
+            max_steps=20,
+            machine_configs=DEFAULT_MACHINE_CONFIGS,
+        )
+        env.reset(seed=42)
+        # 构造一个需要 RX 门的任务
+        task = Task(task_id="gate_test", task_type="quantum", qubit_count=2)
+        task.required_gates = ("RX", "H", "M")
+        machine = env._select_best_machine(task)
+        # tianyan_s 仅支持 H/CZ/M，应被过滤；tianyan_tn 支持 RX
+        if machine is not None:
+            self.assertNotEqual(machine.name, "tianyan_s")
+            self.assertIn("RX", machine.supported_gates)
+
+    def test_select_best_machine_returns_none_when_no_fit(self):
+        """无机器能承接超大任务时应返回 None"""
+        env = QuantumSchedulingEnv(
+            max_steps=20,
+            machine_configs=[
+                {"name": "small", "total_qubits": 10,
+                 "supported_gates": ("H", "CZ", "M"), "is_real": False},
+            ],
+        )
+        env.reset(seed=42)
+        # 需要 100 比特，但机器只有 10 比特
+        big_task = Task(task_id="big", task_type="quantum", qubit_count=100)
+        machine = env._select_best_machine(big_task)
+        self.assertIsNone(machine)
+
+    def test_attach_real_clients_sets_is_real(self):
+        """attach_real_clients 应将对应机器标记为真机"""
+        env = QuantumSchedulingEnv(
+            max_steps=20,
+            machine_configs=DEFAULT_MACHINE_CONFIGS,
+        )
+        fake_clients = {
+            "tianyan_s": object(),  # 占位客户端
+            "tianyan_tn": object(),
+        }
+        env.attach_real_clients(fake_clients)
+        for m in env._machines:
+            if m.name in fake_clients:
+                self.assertTrue(m.is_real)
+            else:
+                self.assertFalse(m.is_real)
+
+    def test_info_contains_machine_details(self):
+        """info 字典应包含多机器调度详情"""
+        env = QuantumSchedulingEnv(
+            max_steps=20,
+            machine_configs=DEFAULT_MACHINE_CONFIGS,
+        )
+        _, info = env.reset(seed=42)
+        _, _, _, _, info = env.step(1)
+        self.assertIn("machines", info)
+        self.assertIn("last_selected_machine", info)
+        self.assertIn("machine_schedule_count", info)
+        self.assertEqual(len(info["machines"]), 3)
 
 
 class TestSchedulerAgent(unittest.TestCase):

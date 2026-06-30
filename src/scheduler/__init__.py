@@ -20,6 +20,8 @@ from src.scheduler.env import (
     Task as EnvTask,
     QuantumResource,
     ClassicalResource,
+    QuantumMachine,
+    DEFAULT_MACHINE_CONFIGS,
     register_env,
 )
 
@@ -54,6 +56,8 @@ __all__ = [
     "SchedulingEnv",
     "QuantumResource",
     "ClassicalResource",
+    "QuantumMachine",
+    "DEFAULT_MACHINE_CONFIGS",
     "register_env",
     "Task",
     "TaskBuilder",
