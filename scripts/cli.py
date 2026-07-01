@@ -134,6 +134,7 @@ def serve(host, port, reload):
     """启动 Web 监控服务"""
     try:
         import uvicorn
+
         from src.visualization.app import app
 
         click.echo(f"启动服务: http://{host}:{port}")
