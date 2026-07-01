@@ -554,19 +554,8 @@ class TestOptimizePolicyAndHelpers(unittest.TestCase):
             self.assertTrue(torch.equal(p1, p2))
 
     @unittest.skip("v5 重构后 head_only 行为已变更，需重新设计测试")
-
-        class MockAgent:
-            """带 policy_net 的模拟智能体。"""
-
-            def __init__(self):
-                self.policy_net = nn.Sequential(nn.Linear(4, 4), nn.ReLU(), nn.Linear(4, 2))
-
-        agent = MockAgent()
-        with (
-            patch.object(annealing_mod, "QUANTUM_ACCELERATION_ENABLED", True),
-            self.assertRaises(AttributeError),
-        ):
-            self.opt.optimize_policy(agent, num_iterations=1, head_only=True)
+    def test_optimize_policy_head_only_raises_attribute_error(self):
+        pass
 
     def test_optimize_policy_no_policy_net_returns_agent(self):
         """agent 无可识别策略网络时应直接返回。"""
