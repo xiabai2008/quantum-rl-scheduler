@@ -1,0 +1,27 @@
+# =============================================================================
+# EditorConfig — 跨编辑器的编码风格统一
+# 支持的编辑器：VS Code, PyCharm, Sublime, Vim, Emacs 等
+# =============================================================================
+
+root = true
+
+[*]
+indent_style = space
+indent_size = 4
+end_of_line = lf
+charset = utf-8
+trim_trailing_whitespace = true
+insert_final_newline = true
+
+[*.{yml,yaml}]
+indent_size = 2
+
+[*.{json,html,css,js}]
+indent_size = 2
+
+[Makefile]
+indent_style = tab
+indent_size = 4
+
+[*.md]
+trim_trailing_whitespace = false

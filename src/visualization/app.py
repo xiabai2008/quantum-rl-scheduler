@@ -15,16 +15,13 @@ import asyncio
 import json
 import os
 import sys
-import time
 import uuid
+from contextlib import asynccontextmanager
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional
-
-from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
-from fastapi.responses import HTMLResponse, FileResponse
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 
 # 确保项目根目录在 Python 路径中
@@ -37,8 +34,10 @@ if str(_PROJECT_ROOT) not in sys.path:
 # 数据模型定义
 # ============================================================
 
+
 class TaskSubmit(BaseModel):
     """提交新任务的请求体"""
+
     user_id: str = Field(default="user_001", description="用户ID")
     task_type: str = Field(default="quantum", description="任务类型: quantum/classical/hybrid")
     priority: int = Field(default=3, ge=1, le=5, description="优先级 1-5")
@@ -49,6 +48,7 @@ class TaskSubmit(BaseModel):
 
 class SystemStatusUpdate(BaseModel):
     """系统状态更新请求体（供调度引擎调用）"""
+
     qubit_utilization: float = Field(default=0.0, ge=0.0, le=1.0)
     queue_length: int = Field(default=0, ge=0)
     completed_tasks: int = Field(default=0, ge=0)
@@ -60,27 +60,27 @@ class SystemStatusUpdate(BaseModel):
 # ============================================================
 
 # 当前系统状态
-system_status: Dict = {
-    "qubit_utilization": 0.65,       # 量子比特利用率 (0~1)
-    "queue_length": 5,               # 任务队列长度
-    "average_wait_time": 12.3,       # 平均等待时间(秒)
-    "completed_tasks": 42,           # 已完成任务数
-    "current_step": 1024,            # 当前调度步数
+system_status: dict = {
+    "qubit_utilization": 0.65,  # 量子比特利用率 (0~1)
+    "queue_length": 5,  # 任务队列长度
+    "average_wait_time": 12.3,  # 平均等待时间(秒)
+    "completed_tasks": 42,  # 已完成任务数
+    "current_step": 1024,  # 当前调度步数
     "current_strategy": "PPO-Balanced",  # 当前调度策略
-    "strategy_options": [            # 可选策略列表
+    "strategy_options": [  # 可选策略列表
         "DQN-Reward",
         "DQN-Latency",
         "PPO-Balanced",
         "QAOA-Hybrid",
         "FCFS",
     ],
-    "real_machines": [],             # 真机列表 [{name, status, type, id}]
-    "real_submissions": [],          # 真机提交记录 [{step, task_id, machine, latency_s, status}]
+    "real_machines": [],  # 真机列表 [{name, status, type, id}]
+    "real_submissions": [],  # 真机提交记录 [{step, task_id, machine, latency_s, status}]
     "last_update": datetime.now().isoformat(),
 }
 
 # 任务队列
-task_queue: List[Dict] = [
+task_queue: list[dict] = [
     {
         "task_id": "QTASK-" + uuid.uuid4().hex[:6],
         "user_id": "user_001",
@@ -116,12 +116,13 @@ task_queue: List[Dict] = [
     },
 ]
 
+
 # WebSocket 连接管理器
 class ConnectionManager:
     """管理所有 WebSocket 客户端连接"""
 
     def __init__(self):
-        self.active_connections: List[WebSocket] = []
+        self.active_connections: list[WebSocket] = []
 
     async def connect(self, websocket: WebSocket):
         await websocket.accept()
@@ -169,17 +170,19 @@ app = FastAPI(title="量子RL调度系统监控界面", version="1.0.0", lifespa
 
 # 获取前端 HTML 文件路径
 import os as _os
+
 FRONTEND_HTML_PATH = _os.path.join(_os.path.dirname(__file__), "frontend", "index.html")
 
 # 缓存前端 HTML 内容
 _VUE3_HTML_TEMPLATE = None
+
 
 def _load_vue3_template():
     """加载 Vue3 前端 HTML 模板"""
     global _VUE3_HTML_TEMPLATE
     if _VUE3_HTML_TEMPLATE is None:
         if _os.path.exists(FRONTEND_HTML_PATH):
-            with open(FRONTEND_HTML_PATH, "r", encoding="utf-8") as f:
+            with open(FRONTEND_HTML_PATH, encoding="utf-8") as f:
                 _VUE3_HTML_TEMPLATE = f.read()
         else:
             _VUE3_HTML_TEMPLATE = HTML_TEMPLATE  # 回退到旧的 HTML
@@ -195,6 +198,7 @@ async def root():
 # ============================================================
 # API 路由
 # ============================================================
+
 
 @app.get("/api/status")
 async def get_status():
@@ -229,7 +233,7 @@ async def get_real_submissions():
 
 
 @app.get("/api/tasks")
-async def get_tasks(status: Optional[str] = None):
+async def get_tasks(status: str | None = None):
     """
     获取任务列表
     - status=pending: 只返回等待中的任务
@@ -261,11 +265,13 @@ async def submit_task(task: TaskSubmit):
     system_status["queue_length"] = len([t for t in task_queue if t["status"] == "pending"])
     system_status["last_update"] = datetime.now().isoformat()
     # 广播更新
-    await manager.broadcast({
-        "type": "task_added",
-        "task": new_task,
-        "status": system_status,
-    })
+    await manager.broadcast(
+        {
+            "type": "task_added",
+            "task": new_task,
+            "status": system_status,
+        }
+    )
     return {"message": "任务提交成功", "task_id": new_task["task_id"]}
 
 
@@ -304,12 +310,14 @@ async def switch_strategy(strategy: str):
     old = system_status["current_strategy"]
     system_status["current_strategy"] = strategy
     system_status["last_update"] = datetime.now().isoformat()
-    await manager.broadcast({
-        "type": "strategy_changed",
-        "old_strategy": old,
-        "new_strategy": strategy,
-        "status": system_status,
-    })
+    await manager.broadcast(
+        {
+            "type": "strategy_changed",
+            "old_strategy": old,
+            "new_strategy": strategy,
+            "status": system_status,
+        }
+    )
     return {"message": f"策略切换: {old} -> {strategy}", "success": True}
 
 
@@ -321,10 +329,12 @@ async def update_status(update: SystemStatusUpdate):
     system_status["completed_tasks"] = update.completed_tasks
     system_status["average_wait_time"] = update.average_wait_time
     system_status["last_update"] = datetime.now().isoformat()
-    await manager.broadcast({
-        "type": "status_update",
-        "status": system_status,
-    })
+    await manager.broadcast(
+        {
+            "type": "status_update",
+            "status": system_status,
+        }
+    )
     return {"message": "状态更新成功", "status": system_status}
 
 
@@ -336,13 +346,15 @@ async def update_status(update: SystemStatusUpdate):
 _ppo_model = None
 _ppo_env = None
 
+
 def _get_ppo_model():
     """加载 PPO 模型（懒加载，避免启动时阻塞）"""
     global _ppo_model, _ppo_env
     if _ppo_model is None:
         try:
-            from src.scheduler.env import QuantumSchedulingEnv
             from stable_baselines3 import PPO
+
+            from src.scheduler.env import QuantumSchedulingEnv
 
             _ppo_env = QuantumSchedulingEnv(max_qubits=20, seed=42)
             model_path = os.path.join(_PROJECT_ROOT, "models", "ppo_seed_42_v4", "best_model.zip")
@@ -350,7 +362,7 @@ def _get_ppo_model():
             if not os.path.exists(model_path):
                 # 自动发现：在 models/ 下找任意 ppo 开头的目录中的 best_model.zip
                 models_dir = os.path.join(_PROJECT_ROOT, "models")
-                for root, dirs, files in os.walk(models_dir):
+                for root, _dirs, files in os.walk(models_dir):
                     if "ppo" in os.path.basename(root).lower():
                         for f in files:
                             if f.endswith(".zip"):
@@ -391,25 +403,27 @@ def _get_real_cqlib_client():
     _real_cqlib_checked = True
     try:
         from dotenv import load_dotenv
+
         load_dotenv()
         api_key = os.getenv("TIANYAN_API_KEY", "")
         if not api_key:
             print("[Web] 未配置 TIANYAN_API_KEY，真机状态轮询已禁用")
             return None
         from src.api.tianyan_cqlib import CqlibTianyanClient
+
         _real_cqlib_client = CqlibTianyanClient(
             login_key=api_key,
             machine_name="tianyan_s",
             auto_retry_machine=True,
         )
-        print(f"[Web] 真机 cqlib 客户端已就绪: tianyan_s")
+        print("[Web] 真机 cqlib 客户端已就绪: tianyan_s")
     except Exception as e:
         print(f"[Web] 真机客户端创建失败 ({e})，真机状态降级为离线")
         _real_cqlib_client = None
     return _real_cqlib_client
 
 
-def _get_real_machines_status() -> List[Dict]:
+def _get_real_machines_status() -> list[dict]:
     """查询天衍云真实量子计算机列表及状态。
 
     调用 ``CqlibTianyanClient.list_backends()``（底层
@@ -429,7 +443,7 @@ def _get_real_machines_status() -> List[Dict]:
         return []
 
 
-def _load_real_submissions() -> List[Dict]:
+def _load_real_submissions() -> list[dict]:
     """从 results/real_times.json 加载最近的真机提交记录。
 
     训练回调 ``RealMachineCallback`` 会把真机提交记录写入该文件。
@@ -442,7 +456,7 @@ def _load_real_submissions() -> List[Dict]:
     if not os.path.exists(path):
         return []
     try:
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             records = json.load(f)
         if isinstance(records, list):
             # 保留最近 50 条，倒序展示
@@ -458,7 +472,11 @@ async def get_ppo_comparison():
     """返回 PPO 与其他策略的对比数据（从 v4 报告中读取）"""
     report_dir = os.path.join(_PROJECT_ROOT, "results")
     json_files = sorted(
-        [f for f in os.listdir(report_dir) if f.startswith("simulation_results_") and f.endswith(".json")],
+        [
+            f
+            for f in os.listdir(report_dir)
+            if f.startswith("simulation_results_") and f.endswith(".json")
+        ],
         reverse=True,
     )
     if not json_files:
@@ -466,25 +484,27 @@ async def get_ppo_comparison():
 
     latest_file = os.path.join(report_dir, json_files[0])
     try:
-        with open(latest_file, "r", encoding="utf-8") as f:
+        with open(latest_file, encoding="utf-8") as f:
             data = json.load(f)
     except Exception:
         return {"error": f"无法读取: {latest_file}", "strategies": [], "ppo_rank": None}
 
     sorted_items = sorted(data.items(), key=lambda x: x[1].get("avg_reward", -9999), reverse=True)
-    ppo_rank = next((i+1 for i, (k, _) in enumerate(sorted_items) if "PPO" in k.upper()), None)
+    ppo_rank = next((i + 1 for i, (k, _) in enumerate(sorted_items) if "PPO" in k.upper()), None)
 
     strategies = []
     for rank, (name, metrics) in enumerate(sorted_items, 1):
-        strategies.append({
-            "rank": rank,
-            "name": name,
-            "avg_reward": metrics.get("avg_reward", 0),
-            "avg_wait_time": metrics.get("avg_wait_time", 0),
-            "completion_rate": metrics.get("completion_rate", 0),
-            "qubit_utilization": metrics.get("qubit_utilization", 0),
-            "classical_utilization": metrics.get("classical_utilization", 0),
-        })
+        strategies.append(
+            {
+                "rank": rank,
+                "name": name,
+                "avg_reward": metrics.get("avg_reward", 0),
+                "avg_wait_time": metrics.get("avg_wait_time", 0),
+                "completion_rate": metrics.get("completion_rate", 0),
+                "qubit_utilization": metrics.get("qubit_utilization", 0),
+                "classical_utilization": metrics.get("classical_utilization", 0),
+            }
+        )
 
     return {
         "strategies": strategies,
@@ -521,14 +541,18 @@ async def ppo_stats():
     """返回 PPO 关键性能指标"""
     report_dir = os.path.join(_PROJECT_ROOT, "results")
     json_files = sorted(
-        [f for f in os.listdir(report_dir) if f.startswith("simulation_results_") and f.endswith(".json")],
+        [
+            f
+            for f in os.listdir(report_dir)
+            if f.startswith("simulation_results_") and f.endswith(".json")
+        ],
         reverse=True,
     )
     if not json_files:
         return {"error": "未找到仿真结果"}
 
     try:
-        with open(os.path.join(report_dir, json_files[0]), "r", encoding="utf-8") as f:
+        with open(os.path.join(report_dir, json_files[0]), encoding="utf-8") as f:
             data = json.load(f)
     except Exception:
         return {"error": "无法读取结果文件"}
@@ -544,7 +568,7 @@ async def ppo_stats():
 
     # 计算排名
     sorted_items = sorted(data.items(), key=lambda x: x[1].get("avg_reward", -9999), reverse=True)
-    ppo_rank = next(i+1 for i, (k, _) in enumerate(sorted_items) if "PPO" in k.upper())
+    ppo_rank = next(i + 1 for i, (k, _) in enumerate(sorted_items) if "PPO" in k.upper())
     best_name, best_data = sorted_items[0]
 
     return {
@@ -559,13 +583,16 @@ async def ppo_stats():
         "total": len(sorted_items),
         "best_strategy": best_name,
         "best_reward": best_data.get("avg_reward"),
-        "vs_random": round(ppo_data.get("avg_reward", 0) - data.get("Random", {}).get("avg_reward", 0), 1),
+        "vs_random": round(
+            ppo_data.get("avg_reward", 0) - data.get("Random", {}).get("avg_reward", 0), 1
+        ),
     }
 
 
 # ============================================================
 # WebSocket 路由：实时推送状态更新
 # ============================================================
+
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
@@ -582,22 +609,31 @@ async def websocket_endpoint(websocket: WebSocket):
         ppo_stats = {}
         try:
             report_dir = os.path.join(_PROJECT_ROOT, "results")
-            json_files = sorted([f for f in os.listdir(report_dir) if f.startswith("simulation_results_")], reverse=True)
+            json_files = sorted(
+                [f for f in os.listdir(report_dir) if f.startswith("simulation_results_")],
+                reverse=True,
+            )
             if json_files:
-                with open(os.path.join(report_dir, json_files[0]), "r") as f:
+                with open(os.path.join(report_dir, json_files[0])) as f:
                     sim_data = json.load(f)
-                sorted_items = sorted(sim_data.items(), key=lambda x: x[1].get("avg_reward", -9999), reverse=True)
-                ppo_rank = next((i+1 for i, (k, _) in enumerate(sorted_items) if "PPO" in k.upper()), None)
+                sorted_items = sorted(
+                    sim_data.items(), key=lambda x: x[1].get("avg_reward", -9999), reverse=True
+                )
+                ppo_rank = next(
+                    (i + 1 for i, (k, _) in enumerate(sorted_items) if "PPO" in k.upper()), None
+                )
                 ppo_stats = {"ppo_rank": ppo_rank, "total": len(sorted_items)}
         except Exception:
             pass
 
-        await websocket.send_json({
-            "type": "init",
-            "status": system_status,
-            "tasks": task_queue,
-            "ppo_stats": ppo_stats,
-        })
+        await websocket.send_json(
+            {
+                "type": "init",
+                "status": system_status,
+                "tasks": task_queue,
+                "ppo_stats": ppo_stats,
+            }
+        )
         # 保持连接，监听客户端消息（心跳/指令）
         while True:
             data = await websocket.receive_text()
@@ -605,10 +641,12 @@ async def websocket_endpoint(websocket: WebSocket):
                 msg = json.loads(data)
             except json.JSONDecodeError:
                 # 忽略非 JSON 消息，避免连接断开
-                await websocket.send_json({
-                    "type": "error",
-                    "message": "Invalid JSON format",
-                })
+                await websocket.send_json(
+                    {
+                        "type": "error",
+                        "message": "Invalid JSON format",
+                    }
+                )
                 continue
             # 客户端可发送 {"action": "ping"} 作为心跳
             if msg.get("action") == "ping":
@@ -621,6 +659,7 @@ async def websocket_endpoint(websocket: WebSocket):
 # 后台模拟任务：定时更新状态（模拟调度引擎行为）
 # ============================================================
 
+
 async def simulate_scheduler():
     """模拟调度引擎行为 — 使用 PPO 模型进行推理决策。
 
@@ -630,6 +669,7 @@ async def simulate_scheduler():
     maintenance）与真实提交历史通过 WebSocket 推送到前端监控卡片。
     """
     import random
+
     tick = 0
     while True:
         await asyncio.sleep(3)
@@ -650,12 +690,19 @@ async def simulate_scheduler():
             except Exception:
                 # PPO 推理失败，回退随机
                 system_status["qubit_utilization"] = round(
-                    max(0.1, min(1.0, system_status["qubit_utilization"] + random.uniform(-0.03, 0.03))), 4
+                    max(
+                        0.1,
+                        min(1.0, system_status["qubit_utilization"] + random.uniform(-0.03, 0.03)),
+                    ),
+                    4,
                 )
         else:
             # 无模型，随机模拟
             system_status["qubit_utilization"] = round(
-                max(0.1, min(1.0, system_status["qubit_utilization"] + random.uniform(-0.03, 0.03))), 4
+                max(
+                    0.1, min(1.0, system_status["qubit_utilization"] + random.uniform(-0.03, 0.03))
+                ),
+                4,
             )
 
         system_status["queue_length"] = len([t for t in task_queue if t["status"] == "pending"])
@@ -691,12 +738,14 @@ async def simulate_scheduler():
             task = random.choice(pending)
             task["status"] = "running"
 
-        await manager.broadcast({
-            "type": "status_update",
-            "status": system_status,
-            "tasks": task_queue,
-            "ppo_active": _ppo_model is not None,
-        })
+        await manager.broadcast(
+            {
+                "type": "status_update",
+                "status": system_status,
+                "tasks": task_queue,
+                "ppo_active": _ppo_model is not None,
+            }
+        )
 
 
 # ============================================================
@@ -1469,13 +1518,15 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 # 服务器启动入口
 # ============================================================
 
+
 def start_web_server(host: str = "0.0.0.0", port: int = 8000):
     """启动 Web 服务器"""
     import uvicorn
-    print(f"========================================")
-    print(f"  量子RL调度系统 - 监控面板")
+
+    print("========================================")
+    print("  量子RL调度系统 - 监控面板")
     print(f"  访问地址: http://{host}:{port}")
-    print(f"========================================")
+    print("========================================")
     uvicorn.run(app, host=host, port=port)
 
 

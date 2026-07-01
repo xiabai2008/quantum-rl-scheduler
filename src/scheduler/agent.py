@@ -24,42 +24,39 @@ Reinforcement Learning Agent for Quantum-Classical Hybrid Task Scheduling
     2 - 混合执行（量子-经典协同）
 """
 
-import os
 import json
-import time
+import os
 import random
-import numpy as np
-from typing import Dict, Tuple, Optional, Any, List
+import time
+from typing import Any
 
-from stable_baselines3 import DQN
-from stable_baselines3.dqn import MlpPolicy
-from stable_baselines3.common.save_util import load_from_zip_file
-from stable_baselines3.dqn.policies import QNetwork
+import gymnasium as gym
+import numpy as np
+import torch as th
+from gymnasium import spaces
+from sb3_contrib import RecurrentPPO
+from stable_baselines3 import DQN, PPO
 from stable_baselines3.common.callbacks import (
     BaseCallback,
-    EvalCallback,
     CallbackList,
+    EvalCallback,
 )
 from stable_baselines3.common.monitor import Monitor
-from stable_baselines3.common.buffers import ReplayBuffer
-from stable_baselines3.common.utils import get_device
+from stable_baselines3.common.save_util import load_from_zip_file
 from stable_baselines3.common.torch_layers import (
     BaseFeaturesExtractor,
     create_mlp,
 )
-from stable_baselines3 import PPO
-from src.quantum.annealing import QuantumAnnealingOptimizer
-import gymnasium as gym
-from gymnasium import spaces
-import torch
+from stable_baselines3.common.utils import get_device
+from stable_baselines3.dqn.policies import QNetwork
 from torch import nn
 
-import torch as th
-
+from src.quantum.annealing import QuantumAnnealingOptimizer
 
 # ---------------------------------------------------------------------------
 # 自定义策略网络：Dueling DQN（兼容 SB3 2.0+）
 # ---------------------------------------------------------------------------
+
 
 class DuelingQNetwork(QNetwork):
     """
@@ -107,9 +104,9 @@ class DuelingQNetwork(QNetwork):
         shared_output_dim = self.net_arch[-1] if self.net_arch else features_dim
 
         # 共享特征层（提取高层表示）
-        self.q_net = nn.Sequential(*create_mlp(
-            features_dim, shared_output_dim, self.net_arch[:-1], self.activation_fn
-        ))
+        self.q_net = nn.Sequential(
+            *create_mlp(features_dim, shared_output_dim, self.net_arch[:-1], self.activation_fn)
+        )
 
         # 价值分支 V(s)：估计状态价值
         self.value_stream = nn.Sequential(
@@ -140,7 +137,7 @@ class DuelingQNetwork(QNetwork):
         # 通过共享层
         shared = self.q_net(features)
         # 计算状态价值和动作优势
-        value = self.value_stream(shared)          # (batch, 1)
+        value = self.value_stream(shared)  # (batch, 1)
         advantage = self.advantage_stream(shared)  # (batch, action_dim)
         # Q(s,a) = V(s) + A(s,a) - mean(A(s,a))
         q_values = value + advantage - advantage.mean(dim=-1, keepdim=True)
@@ -150,6 +147,7 @@ class DuelingQNetwork(QNetwork):
 # ---------------------------------------------------------------------------
 # 自定义回调：记录探索率衰减
 # ---------------------------------------------------------------------------
+
 
 class EpsilonExplorationCallback(BaseCallback):
     """
@@ -189,6 +187,7 @@ class EpsilonExplorationCallback(BaseCallback):
 # 核心类：SchedulerAgent
 # ---------------------------------------------------------------------------
 
+
 class SchedulerAgent:
     """
     基于 DQN 的量子-经典混合调度智能体
@@ -220,22 +219,22 @@ class SchedulerAgent:
     """
 
     # ========================= 默认训练超参数 =========================
-    DEFAULT_LEARNING_RATE: float = 0.001          # 学习率
-    DEFAULT_BUFFER_SIZE: int = 10000              # 经验回放缓冲区大小
-    DEFAULT_BATCH_SIZE: int = 64                  # 训练批量大小
-    DEFAULT_GAMMA: float = 0.99                  # 折扣因子（长期回报权重）
-    DEFAULT_TARGET_UPDATE_INTERVAL: int = 500    # 目标网络更新间隔（步数）
-    DEFAULT_TRAIN_FREQ: Tuple[int, str] = (1, "step")  # 训练频率：每步一次
-    DEFAULT_EPSILON_START: float = 1.0            # 初始探索率（完全探索）
-    DEFAULT_EPSILON_END: float = 0.05             # 最终探索率（保持少量探索）
-    DEFAULT_EPSILON_DECAY: float = 0.995          # 探索率衰减系数
-    DEFAULT_LEARNING_STARTS: int = 100            # 开始训练前的随机探索步数
-    DEFAULT_TAU: float = 1.0                      # 目标网络软更新系数（1.0 = 硬更新）
-    DEFAULT_LOG_DIR: str = "./logs/"              # TensorBoard 日志目录
-    DEFAULT_VERBOSE: int = 1                     # 训练日志详细程度
+    DEFAULT_LEARNING_RATE: float = 0.001  # 学习率
+    DEFAULT_BUFFER_SIZE: int = 10000  # 经验回放缓冲区大小
+    DEFAULT_BATCH_SIZE: int = 64  # 训练批量大小
+    DEFAULT_GAMMA: float = 0.99  # 折扣因子（长期回报权重）
+    DEFAULT_TARGET_UPDATE_INTERVAL: int = 500  # 目标网络更新间隔（步数）
+    DEFAULT_TRAIN_FREQ: tuple[int, str] = (1, "step")  # 训练频率：每步一次
+    DEFAULT_EPSILON_START: float = 1.0  # 初始探索率（完全探索）
+    DEFAULT_EPSILON_END: float = 0.05  # 最终探索率（保持少量探索）
+    DEFAULT_EPSILON_DECAY: float = 0.995  # 探索率衰减系数
+    DEFAULT_LEARNING_STARTS: int = 100  # 开始训练前的随机探索步数
+    DEFAULT_TAU: float = 1.0  # 目标网络软更新系数（1.0 = 硬更新）
+    DEFAULT_LOG_DIR: str = "./logs/"  # TensorBoard 日志目录
+    DEFAULT_VERBOSE: int = 1  # 训练日志详细程度
 
     # 策略网络隐藏层架构
-    NET_ARCH: list = [128, 64]
+    NET_ARCH: list = [128, 64]  # noqa: RUF012
 
     def __init__(
         self,
@@ -245,7 +244,7 @@ class SchedulerAgent:
         batch_size: int = DEFAULT_BATCH_SIZE,
         gamma: float = DEFAULT_GAMMA,
         target_update_interval: int = DEFAULT_TARGET_UPDATE_INTERVAL,
-        train_freq: Tuple[int, str] = DEFAULT_TRAIN_FREQ,
+        train_freq: tuple[int, str] = DEFAULT_TRAIN_FREQ,
         epsilon_start: float = DEFAULT_EPSILON_START,
         epsilon_end: float = DEFAULT_EPSILON_END,
         epsilon_decay: float = DEFAULT_EPSILON_DECAY,
@@ -253,7 +252,7 @@ class SchedulerAgent:
         tau: float = DEFAULT_TAU,
         log_dir: str = DEFAULT_LOG_DIR,
         verbose: int = DEFAULT_VERBOSE,
-        seed: Optional[int] = None,
+        seed: int | None = None,
     ):
         """
         初始化调度智能体
@@ -302,7 +301,7 @@ class SchedulerAgent:
         os.makedirs(log_dir, exist_ok=True)
 
         # 初始化模型（延迟到 train() 或 predict() 时创建）
-        self.model: Optional[DQN] = None
+        self.model: DQN | None = None
 
     def _build_model(self) -> DQN:
         """
@@ -320,7 +319,7 @@ class SchedulerAgent:
         }
 
         model = DQN(
-            policy="MlpPolicy",          # 使用 MLP 策略（将通过 policy_kwargs 替换为 Dueling）
+            policy="MlpPolicy",  # 使用 MLP 策略（将通过 policy_kwargs 替换为 Dueling）
             env=self.env,
             learning_rate=self.learning_rate,
             buffer_size=self.buffer_size,
@@ -337,7 +336,7 @@ class SchedulerAgent:
             # 探索参数
             exploration_initial_eps=self.epsilon_start,
             exploration_final_eps=self.epsilon_end,
-            exploration_fraction=0.5,    # 探索占总训练步数的比例
+            exploration_fraction=0.5,  # 探索占总训练步数的比例
         )
 
         # 替换为 Dueling DQN 网络
@@ -386,7 +385,7 @@ class SchedulerAgent:
         total_timesteps: int = 100000,
         eval_freq: int = 1000,
         n_eval_episodes: int = 5,
-        log_dir: Optional[str] = None,
+        log_dir: str | None = None,
         **kwargs,
     ) -> DQN:
         """
@@ -429,9 +428,7 @@ class SchedulerAgent:
         # 构建评估回调
         eval_callback = EvalCallback(
             eval_env=eval_env,
-            best_model_save_path=os.path.join(
-                self.log_dir, "best_model"
-            ),
+            best_model_save_path=os.path.join(self.log_dir, "best_model"),
             log_path=os.path.join(self.log_dir, "eval_results"),
             eval_freq=eval_freq,
             n_eval_episodes=n_eval_episodes,
@@ -474,9 +471,7 @@ class SchedulerAgent:
             动作索引（0=经典资源，1=量子资源，2=混合执行）
         """
         if self.model is None:
-            raise RuntimeError(
-                "模型尚未训练！请先调用 train() 方法或使用 load() 加载已训练模型。"
-            )
+            raise RuntimeError("模型尚未训练！请先调用 train() 方法或使用 load() 加载已训练模型。")
 
         # 确保状态是二维张量 (1, obs_dim)
         if state.ndim == 1:
@@ -494,7 +489,7 @@ class SchedulerAgent:
         self,
         num_episodes: int = 10,
         deterministic: bool = True,
-    ) -> Dict[str, float]:
+    ) -> dict[str, float]:
         """
         评估训练好的智能体性能
 
@@ -512,14 +507,12 @@ class SchedulerAgent:
                 - num_episodes: 评估回合数
         """
         if self.model is None:
-            raise RuntimeError(
-                "模型尚未训练！请先调用 train() 方法或使用 load() 加载已训练模型。"
-            )
+            raise RuntimeError("模型尚未训练！请先调用 train() 方法或使用 load() 加载已训练模型。")
 
         episode_rewards = []
         episode_success_rates = []
 
-        for ep in range(num_episodes):
+        for _ep in range(num_episodes):
             obs, info = self.env.reset()
             total_reward = 0.0
             done = False
@@ -571,8 +564,8 @@ class SchedulerAgent:
         Args:
             path: 模型文件路径（SB3 会自动处理 .zip 扩展名）
         """
-        data, params, _ = load_from_zip_file(path, device="cpu")
-        
+        _data, params, _ = load_from_zip_file(path, device="cpu")
+
         self.model = DQN(
             policy="MlpPolicy",
             env=self.env,
@@ -583,10 +576,12 @@ class SchedulerAgent:
             verbose=self.verbose,
             policy_kwargs={"net_arch": self.NET_ARCH},
         )
-        
+
         if "policy" in params:
             policy_state = params["policy"]
-            dueling_keys = [k for k in policy_state.keys() if "value_stream" in k or "advantage_stream" in k]
+            dueling_keys = [
+                k for k in policy_state if "value_stream" in k or "advantage_stream" in k
+            ]
             if dueling_keys:
                 self._replace_with_dueling(self.model)
                 q_net_state = {}
@@ -604,7 +599,7 @@ class SchedulerAgent:
             self.model.set_parameters(params, exact_match=True, device=self.model.device)
         print(f"[SchedulerAgent] 模型已从 {path} 加载")
 
-    def get_config(self) -> Dict[str, Any]:
+    def get_config(self) -> dict[str, Any]:
         """
         获取智能体配置信息
 
@@ -651,6 +646,7 @@ class SchedulerAgent:
 # 量子退火回调
 # ---------------------------------------------------------------------------
 
+
 class AnnealingCallback(BaseCallback):
     """
     每 N 步用量子退火优化 PPO 网络权重的回调。
@@ -663,37 +659,42 @@ class AnnealingCallback(BaseCallback):
         interval: 退火间隔（步数）
         best_reward: 最佳奖励值
         optimized_count: 累计优化次数
+        head_only: 是否仅优化网络输出头权重（避免全量参数 OOM）
     """
 
-    def __init__(self, optimizer, interval=1000, verbose=0):
+    def __init__(self, optimizer, interval=1000, verbose=0, head_only=True):
         super().__init__(verbose)
         self.optimizer = optimizer
         self.interval = interval
         self.best_reward = -float("inf")
         self.optimized_count = 0
+        self.head_only = head_only
 
     def _on_step(self) -> bool:
         """每步检查是否需要触发退火优化。"""
         if self.n_calls % self.interval == 0 and self.n_calls > 0:
             try:
-                # 获取当前网络权重 → QUBO → 退火 → 优化后权重
-                optimized_agent = self.optimizer.optimize_policy(self.model)
+                optimized_agent = self.optimizer.optimize_policy(
+                    self.model,
+                    head_only=self.head_only,
+                )
 
-                # 从优化后的 agent 中提取质量指标（loss 越小，质量越高）
                 quality = 0.0
                 if hasattr(self.optimizer, "_evaluate_network_quality"):
                     policy_net = self.optimizer._get_policy_net(optimized_agent)
                     if policy_net is not None:
                         loss = self.optimizer._evaluate_network_quality(policy_net)
-                        quality = -loss  # loss 越小，质量越高
+                        quality = -loss
 
                 if quality > self.best_reward:
                     self.best_reward = quality
                     self.optimized_count += 1
 
                     if self.verbose:
-                        print(f"[退火] 步数{self.n_calls}: 优化完成 (质量={quality:.4f}, "
-                              f"累计优化{self.optimized_count}次)")
+                        print(
+                            f"[退火] 步数{self.n_calls}: 优化完成 (质量={quality:.4f}, "
+                            f"累计优化{self.optimized_count}次)"
+                        )
             except Exception as e:
                 if self.verbose:
                     print(f"[退火] 步数{self.n_calls}: 退火跳过 ({e})")
@@ -703,6 +704,7 @@ class AnnealingCallback(BaseCallback):
 # ---------------------------------------------------------------------------
 # 真机抽样回调：训练过程中按概率向天衍云真机提交任务
 # ---------------------------------------------------------------------------
+
 
 class RealMachineCallback(BaseCallback):
     """每 N 步抽样 1 个任务提交真机，记录真实耗时。
@@ -753,7 +755,7 @@ class RealMachineCallback(BaseCallback):
         self.client = client
         self.save_path = save_path
         self.shots = int(shots)
-        self.real_times: List[Dict[str, Any]] = []
+        self.real_times: list[dict[str, Any]] = []
         self._warned_no_client = False
 
     def _on_step(self) -> bool:
@@ -788,7 +790,7 @@ class RealMachineCallback(BaseCallback):
         if hasattr(self.env, "get_random_pending_task"):
             try:
                 task = self.env.get_random_pending_task()
-            except Exception:  # noqa: BLE001
+            except Exception:
                 task = None
 
         # 构造 QCIS（Task 无 qcis 字段时用最小占位电路保证可执行）
@@ -800,7 +802,7 @@ class RealMachineCallback(BaseCallback):
 
         # 提交并计时（异常安全，失败仅记录，不中断训练）
         t0 = time.time()
-        record: Dict[str, Any] = {
+        record: dict[str, Any] = {
             "step": int(self.n_calls),
             "task_id": task_id_str,
             "machine": machine_name,
@@ -823,7 +825,7 @@ class RealMachineCallback(BaseCallback):
                     f"tid={real_tid} latency={record['latency_s']}s "
                     f"task={task_id_str}"
                 )
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             record["latency_s"] = round(time.time() - t0, 3)
             record["status"] = f"error: {str(e)[:80]}"
             if self.verbose:
@@ -847,13 +849,14 @@ class RealMachineCallback(BaseCallback):
                     f"[RealCallback] 真机提交记录已保存: {self.save_path} "
                     f"(共 {len(self.real_times)} 条)"
                 )
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             print(f"[RealCallback] 保存记录失败: {e}")
 
 
 # ---------------------------------------------------------------------------
 # PPO 智能体
 # ---------------------------------------------------------------------------
+
 
 class PPOAgent:
     """
@@ -895,8 +898,13 @@ class PPOAgent:
         self.vf_coef = kwargs.get("vf_coef", 0.5)
         self.max_grad_norm = kwargs.get("max_grad_norm", 0.5)
         self.verbose = kwargs.get("verbose", 1)
-        self.seed = kwargs.get("seed", None)
+        self.seed = kwargs.get("seed")
         self.log_dir = kwargs.get("log_dir", "./logs/")
+
+        # LSTM 策略支持（阶段3）
+        self.use_lstm = kwargs.get("use_lstm", False)
+        self.n_lstm_layers = kwargs.get("n_lstm_layers", 1)
+        self.lstm_hidden_size = kwargs.get("lstm_hidden_size", 64)
 
         os.makedirs(self.log_dir, exist_ok=True)
 
@@ -915,7 +923,7 @@ class PPOAgent:
                 annealing_time=kwargs.get("annealing_time", 20.0),
                 shots=kwargs.get("anneal_shots", 1000),
                 simulation_mode=kwargs.get("anneal_simulation_mode", True),
-                cqlib_client=kwargs.get("anneal_cqlib_client", None),
+                cqlib_client=kwargs.get("anneal_cqlib_client"),
             )
             sim_tag = "仿真" if self.annealing_optimizer.simulation_mode else "真机"
             print(
@@ -930,24 +938,56 @@ class PPOAgent:
         Returns:
             构建好的 PPO 模型实例
         """
-        model = PPO(
-            "MlpPolicy",
-            self.env,
-            learning_rate=self.learning_rate,
-            n_steps=self.n_steps,
-            batch_size=self.batch_size,
-            n_epochs=self.n_epochs,
-            gamma=self.gamma,
-            gae_lambda=self.gae_lambda,
-            clip_range=self.clip_range,
-            ent_coef=self.ent_coef,
-            vf_coef=self.vf_coef,
-            max_grad_norm=self.max_grad_norm,
-            verbose=self.verbose,
-            seed=self.seed,
-            tensorboard_log=self.log_dir,
-            policy_kwargs={"net_arch": [128, 64]},
-        )
+        # 根据 use_lstm 选择策略类型
+        if self.use_lstm:
+            # 使用 RecurrentPPO 支持 LSTM 策略
+            policy_kwargs = {
+                "n_lstm_layers": self.n_lstm_layers,
+                "lstm_hidden_size": self.lstm_hidden_size,
+                "net_arch": [128, 64],
+            }
+            print(
+                f"[PPOAgent] 使用 LSTM 策略: layers={self.n_lstm_layers}, "
+                f"hidden_size={self.lstm_hidden_size}"
+            )
+            model = RecurrentPPO(
+                "MlpLstmPolicy",
+                self.env,
+                learning_rate=self.learning_rate,
+                n_steps=self.n_steps,
+                batch_size=self.batch_size,
+                n_epochs=self.n_epochs,
+                gamma=self.gamma,
+                gae_lambda=self.gae_lambda,
+                clip_range=self.clip_range,
+                ent_coef=self.ent_coef,
+                vf_coef=self.vf_coef,
+                max_grad_norm=self.max_grad_norm,
+                verbose=self.verbose,
+                seed=self.seed,
+                tensorboard_log=self.log_dir,
+                policy_kwargs=policy_kwargs,
+            )
+        else:
+            policy_kwargs = {"net_arch": [128, 64]}
+            model = PPO(
+                "MlpPolicy",
+                self.env,
+                learning_rate=self.learning_rate,
+                n_steps=self.n_steps,
+                batch_size=self.batch_size,
+                n_epochs=self.n_epochs,
+                gamma=self.gamma,
+                gae_lambda=self.gae_lambda,
+                clip_range=self.clip_range,
+                ent_coef=self.ent_coef,
+                vf_coef=self.vf_coef,
+                max_grad_norm=self.max_grad_norm,
+                verbose=self.verbose,
+                seed=self.seed,
+                tensorboard_log=self.log_dir,
+                policy_kwargs=policy_kwargs,
+            )
         return model
 
     def train(
@@ -955,7 +995,7 @@ class PPOAgent:
         total_timesteps: int = 50000,
         eval_freq: int = 5000,
         n_eval_episodes: int = 10,
-        log_dir: Optional[str] = None,
+        log_dir: str | None = None,
         **kwargs,
     ) -> PPO:
         """
@@ -1056,9 +1096,7 @@ class PPOAgent:
             动作索引
         """
         if self.model is None:
-            raise RuntimeError(
-                "模型尚未训练！请先调用 train() 方法或使用 load() 加载已训练模型。"
-            )
+            raise RuntimeError("模型尚未训练！请先调用 train() 方法或使用 load() 加载已训练模型。")
 
         if state.ndim == 1:
             state = state.reshape(1, -1)
@@ -1070,7 +1108,7 @@ class PPOAgent:
         self,
         num_episodes: int = 10,
         deterministic: bool = True,
-    ) -> Dict[str, float]:
+    ) -> dict[str, float]:
         """
         评估训练好的智能体性能。
 
@@ -1082,14 +1120,12 @@ class PPOAgent:
             评估结果字典
         """
         if self.model is None:
-            raise RuntimeError(
-                "模型尚未训练！请先调用 train() 方法或使用 load() 加载已训练模型。"
-            )
+            raise RuntimeError("模型尚未训练！请先调用 train() 方法或使用 load() 加载已训练模型。")
 
         episode_rewards = []
         episode_success_rates = []
 
-        for ep in range(num_episodes):
+        for _ep in range(num_episodes):
             obs, info = self.env.reset()
             total_reward = 0.0
             done = False
@@ -1136,7 +1172,7 @@ class PPOAgent:
         self.model = PPO.load(path, env=self.env)
         print(f"[PPOAgent] 模型已从 {path} 加载")
 
-    def get_config(self) -> Dict[str, Any]:
+    def get_config(self) -> dict[str, Any]:
         """
         获取智能体配置信息。
 
@@ -1181,7 +1217,6 @@ class PPOAgent:
 
 if __name__ == "__main__":
     import sys
-    import os
 
     _PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     if str(_PROJECT_ROOT) not in sys.path:

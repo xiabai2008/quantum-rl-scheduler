@@ -6,6 +6,7 @@ scipy>=1.10.0
 # 强化学习
 gymnasium>=0.28.0
 stable-baselines3>=2.0.0
+sb3-contrib>=2.0.0
 torch>=2.0.0
 
 # 量子计算
@@ -46,12 +47,21 @@ loguru>=0.7.0
 pytest>=7.4.0
 pytest-asyncio>=0.21.0
 pytest-cov>=4.1.0
+pytest-timeout>=2.1.0
+pytest-flakefinder>=1.0.0
+pytest-benchmark>=4.0.0
+hypothesis>=6.100.0
 
 # 代码质量
 black>=23.0.0
-flake8>=6.0.0
 isort>=5.12.0
 mypy>=1.5.0
+ruff>=0.4.0
+bandit>=1.7.0
+
+# 可观测性 & CLI
+prometheus_client>=0.19.0
+click>=8.1.0
 
 # Jupyter
 jupyter>=1.0.0

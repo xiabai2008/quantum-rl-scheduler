@@ -11,19 +11,22 @@
 ### 1. 环境准备
 ```bash
 # 克隆仓库
-git clone https://github.com/你的用户名/quantum-rl-scheduler.git
+git clone https://github.com/xiabai2004/quantum-rl-scheduler.git
 cd quantum-rl-scheduler
 
-# 创建虚拟环境
-python -m venv venv
-venv\Scripts\activate        # Windows
-source venv/bin/activate     # macOS/Linux
+# 一键初始化（推荐）
+bash setup.sh                # Git Bash / Linux / macOS
+# 或
+powershell .\setup.ps1       # Windows PowerShell
 
-# 安装依赖
+# 手动安装（备选）
+python -m venv .venv
+source .venv/Scripts/activate   # Windows
 pip install -r requirements.txt
 
-# 运行测试确认环境正常
-python -m pytest tests/
+# 安装 Git pre-commit hooks（强烈推荐）
+pip install pre-commit
+pre-commit install
 ```
 
 ### 2. 选择你的任务
@@ -49,8 +52,28 @@ git push origin feature/你的分支
 
 ## 代码规范
 
+所有代码质量工具的配置统一在 **`pyproject.toml`** 中管理。
+
+### 自动检查
+
+| 层次 | 工具 | 触发时机 |
+|------|------|----------|
+| 本地 | `pre-commit` | Git commit 前 |
+| 云端 | GitHub Actions CI | Push/PR 时 |
+
+```bash
+# 手动触发
+black src/ scripts/ tests/      # 代码格式化
+isort src/ scripts/ tests/      # import 排序
+flake8 src/                      # 代码检查
+mypy src/                        # 类型检查
+
+# 一次性运行所有 pre-commit 检查
+pre-commit run --all-files
+```
+
 ### Python 代码风格
-- 使用 `black` 自动格式化（line-length=88）
+- 使用 `black` 自动格式化（line-length=100，通过 pyproject.toml 配置）
 - 类名：PascalCase（`SchedulerAgent`）
 - 函数/变量：snake_case（`train_model()`）
 - 常量：UPPER_SNAKE_CASE（`MAX_RETRIES`）
@@ -111,6 +134,22 @@ quantum-rl-scheduler/
 ```
 
 ---
+
+## CI/CD 自动检查
+
+每次 push 或创建 PR 时，GitHub Actions 会自动运行以下检查：
+
+| 检查项 | 内容 |
+|--------|------|
+| Lint | Black 格式化 + isort 排序 + flake8 检查 |
+| Test | pytest 多版本测试（Python 3.10/3.11/3.12）+ 覆盖率 |
+| Type Check | mypy 类型检查 |
+| PR Labels | 基于修改文件自动打标签 |
+| Commit Format | Conventional Commits 格式校验 |
+
+**所有检查必须通过 PR 才能合并。** 如果失败：
+1. 点击 PR 页面底部的检查详情查看错误日志
+2. 本地修复后重新 push 即可自动重新触发
 
 ## 测试要求
 
