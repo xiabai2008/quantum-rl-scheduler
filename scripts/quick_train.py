@@ -4,14 +4,14 @@
 在 Mock 模式下跑 5000 步 DQN 训练，验证整条 pipeline 正常
 """
 
-import sys
 import os
 import shutil
+import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from src.scheduler.env import QuantumSchedulingEnv
 from src.scheduler.agent import SchedulerAgent
+from src.scheduler.env import QuantumSchedulingEnv
 
 # 清理旧模型
 MODEL_DIR = "models/quick_train"
@@ -50,7 +50,7 @@ agent.save(save_path)
 
 # 评估
 eval_result = agent.evaluate(num_episodes=5, deterministic=True)
-print(f"\n评估结果 (5 episodes):")
+print("\n评估结果 (5 episodes):")
 print(f"  平均奖励: {eval_result['mean_reward']:.2f} +/- {eval_result['std_reward']:.2f}")
 print(f"  成功率:   {eval_result['success_rate'] * 100:.1f}%")
 

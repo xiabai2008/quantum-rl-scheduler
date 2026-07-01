@@ -3,8 +3,8 @@
 
 验证量子退火优化器能够正确接入 PPO 训练循环。
 """
-import sys
 import os
+import sys
 
 # 必须在导入 annealing 模块之前设置，因为 QUANTUM_ACCELERATION_ENABLED
 # 是在模块顶层读取的全局常量
@@ -12,8 +12,8 @@ os.environ["QUANTUM_ACCELERATION_ENABLED"] = "1"
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from src.scheduler.env import QuantumSchedulingEnv
 from src.scheduler.agent import PPOAgent
+from src.scheduler.env import QuantumSchedulingEnv
 
 
 def test_annealing_ppo():
@@ -33,7 +33,7 @@ def test_annealing_ppo():
         env,
         use_annealing=True,
         anneal_interval=500,
-        anneal_qubits=10,
+        anneal_qubits=16,
         simulation_mode=True,
         verbose=1,
         n_steps=256,

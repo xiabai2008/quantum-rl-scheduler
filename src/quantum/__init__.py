@@ -9,7 +9,7 @@ Quantum Computing Module
 - FidelityEstimator: 量子保真度估计器
 """
 
-from src.quantum.annealing import QuantumAnnealingOptimizer, QUANTUM_ACCELERATION_ENABLED
+from src.quantum.annealing import QUANTUM_ACCELERATION_ENABLED, QuantumAnnealingOptimizer
 
 # circuit / fidelity 模块尚在开发中，按需导入
 try:
@@ -26,9 +26,9 @@ except ImportError:
 QuantumAnnealingAccelerator = QuantumAnnealingOptimizer
 
 __all__ = [
-    "QuantumAnnealingOptimizer",
-    "QuantumAnnealingAccelerator",
-    "QuantumCircuitGenerator",
-    "FidelityEstimator",
     "QUANTUM_ACCELERATION_ENABLED",
+    "FidelityEstimator",
+    "QuantumAnnealingAccelerator",
+    "QuantumAnnealingOptimizer",
+    "QuantumCircuitGenerator",
 ]

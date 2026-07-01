@@ -1,6 +1,7 @@
 """查询天衍云真机任务结果"""
-import cqlib
 import time
+
+import cqlib
 
 API_KEY = "u9ViyEDXlTzYmYkSpzdP+WZ68JavOEkH+PWuy0GwTxKsM66Y8Ud1nelj+ebKcQQUyBRazg=="
 TASK_ID = "2071927047586058241"
@@ -13,7 +14,7 @@ for i in range(30):
     status = result.get("status", "unknown") if isinstance(result, dict) else "processing"
     print(f"  [{i+1}s] status={status}")
     if status in ("completed", "finished", "done"):
-        print(f"\n✅ 任务完成！")
+        print("\n✅ 任务完成！")
         print(f"Result: {result}")
         break
     time.sleep(5)

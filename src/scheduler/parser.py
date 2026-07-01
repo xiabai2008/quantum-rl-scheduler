@@ -14,23 +14,23 @@ Task Parser for Quantum Scheduling System
 
 import json
 import re
-import yaml
-from typing import Dict, List, Optional, Any, Literal, Union
-from dataclasses import dataclass, field, asdict
+from dataclasses import dataclass, field
 from datetime import datetime
+from typing import Any, Literal
 
+import yaml
 
 # ============================================================
 # 常量定义
 # ============================================================
 
-PRIORITY_MAP: Dict[str, int] = {
+PRIORITY_MAP: dict[str, int] = {
     "low": 1,
     "medium": 2,
     "high": 3,
     "urgent": 4,
 }
-PRIORITY_REVERSE: Dict[int, str] = {v: k for k, v in PRIORITY_MAP.items()}
+PRIORITY_REVERSE: dict[int, str] = {v: k for k, v in PRIORITY_MAP.items()}
 
 VALID_TASK_TYPES: set = {"quantum", "classical", "hybrid"}
 VALID_STATUSES: set = {"pending", "queued", "running", "completed", "failed"}
@@ -60,10 +60,10 @@ class Task:
     estimated_time: float
     priority: int                               # 1-4, low→urgent
     submitted_at: datetime = field(default_factory=datetime.now)
-    algorithm: Optional[str] = None
-    circuit_depth: Optional[int] = None
-    shots: Optional[int] = None
-    deadline: Optional[datetime] = None
+    algorithm: str | None = None
+    circuit_depth: int | None = None
+    shots: int | None = None
+    deadline: datetime | None = None
     status: Literal["pending", "queued", "running", "completed", "failed"] = "pending"
 
 
@@ -93,7 +93,7 @@ class TaskBuilder:
     """
 
     def __init__(self) -> None:
-        self._data: Dict[str, Any] = {
+        self._data: dict[str, Any] = {
             "task_id": "",
             "task_type": "quantum",
             "qubits_required": 0,
@@ -123,7 +123,7 @@ class TaskBuilder:
         self._data["task_type"] = task_type
         return self
 
-    def set_algorithm(self, algorithm: Optional[str]) -> "TaskBuilder":
+    def set_algorithm(self, algorithm: str | None) -> "TaskBuilder":
         self._data["algorithm"] = algorithm
         return self
 
@@ -131,11 +131,11 @@ class TaskBuilder:
         self._data["qubits_required"] = qubits
         return self
 
-    def set_circuit_depth(self, depth: Optional[int]) -> "TaskBuilder":
+    def set_circuit_depth(self, depth: int | None) -> "TaskBuilder":
         self._data["circuit_depth"] = depth
         return self
 
-    def set_shots(self, shots: Optional[int]) -> "TaskBuilder":
+    def set_shots(self, shots: int | None) -> "TaskBuilder":
         self._data["shots"] = shots
         return self
 
@@ -143,7 +143,7 @@ class TaskBuilder:
         self._data["estimated_time"] = float(seconds)
         return self
 
-    def set_priority(self, priority: Union[str, int]) -> "TaskBuilder":
+    def set_priority(self, priority: str | int) -> "TaskBuilder":
         if isinstance(priority, str):
             priority = priority.lower().strip()
             if priority not in PRIORITY_MAP:
@@ -158,7 +158,7 @@ class TaskBuilder:
             self._data["priority"] = priority
         return self
 
-    def set_deadline(self, deadline: Optional[Union[str, datetime]]) -> "TaskBuilder":
+    def set_deadline(self, deadline: str | datetime | None) -> "TaskBuilder":
         if deadline is None:
             self._data["deadline"] = None
         elif isinstance(deadline, datetime):
@@ -177,14 +177,14 @@ class TaskBuilder:
         self._data["status"] = status
         return self
 
-    def set_submitted_at(self, dt: Optional[datetime]) -> "TaskBuilder":
+    def set_submitted_at(self, dt: datetime | None) -> "TaskBuilder":
         self._data["submitted_at"] = dt or datetime.now()
         return self
 
     # ---- from dict ----
 
     @classmethod
-    def from_dict(cls, task_dict: Dict[str, Any]) -> "TaskBuilder":
+    def from_dict(cls, task_dict: dict[str, Any]) -> "TaskBuilder":
         """从字典构建 Builder，自动映射字段名。"""
         builder = cls()
 
@@ -260,7 +260,7 @@ class TaskParser:
     # 1. parse — 字典 → Task
     # ----------------------------------------------------------
 
-    def parse(self, task_dict: Dict[str, Any]) -> Task:
+    def parse(self, task_dict: dict[str, Any]) -> Task:
         """
         将字典解析为 Task 对象。
 
@@ -322,9 +322,9 @@ class TaskParser:
             return False
         return True
 
-    def _collect_errors(self, task: Task) -> List[str]:
+    def _collect_errors(self, task: Task) -> list[str]:
         """收集所有校验错误（不抛异常）。"""
-        errors: List[str] = []
+        errors: list[str] = []
 
         # task_id
         if not task.task_id or not isinstance(task.task_id, str):
@@ -399,7 +399,7 @@ class TaskParser:
     # 3. estimate_resources — 预估资源消耗
     # ----------------------------------------------------------
 
-    def estimate_resources(self, task: Task) -> Dict[str, Any]:
+    def estimate_resources(self, task: Task) -> dict[str, Any]:
         """
         预估任务资源消耗。
 
@@ -460,7 +460,7 @@ class TaskParser:
     # 4. to_internal_format — 转换为内部调度格式
     # ----------------------------------------------------------
 
-    def to_internal_format(self, task: Task) -> Dict[str, Any]:
+    def to_internal_format(self, task: Task) -> dict[str, Any]:
         """
         将 Task 转换为内部调度系统使用的字典格式。
 
@@ -492,7 +492,7 @@ class TaskParser:
             task.priority * deadline_urgency * time_factor * 1000
         )
 
-        internal: Dict[str, Any] = {
+        internal: dict[str, Any] = {
             "task_id": task.task_id,
             "task_type": task.task_type,
             "algorithm": task.algorithm,
@@ -540,13 +540,13 @@ class TaskFeatures:
 
     # 时间特征
     arrival_time: datetime = field(default_factory=datetime.now)
-    deadline: Optional[datetime] = None
+    deadline: datetime | None = None
 
     # 历史特征
     user_historical_usage: float = 0.0  # 用户历史资源使用量
     user_historical_completion_rate: float = 1.0
 
-    def to_vector(self, feature_dim: int = 20) -> List[float]:
+    def to_vector(self, feature_dim: int = 20) -> list[float]:
         """
         转换为特征向量
 
@@ -615,7 +615,7 @@ class LegacyTaskParser:
     def __init__(self):
         self.supported_formats = ["json", "yaml", "qasm", "text"]
 
-    def parse(self, task_description: str, format: str = "json") -> Optional[TaskFeatures]:
+    def parse(self, task_description: str, format: str = "json") -> TaskFeatures | None:
         """
         解析任务描述
 
@@ -637,7 +637,7 @@ class LegacyTaskParser:
         else:
             raise ValueError(f"Unsupported format: {format}")
 
-    def _parse_json(self, json_str: str) -> Optional[TaskFeatures]:
+    def _parse_json(self, json_str: str) -> TaskFeatures | None:
         """解析JSON格式任务描述"""
         try:
             data = json.loads(json_str)
@@ -661,7 +661,7 @@ class LegacyTaskParser:
             print(f"JSON解析失败: {e}")
             return None
 
-    def _parse_yaml(self, yaml_str: str) -> Optional[TaskFeatures]:
+    def _parse_yaml(self, yaml_str: str) -> TaskFeatures | None:
         """解析YAML格式任务描述"""
         try:
             data = yaml.safe_load(yaml_str)
@@ -670,7 +670,7 @@ class LegacyTaskParser:
             print(f"YAML解析失败: {e}")
             return None
 
-    def _parse_qasm(self, qasm_str: str) -> Optional[TaskFeatures]:
+    def _parse_qasm(self, qasm_str: str) -> TaskFeatures | None:
         """
         解析QASM格式量子电路描述
 
@@ -726,7 +726,7 @@ class LegacyTaskParser:
             print(f"QASM解析失败: {e}")
             return None
 
-    def _parse_text(self, text: str) -> Optional[TaskFeatures]:
+    def _parse_text(self, text: str) -> TaskFeatures | None:
         """
         解析自然语言任务描述（简化版）
 
@@ -771,7 +771,7 @@ class LegacyTaskParser:
             print(f"文本解析失败: {e}")
             return None
 
-    def batch_parse(self, task_descriptions: List[str], format: str = "json") -> List[TaskFeatures]:
+    def batch_parse(self, task_descriptions: list[str], format: str = "json") -> list[TaskFeatures]:
         """批量解析任务描述"""
         results = []
         for desc in task_descriptions:
@@ -815,13 +815,13 @@ if __name__ == "__main__":
 
     # 3. estimate_resources
     resources = parser.estimate_resources(task)
-    print(f"\n[estimate_resources]:")
+    print("\n[estimate_resources]:")
     for k, v in resources.items():
         print(f"  {k}: {v}")
 
     # 4. to_internal_format
     internal = parser.to_internal_format(task)
-    print(f"\n[to_internal_format]:")
+    print("\n[to_internal_format]:")
     for k, v in internal.items():
         print(f"  {k}: {v}")
 

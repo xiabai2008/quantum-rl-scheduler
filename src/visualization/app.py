@@ -15,16 +15,13 @@ import asyncio
 import json
 import os
 import sys
-import time
 import uuid
+from contextlib import asynccontextmanager
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional
-
-from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
-from fastapi.responses import HTMLResponse, FileResponse
+from fastapi.responses import HTMLResponse
 from pydantic import BaseModel, Field
 
 # 确保项目根目录在 Python 路径中
@@ -60,7 +57,7 @@ class SystemStatusUpdate(BaseModel):
 # ============================================================
 
 # 当前系统状态
-system_status: Dict = {
+system_status: dict = {
     "qubit_utilization": 0.65,       # 量子比特利用率 (0~1)
     "queue_length": 5,               # 任务队列长度
     "average_wait_time": 12.3,       # 平均等待时间(秒)
@@ -80,7 +77,7 @@ system_status: Dict = {
 }
 
 # 任务队列
-task_queue: List[Dict] = [
+task_queue: list[dict] = [
     {
         "task_id": "QTASK-" + uuid.uuid4().hex[:6],
         "user_id": "user_001",
@@ -121,7 +118,7 @@ class ConnectionManager:
     """管理所有 WebSocket 客户端连接"""
 
     def __init__(self):
-        self.active_connections: List[WebSocket] = []
+        self.active_connections: list[WebSocket] = []
 
     async def connect(self, websocket: WebSocket):
         await websocket.accept()
@@ -169,6 +166,7 @@ app = FastAPI(title="量子RL调度系统监控界面", version="1.0.0", lifespa
 
 # 获取前端 HTML 文件路径
 import os as _os
+
 FRONTEND_HTML_PATH = _os.path.join(_os.path.dirname(__file__), "frontend", "index.html")
 
 # 缓存前端 HTML 内容
@@ -179,7 +177,7 @@ def _load_vue3_template():
     global _VUE3_HTML_TEMPLATE
     if _VUE3_HTML_TEMPLATE is None:
         if _os.path.exists(FRONTEND_HTML_PATH):
-            with open(FRONTEND_HTML_PATH, "r", encoding="utf-8") as f:
+            with open(FRONTEND_HTML_PATH, encoding="utf-8") as f:
                 _VUE3_HTML_TEMPLATE = f.read()
         else:
             _VUE3_HTML_TEMPLATE = HTML_TEMPLATE  # 回退到旧的 HTML
@@ -229,7 +227,7 @@ async def get_real_submissions():
 
 
 @app.get("/api/tasks")
-async def get_tasks(status: Optional[str] = None):
+async def get_tasks(status: str | None = None):
     """
     获取任务列表
     - status=pending: 只返回等待中的任务
@@ -341,8 +339,9 @@ def _get_ppo_model():
     global _ppo_model, _ppo_env
     if _ppo_model is None:
         try:
-            from src.scheduler.env import QuantumSchedulingEnv
             from stable_baselines3 import PPO
+
+            from src.scheduler.env import QuantumSchedulingEnv
 
             _ppo_env = QuantumSchedulingEnv(max_qubits=20, seed=42)
             model_path = os.path.join(_PROJECT_ROOT, "models", "ppo_seed_42_v4", "best_model.zip")
@@ -350,7 +349,7 @@ def _get_ppo_model():
             if not os.path.exists(model_path):
                 # 自动发现：在 models/ 下找任意 ppo 开头的目录中的 best_model.zip
                 models_dir = os.path.join(_PROJECT_ROOT, "models")
-                for root, dirs, files in os.walk(models_dir):
+                for root, _dirs, files in os.walk(models_dir):
                     if "ppo" in os.path.basename(root).lower():
                         for f in files:
                             if f.endswith(".zip"):
@@ -402,14 +401,14 @@ def _get_real_cqlib_client():
             machine_name="tianyan_s",
             auto_retry_machine=True,
         )
-        print(f"[Web] 真机 cqlib 客户端已就绪: tianyan_s")
+        print("[Web] 真机 cqlib 客户端已就绪: tianyan_s")
     except Exception as e:
         print(f"[Web] 真机客户端创建失败 ({e})，真机状态降级为离线")
         _real_cqlib_client = None
     return _real_cqlib_client
 
 
-def _get_real_machines_status() -> List[Dict]:
+def _get_real_machines_status() -> list[dict]:
     """查询天衍云真实量子计算机列表及状态。
 
     调用 ``CqlibTianyanClient.list_backends()``（底层
@@ -429,7 +428,7 @@ def _get_real_machines_status() -> List[Dict]:
         return []
 
 
-def _load_real_submissions() -> List[Dict]:
+def _load_real_submissions() -> list[dict]:
     """从 results/real_times.json 加载最近的真机提交记录。
 
     训练回调 ``RealMachineCallback`` 会把真机提交记录写入该文件。
@@ -442,7 +441,7 @@ def _load_real_submissions() -> List[Dict]:
     if not os.path.exists(path):
         return []
     try:
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             records = json.load(f)
         if isinstance(records, list):
             # 保留最近 50 条，倒序展示
@@ -466,7 +465,7 @@ async def get_ppo_comparison():
 
     latest_file = os.path.join(report_dir, json_files[0])
     try:
-        with open(latest_file, "r", encoding="utf-8") as f:
+        with open(latest_file, encoding="utf-8") as f:
             data = json.load(f)
     except Exception:
         return {"error": f"无法读取: {latest_file}", "strategies": [], "ppo_rank": None}
@@ -528,7 +527,7 @@ async def ppo_stats():
         return {"error": "未找到仿真结果"}
 
     try:
-        with open(os.path.join(report_dir, json_files[0]), "r", encoding="utf-8") as f:
+        with open(os.path.join(report_dir, json_files[0]), encoding="utf-8") as f:
             data = json.load(f)
     except Exception:
         return {"error": "无法读取结果文件"}
@@ -584,7 +583,7 @@ async def websocket_endpoint(websocket: WebSocket):
             report_dir = os.path.join(_PROJECT_ROOT, "results")
             json_files = sorted([f for f in os.listdir(report_dir) if f.startswith("simulation_results_")], reverse=True)
             if json_files:
-                with open(os.path.join(report_dir, json_files[0]), "r") as f:
+                with open(os.path.join(report_dir, json_files[0])) as f:
                     sim_data = json.load(f)
                 sorted_items = sorted(sim_data.items(), key=lambda x: x[1].get("avg_reward", -9999), reverse=True)
                 ppo_rank = next((i+1 for i, (k, _) in enumerate(sorted_items) if "PPO" in k.upper()), None)
@@ -1472,10 +1471,10 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 def start_web_server(host: str = "0.0.0.0", port: int = 8000):
     """启动 Web 服务器"""
     import uvicorn
-    print(f"========================================")
-    print(f"  量子RL调度系统 - 监控面板")
+    print("========================================")
+    print("  量子RL调度系统 - 监控面板")
     print(f"  访问地址: http://{host}:{port}")
-    print(f"========================================")
+    print("========================================")
     uvicorn.run(app, host=host, port=port)
 
 

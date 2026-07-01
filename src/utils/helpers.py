@@ -9,14 +9,14 @@ Utility Functions Module
 - 配置加载
 """
 
-import os
 import json
-import yaml
-from typing import Dict, List, Any, Optional
+import os
 from datetime import datetime
-import logging
-from loguru import logger
+from typing import Any
+
 import numpy as np
+import yaml
+from loguru import logger
 
 
 # 日志配置
@@ -27,23 +27,23 @@ def setup_logging(
 ):
     """
     配置日志系统
-    
+
     Args:
         log_dir: 日志目录
         log_level: 日志级别
         log_file: 日志文件名
     """
     os.makedirs(log_dir, exist_ok=True)
-    
+
     logger.remove()  # 移除默认处理器
-    
+
     # 控制台输出
     logger.add(
         sink=lambda msg: print(msg),
         level=log_level,
         format="{time:YYYY-MM-DD HH:mm:ss} | {level} | {message}",
     )
-    
+
     # 文件输出
     logger.add(
         sink=os.path.join(log_dir, log_file),
@@ -52,23 +52,23 @@ def setup_logging(
         level=log_level,
         format="{time:YYYY-MM-DD HH:mm:ss} | {level} | {file}:{function}:{line} | {message}",
     )
-    
+
     return logger
 
 
 # 配置加载
-def load_config(config_path: str = "config/config.yaml") -> Dict[str, Any]:
+def load_config(config_path: str = "config/config.yaml") -> dict[str, Any]:
     """
     加载配置文件
-    
+
     Args:
         config_path: 配置文件路径
-        
+
     Returns:
         配置字典
     """
     try:
-        with open(config_path, "r", encoding="utf-8") as f:
+        with open(config_path, encoding="utf-8") as f:
             config = yaml.safe_load(f)
         logger.info(f"配置文件加载成功：{config_path}")
         return config
@@ -77,10 +77,10 @@ def load_config(config_path: str = "config/config.yaml") -> Dict[str, Any]:
         return {}
 
 
-def save_config(config: Dict[str, Any], config_path: str = "config/config.yaml"):
+def save_config(config: dict[str, Any], config_path: str = "config/config.yaml"):
     """
     保存配置文件
-    
+
     Args:
         config: 配置字典
         config_path: 配置文件路径
@@ -95,42 +95,42 @@ def save_config(config: Dict[str, Any], config_path: str = "config/config.yaml")
 
 
 # 数据预处理
-def normalize_vector(vector: List[float], min_val: float = 0.0, max_val: float = 1.0) -> List[float]:
+def normalize_vector(vector: list[float], min_val: float = 0.0, max_val: float = 1.0) -> list[float]:
     """
     归一化向量
-    
+
     Args:
         vector: 输入向量
         min_val: 最小值
         max_val: 最大值
-        
+
     Returns:
         归一化后的向量
     """
     if len(vector) == 0:
         return []
-    
+
     vec_array = np.array(vector)
     min_v = np.min(vec_array)
     max_v = np.max(vec_array)
-    
+
     if max_v - min_v < 1e-10:
         return [0.5] * len(vector)
-    
+
     normalized = (vec_array - min_v) / (max_v - min_v)
     normalized = normalized * (max_val - min_val) + min_val
-    
+
     return normalized.tolist()
 
 
-def one_hot_encode(category: str, categories: List[str]) -> List[int]:
+def one_hot_encode(category: str, categories: list[str]) -> list[int]:
     """
     独热编码
-    
+
     Args:
         category: 类别
         categories: 所有类别列表
-        
+
     Returns:
         独热编码向量
     """
@@ -149,7 +149,7 @@ def calculate_completion_rate(completed: int, total: int) -> float:
     return completed / total
 
 
-def calculate_average_wait_time(wait_times: List[float]) -> float:
+def calculate_average_wait_time(wait_times: list[float]) -> float:
     """计算平均等待时间"""
     if len(wait_times) == 0:
         return 0.0
@@ -170,10 +170,10 @@ def calculate_resource_utilization(
 def format_time(seconds: float) -> str:
     """
     格式化时间
-    
+
     Args:
         seconds: 秒数
-        
+
     Returns:
         格式化后的时间字符串
     """
@@ -196,7 +196,7 @@ def get_current_timestamp() -> str:
 def save_json(data: Any, filepath: str):
     """
     保存为JSON文件
-    
+
     Args:
         data: 数据
         filepath: 文件路径
@@ -210,15 +210,15 @@ def save_json(data: Any, filepath: str):
 def load_json(filepath: str) -> Any:
     """
     加载JSON文件
-    
+
     Args:
         filepath: 文件路径
-        
+
     Returns:
         加载的数据
     """
     try:
-        with open(filepath, "r", encoding="utf-8") as f:
+        with open(filepath, encoding="utf-8") as f:
             data = json.load(f)
         logger.info(f"JSON文件加载成功：{filepath}")
         return data
@@ -230,7 +230,7 @@ def load_json(filepath: str) -> Any:
 # 评估指标
 class MetricsCalculator:
     """评估指标计算器"""
-    
+
     @staticmethod
     def calculate_reward(
         completion_rate: float,
@@ -240,28 +240,28 @@ class MetricsCalculator:
     ) -> float:
         """
         计算综合奖励
-        
+
         Args:
             completion_rate: 完成率
             avg_wait_time: 平均等待时间
             resource_utilization: 资源利用率
             max_wait_time: 最大等待时间（用于归一化）
-            
+
         Returns:
             综合奖励值
         """
         # 归一化等待时间（越小越好）
         normalized_wait = 1.0 - min(avg_wait_time / max_wait_time, 1.0)
-        
+
         # 加权综合
         reward = (
             0.4 * completion_rate +
             0.3 * normalized_wait +
             0.3 * resource_utilization
         )
-        
+
         return reward
-    
+
     @staticmethod
     def calculate_improvement(
         new_value: float,
@@ -269,17 +269,17 @@ class MetricsCalculator:
     ) -> float:
         """
         计算改进百分比
-        
+
         Args:
             new_value: 新值
             baseline_value: 基线值
-            
+
         Returns:
             改进百分比（%）
         """
         if baseline_value == 0:
             return 0.0 if new_value == 0 else 100.0
-        
+
         improvement = (new_value - baseline_value) / abs(baseline_value) * 100
         return improvement
 
@@ -287,17 +287,17 @@ class MetricsCalculator:
 if __name__ == "__main__":
     # 测试代码
     logger.info("工具函数模块测试")
-    
+
     # 测试归一化
     vector = [1, 2, 3, 4, 5]
     normalized = normalize_vector(vector)
     print(f"归一化结果：{normalized}")
-    
+
     # 测试独热编码
     categories = ["quantum", "classical", "hybrid"]
     encoding = one_hot_encode("quantum", categories)
     print(f"独热编码：{encoding}")
-    
+
     # 测试评估指标
     reward = MetricsCalculator.calculate_reward(
         completion_rate=0.85,

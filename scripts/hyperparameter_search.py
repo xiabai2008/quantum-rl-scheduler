@@ -14,15 +14,14 @@ Hyperparameter Search Script - Grid Search for Optimal DQN Configuration
     - 最佳参数组合 + 性能指标
 """
 
-import os
-import sys
 import argparse
 import csv
-import time
 import json
+import os
+import sys
+import time
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Tuple
 
 import numpy as np
 
@@ -30,8 +29,8 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from src.scheduler.env import QuantumSchedulingEnv
 from src.scheduler.agent import SchedulerAgent
+from src.scheduler.env import QuantumSchedulingEnv
 
 
 def parse_args():
@@ -57,15 +56,15 @@ def parse_args():
 
 def run_search(
     args: argparse.Namespace,
-    param_grid: Dict[str, List],
-) -> List[Dict]:
+    param_grid: dict[str, list],
+) -> list[dict]:
     """执行网格搜索"""
     results = []
     total_combinations = np.prod([len(v) for v in param_grid.values()])
     combination_count = 0
 
     print(f"{'='*60}")
-    print(f"超参数网格搜索")
+    print("超参数网格搜索")
     print(f"{'='*60}")
     print(f"参数组合数: {total_combinations}")
     print(f"每组合训练步数: {args.timesteps}")
@@ -139,7 +138,7 @@ def run_search(
                   f"耗时: {result['elapsed_seconds']:.1f}s")
 
         except Exception as e:
-            print(f"  ✗ 失败: {str(e)}")
+            print(f"  ✗ 失败: {e!s}")
             result = {
                 "combination": combination_count,
                 "learning_rate": param_dict["learning_rate"],
@@ -161,7 +160,7 @@ def run_search(
     return results
 
 
-def save_results(results: List[Dict], output_dir: str):
+def save_results(results: list[dict], output_dir: str):
     """保存搜索结果"""
     os.makedirs(output_dir, exist_ok=True)
 
@@ -181,7 +180,7 @@ def save_results(results: List[Dict], output_dir: str):
         if valid_results:
             best_result = max(valid_results, key=lambda r: r["avg_reward"])
             print(f"\n{'='*60}")
-            print(f"最佳参数组合")
+            print("最佳参数组合")
             print(f"{'='*60}")
             print(f"学习率: {best_result['learning_rate']}")
             print(f"折扣因子: {best_result['gamma']}")

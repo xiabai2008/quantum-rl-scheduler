@@ -12,23 +12,24 @@
     4. 生成报告     — 输出到 results/free_machine_benchmark_*.json
 """
 
+import argparse
+import json
 import os
 import sys
 import time
-import json
-import argparse
-from pathlib import Path
 from datetime import datetime
-from typing import Dict, List, Any
+from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from dotenv import load_dotenv
+
 load_dotenv()
 
 import cqlib
 import numpy as np
+
 from src.api.tianyan_cqlib import CqlibTianyanClient
 
 API_KEY = os.getenv("TIANYAN_API_KEY", "")
@@ -127,7 +128,7 @@ def run_strategy_bench(args):
 def run_annealing_test():
     """测试量子退火 QUBO 求解"""
     print(f"\n{'='*60}")
-    print(f"  量子退火验证")
+    print("  量子退火验证")
     print(f"{'='*60}")
 
     try:
@@ -147,7 +148,7 @@ def run_annealing_test():
 def run_fault_test(args):
     """测试故障切换：故意提交到不存在的机器"""
     print(f"\n{'='*60}")
-    print(f"  故障容错测试")
+    print("  故障容错测试")
     print(f"{'='*60}")
 
     circuit = build_test_circuit()
@@ -224,11 +225,11 @@ def analyze(results, annealing, fault):
 
 def print_report(summary):
     print(f"\n{'='*60}")
-    print(f"  📊 验证报告")
+    print("  📊 验证报告")
     print(f"{'='*60}")
     print(f"  总任务: {summary['total_tasks_submitted']}")
     print(f"  成功: {summary['total_success']} ({summary['overall_success_rate']:.0%})")
-    print(f"\n  策略排名（按成功率）:")
+    print("\n  策略排名（按成功率）:")
     for rank, (name, rate) in enumerate(summary["strategy_ranking"], 1):
         bar = "█" * int(rate * 20)
         print(f"    {rank}. {name:12s} {rate:.0%} {bar}")

@@ -5,20 +5,18 @@
 """
 import os
 import sys
-import json
 import time
-from pathlib import Path
 from datetime import datetime
+from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from dotenv import load_dotenv
+
 load_dotenv()
 
-import cqlib
 import numpy as np
-
 
 API_KEY = os.getenv("TIANYAN_API_KEY", "")
 REPORT_PATH = os.path.join(PROJECT_ROOT, "results", "realmock_comparison_report.md")
@@ -80,8 +78,8 @@ def generate_report(real_results, mock_results):
     lines = [
         "# 天衍云真机 vs Mock 仿真对比报告",
         f"\n**生成时间**: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
-        f"**真机**: tianyan_s (超导量子计算机)",
-        f"**Mock**: 单任务延迟已校准至 75s（基于真机实测）",
+        "**真机**: tianyan_s (超导量子计算机)",
+        "**Mock**: 单任务延迟已校准至 75s（基于真机实测）",
         "",
         "## 一、执行时间对比",
         "",
@@ -131,20 +129,20 @@ def generate_report(real_results, mock_results):
     lines.append("")
     lines.append("## 三、结论")
     lines.append("")
-    lines.append(f"- Mock 延迟已基于真机实测校准为 75s/任务")
-    lines.append(f"- 真机执行时间约 55-95s，存在波动（受排队和量子比特状态影响）")
-    lines.append(f"- 后续补充更多真机数据可进一步提升 Mock 保真度")
-    lines.append(f"- tianyan_s 不支持参数化门（RX），量子电路需限制在 H/CZ 门集合")
+    lines.append("- Mock 延迟已基于真机实测校准为 75s/任务")
+    lines.append("- 真机执行时间约 55-95s，存在波动（受排队和量子比特状态影响）")
+    lines.append("- 后续补充更多真机数据可进一步提升 Mock 保真度")
+    lines.append("- tianyan_s 不支持参数化门（RX），量子电路需限制在 H/CZ 门集合")
     lines.append("")
-    lines.append(f"---")
-    lines.append(f"*报告自动生成 | 数据来源: cqlib → tianyan_s*")
+    lines.append("---")
+    lines.append("*报告自动生成 | 数据来源: cqlib → tianyan_s*")
 
     return "\n".join(lines)
 
 
 def main():
     print(f"{'='*60}")
-    print(f"  真机 vs Mock 仿真对比报告")
+    print("  真机 vs Mock 仿真对比报告")
     print(f"{'='*60}")
 
     circuits = build_test_circuits()
@@ -168,7 +166,7 @@ def main():
         print(f"{'✅' if r['success'] else '❌'} {r['time_s']}s")
 
     # 2. Mock 仿真
-    print(f"\n📐 Mock 仿真（延迟=75s）...")
+    print("\n📐 Mock 仿真（延迟=75s）...")
     mock_results = run_mock_simulation(circuits)
 
     # 3. 生成报告

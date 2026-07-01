@@ -10,31 +10,40 @@ Unit Tests for Quantum RL Scheduling System
 - 仿真策略（GreedyStrategy / FCFSStrategy 等）
 """
 
-import unittest
-import numpy as np
-from datetime import datetime
-import sys
 import os
+import sys
+import unittest
+from datetime import datetime
+
+import numpy as np
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-from src.scheduler.env import (
-    QuantumSchedulingEnv,
-    Task,
-    OBS_DIM,
-    QuantumMachine,
-    DEFAULT_MACHINE_CONFIGS,
-)
-from src.scheduler.agent import SchedulerAgent, DuelingQNetwork
-from src.scheduler.parser import (
-    TaskParser, LegacyTaskParser, TaskBuilder,
-    Task as ParserTask, TaskFeatures,
+from scripts.run_simulation import (
+    ClassicalOnlyStrategy,
+    FCFSStrategy,
+    GreedyStrategy,
+    QuantumOnlyStrategy,
+    RandomStrategy,
+    ShortestJobFirstStrategy,
 )
 from src.quantum.annealing import QuantumAnnealingOptimizer
-from scripts.run_simulation import (
-    GreedyStrategy, FCFSStrategy, RandomStrategy,
-    QuantumOnlyStrategy, ClassicalOnlyStrategy,
-    ShortestJobFirstStrategy,
+from src.scheduler.agent import DuelingQNetwork, SchedulerAgent
+from src.scheduler.env import (
+    DEFAULT_MACHINE_CONFIGS,
+    OBS_DIM,
+    QuantumMachine,
+    QuantumSchedulingEnv,
+    Task,
+)
+from src.scheduler.parser import (
+    LegacyTaskParser,
+    TaskBuilder,
+    TaskFeatures,
+    TaskParser,
+)
+from src.scheduler.parser import (
+    Task as ParserTask,
 )
 
 
@@ -327,8 +336,8 @@ class TestSchedulerAgent(unittest.TestCase):
 
     def test_save_model(self):
         """测试模型保存"""
-        import tempfile
         import os
+        import tempfile
 
         self.agent.model = self.agent._build_model()
 

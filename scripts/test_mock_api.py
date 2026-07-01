@@ -3,13 +3,12 @@ Mock API 功能测试脚本
 验证 MockTianyanClient 的所有功能是否正常工作
 """
 
-import sys
 import os
+import sys
 
 # 添加 src 到 Python 路径
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from loguru import logger
 
 # 测试 1: 导入 Mock 客户端
 print("=" * 60)
@@ -64,9 +63,9 @@ try:
     measure q -> c;
     """
     task_id = client.submit_quantum_task(circuit_qasm=qasm, shots=1024)
-    print(f"✅ 量子任务提交成功")
+    print("✅ 量子任务提交成功")
     print(f"   - task_id: {task_id}")
-    print(f"   - 格式: mock-xxxxxxxxxxxx (Mock 任务 ID)")
+    print("   - 格式: mock-xxxxxxxxxxxx (Mock 任务 ID)")
 except Exception as e:
     print(f"❌ 任务提交失败: {e}")
 
@@ -81,14 +80,14 @@ try:
         status_info = client.get_task_status(task_id)
         status = status_info.get("status")
         print(f"   尝试 {attempt + 1}/{max_attempts}: 状态 = {status}")
-        
+
         if status == "COMPLETED":
-            print(f"✅ 任务已完成")
+            print("✅ 任务已完成")
             break
         elif status == "FAILED":
-            print(f"❌ 任务失败")
+            print("❌ 任务失败")
             break
-        
+
         time.sleep(0.5)
     else:
         print(f"⚠️ 任务在 {max_attempts} 次查询后仍未完成（正常，Mock 随机性）")
@@ -104,9 +103,9 @@ try:
     client._tasks[task_id]["status"] = "COMPLETED"
     client._tasks[task_id]["result"] = client._generate_mock_result(qasm, 1024)
     client._tasks[task_id]["result"]["task_id"] = task_id
-    
+
     result = client.get_task_result(task_id)
-    print(f"✅ 任务结果获取成功")
+    print("✅ 任务结果获取成功")
     print(f"   - 后端: {result.get('backend')}")
     print(f"   - shots: {result.get('shots')}")
     print(f"   - 测量计数: {result.get('counts')}")
@@ -119,7 +118,7 @@ print("测试 7: 列出可用后端（Mock）")
 print("=" * 60)
 try:
     backends = client.list_backends()
-    print(f"✅ 可用后端列表获取成功")
+    print("✅ 可用后端列表获取成功")
     for backend in backends:
         print(f"   - {backend['name']} ({backend['type']}, {backend['num_qubits']} qubits)")
 except Exception as e:
@@ -131,7 +130,7 @@ print("测试 8: 获取后端信息（Mock）")
 print("=" * 60)
 try:
     backend_info = client.get_backend_info("tianyan-287")
-    print(f"✅ 后端信息获取成功")
+    print("✅ 后端信息获取成功")
     print(f"   - 名称: {backend_info['name']}")
     print(f"   - 类型: {backend_info['type']}")
     print(f"   - 量子比特数: {backend_info['num_qubits']}")
@@ -145,7 +144,7 @@ print("测试 9: 获取队列状态（Mock）")
 print("=" * 60)
 try:
     queue_status = client.get_queue_status()
-    print(f"✅ 队列状态获取成功")
+    print("✅ 队列状态获取成功")
     print(f"   - 排队中: {queue_status.get('total_pending')} 任务")
     print(f"   - 执行中: {queue_status.get('total_running')} 任务")
     print(f"   - 队列容量: {queue_status.get('queue_capacity')}")
@@ -160,15 +159,15 @@ print("=" * 60)
 try:
     # 设置环境变量强制使用 Mock 模式
     os.environ["TIANYAN_MOCK_MODE"] = "true"
-    
+
     client2 = create_tianyan_client()
-    print(f"✅ 工厂函数创建客户端成功")
+    print("✅ 工厂函数创建客户端成功")
     print(f"   - 类型: {type(client2).__name__}")
-    
+
     # 测试客户端是否正常工作
     if client2.authenticate():
-        print(f"✅ 通过工厂函数创建的客户端工作正常")
-    
+        print("✅ 通过工厂函数创建的客户端工作正常")
+
     # 清理环境变量
     del os.environ["TIANYAN_MOCK_MODE"]
 except Exception as e:

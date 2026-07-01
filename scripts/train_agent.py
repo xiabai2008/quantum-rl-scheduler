@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
 """
 量子RL调度系统 — 完整训练脚本
 Quantum RL Scheduler - Full Training Script
@@ -28,26 +27,25 @@ Quantum RL Scheduler - Full Training Script
     python scripts/train_agent.py --seeds 42 123 456 --timesteps 50000
 """
 
+import argparse
+import json
+import logging
 import os
 import sys
-import argparse
 import time
-import json
-import yaml
-import logging
 from datetime import datetime
-from pathlib import Path
-from typing import Optional, Dict, Any, List, Callable
+from typing import Any
 
 import numpy as np
+import yaml
 
 # 确保项目根目录在路径中
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
-from src.scheduler.env import QuantumSchedulingEnv
 from src.scheduler.agent import SchedulerAgent
+from src.scheduler.env import QuantumSchedulingEnv
 
 # ============================================================================
 # 日志配置
@@ -259,7 +257,7 @@ class TrainingMetrics:
         self.last_eval_time = None
         self.training_time = 0.0
 
-    def record_train_step(self, step: int, reward: float, loss: Optional[float], length: int):
+    def record_train_step(self, step: int, reward: float, loss: float | None, length: int):
         """记录单个训练步"""
         self.train_steps.append(step)
         self.train_rewards.append(reward)
@@ -311,7 +309,7 @@ class TrainingMetrics:
 
         return self.patience_counter >= patience
 
-    def get_summary(self) -> Dict[str, Any]:
+    def get_summary(self) -> dict[str, Any]:
         """获取训练摘要"""
         n = min(self.window_size, len(self.train_rewards))
         n_eval = len(self.eval_rewards)
@@ -327,7 +325,7 @@ class TrainingMetrics:
             "eval_count": n_eval,
         }
 
-    def to_dict(self) -> Dict[str, List]:
+    def to_dict(self) -> dict[str, list]:
         """转换为可序列化的字典"""
         return {
             "train_steps": self.train_steps,
@@ -354,7 +352,7 @@ def evaluate_agent(
     env: QuantumSchedulingEnv,
     num_episodes: int = 10,
     deterministic: bool = True,
-) -> Dict[str, float]:
+) -> dict[str, float]:
     """
     评估智能体性能
 
@@ -407,7 +405,7 @@ def train_single_seed(
     seed: int,
     experiment_name: str,
     start_step: int = 0,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """
     单种子训练流程
 
@@ -608,24 +606,24 @@ def train_single_seed(
     }
 
 
-def load_config_file(config_path: str) -> Dict[str, Any]:
+def load_config_file(config_path: str) -> dict[str, Any]:
     """从 YAML 文件加载配置"""
     if not os.path.exists(config_path):
         logger.warning(f"配置文件不存在: {config_path}")
         return {}
 
-    with open(config_path, "r", encoding="utf-8") as f:
+    with open(config_path, encoding="utf-8") as f:
         config = yaml.safe_load(f)
 
     logger.info(f"配置文件已加载: {config_path}")
     return config or {}
 
 
-def merge_args_with_config(args: argparse.Namespace, config: Dict[str, Any]) -> argparse.Namespace:
+def merge_args_with_config(args: argparse.Namespace, config: dict[str, Any]) -> argparse.Namespace:
     """将配置文件中的参数合并到 args"""
     # 配置优先级低于命令行参数
     for key, value in config.items():
-        if hasattr(args, key) and getattr(args, key) is None or (key in ["seeds", "checkpoint"]):
+        if (hasattr(args, key) and getattr(args, key) is None) or (key in ["seeds", "checkpoint"]):
             setattr(args, key, value)
 
     return args

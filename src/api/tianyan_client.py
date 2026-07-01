@@ -11,10 +11,10 @@ Tianyan Cloud Platform API Client
 
 import os
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any
 
-import yaml
 import requests
+import yaml
 from dotenv import load_dotenv
 from loguru import logger
 
@@ -30,7 +30,7 @@ class TianyanAPIError(Exception):
         response_body: 原始响应体（JSON）
     """
 
-    def __init__(self, status_code: int, message: str, response_body: Optional[Dict] = None):
+    def __init__(self, status_code: int, message: str, response_body: dict | None = None):
         self.status_code = status_code
         self.message = message
         self.response_body = response_body or {}
@@ -78,9 +78,9 @@ class TianyanClient:
 
     def __init__(
         self,
-        api_key: Optional[str] = None,
-        base_url: Optional[str] = None,
-        mock_mode: Optional[bool] = None,
+        api_key: str | None = None,
+        base_url: str | None = None,
+        mock_mode: bool | None = None,
     ):
         """初始化天衍云客户端
 
@@ -152,7 +152,7 @@ class TianyanClient:
         })
 
     @staticmethod
-    def _detect_mock_mode(explicit_mock_mode: Optional[bool]) -> bool:
+    def _detect_mock_mode(explicit_mock_mode: bool | None) -> bool:
         """检测是否使用 Mock 模式
 
         Args:
@@ -174,7 +174,7 @@ class TianyanClient:
 
         # 3. 配置文件
         try:
-            with open("config/config.yaml", "r", encoding="utf-8") as f:
+            with open("config/config.yaml", encoding="utf-8") as f:
                 config = yaml.safe_load(f)
             mock_config = config.get("tianyan", {}).get("mock_mode", True)
             return mock_config
@@ -193,7 +193,7 @@ class TianyanClient:
         """
         default_url = "https://api.tianyanyun.cn/v1"
         try:
-            with open(config_path, "r", encoding="utf-8") as f:
+            with open(config_path, encoding="utf-8") as f:
                 config = yaml.safe_load(f)
             url = config.get("tianyan", {}).get("base_url", default_url)
             return url
@@ -212,9 +212,9 @@ class TianyanClient:
         self,
         method: str,
         endpoint: str,
-        data: Optional[Dict] = None,
-        params: Optional[Dict] = None,
-    ) -> Dict[str, Any]:
+        data: dict | None = None,
+        params: dict | None = None,
+    ) -> dict[str, Any]:
         """发送 API 请求，内置指数退避重试机制
 
         当请求因网络异常失败或服务端返回 5xx 错误时，自动进行最多
@@ -234,7 +234,7 @@ class TianyanClient:
             requests.exceptions.RequestException: 网络层异常且重试耗尽
         """
         url = f"{self.base_url}{endpoint}"
-        last_exception: Optional[Exception] = None
+        last_exception: Exception | None = None
 
         for attempt in range(self.MAX_RETRIES):
             try:
@@ -304,7 +304,7 @@ class TianyanClient:
             超时秒数
         """
         try:
-            with open("config/config.yaml", "r", encoding="utf-8") as f:
+            with open("config/config.yaml", encoding="utf-8") as f:
                 config = yaml.safe_load(f)
             return int(config.get("tianyan", {}).get("timeout", 30))
         except Exception:
@@ -332,7 +332,7 @@ class TianyanClient:
 
         # deprecated REST 路径
         try:
-            result = self._request("GET", "/auth/verify")  # deprecated
+            self._request("GET", "/auth/verify")  # deprecated
             logger.info("API 密钥验证通过")
             return True
         except TianyanAPIError as e:
@@ -402,7 +402,7 @@ class TianyanClient:
     # 3. 查询任务状态
     # ------------------------------------------------------------------
 
-    def get_task_status(self, task_id: str) -> Dict[str, Any]:
+    def get_task_status(self, task_id: str) -> dict[str, Any]:
         """查询任务执行状态
 
         Args:
@@ -426,7 +426,7 @@ class TianyanClient:
     # 4. 获取任务结果
     # ------------------------------------------------------------------
 
-    def get_task_result(self, task_id: str) -> Dict[str, Any]:
+    def get_task_result(self, task_id: str) -> dict[str, Any]:
         """获取任务执行结果
 
         仅当任务状态为 ``COMPLETED`` 时返回有效测量结果。
@@ -455,7 +455,7 @@ class TianyanClient:
     # 5. 列出可用量子后端
     # ------------------------------------------------------------------
 
-    def list_backends(self) -> List[Dict[str, Any]]:
+    def list_backends(self) -> list[dict[str, Any]]:
         """列出平台上所有可用的量子计算后端
 
         Returns:
@@ -481,7 +481,7 @@ class TianyanClient:
     # 6. 获取后端详细信息
     # ------------------------------------------------------------------
 
-    def get_backend_info(self, backend_name: str) -> Dict[str, Any]:
+    def get_backend_info(self, backend_name: str) -> dict[str, Any]:
         """获取指定量子后端的详细信息
 
         Args:
@@ -546,7 +546,7 @@ class TianyanClient:
     # 8. 获取队列状态
     # ------------------------------------------------------------------
 
-    def get_queue_status(self) -> Dict[str, Any]:
+    def get_queue_status(self) -> dict[str, Any]:
         """获取当前平台任务队列状态
 
         Returns:
@@ -581,7 +581,7 @@ class TianyanClient:
         task_id: str,
         poll_interval: float = 5.0,
         timeout: float = 3600.0,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """轮询等待任务完成并返回结果
 
         周期性查询任务状态，直到任务完成或失败，或超过超时时间。
@@ -633,8 +633,8 @@ class TianyanClient:
 # 模块入口示例
 # ======================================================================
 if __name__ == "__main__":
-    import sys
     import os
+    import sys
 
     _PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     if str(_PROJECT_ROOT) not in sys.path:

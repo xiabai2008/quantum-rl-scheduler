@@ -10,29 +10,26 @@
 4. 生成校准参数写入 config.yaml
 """
 
+import argparse
+import json
 import os
 import sys
 import time
-import json
-import argparse
-from pathlib import Path
 from datetime import datetime
-from typing import Dict, List, Any
+from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from dotenv import load_dotenv
+
 load_dotenv()
 
-import cqlib
-import yaml
 import numpy as np
-from loguru import logger
+import yaml
 
 from src.api.tianyan_cqlib import CqlibTianyanClient
-
 
 # ── 测试电路模板 ──
 TEST_CIRCUITS = {
@@ -106,7 +103,7 @@ def run_calibration(args):
     client = CqlibTianyanClient(login_key=api_key, machine_name=args.machine)
 
     print(f"{'='*60}")
-    print(f"  天衍云真机校准 — Mock 环境调校")
+    print("  天衍云真机校准 — Mock 环境调校")
     print(f"{'='*60}")
     print(f"  机器: {args.machine}")
     print(f"  Shots: {args.shots}")
@@ -177,13 +174,13 @@ def run_calibration(args):
 
     # ── 4. 打印报告 ──
     print(f"\n{'='*60}")
-    print(f"  校准报告")
+    print("  校准报告")
     print(f"{'='*60}")
     print(f"  成功率：{summary['success_rate']:.0%}")
     print(f"  平均总耗时：{summary['avg_total_time_s']}s")
     print(f"  平均提交耗时：{summary['avg_submit_time_s']}s")
     print(f"  最快/最慢：{summary['min_total_time_s']}s / {summary['max_total_time_s']}s")
-    print(f"\n  各电路类型耗时：")
+    print("\n  各电路类型耗时：")
     for name, t in summary["by_circuit"].items():
         print(f"    {name:15s}: {t:.2f}s")
     print(f"\n  JSON 已保存: {args.output}")
@@ -191,7 +188,7 @@ def run_calibration(args):
     # ── 5. 更新 config.yaml 中的 Mock 参数 ──
     config_path = os.path.join(PROJECT_ROOT, "config", "config.yaml")
     try:
-        with open(config_path, "r", encoding="utf-8") as f:
+        with open(config_path, encoding="utf-8") as f:
             config = yaml.safe_load(f)
 
         config["tianyan"]["mock_delay"] = round(summary["avg_total_time_s"] * 0.3, 2)
@@ -200,7 +197,7 @@ def run_calibration(args):
         with open(config_path, "w", encoding="utf-8") as f:
             yaml.dump(config, f, allow_unicode=True, default_flow_style=False)
 
-        print(f"\n  ✅ config.yaml 已更新:")
+        print("\n  ✅ config.yaml 已更新:")
         print(f"     mock_delay = {config['tianyan']['mock_delay']}s")
         print(f"     mock_failure_rate = {config['tianyan']['mock_failure_rate']}")
     except Exception as e:

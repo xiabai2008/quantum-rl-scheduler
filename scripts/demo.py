@@ -14,11 +14,10 @@ One-Click Demo Script
     4. 启动 Web 监控界面
 """
 
-import os
-import sys
-import time
 import argparse
+import os
 import subprocess
+import sys
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -83,7 +82,6 @@ def demo_report(args):
     step("3/4 生成策略对比报告")
 
     try:
-        from src.scheduler.env import QuantumSchedulingEnv
 
         report_dir = os.path.join(PROJECT_ROOT, "results")
         json_files = sorted(
@@ -93,12 +91,12 @@ def demo_report(args):
 
         if json_files:
             import json
-            with open(os.path.join(report_dir, json_files[0]), "r", encoding="utf-8") as f:
+            with open(os.path.join(report_dir, json_files[0]), encoding="utf-8") as f:
                 data = json.load(f)
 
             sorted_items = sorted(data.items(), key=lambda x: x[1].get("avg_reward", -9999), reverse=True)
 
-            print(f"\n  📊 策略排名：")
+            print("\n  📊 策略排名：")
             for rank, (name, metrics) in enumerate(sorted_items, 1):
                 emoji = "🥇" if rank == 1 else "🥈" if rank == 2 else "🥉" if rank == 3 else "  "
                 print(f"  {emoji} {rank}. {name:20s} | reward={metrics['avg_reward']:8.1f} | "
@@ -121,16 +119,17 @@ def demo_report(args):
 def demo_web(args):
     """步骤4: 启动 Web 界面"""
     step("4/4 启动 Web 监控界面")
-    print(f"\n  🌐 访问地址: http://localhost:8000")
-    print(f"  📊 API 端点:")
-    print(f"     GET  /api/ppo/stats       — PPO 排名数据")
-    print(f"     GET  /api/ppo/comparison  — 8策略完整对比")
-    print(f"     GET  /api/ppo/predict     — PPO 实时推理")
-    print(f"     GET  /api/status          — 系统状态")
-    print(f"\n  💡 按 Ctrl+C 停止服务器")
+    print("\n  🌐 访问地址: http://localhost:8000")
+    print("  📊 API 端点:")
+    print("     GET  /api/ppo/stats       — PPO 排名数据")
+    print("     GET  /api/ppo/comparison  — 8策略完整对比")
+    print("     GET  /api/ppo/predict     — PPO 实时推理")
+    print("     GET  /api/status          — 系统状态")
+    print("\n  💡 按 Ctrl+C 停止服务器")
     print(f"{'─' * 60}\n")
 
     import uvicorn
+
     from src.visualization.app import app
     uvicorn.run(app, host="0.0.0.0", port=8000, log_level="info")
 

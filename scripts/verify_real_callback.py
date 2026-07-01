@@ -7,9 +7,9 @@
 用法：
     python scripts/verify_real_callback.py
 """
+import json
 import os
 import sys
-import json
 from pathlib import Path
 
 # 必须先关闭 Mock 模式，再加载 .env
@@ -24,9 +24,9 @@ from dotenv import load_dotenv
 
 load_dotenv()  # 读取 TIANYAN_API_KEY
 
-from src.scheduler.env import QuantumSchedulingEnv, DEFAULT_MACHINE_CONFIGS
-from src.scheduler.agent import PPOAgent
 from src.api.tianyan_cqlib import CqlibTianyanClient
+from src.scheduler.agent import PPOAgent
+from src.scheduler.env import DEFAULT_MACHINE_CONFIGS, QuantumSchedulingEnv
 
 
 def main():
@@ -80,7 +80,7 @@ def main():
         print(f"[FAIL] JSON 未生成: {save_path}")
         sys.exit(1)
 
-    with open(save_path, "r", encoding="utf-8") as f:
+    with open(save_path, encoding="utf-8") as f:
         records = json.load(f)
 
     submitted = [r for r in records if r.get("status") == "submitted"]

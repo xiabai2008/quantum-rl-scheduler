@@ -16,18 +16,20 @@ Scheduler Engine Core Module
 
 # 直接导入环境模块（不依赖 stable_baselines3）
 from src.scheduler.env import (
-    QuantumSchedulingEnv,
-    Task as EnvTask,
-    QuantumResource,
+    DEFAULT_MACHINE_CONFIGS,
     ClassicalResource,
     QuantumMachine,
-    DEFAULT_MACHINE_CONFIGS,
+    QuantumResource,
+    QuantumSchedulingEnv,
     register_env,
+)
+from src.scheduler.env import (
+    Task as EnvTask,
 )
 
 # SchedulerAgent 依赖 stable_baselines3，延迟导入
 try:
-    from src.scheduler.agent import SchedulerAgent, PPOAgent, RealMachineCallback
+    from src.scheduler.agent import PPOAgent, RealMachineCallback, SchedulerAgent
 except ImportError:
     SchedulerAgent = None  # type: ignore[assignment, misc]
     PPOAgent = None  # type: ignore[assignment, misc]
@@ -36,11 +38,11 @@ except ImportError:
 # parser 模块
 try:
     from src.scheduler.parser import (
+        LegacyTaskParser,
         Task,
         TaskBuilder,
-        TaskParser,
         TaskFeatures,
-        LegacyTaskParser,
+        TaskParser,
     )
 except ImportError:
     Task = EnvTask  # fallback to env Task
@@ -49,23 +51,40 @@ except ImportError:
     TaskFeatures = None  # type: ignore[assignment, misc]
     LegacyTaskParser = None  # type: ignore[assignment, misc]
 
+# 多目标奖励包装器
+try:
+    from src.scheduler.multi_objective_env import (
+        DEFAULT_WEIGHTS as MO_DEFAULT_WEIGHTS,
+    )
+    from src.scheduler.multi_objective_env import (
+        MultiObjectiveRewardWrapper,
+        make_mo_env,
+    )
+except ImportError:
+    MultiObjectiveRewardWrapper = None  # type: ignore[assignment, misc]
+    make_mo_env = None  # type: ignore[assignment, misc]
+    MO_DEFAULT_WEIGHTS = {}  # type: ignore[assignment, misc]
+
 # 向后兼容别名
 SchedulingEnv = QuantumSchedulingEnv
 
 __all__ = [
-    "SchedulerAgent",
-    "PPOAgent",
-    "RealMachineCallback",
-    "QuantumSchedulingEnv",
-    "SchedulingEnv",
-    "QuantumResource",
-    "ClassicalResource",
-    "QuantumMachine",
     "DEFAULT_MACHINE_CONFIGS",
-    "register_env",
+    "MO_DEFAULT_WEIGHTS",
+    "ClassicalResource",
+    "LegacyTaskParser",
+    "MultiObjectiveRewardWrapper",
+    "PPOAgent",
+    "QuantumMachine",
+    "QuantumResource",
+    "QuantumSchedulingEnv",
+    "RealMachineCallback",
+    "SchedulerAgent",
+    "SchedulingEnv",
     "Task",
     "TaskBuilder",
-    "TaskParser",
     "TaskFeatures",
-    "LegacyTaskParser",
+    "TaskParser",
+    "make_mo_env",
+    "register_env",
 ]

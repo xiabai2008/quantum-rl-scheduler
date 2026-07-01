@@ -1,10 +1,10 @@
 """
 读取 simulation_results_*.json，输出 Markdown 格式对比报告
 """
+import argparse
 import json
 import os
 import sys
-import argparse
 from datetime import datetime
 from pathlib import Path
 
@@ -24,7 +24,7 @@ def generate_report(json_path: str, output_path: str = None) -> str:
     Returns:
         str: 生成的 Markdown 报告内容
     """
-    with open(json_path, "r", encoding="utf-8") as f:
+    with open(json_path, encoding="utf-8") as f:
         data = json.load(f)
 
     sorted_strategies = sorted(
@@ -86,9 +86,9 @@ def generate_report(json_path: str, output_path: str = None) -> str:
             report += f"- Random 平均奖励: **{random_reward:.2f}**\n"
             report += f"- 差值: **{diff:+.2f}** ({diff_pct:+.1f}%)\n"
             if diff > 0:
-                report += f"- ✅ **DQN 优于 Random**\n\n"
+                report += "- ✅ **DQN 优于 Random**\n\n"
             else:
-                report += f"- ⚠️ **DQN 尚未超越 Random**\n\n"
+                report += "- ⚠️ **DQN 尚未超越 Random**\n\n"
 
         ppo_entry = None
         for name, metrics in sorted_strategies:
@@ -107,9 +107,9 @@ def generate_report(json_path: str, output_path: str = None) -> str:
             report += f"- Random 平均奖励: **{random_reward:.2f}**\n"
             report += f"- 差值: **{diff:+.2f}** ({diff_pct:+.1f}%)\n"
             if diff > 0:
-                report += f"- ✅ **PPO 显著优于 Random**\n\n"
+                report += "- ✅ **PPO 显著优于 Random**\n\n"
             else:
-                report += f"- ⚠️ **PPO 尚未超越 Random**\n\n"
+                report += "- ⚠️ **PPO 尚未超越 Random**\n\n"
 
     report += "## 三、各策略详细说明\n\n"
 

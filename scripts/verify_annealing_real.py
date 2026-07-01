@@ -11,9 +11,9 @@
     python scripts/verify_annealing_real.py
     python scripts/verify_annealing_real.py --real   # 绑定真机客户端触发降级日志
 """
+import logging
 import os
 import sys
-import logging
 from pathlib import Path
 
 # 项目根目录注入 sys.path
@@ -39,7 +39,6 @@ class TinyPolicyNet:
     """
 
     def __init__(self):
-        import torch
         from torch import nn
         self.policy_net = nn.Sequential(
             nn.Linear(4, 8),

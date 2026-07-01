@@ -12,7 +12,7 @@ Cqlib Wrapper for Tianyan Cloud Platform
 """
 
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from loguru import logger
 
@@ -30,7 +30,7 @@ class CqlibTianyanClient:
     """
 
     # 已知可用的超导真机
-    REAL_MACHINES = [
+    REAL_MACHINES = [  # noqa: RUF012
         "tianyan_sw",    # 超导 free
         "tianyan_s",     # 超导 free
         "tianyan_tn",    # 超导 free
@@ -83,7 +83,7 @@ class CqlibTianyanClient:
             logger.error(f"[Cqlib] 认证失败: {e}")
             return False
 
-    def list_backends(self) -> List[Dict[str, Any]]:
+    def list_backends(self) -> list[dict[str, Any]]:
         """列出所有可用的量子计算机"""
         try:
             machines = self.platform.query_quantum_computer_list()
@@ -100,7 +100,7 @@ class CqlibTianyanClient:
             logger.error(f"[Cqlib] 获取机器列表失败: {e}")
             return []
 
-    def get_backend_info(self, backend_name: Optional[str] = None) -> Dict[str, Any]:
+    def get_backend_info(self, backend_name: str | None = None) -> dict[str, Any]:
         """获取指定后端信息"""
         name = backend_name or self.machine_name
         machines = self.list_backends()
@@ -115,7 +115,7 @@ class CqlibTianyanClient:
         circuit: Any = None,
         shots: int = 1024,
         task_name: str = "Scheduler_Task",
-    ) -> Optional[str]:
+    ) -> str | None:
         """提交量子任务到真机（含故障自动切换）
 
         提交策略：
@@ -216,7 +216,7 @@ class CqlibTianyanClient:
 
     def _retry_other_machine(
         self, qcis: str, shots: int, task_name: str
-    ) -> Optional[str]:
+    ) -> str | None:
         """当前机器不可用时，按 REAL_MACHINES 列表尝试其他机器。
 
         每台候选机器先做可用性预检（跳过校准/维护中的），再尝试提交。
@@ -259,7 +259,7 @@ class CqlibTianyanClient:
         logger.error("[Cqlib] 所有备用机器均不可用，放弃提交（返回 None）")
         return None
 
-    def get_task_status(self, task_id: str) -> Dict[str, Any]:
+    def get_task_status(self, task_id: str) -> dict[str, Any]:
         """查询任务状态"""
         try:
             result = self.platform.query_experiment(task_id)
@@ -277,11 +277,11 @@ class CqlibTianyanClient:
         except Exception as e:
             return {"task_id": task_id, "status": "error", "error": str(e)}
 
-    def get_task_result(self, task_id: str) -> Dict[str, Any]:
+    def get_task_result(self, task_id: str) -> dict[str, Any]:
         """获取任务执行结果"""
         return self.get_task_status(task_id)
 
-    def wait_for_task(self, task_id: str, timeout: int = 300, poll_interval: int = 5) -> Dict[str, Any]:
+    def wait_for_task(self, task_id: str, timeout: int = 300, poll_interval: int = 5) -> dict[str, Any]:
         """轮询等待任务完成并返回结果
 
         Args:
@@ -299,7 +299,7 @@ class CqlibTianyanClient:
             time.sleep(poll_interval)
         return {"task_id": task_id, "status": "timeout"}
 
-    def get_queue_status(self) -> Dict[str, Any]:
+    def get_queue_status(self) -> dict[str, Any]:
         """获取队列状态（cqlib 无此接口，返回估算）"""
         machines = self.list_backends()
         running = sum(1 for m in machines if m.get("status") == "running")
@@ -329,7 +329,7 @@ class MultiMachineCqlibCoordinator:
     def __init__(
         self,
         login_key: str,
-        machine_names: List[str],
+        machine_names: list[str],
         auto_retry_machine: bool = False,
     ):
         """初始化多机器协调器。
@@ -343,9 +343,9 @@ class MultiMachineCqlibCoordinator:
         self.login_key = login_key
         self.machine_names = list(machine_names)
         self.auto_retry_machine = auto_retry_machine
-        self._clients: Dict[str, CqlibTianyanClient] = {}
-        self._submit_count: Dict[str, int] = {n: 0 for n in self.machine_names}
-        self._fail_count: Dict[str, int] = {n: 0 for n in self.machine_names}
+        self._clients: dict[str, CqlibTianyanClient] = {}
+        self._submit_count: dict[str, int] = dict.fromkeys(self.machine_names, 0)
+        self._fail_count: dict[str, int] = dict.fromkeys(self.machine_names, 0)
 
         logger.info(
             f"[MultiMachine] 纳管 {len(self.machine_names)} 台机器: {self.machine_names}"
@@ -369,7 +369,7 @@ class MultiMachineCqlibCoordinator:
         qcis: str,
         shots: int = 512,
         task_name: str = "MultiMachine_Task",
-    ) -> Optional[str]:
+    ) -> str | None:
         """向指定机器提交量子任务。
 
         Args:
@@ -388,12 +388,12 @@ class MultiMachineCqlibCoordinator:
             )
             self._submit_count[machine_name] = self._submit_count.get(machine_name, 0) + 1
             return task_id
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             self._fail_count[machine_name] = self._fail_count.get(machine_name, 0) + 1
             logger.error(f"[MultiMachine] {machine_name} 提交失败: {e}")
             return None
 
-    def get_all_status(self) -> Dict[str, Dict[str, Any]]:
+    def get_all_status(self) -> dict[str, dict[str, Any]]:
         """聚合所有纳管机器的队列状态。
 
         Returns:
@@ -404,11 +404,11 @@ class MultiMachineCqlibCoordinator:
             try:
                 client = self._get_client(name)
                 status[name] = client.get_queue_status()
-            except Exception as e:  # noqa: BLE001
+            except Exception as e:
                 status[name] = {"error": str(e)[:80]}
         return status
 
-    def get_submit_stats(self) -> Dict[str, Dict[str, int]]:
+    def get_submit_stats(self) -> dict[str, dict[str, int]]:
         """返回各机器的真机提交统计。
 
         Returns:
@@ -422,7 +422,7 @@ class MultiMachineCqlibCoordinator:
             for name in self.machine_names
         }
 
-    def as_client_map(self) -> Dict[str, CqlibTianyanClient]:
+    def as_client_map(self) -> dict[str, CqlibTianyanClient]:
         """返回 {machine_name: client} 映射，便于注入 env.attach_real_clients。
 
         注意：此方法会触发所有纳管机器的客户端懒加载。
@@ -434,8 +434,8 @@ class MultiMachineCqlibCoordinator:
 
 def create_multi_machine_clients(
     login_key: str,
-    machine_names: List[str],
-) -> Dict[str, CqlibTianyanClient]:
+    machine_names: list[str],
+) -> dict[str, CqlibTianyanClient]:
     """工厂函数：为每台机器创建独立的 cqlib 客户端。
 
     Args:

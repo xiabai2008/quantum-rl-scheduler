@@ -23,14 +23,13 @@ Simulation Benchmark for Quantum-Classical Hybrid Task Scheduling Strategies
     python scripts/run_simulation.py --episodes 100 --tasks-per-episode 200 --output-dir ./results/
 """
 
-import sys
-import os
 import argparse
 import json
+import os
+import sys
 import time
-from pathlib import Path
 from datetime import datetime
-from typing import Dict, List, Tuple, Optional
+from pathlib import Path
 
 import numpy as np
 
@@ -41,7 +40,6 @@ _PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 
-from src.scheduler.agent import DuelingQNetwork
 
 
 # ---------------------------------------------------------------------------
@@ -85,8 +83,8 @@ class SimulationTaskGenerator:
         self,
         arrival_lambda: float = 0.5,
         quantum_ratio: float = 0.7,
-        qubit_range: Tuple[int, int] = (3, 20),
-        seed: Optional[int] = None,
+        qubit_range: tuple[int, int] = (3, 20),
+        seed: int | None = None,
     ):
         self.arrival_lambda = arrival_lambda
         self.quantum_ratio = quantum_ratio
@@ -94,7 +92,7 @@ class SimulationTaskGenerator:
         self.rng = np.random.default_rng(seed)
         self._task_counter = 0
 
-    def generate_batch(self, max_batch: int = 30) -> List[Dict]:
+    def generate_batch(self, max_batch: int = 30) -> list[dict]:
         """
         按泊松分布生成一批新任务。
 
@@ -141,8 +139,8 @@ class SimulationEnv:
     def __init__(
         self,
         env,
-        task_generator: Optional[SimulationTaskGenerator] = None,
-        seed: Optional[int] = None,
+        task_generator: SimulationTaskGenerator | None = None,
+        seed: int | None = None,
     ):
         self.env = env
         self.task_gen = task_generator or SimulationTaskGenerator(seed=seed)
@@ -154,10 +152,10 @@ class SimulationEnv:
         self._episode_count: int = 0
 
         # 逐步采样
-        self._wait_time_samples: List[float] = []
-        self._qubit_util_samples: List[float] = []
-        self._classical_util_samples: List[float] = []
-        self._execution_time_samples: List[float] = []
+        self._wait_time_samples: list[float] = []
+        self._qubit_util_samples: list[float] = []
+        self._classical_util_samples: list[float] = []
+        self._execution_time_samples: list[float] = []
 
         # 当前 episode 的调度计数（用于估算执行时间）
         self._ep_scheduled: int = 0
@@ -191,7 +189,7 @@ class SimulationEnv:
 
         return obs, reward, terminated, truncated, info
 
-    def record_episode_stats(self, info: Dict):
+    def record_episode_stats(self, info: dict):
         """记录单个 episode 结束时的统计信息。"""
         self._episode_count += 1
         self._total_tasks_arrived += info.get("total_scheduled", 0)
@@ -201,7 +199,7 @@ class SimulationEnv:
             + info.get("hybrid_success", 0)
         )
 
-    def get_summary(self) -> Dict[str, float]:
+    def get_summary(self) -> dict[str, float]:
         """计算并返回汇总指标。"""
         total = max(self._total_tasks_arrived, 1)
         completed = max(self._total_tasks_completed, 0)
@@ -277,7 +275,7 @@ class RandomStrategy(BaseStrategy):
 
     name = "Random"
 
-    def __init__(self, action_dim: int = 3, seed: Optional[int] = None):
+    def __init__(self, action_dim: int = 3, seed: int | None = None):
         self.rng = np.random.default_rng(seed)
         self.action_dim = action_dim
 
@@ -398,7 +396,7 @@ def run_strategy(
     tasks_per_episode: int,
     max_steps: int = 500,
     verbose: bool = False,
-) -> Dict[str, float]:
+) -> dict[str, float]:
     """
     使用指定策略运行仿真，返回汇总指标。
 
@@ -455,7 +453,7 @@ def run_strategy(
 # 可视化：生成对比柱状图
 # ---------------------------------------------------------------------------
 
-def plot_comparison(results: Dict[str, Dict[str, float]], output_path: str):
+def plot_comparison(results: dict[str, dict[str, float]], output_path: str):
     """
     使用 matplotlib 生成策略对比柱状图，保存到 output_path。
 
@@ -517,8 +515,8 @@ def plot_comparison(results: Dict[str, Dict[str, float]], output_path: str):
 def run_simulation(
     episodes: int = 100,
     tasks_per_episode: int = 100,
-    model_path: Optional[str] = None,
-    ppo_model_path: Optional[str] = None,
+    model_path: str | None = None,
+    ppo_model_path: str | None = None,
     output_dir: str = "./results/",
     verbose: bool = False,
     real_prob: float = 0.0,
@@ -584,7 +582,7 @@ def run_simulation(
                     auto_retry_machine=True,  # 启用 Task 5 故障自动切换
                 )
                 print(f"[真机] 客户端已创建: {real_machine} (prob={real_prob}, auto_retry=True)")
-            except Exception as e:  # noqa: BLE001
+            except Exception as e:
                 print(f"[警告] 真机客户端创建失败 ({e})，退化为纯仿真")
                 real_prob = 0.0
 
@@ -595,7 +593,7 @@ def run_simulation(
     )
 
     # ---- 创建策略 ----
-    strategies: List[BaseStrategy] = []
+    strategies: list[BaseStrategy] = []
 
     # 策略 A：DQN
     if model_path and os.path.isfile(model_path):
@@ -648,7 +646,7 @@ def run_simulation(
         strategies.append(PPOStrategy(ppo_model))
 
     # ---- 逐策略运行仿真 ----
-    results: Dict[str, Dict[str, float]] = {}
+    results: dict[str, dict[str, float]] = {}
 
     for strategy in strategies:
         print(f"\n--- 运行策略: {strategy.name} ({episodes} episodes) ---")

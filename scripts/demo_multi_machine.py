@@ -19,14 +19,11 @@
     # 真机验证模式（5% 量子任务上真机）
     python scripts/demo_multi_machine.py --real --real-prob 0.05 --episodes 5
 """
-import sys
-import os
 import argparse
-import json
-import time
-from pathlib import Path
+import os
+import sys
 from datetime import datetime
-from typing import Dict, List, Optional, Tuple
+from pathlib import Path
 
 import numpy as np
 
@@ -36,10 +33,9 @@ if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 
 from src.scheduler.env import (
-    QuantumSchedulingEnv,
     DEFAULT_MACHINE_CONFIGS,
+    QuantumSchedulingEnv,
 )
-
 
 # ---------------------------------------------------------------------------
 # 策略函数
@@ -53,12 +49,12 @@ def ppo_policy_factory(model_path: str, env):
         agent.load(model_path)
         print(f"[Policy] PPO 模型已加载: {model_path}")
         return lambda obs: agent.predict(obs, deterministic=True)
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         print(f"[Policy] PPO 加载失败 ({e})，退化为启发式策略")
         return None
 
 
-def heuristic_policy(obs: np.ndarray, info: Dict) -> int:
+def heuristic_policy(obs: np.ndarray, info: dict) -> int:
     """启发式调度策略（PPO 不可用时的兜底）。
 
     规则：量子任务→量子资源(1)，经典任务→经典资源(0)，universal→混合(2)。
@@ -84,7 +80,7 @@ def run_episode(
     policy,
     seed: int,
     use_ppo: bool,
-) -> Dict:
+) -> dict:
     """运行一个 episode 并返回统计结果。"""
     obs, info = env.reset(seed=seed)
     total_reward = 0.0
@@ -115,13 +111,13 @@ def run_episode(
 
 
 def run_multi_episode(
-    env_configs: List[Dict],
+    env_configs: list[dict],
     policy_factory,
     episodes: int,
     base_seed: int,
     label: str,
-    real_clients: Optional[Dict] = None,
-) -> Dict:
+    real_clients: dict | None = None,
+) -> dict:
     """运行多 episode 并聚合统计。
 
     Args:
@@ -198,8 +194,8 @@ def run_multi_episode(
 # ---------------------------------------------------------------------------
 
 def generate_report(
-    single_summary: Dict,
-    multi_summary: Dict,
+    single_summary: dict,
+    multi_summary: dict,
     real_mode: bool,
     real_prob: float,
 ) -> str:
@@ -282,7 +278,7 @@ def generate_report(
         lines.append(f"- 真机验证: 已提交 {sum(multi_summary['machine_real_submits_total'].values())} 个任务到天衍云真机")
     lines.append("")
     lines.append("---")
-    lines.append(f"*报告自动生成 | 数据来源: src/scheduler/env.py 多机器调度扩展*")
+    lines.append("*报告自动生成 | 数据来源: src/scheduler/env.py 多机器调度扩展*")
 
     return "\n".join(lines)
 
@@ -332,7 +328,7 @@ def main():
             try:
                 real_clients = create_multi_machine_clients(api_key, machine_names)
                 print(f"[真机] 已创建 {len(real_clients)} 个真机客户端: {machine_names}")
-            except Exception as e:  # noqa: BLE001
+            except Exception as e:
                 print(f"[警告] 真机客户端创建失败 ({e})，退化为纯仿真")
                 args.real = False
 
