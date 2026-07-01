@@ -1,0 +1,58 @@
+# =============================================================================
+# GitHub Actions Labeler 配置
+# 基于被修改的文件路径自动给 PR 打标签
+# =============================================================================
+
+# 算法/调度核心
+"algorithm":
+  - changed-files:
+      - any-glob-to-any-file:
+          - "src/scheduler/**"
+          - "src/quantum/**"
+
+# 后端/API
+"backend":
+  - changed-files:
+      - any-glob-to-any-file:
+          - "src/api/**"
+          - "config/**"
+
+# 前端/可视化
+"frontend":
+  - changed-files:
+      - any-glob-to-any-file:
+          - "src/visualization/**"
+
+# 测试
+"testing":
+  - changed-files:
+      - any-glob-to-any-file:
+          - "tests/**"
+          - "scripts/test_*"
+          - "scripts/verify_*"
+          - "scripts/e2e_*"
+
+# 文档
+"documentation":
+  - changed-files:
+      - any-glob-to-any-file:
+          - "docs/**"
+          - "*.md"
+          - "*.rst"
+
+# CI/基础设施
+"ci":
+  - changed-files:
+      - any-glob-to-any-file:
+          - ".github/**"
+          - ".devcontainer/**"
+          - "Dockerfile"
+          - "docker-compose.yml"
+          - "setup.sh"
+
+# 依赖
+"dependencies":
+  - changed-files:
+      - any-glob-to-any-file:
+          - "requirements.txt"
+          - "pyproject.toml"

@@ -1,0 +1,55 @@
+# =============================================================================
+# PR 辅助自动化：自动标签、自动分配 Reviewer
+# =============================================================================
+
+name: PR Automation
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+
+jobs:
+  auto-label:
+    name: "Auto Label PR"
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Auto-label based on changed files
+        uses: actions/labeler@v5
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          sync-labels: true
+
+  check-commit-format:
+    name: "Check Commit Format"
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check Conventional Commits
+        run: |
+          # 检查 PR 中所有 commit 是否符合规范格式
+          commits=$(git log ${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }} --format="%s")
+          invalid=0
+          while IFS= read -r line; do
+            if [[ -n "$line" ]] && ! echo "$line" | grep -qP '^(feat|fix|docs|style|refactor|perf|test|chore|ci|build)(\(.+\))?: .{1,}'; then
+              echo "[FAIL] Invalid commit format: $line"
+              invalid=$((invalid + 1))
+            fi
+          done <<< "$commits"
+          if [[ $invalid -gt 0 ]]; then
+            echo ""
+            echo "[WARN] Found $invalid commits with non-standard format"
+            echo "Expected: <type>: <subject> (eg. feat: add DQN agent)"
+            echo "Valid types: feat, fix, docs, style, refactor, perf, test, chore, ci, build"
+          else
+            echo "[PASS] All commits follow Conventional Commits format"
+          fi

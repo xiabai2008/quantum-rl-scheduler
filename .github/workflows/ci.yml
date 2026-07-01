@@ -1,0 +1,143 @@
+# =============================================================================
+# 量子RL调度系统 — CI/CD 持续集成流水线
+# Quantum RL Scheduler — CI/CD Pipeline
+#
+# 触发条件：推送到 main 分支 or 发起 Pull Request
+# 执行内容：代码格式检查 → 类型检查 → 单元测试 → 覆盖率报告
+# =============================================================================
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+
+  # ---------------------------------------------------------------------------
+  # Job 1: 代码格式检查（Black + isort + flake8）
+  # ---------------------------------------------------------------------------
+  lint:
+    name: "Lint (black + isort + flake8)"
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install lint dependencies
+        run: |
+          pip install --upgrade pip
+          pip install black>=23.0.0 isort>=5.12.0 flake8>=6.0.0
+
+      - name: Check code formatting (black)
+        run: black --check --diff src/ scripts/ tests/
+
+      - name: Check import ordering (isort)
+        run: isort --check-only --diff src/ scripts/ tests/
+
+      - name: Lint with flake8
+        run: |
+          flake8 src/ scripts/ tests/ \
+            --count \
+            --select=E,W,F,N \
+            --max-line-length=100 \
+            --statistics
+
+  # ---------------------------------------------------------------------------
+  # Job 2: 单元测试 + 覆盖率（Python 多版本矩阵）
+  # ---------------------------------------------------------------------------
+  test:
+    name: "Test (Python ${{ matrix.python-version }})"
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: lint
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Cache pip packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ matrix.python-version }}-${{ hashFiles('requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-${{ matrix.python-version }}-
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest-flakefinder  # 随机化测试顺序，发现隐式依赖
+
+      - name: Run tests with coverage
+        run: |
+          python -m pytest tests/ \
+            -v \
+            --cov=src \
+            --cov-report=term-missing \
+            --cov-report=xml \
+            --cov-fail-under=40 \
+            --flake-finder \
+            --timeout=120 \
+            -W ignore::DeprecationWarning
+
+      - name: Upload coverage to Codecov
+        if: matrix.python-version == '3.11'
+        uses: codecov/codecov-action@v4
+        with:
+          file: ./coverage.xml
+          flags: unittests
+          fail_ci_if_error: false
+          token: ${{ secrets.CODECOV_TOKEN }}
+
+  # ---------------------------------------------------------------------------
+  # Job 3: 类型检查（mypy）
+  # ---------------------------------------------------------------------------
+  typecheck:
+    name: "Type Check (mypy)"
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: lint
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install mypy
+        run: |
+          pip install --upgrade pip
+          pip install mypy>=1.5.0
+
+      - name: Run mypy (baseline - gradually enable strict mode)
+        run: |
+          mypy src/ \
+            --ignore-missing-imports \
+            --follow-imports=skip \
+            --no-error-unused-ignore \
+            --show-error-codes \
+            --pretty \
+            || echo "[INFO] mypy found type issues — review and fix incrementally"
