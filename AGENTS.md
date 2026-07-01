@@ -3,7 +3,7 @@
 > 此文件供所有 AI Agent（CodeBuddy / TRAE / Claude / Cursor 等）读取，以快速理解项目全貌。
 > 每次重要变更后请更新本文档的"最后更新"日期和对应章节。
 
-**最后更新**：2026-06-30（多机器调度 + 真机验证）
+**最后更新**：2026-07-01（算法深化 v6：MAPPO多智能体 + 退火异步闭环 + 14维状态空间 + 多目标奖励）
 
 ***
 
@@ -80,6 +80,9 @@ quantum-rl-scheduler/
 ├── AGENTS.md                     # 本文档—通用项目记忆
 ├── README.md                     # 项目介绍 + 快速开始
 ├── requirements.txt              # Python 依赖清单
+├── pyproject.toml                # 代码质量统一配置（Black/isort/flake8/mypy/pytest/coverage）
+├── .editorconfig                 # 跨编辑器编码风格统一
+├── .pre-commit-config.yaml       # Git pre-commit 自动检查
 ├── .env.example                  # 环境变量模板
 ├── .gitignore
 ├── CONTRIBUTING.md               # 贡献指南
@@ -87,10 +90,16 @@ quantum-rl-scheduler/
 ├── Dockerfile                    # Docker 容器化
 ├── docker-compose.yml            # 一键部署
 ├── .dockerignore
+├── setup.sh                      # 一键环境初始化（Linux/macOS/Git Bash）
+├── setup.ps1                     # 一键环境初始化（Windows PowerShell）
+├── .devcontainer/                # VS Code Dev Container 配置
+│   ├── devcontainer.json         #   一键开发环境（Docker + 12+ 扩展）
+│   ├── Dockerfile.dev            #   开发容器镜像
+│   └── post-create.sh            #   容器创建后的初始化脚本
 ├── .trae/
 │   └── documents/
 │       └── development_plan.md   # TRAE 开发计划
-├── githooks/                # 已移除（改用 GitHub 原生分支保护）
+├── githooks/                     # 已移除（改用 GitHub 原生分支保护）
 ├── config/
 │   ├── .env.example              # 环境变量模板
 │   └── config.yaml               # 系统配置（mock_mode: true 表示 Mock 模式）
@@ -98,10 +107,13 @@ quantum-rl-scheduler/
 ├── src/
 │   ├── __init__.py
 │   ├── scheduler/                # 调度引擎（核心模块）
-│   │   ├── __init__.py           # SchedulerAgent, QuantumSchedulingEnv, QuantumMachine 等导出
+│   │   ├── __init__.py           # 模块导出（含MultiAgentPPO等新增导出）
 │   │   ├── parser.py             # 量化任务解析（867行）
-│   │   ├── env.py                # Gymnasium 调度环境（10维状态,异质化任务,多机器调度,1054行）
-│   │   └── agent.py              # Dueling DQN + PPO 智能体（691行）
+│   │   ├── env.py                # Gymnasium调度环境（14维,含噪声/拓扑,LSTM兼容）
+│   │   ├── agent.py              # Dueling DQN + PPO/LSTM 智能体
+│   │   ├── marl.py               # MAPPO 多智能体调度（1,177行,v6）
+│   │   ├── async_annealing_callback.py # 异步退火回调（133行,v6）
+│   │   └── multi_objective_env.py # 多目标奖励包装器（386行,v6）
 │   │
 │   ├── api/
 │   │   ├── __init__.py           # 工厂函数 get_client() / create_multi_machine_clients()
@@ -111,7 +123,8 @@ quantum-rl-scheduler/
 │   │
 │   ├── quantum/
 │   │   ├── __init__.py
-│   │   └── annealing.py          # 量子退火优化器（1,076行）
+│   │   ├── annealing.py           # 量子退火优化器（1,076行）
+│   │   └── annealing_loop.py      # 异步退火闭环控制器（343行,v6）
 │   │
 │   ├── visualization/
 │   │   ├── __init__.py
@@ -129,16 +142,28 @@ quantum-rl-scheduler/
 │   ├── run_simulation.py         # 仿真对比脚本（720行）
 │   ├── e2e_test.py              # 端到端集成测试（181行）
 │   ├── hyperparameter_search.py  # 超参数网格搜索（221行）
-│   ├── calibrate_mock.py        # 真机校准 Mock 参数
-│   ├── mock_vs_real.py          # 真机 vs 仿真对比报告
-│   ├── demo_cqlib.py            # cqlib 真机演示
-│   ├── demo_multi_machine.py    # 多机器调度演示（单机vs多机对比+真机验证,337行）
+│   ├── ablation_study.py         # 多维消融实验框架（5维,~500行）
+│   ├── ablation_annealing.py     # 退火消融实验（多Seed版,254行）
+│   ├── generate_ablation_report.py # 消融实验学术报告生成器
+│   ├── train_marl.py              # MAPPO 多智能体训练（v6新增）
+│   ├── train_lstm_agent.py        # LSTM策略训练（v6新增）
+│   ├── train_multi_objective.py   # 多目标RL训练（v6新增）
+│   ├── train_with_annealing_loop.py # 异步退火闭环训练（v6新增）
+│   ├── compare_pareto.py          # 帕累托前沿可视化（v6新增）
 │   ├── generate_report.py        # 策略对比报告生成器
-│   ├── test_mock_api.py          # Mock API 测试
-│   └── test_cqlib.py             # 真机连接测试
+│   ├── calibrate_mock.py         # 真机校准 Mock 参数
+│   ├── mock_vs_real.py           # 真机 vs 仿真对比报告
+│   ├── demo_cqlib.py             # cqlib 真机演示
+│   ├── demo_multi_machine.py     # 多机器调度演示（单机vs多机对比+真机验证,337行）
+│   ├── test_mock_api.py           # Mock API 测试
+│   └── test_cqlib.py              # 真机连接测试
 │
 ├── tests/                        # 单元测试
-│   └── test_scheduler.py         # 67用例（含11个多机器调度用例,753行）
+│   ├── test_scheduler.py         # 67用例（含11个多机器调度用例,753行）
+│   ├── test_marl.py              # MAPPO 测试（18用例,477行,v6）
+│   ├── test_annealing_loop.py    # 异步退火闭环测试（6用例,269行,v6）
+│   ├── test_multi_objective.py   # 多目标奖励测试（33用例,442行,v6）
+│   └── test_state_space.py       # 状态空间测试（14用例,363行,v6）
 │
 ├── docs/
 │   ├── 新人上手指南.md            # 团队 onboarding
@@ -149,12 +174,16 @@ quantum-rl-scheduler/
 │
 └── .github/
     ├── PULL_REQUEST_TEMPLATE.md
-    └── ISSUE_TEMPLATE/
-        ├── bug.md
-        └── task.md
+    ├── ISSUE_TEMPLATE/
+    │   ├── bug.md
+    │   └── task.md
+    ├── labeler.yml                 # PR 自动标签规则
+    └── workflows/
+        ├── ci.yml                  # CI 流水线（lint→test→typecheck）
+        └── pr-automation.yml       # PR 自动标签 + Commit 格式校验
 ```
 
-**总核心代码量**：约 9,500 行 Python（不含测试和文档）
+**总核心代码量**：约 13,100 行 Python（不含测试和文档）
 
 ## 5. 技术栈
 
@@ -247,7 +276,8 @@ metrics = MetricsCalculator()
 | API 客户端     | tianyan\_client.py        | 639   | ✅ Mock 委托已实现 | <br />                         |
 | cqlib 真机客户端 | tianyan\_cqlib.py         | 326   | ✅ 真机已通       | 含 MultiMachineCqlibCoordinator |
 | 任务解析器       | parser.py                 | 867   | ✅ 已验证        | TaskParser + Builder + Legacy  |
-| 调度环境        | env.py                    | 1,054 | ✅ 已验证        | 10维状态,异质化任务,多机器调度,PPO兼容        |
+| 调度环境        | env.py                    | ~1100 | ✅ 已验证        | 14维状态(含噪声/拓扑),异质化任务,多机器调度,LSTM兼容 |
+| RL 智能体      | agent.py                  | ~750  | ✅ 已验证        | Dueling DQN + PPO/LSTM 双策略        |
 | RL 智能体      | agent.py                  | 691   | ✅ 已验证        | Dueling DQN + PPO 双算法          |
 | 量子退火        | annealing.py              | 1,076 | ✅ 已验证        | QUBO映射 + 梯度引导 + 仿真求解           |
 | Web 界面      | app.py                    | 1,164 | ✅ 已验证        | FastAPI + Vue3 + Echarts       |
@@ -259,6 +289,22 @@ metrics = MetricsCalculator()
 | 仿真脚本        | run\_simulation.py        | 720   | ✅ 已验证        | 8种策略对比                         |
 | Docker      | Dockerfile + compose      | —     | ✅ 已创建        | 一键部署                           |
 | 单元测试        | test\_scheduler.py        | 753   | ✅ 67用例通过     | 含11个多机器调度用例                    |
+
+### v6 新增 — 算法与性能深化
+
+| 模块              | 文件                          | 行数   | 验证状态     | 备注                           |
+| ---------------- | --------------------------- | ---- | -------- | ----------------------------- |
+| MAPPO多智能体      | marl.py                     | 1,177 | ✅ 语法通过 | MultiAgentEnvWrapper + MAPPO训练循环 |
+| 异步退火闭环        | annealing\_loop.py          | 343   | ✅ 语法通过 | 生产者-消费者模式,自适应频率,真机降级        |
+| 异步退火回调        | async\_annealing\_callback.py | 133  | ✅ 语法通过 | 替代同步AnnealingCallback            |
+| 多目标奖励          | multi\_objective\_env.py     | 386   | ✅ 语法通过 | 吞吐量/平衡/服务质量3目标加权标量化          |
+| LSTM策略           | agent.py 修改               | —     | ✅ 已合并  | 新增use_lstm/n_lstm_layers参数       |
+| 14维状态空间        | env.py 修改                 | —     | ✅ 已合并  | 新增噪声/拓扑特征,OBS_DIM=14           |
+| MAPPO测试          | test\_marl.py               | 477   | ✅ 18用例 | 单机/双机/三机场景全覆盖                 |
+| 异步退火测试        | test\_annealing\_loop.py    | 269   | ✅ 6用例  | 异步/降级/自适应全覆盖                  |
+| 多目标测试          | test\_multi\_objective.py   | 442   | ✅ 33用例 | 3目标分解+3组权重组合全覆盖               |
+| 状态空间测试        | test\_state\_space.py       | 363   | ✅ 14用例 | 12维/14维/LSTM兼容全覆盖              |
+| 训练脚本           | train\_marl/lstm/multi/loop | —     | ✅ 5个   | 各模块自带训练脚本                    |
 
 ### v5 核心成果 — 多机器调度（PPO + 3台真机）
 
@@ -295,6 +341,9 @@ metrics = MetricsCalculator()
 | v3 | reward归一化、10维状态 | -145                         | 未单独保存                                             |
 | v4 | 环境异质化 + PPO     | -954 (DQN) / **+2804 (PPO)** | `results/strategy_comparison_report_v4.md`        |
 | v5 | 多机器调度 + 真机验证    | 单机2305 / **多机4294**          | `results/multi_machine_real_report.md`            |
+| v6 | MAPPO + 退火闭环 + 14维 + 多目标 | 待训练验证 | — |
+
+**v6 核心统计:** 新增 ~3,600 行 Python + 71 测试用例。总代码量 ~13,100 行。
 
 ### 待紧急处理
 
@@ -335,15 +384,33 @@ metrics = MetricsCalculator()
 6. **GitHub 仓库为 Public**，但无 Topics/关键词，不会被搜索引擎发现
 7. **不要删除 docs/ 下的任何指南文件**
 
-## 11. 代码规范
+## 11. 代码规范与质量工具
 
 | 规范项       | 要求                              |
 | --------- | ------------------------------- |
 | Python 版本 | ≥3.10（TRAE 使用 3.12.9）           |
-| 代码格式化     | Black（line-length=88）           |
+| 代码格式化     | Black（line-length=100，通过 pyproject.toml 配置） |
+| 导入排序     | isort（Black 兼容模式） |
+| 代码检查     | flake8（max-complexity=15） |
+| 类型检查     | mypy（逐步启用） |
 | 注释语言      | 中文                              |
 | 函数/方法     | 必须有文档字符串（docstrings）            |
 | 命名规范      | 类名 PascalCase，函数/变量 snake\_case |
+
+**统一配置入口**：`pyproject.toml` — 所有工具（Black/isort/flake8/mypy/pytest/coverage）的配置集中在此文件。
+
+**Pre-commit 自动检查**（推荐安装）：
+```bash
+pip install pre-commit
+pre-commit install    # commit 前自动执行：Black 格式化 + isort 排序 + flake8 检查
+```
+
+**CI/CD 自动检查**（GitHub Actions，每次 push/PR 自动运行）：
+- `black --check` + `isort --check-only` + `flake8` — 代码格式
+- `pytest --cov`（Python 3.10/3.11/3.12 矩阵）— 单元测试 + 覆盖率
+- `mypy` — 类型检查
+- PR 自动打标签（基于修改文件路径）
+- Commit 格式校验（Conventional Commits）
 
 **开发优先级顺序**（由高到低）：
 
@@ -356,10 +423,21 @@ metrics = MetricsCalculator()
 ## 12. 快速命令参考
 
 ```bash
+# ── 环境初始化 ──
+bash setup.sh                              # Linux/macOS/Git Bash 一键初始化
+powershell .\setup.ps1                     # Windows PowerShell 一键初始化
+
+# ── 代码质量 ──
+black src/ scripts/ tests/                 # 代码格式化
+isort src/ scripts/ tests/                 # import 排序
+flake8 src/ scripts/ tests/                # 代码检查
+mypy src/                                  # 类型检查
+pre-commit run --all-files                 # 手动触发 pre-commit 检查
+
 # ── 验证 ──
-python scripts/test_mock_api.py          # Mock API 功能测试
-python scripts/e2e_test.py              # 端到端集成测试
-python scripts/quick_train.py           # 快速训练验证（5000步）
+python scripts/test_mock_api.py            # Mock API 功能测试
+python scripts/e2e_test.py                 # 端到端集成测试
+python scripts/quick_train.py              # 快速训练验证（5000步）
 
 # ── 训练 ──
 python scripts/train_agent.py --config config/config.yaml       # DQN 训练
@@ -368,6 +446,19 @@ python -c "from src.scheduler.env import QuantumSchedulingEnv; from src.schedule
 # ── 仿真对比 ──
 python scripts/run_simulation.py --mock-mode --num-tasks 200    # 8策略对比
 python scripts/hyperparameter_search.py --timesteps 20000       # 超参数搜索
+
+# ── 消融实验 ──
+python scripts/ablation_study.py --all --dry-run          # 快速验证所有消融维度
+python scripts/ablation_study.py --dim D1 D4 --seeds 3    # 指定维度3seed
+python scripts/ablation_annealing.py                      # 退火消融（PPO vs PPO+退火, 5seed）
+python scripts/generate_ablation_report.py results/ablation_study_XXX.json  # 生成学术报告
+
+# ── v6 算法深化 (TRAE 产出) ──
+python scripts/train_marl.py --machines 3 --timesteps 50000   # MAPPO训练
+python scripts/train_lstm_agent.py --timesteps 50000           # PPO+LSTM训练
+python scripts/train_multi_objective.py --weights 1.0 0.5 0.5  # 多目标RL训练
+python scripts/train_with_annealing_loop.py --timesteps 50000  # 异步退火闭环训练
+python scripts/compare_pareto.py --output results/pareto.png   # 帕累托可视化
 
 # ── 多机器调度 ──
 python scripts/demo_multi_machine.py --episodes 20                            # 纯仿真对比（单机vs多机）

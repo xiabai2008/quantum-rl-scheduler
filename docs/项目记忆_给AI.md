@@ -1,7 +1,7 @@
 # 揭榜挂帅擂台赛 - 项目记忆文档
 
 > **文档用途**：同步给 TRAE AI 助手，帮助快速理解项目背景、技术架构、当前状态  
-> **更新时间**：2026-06-30  
+> **更新时间**：2026-07-01  
 > **项目负责人**：瑞哥（xiabai2004）
 
 ---
@@ -91,9 +91,27 @@
 quantum-rl-scheduler/
 ├── README.md                  # 项目介绍 + 快速开始（含Mock模式说明）
 ├── requirements.txt           # Python依赖清单
-├── .env.example              # 环境变量模板
-├── .gitignore                # Git忽略规则
-├── CONTRIBUTING.md           # 贡献指南
+├── pyproject.toml             # 代码质量统一配置（Black/isort/flake8/mypy/pytest/coverage）
+├── .editorconfig              # 跨编辑器编码风格统一
+├── .pre-commit-config.yaml    # Git pre-commit 自动检查
+├── setup.sh                   # 一键环境初始化（Linux/macOS/Git Bash）
+├── setup.ps1                  # 一键环境初始化（Windows PowerShell）
+├── .env.example               # 环境变量模板
+├── .gitignore                 # Git忽略规则
+├── CONTRIBUTING.md            # 贡献指南（含CI/CD说明）
+│
+├── .github/                   # GitHub配置
+│   ├── PULL_REQUEST_TEMPLATE.md  # PR模板
+│   ├── ISSUE_TEMPLATE/          # Issue模板
+│   ├── labeler.yml              # PR自动标签规则
+│   └── workflows/
+│       ├── ci.yml               # CI流水线（lint→test→typecheck）
+│       └── pr-automation.yml    # PR自动化（标签+Commit校验）
+│
+├── .devcontainer/             # VS Code开发容器
+│   ├── devcontainer.json      # 一键开发环境配置
+│   ├── Dockerfile.dev         # 开发容器镜像
+│   └── post-create.sh         # 容器初始化脚本
 │
 ├── config/
 │   └── config.yaml           # 系统配置文件（含mock_mode开关）
@@ -133,13 +151,13 @@ quantum-rl-scheduler/
 │
 ├── docs/                    # 项目文档
 │   ├── README.md           # 文档目录索引 ✅ (新增 2026-06-30)
-│   ├── 新人上手指南.md      # 完整onboarding流程 ✅
-│   ├── 队友协同开发指南.md   # 精简版快速上手 ✅
+│   ├── 新人上手指南.md      # 完整onboarding流程 ✅ (更新 2026-07-01)
+│   ├── 队友协同开发指南.md   # 精简版快速上手 ✅ (更新 2026-07-01)
 │   ├── Git工作流.md         # 分支管理规范 ✅
 │   ├── 团队分工.md          # 角色职责说明 ✅
 │   ├── 开发计划.md          # 详细时间线 ✅
 │   ├── docker-deploy.md    # Docker部署手册 ✅
-│   └── 项目记忆_给AI.md    # 本文档 ✅
+│   └── 项目记忆_给AI.md    # 本文档 ✅ (更新 2026-07-01)
 │
 │
 ├── data/                    # 数据目录
@@ -159,14 +177,17 @@ quantum-rl-scheduler/
 |------|------|------|
 | **项目初始化** | ✅ 100% | 30个文件，8242行代码 |
 | **GitHub仓库** | ✅ 100% | https://github.com/xiabai2004/quantum-rl-scheduler |
-| **Mock API** | ✅ 100% | `src/api/mock_client.py`（831行） |
+| **核心代码** | ✅ 100% | v5 多机器调度 + PPO + 真机验证 |
+| **CI/CD** | ✅ 100% | GitHub Actions（lint + test + typecheck + PR自动化） |
+| **Dev Container** | ✅ 100% | VS Code 一键开发环境 |
+| **代码质量** | ✅ 100% | pyproject.toml + .editorconfig + pre-commit |
+| **一键初始化** | ✅ 100% | setup.sh / setup.ps1 跨平台脚本 |
+| **Mock API** | ✅ 100% | `src/api/mock_client.py`（572行） |
 | **配置文件** | ✅ 100% | `config/config.yaml`（含mock_mode开关） |
 | **环境变量** | ✅ 100% | `.env.example`（含TIANYAN_MOCK_MODE） |
-| **分支保护** | ✅ GitHub 原生 PR 审批 | ✅ 100% | 拦截直接推main + 检查commit格式 |
+| **分支保护** | ✅ 100% | GitHub 原生 PR 审批，拦截直接推main |
 | **团队文档** | ✅ 100% | 新人指南、Git工作流、团队分工 |
-| **Issue任务** | ✅ 100% | 12个任务卡片（含描述、验收标准、工时） |
-| **里程碑** | ✅ 100% | 5个（M1-M5，截止7/10-9/15） |
-| **自定义标签** | ✅ 100% | 算法、后端、前端、文档、测试、优先级 |
+| **Docker** | ✅ 100% | Dockerfile + docker-compose 三服务编排 |
 
 ### 进行中
 | 模块 | 进度 | 说明 |
@@ -239,19 +260,19 @@ quantum-rl-scheduler/
 git clone https://github.com/xiabai2004/quantum-rl-scheduler.git
 cd quantum-rl-scheduler
 
-# 2. 安装依赖
-pip install -r requirements.txt
+# 2. 一键初始化
+bash setup.sh          # Git Bash / Linux / macOS
+# 或
+powershell .\setup.ps1  # Windows PowerShell
 
-# 3. 配置环境变量（默认启用Mock模式）
-cp .env.example .env
-# 无需修改.env，默认TIANYAN_MOCK_MODE=true
+# 3. 安装 pre-commit（推荐）
+pip install pre-commit && pre-commit install
 
-# 仓库已公开，直接 clone 即可
-
-# 5. 验证Mock API
+# 4. 验证环境
+python -m pytest tests/ -v
 python scripts/test_mock_api.py
 
-# 6. 开始开发
+# 5. 开始开发
 git checkout -b feature/your-module-name
 ```
 
@@ -270,6 +291,8 @@ git checkout -b feature/your-module-name
 
 ### 代码风格
 - **Python**：遵循PEP 8，使用type hints
+- **格式化**：Black（line-length=100），通过 `pyproject.toml` 统一配置
+- **质量检查**：pre-commit（commit前自动） + GitHub Actions CI（push/PR自动）
 - **Docstring**：Google风格（参考`tianyan_client.py`）
 - **注释**：复杂逻辑必须添加注释
 - **测试**：每个模块至少1个单元测试
@@ -285,6 +308,9 @@ git checkout -b feature/your-module-name
 | 使用Gymnasium封装调度环境 | 标准化RL环境，便于对比不同算法 | 2026-06-27 |
 | 先实现Mock API | 队友可立即开发，无需等待平台审批 | 2026-06-27 |
 | 仓库公开+分支保护 | 支持队友PR协作，无Topic不被搜索 | 2026-06-30 |
+| GitHub Actions CI/CD | 自动 lint + test + typecheck + PR标签 | 2026-07-01 |
+| VS Code Dev Container | 一键开发环境，新队友15分钟上手 | 2026-07-01 |
+| pyproject.toml 统一配置 | 单一入口管理所有代码质量工具 | 2026-07-01 |
 | 使用Git Hooks拦截 | 免费账户无分支保护，用Hooks替代 → 已改为GitHub原生保护 | 2026-06-27 |
 
 ### 待确认事项
@@ -309,16 +335,17 @@ git checkout -b feature/your-module-name
 
 ## 🎯 下一步计划
 
-### 本周（2026-06-27 ~ 2026-07-03）
-1. **立即发送平台申请邮件**（报名截止6/30！）
-2. **确定7位队友的具体分工**
-3. **开始实现核心算法**（env.py + agent.py）
+### 本周（2026-07-01 ~ 2026-07-05）
+1. **确定7位队友的具体分工**，分配 GitHub Issues
+2. **队友安装 pre-commit**，确保代码提交流水线正常
+3. **开始准备参赛材料**（PPT大纲 + 演示脚本）
 4. **每周同步进度**（建议周五晚8点线上会议）
 
 ### 短期（2026-07月）
-- 完成M1里程碑（环境搭建与基础模块）
-- 完成M2里程碑（核心算法开发）
-- 争取获得天衍云平台测试权限
+- 完成 M1 里程碑（环境搭建与基础模块）
+- 完成 M2 里程碑（核心算法开发）
+- 进行真机 Benchmark 标准化测试
+- 编写交付文档（需求规格、技术选型报告等）
 
 ### 中期（2026-08月）
 - 完成M3里程碑（系统集成与可视化）
