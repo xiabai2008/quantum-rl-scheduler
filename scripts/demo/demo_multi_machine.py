@@ -129,10 +129,10 @@ def run_multi_episode(
         label         : 场景标签
         real_clients  : 真机客户端映射（可选，注入到多机器 env）
     """
-    print(f"\n{'='*60}")
+    print(f"\n{'=' *60}")
     print(f"  场景: {label}")
     print(f"  episodes={episodes} 机器数={len(env_configs[0].get('machine_configs') or [])}")
-    print(f"{'='*60}")
+    print(f"{'=' *60}")
 
     # 用第一个 env 构造策略（PPO 需要绑定 env）
     first_env = QuantumSchedulingEnv(**env_configs[0])
@@ -150,7 +150,7 @@ def run_multi_episode(
         res = run_episode(env, ppo_policy, seed=base_seed + ep, use_ppo=use_ppo)
         results.append(res)
         if (ep + 1) % max(1, episodes // 5) == 0:
-            print(f"  episode {ep+1}/{episodes} reward={res['reward']:.1f}")
+            print(f"  episode {ep +1}/{episodes} reward={res['reward']:.1f}")
 
     # 聚合
     rewards = [r["reward"] for r in results]
@@ -413,9 +413,9 @@ def main():
     with open(args.output, "w", encoding="utf-8") as f:
         f.write(report)
 
-    print(f"\n{'='*60}")
+    print(f"\n{'=' *60}")
     print(f"✅ 报告已保存: {args.output}")
-    print(f"{'='*60}")
+    print(f"{'=' *60}")
     print("\n报告预览:")
     print(report[:800])
 

@@ -145,9 +145,9 @@ def generate_report(real_results, mock_results):
 
 
 def main():
-    print(f"{'='*60}")
+    print(f"{'=' *60}")
     print("  真机 vs Mock 仿真对比报告")
-    print(f"{'='*60}")
+    print(f"{'=' *60}")
 
     circuits = build_test_circuits()
 
@@ -180,7 +180,7 @@ def main():
     with open(REPORT_PATH, "w", encoding="utf-8") as f:
         f.write(report)
 
-    print(f"\n{'='*60}")
+    print(f"\n{'=' *60}")
     print(report.split("\n")[-6][:60] if len(report.split("\n")) > 6 else "")
     print(f"\n✅ 报告已保存: {REPORT_PATH}")
 

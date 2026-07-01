@@ -143,9 +143,9 @@ def test_annealing():
 
 
 def main():
-    print(f"{'='*60}")
+    print(f"{'=' *60}")
     print("端到端集成测试")
-    print(f"{'='*60}")
+    print(f"{'=' *60}")
 
     try:
         task = test_parser()
@@ -153,21 +153,21 @@ def main():
         agent = test_agent(env)
         opt = test_annealing()
 
-        print(f"\n{'='*60}")
+        print(f"\n{'=' *60}")
         print("✓ 所有端到端测试通过！")
-        print(f"{'='*60}")
+        print(f"{'=' *60}")
         print("测试流程:")
         print("  1. TaskParser → Task 对象 ✓")
         print("  2. QuantumSchedulingEnv → (obs, reward, done) ✓")
         print("  3. SchedulerAgent → action ✓")
         print("  4. QuantumAnnealingOptimizer → QUBO 最优解 ✓")
-        print(f"{'='*60}")
+        print(f"{'=' *60}")
         return 0
 
     except Exception:
-        print(f"\n{'='*60}")
+        print(f"\n{'=' *60}")
         print("✗ 端到端测试失败")
-        print(f"{'='*60}")
+        print(f"{'=' *60}")
         import traceback
 
         traceback.print_exc()

@@ -88,9 +88,9 @@ def run_multi_seed():
     all_with_anneal = []
 
     for seed in SEEDS:
-        print(f"\n{'='*50}")
+        print(f"\n{'=' *50}")
         print(f"Seed = {seed}")
-        print(f"{'='*50}")
+        print(f"{'=' *50}")
 
         print("  [1/2] PPO 无退火...")
         r1 = train_one(seed, use_annealing=False)
@@ -240,7 +240,7 @@ def run_multi_seed():
         "",
         "退火提升:",
         f"  mean δ = {with_anneal_mean[-1] - no_anneal_mean[-1]:+.1f}",
-        f"  relative = {(with_anneal_mean[-1]-no_anneal_mean[-1])/(abs(no_anneal_mean[-1])+1e-8)*100:+.1f}%",
+        f"  relative = {(with_anneal_mean[-1] -no_anneal_mean[-1]) /(abs(no_anneal_mean[-1]) +1e-8) *100:+.1f}%",
     ]
     for i, line in enumerate(summary_lines):
         y = 0.95 - i * 0.04
@@ -261,15 +261,15 @@ def run_multi_seed():
     plt.close(fig)
 
     # ---- 终端输出 ----
-    print(f"\n{'='*60}")
+    print(f"\n{'=' *60}")
     print("多 Seed 消融实验完成")
-    print(f"{'='*60}")
+    print(f"{'=' *60}")
     print(f"JSON: {json_path}")
     print(f"PNG:  {png_path}")
     print("")
     for line in summary_lines[2:]:
         print(f"  {line}")
-    print(f"{'='*60}")
+    print(f"{'=' *60}")
 
 
 if __name__ == "__main__":

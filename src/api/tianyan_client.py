@@ -645,7 +645,6 @@ class TianyanClient:
 # 模块入口示例
 # ======================================================================
 if __name__ == "__main__":
-    import os
     import sys
 
     _PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))

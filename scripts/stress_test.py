@@ -278,11 +278,11 @@ def run_stress_test():
     all_results = {}
 
     for scenario in SCENARIOS:
-        print(f"\n{'='*60}")
+        print(f"\n{'=' *60}")
         print(f"场景: {scenario.label}")
         print(f"描述: {scenario.description}")
         print(f"max_steps={scenario.max_steps}")
-        print(f"{'='*60}")
+        print(f"{'=' *60}")
 
         scenario_results = {}
 
@@ -388,9 +388,9 @@ def run_stress_test():
     print(f"[PNG]  {png_path}")
 
     # ---- 打印摘要 ----
-    print(f"\n{'='*60}")
+    print(f"\n{'=' *60}")
     print("压力场景对比摘要")
-    print(f"{'='*60}")
+    print(f"{'=' *60}")
 
     for scenario in SCENARIOS:
         sr = all_results[scenario.name]["results"]
@@ -409,11 +409,11 @@ def run_stress_test():
         for name, data in sorted_items:
             print(
                 f"      {name:<8} {data['reward']:>8.0f} | "
-                f"completed={data.get('completed_tasks','?'):>4} | "
-                f"wait={data.get('avg_wait_time',0):>6.1f}"
+                f"completed={data.get('completed_tasks', '?'):>4} | "
+                f"wait={data.get('avg_wait_time', 0):>6.1f}"
             )
 
-    print(f"\n{'='*60}")
+    print(f"\n{'=' *60}")
     print("产出文件:")
     print(f"  JSON: {json_path}")
     print(f"  PNG:  {png_path}")

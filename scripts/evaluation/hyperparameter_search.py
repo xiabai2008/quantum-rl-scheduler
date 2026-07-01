@@ -70,13 +70,13 @@ def run_search(
     results = []
     total_combinations = np.prod([len(v) for v in param_grid.values()])
 
-    print(f"{'='*60}")
+    print(f"{'=' *60}")
     print("超参数网格搜索")
-    print(f"{'='*60}")
+    print(f"{'=' *60}")
     print(f"参数组合数: {total_combinations}")
     print(f"每组合训练步数: {args.timesteps}")
     print(f"评估 episode 数: {args.eval_episodes}")
-    print(f"{'='*60}")
+    print(f"{'=' *60}")
 
     keys = list(param_grid.keys())
     values = list(param_grid.values())
@@ -193,21 +193,21 @@ def save_results(results: list[dict], output_dir: str):
         ]
         if valid_results:
             best_result = max(valid_results, key=lambda r: r["avg_reward"])
-            print(f"\n{'='*60}")
+            print(f"\n{'=' *60}")
             print("最佳参数组合")
-            print(f"{'='*60}")
+            print(f"{'=' *60}")
             print(f"学习率: {best_result['learning_rate']}")
             print(f"折扣因子: {best_result['gamma']}")
             print(f"探索率衰减: {best_result['epsilon_decay']}")
             print(f"批次大小: {best_result['batch_size']}")
             print(f"缓冲区大小: {best_result['buffer_size']}")
-            print(f"{'='*60}")
+            print(f"{'=' *60}")
             print(f"平均奖励: {best_result['avg_reward']:.2f}")
             print(f"成功率: {best_result['success_rate']:.2%}")
             print(f"平均等待时间: {best_result['avg_wait_time']:.2f}")
             print(f"量子利用率: {best_result['qubit_utilization']:.2%}")
             print(f"经典利用率: {best_result['classical_utilization']:.2%}")
-            print(f"{'='*60}")
+            print(f"{'=' *60}")
 
             best_path = os.path.join(output_dir, f"best_hyperparameters_{timestamp}.json")
             with open(best_path, "w", encoding="utf-8") as f:

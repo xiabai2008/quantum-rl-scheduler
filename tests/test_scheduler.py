@@ -19,7 +19,7 @@ import numpy as np
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from scripts.run_simulation import (
+from scripts.evaluation.run_simulation import (
     ClassicalOnlyStrategy,
     FCFSStrategy,
     GreedyStrategy,

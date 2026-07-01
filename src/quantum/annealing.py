@@ -1161,9 +1161,8 @@ if __name__ == "__main__":
     print("=" * 60)
 
     # 显示量子加速开关状态
-    print(
-        f"\n环境变量 QUANTUM_ACCELERATION_ENABLED = {os.environ.get('QUANTUM_ACCELERATION_ENABLED', '未设置')}"
-    )
+    _qa_env = os.environ.get("QUANTUM_ACCELERATION_ENABLED", "未设置")
+    print(f"\n环境变量 QUANTUM_ACCELERATION_ENABLED = {_qa_env}")
     print(f"量子加速功能: {'✅ 已启用' if QUANTUM_ACCELERATION_ENABLED else '❌ 已禁用'}")
     print(f"D-Wave SDK 可用: {'✅ 是' if _DWAVE_AVAILABLE else '❌ 否（使用 numpy 仿真）'}")
 

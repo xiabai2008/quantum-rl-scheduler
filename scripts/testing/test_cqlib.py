@@ -13,7 +13,7 @@ print("=== 查询任务结果 ===")
 for i in range(30):
     result = platform.query_experiment(TASK_ID)
     status = result.get("status", "unknown") if isinstance(result, dict) else "processing"
-    print(f"  [{i+1}s] status={status}")
+    print(f"  [{i +1}s] status={status}")
     if status in ("completed", "finished", "done"):
         print("\n✅ 任务完成！")
         print(f"Result: {result}")

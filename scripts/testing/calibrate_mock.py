@@ -112,13 +112,13 @@ def run_calibration(args):
 
     client = CqlibTianyanClient(login_key=api_key, machine_name=args.machine)
 
-    print(f"{'='*60}")
+    print(f"{'=' *60}")
     print("  天衍云真机校准 — Mock 环境调校")
-    print(f"{'='*60}")
+    print(f"{'=' *60}")
     print(f"  机器: {args.machine}")
     print(f"  Shots: {args.shots}")
     print(f"  电路类型: {len(TEST_CIRCUITS)} 种")
-    print(f"{'='*60}\n")
+    print(f"{'=' *60}\n")
 
     results = {
         "machine": args.machine,
@@ -135,7 +135,7 @@ def run_calibration(args):
 
         for run in range(args.runs):
             name = f"Calib_{circuit_name}_R{run}"
-            print(f"  Run {run+1}/{args.runs}...", end=" ", flush=True)
+            print(f"  Run {run +1}/{args.runs}...", end=" ", flush=True)
             record = submit_and_wait(client, qcis, name, args.shots)
             record["circuit"] = circuit_name
             record["qubits"] = qubits
@@ -180,9 +180,9 @@ def run_calibration(args):
         json.dump(results, f, indent=2, ensure_ascii=False)
 
     # ── 4. 打印报告 ──
-    print(f"\n{'='*60}")
+    print(f"\n{'=' *60}")
     print("  校准报告")
-    print(f"{'='*60}")
+    print(f"{'=' *60}")
     print(f"  成功率：{summary['success_rate']:.0%}")
     print(f"  平均总耗时：{summary['avg_total_time_s']}s")
     print(f"  平均提交耗时：{summary['avg_submit_time_s']}s")

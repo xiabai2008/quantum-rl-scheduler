@@ -123,7 +123,7 @@ def demo_report(args):
             if ppo_item and random_item:
                 vs_random = ppo_item["avg_reward"] - random_item.get("avg_reward", 0)
                 print(
-                    f"\n  🏆 PPO vs Random: {vs_random:+.1f} ({vs_random/abs(random_item.get('avg_reward', 1))*100:.1f}%)"
+                    f"\n  🏆 PPO vs Random: {vs_random:+.1f} ({vs_random /abs(random_item.get('avg_reward', 1)) *100:.1f}%)"
                 )
 
             print("  ✅ 报告生成完成")
