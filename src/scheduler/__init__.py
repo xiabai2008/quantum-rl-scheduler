@@ -23,9 +23,11 @@ from src.scheduler.env import (
     QuantumMachine,
     QuantumResource,
     QuantumSchedulingEnv,
-    register_env,
 )
 from src.scheduler.env import Task as EnvTask
+from src.scheduler.env import (
+    register_env,
+)
 
 # SchedulerAgent 依赖 stable_baselines3，延迟导入
 try:

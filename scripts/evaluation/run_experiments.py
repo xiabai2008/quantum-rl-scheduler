@@ -125,9 +125,7 @@ def run_strategy_comparison(
 # ---------------------------------------------------------------------------
 
 
-def run_ablation_study(
-    episodes: int = 20, tasks_per_episode: int = 200, seed: int = 42
-) -> dict:
+def run_ablation_study(episodes: int = 20, tasks_per_episode: int = 200, seed: int = 42) -> dict:
     """运行消融实验（5个维度）"""
     from src.scheduler.agent import PPOAgent
     from src.scheduler.env import QuantumSchedulingEnv
@@ -156,9 +154,7 @@ def run_ablation_study(
                     machine_configs=DEFAULT_MACHINE_CONFIGS,
                 )
             else:
-                env = QuantumSchedulingEnv(
-                    max_steps=tasks_per_episode, max_qubits=287, seed=seed
-                )
+                env = QuantumSchedulingEnv(max_steps=tasks_per_episode, max_qubits=287, seed=seed)
 
             agent = PPOAgent(env, learning_rate=3e-4, n_steps=2048, gamma=0.99, verbose=0)
             agent.train(total_timesteps=tasks_per_episode * 5)
@@ -188,9 +184,7 @@ def run_ablation_study(
 # ---------------------------------------------------------------------------
 
 
-def run_stress_test(
-    seed: int = 42, task_counts: list[int] | None = None
-) -> dict:
+def run_stress_test(seed: int = 42, task_counts: list[int] | None = None) -> dict:
     """运行压力测试（不同任务量梯度）"""
     from src.scheduler.agent import PPOAgent
     from src.scheduler.env import QuantumSchedulingEnv
@@ -253,13 +247,18 @@ def generate_charts(all_results: dict, output_dir: str, timestamp: str) -> None:
         ax1.set_ylabel("平均奖励", fontsize=12)
         ax1.tick_params(axis="x", rotation=45)
         for bar, val in zip(bars1, rewards, strict=False):
-            ax1.text(bar.get_x() + bar.get_width() / 2, val + max(val * 0.02, 10),
-                     f"{val:.0f}", ha="center", fontsize=9)
+            ax1.text(
+                bar.get_x() + bar.get_width() / 2,
+                val + max(val * 0.02, 10),
+                f"{val:.0f}",
+                ha="center",
+                fontsize=9,
+            )
 
         x = np.arange(len(names))
         width = 0.35
-        ax2.bar(x - width/2, q_utils, width, label="量子利用率", color="#e74c3c")
-        ax2.bar(x + width/2, c_utils, width, label="经典利用率", color="#2ecc71")
+        ax2.bar(x - width / 2, q_utils, width, label="量子利用率", color="#e74c3c")
+        ax2.bar(x + width / 2, c_utils, width, label="经典利用率", color="#2ecc71")
         ax2.set_title("8策略对比 — 资源利用率", fontsize=14)
         ax2.set_ylabel("利用率", fontsize=12)
         ax2.set_xticks(x)
@@ -284,8 +283,13 @@ def generate_charts(all_results: dict, output_dir: str, timestamp: str) -> None:
         ax.set_ylabel("奖励提升（相对基线）", fontsize=12)
 
         for bar, val in zip(bars, contributions, strict=False):
-            ax.text(bar.get_x() + bar.get_width() / 2, val + (0.02 * max(contributions)),
-                    f"+{val:.0f}" if val > 0 else f"{val:.0f}", ha="center", fontsize=10)
+            ax.text(
+                bar.get_x() + bar.get_width() / 2,
+                val + (0.02 * max(contributions)),
+                f"+{val:.0f}" if val > 0 else f"{val:.0f}",
+                ha="center",
+                fontsize=10,
+            )
 
         plt.tight_layout()
         fig.savefig(os.path.join(output_dir, f"ablation_bar_{timestamp}.png"), dpi=150)
@@ -324,9 +328,7 @@ def main():
         )
 
     print("\n[实验3] 压力测试")
-    all_results["stress_test"] = run_stress_test(
-        seed=args.seed, task_counts=[200, 500]
-    )
+    all_results["stress_test"] = run_stress_test(seed=args.seed, task_counts=[200, 500])
 
     json_path = os.path.join(args.output_dir, f"experiment_results_{timestamp}.json")
     with open(json_path, "w", encoding="utf-8") as f:

@@ -451,9 +451,12 @@ class TianyanClient:
         """
         # Mock 模式委托
         if self.mock_mode and hasattr(self, "_mock_client") and self._mock_client:
-            return cast(str, self._mock_client.submit_quantum_task(
-                circuit_qasm=circuit_qasm, shots=shots, backend=backend
-            ))
+            return cast(
+                str,
+                self._mock_client.submit_quantum_task(
+                    circuit_qasm=circuit_qasm, shots=shots, backend=backend
+                ),
+            )
 
         # 真实模式委托 cqlib
         if self._cqlib is not None:
