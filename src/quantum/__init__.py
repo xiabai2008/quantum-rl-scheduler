@@ -7,7 +7,10 @@ Quantum Computing Module
 - QuantumAnnealingAccelerator: 量子退火加速器（旧版兼容别名）
 """
 
-from src.quantum.annealing import QUANTUM_ACCELERATION_ENABLED, QuantumAnnealingOptimizer
+from src.quantum.annealing import (  # noqa: E402
+    QUANTUM_ACCELERATION_ENABLED,
+    QuantumAnnealingOptimizer,
+)
 
 # 旧版兼容别名
 QuantumAnnealingAccelerator = QuantumAnnealingOptimizer

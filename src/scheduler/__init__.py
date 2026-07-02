@@ -14,32 +14,44 @@ Scheduler Engine Core Module
 - QuantumTask: env.py 中的量子任务数据结构
 """
 
+import logging
 from typing import Any
 
+logger = logging.getLogger(__name__)
+
 # 直接导入环境模块（不依赖 stable_baselines3）
-from src.scheduler.env import (
+from src.scheduler.env import (  # noqa: E402
     DEFAULT_MACHINE_CONFIGS,
     ClassicalResource,
     QuantumMachine,
     QuantumResource,
     QuantumSchedulingEnv,
 )
-from src.scheduler.env import Task as EnvTask
-from src.scheduler.env import (
+from src.scheduler.env import Task as EnvTask  # noqa: E402
+from src.scheduler.env import (  # noqa: E402
     register_env,
 )
 
 # SchedulerAgent 依赖 stable_baselines3，延迟导入
 try:
-    from src.scheduler.agent import PPOAgent, RealMachineCallback, SchedulerAgent
+    from src.scheduler.agent import (  # noqa: E402
+        PPOAgent,
+        RealMachineCallback,
+        SchedulerAgent,
+    )
 except ImportError:
+    logger.warning(
+        "scheduler.agent 导入失败（可能缺少 stable_baselines3），"
+        "SchedulerAgent / PPOAgent / RealMachineCallback 不可用。"
+        " 如需 RL 训练功能，请执行: pip install stable-baselines3[extra]"
+    )
     SchedulerAgent = None  # type: ignore[assignment, misc]
     PPOAgent = None  # type: ignore[assignment, misc]
     RealMachineCallback = None  # type: ignore[assignment, misc]
 
 # parser 模块
 try:
-    from src.scheduler.parser import (
+    from src.scheduler.parser import (  # noqa: E402
         LegacyTaskParser,
         Task,
         TaskBuilder,
@@ -47,6 +59,10 @@ try:
         TaskParser,
     )
 except ImportError:
+    logger.warning(
+        "scheduler.parser 导入失败，将回退到 env.Task。"
+        " TaskBuilder / TaskParser / TaskFeatures / LegacyTaskParser 不可用。"
+    )
     Task = EnvTask  # type: ignore[assignment, misc]  # fallback to env Task
     TaskBuilder = None  # type: ignore[assignment, misc]
     TaskParser = None  # type: ignore[assignment, misc]
@@ -59,13 +75,18 @@ make_mo_env: Any | None = None
 MO_DEFAULT_WEIGHTS: Any = {}
 
 try:
-    from src.scheduler.multi_objective_env import DEFAULT_WEIGHTS as MO_DEFAULT_WEIGHTS
-    from src.scheduler.multi_objective_env import (
+    from src.scheduler.multi_objective_env import (  # noqa: E402
+        DEFAULT_WEIGHTS as MO_DEFAULT_WEIGHTS,
+    )
+    from src.scheduler.multi_objective_env import (  # noqa: E402
         MultiObjectiveRewardWrapper,
         make_mo_env,
     )
 except ImportError:
-    pass
+    logger.warning(
+        "scheduler.multi_objective_env 导入失败，"
+        "MultiObjectiveRewardWrapper / make_mo_env 不可用。"
+    )
 
 # 向后兼容别名
 SchedulingEnv = QuantumSchedulingEnv
