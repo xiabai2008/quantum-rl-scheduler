@@ -129,6 +129,53 @@ class TestLoadConfig(unittest.TestCase):
             cfg = load_config(path)
             self.assertEqual(cfg, ["a", "b"])
 
+    def test_expands_env_vars_in_strings(self):
+        """配置中的 ${VAR} 引用应被展开为环境变量值。"""
+        os.environ["TEST_CONFIG_SECRET"] = "my-secret-value"
+        try:
+            with tempfile.TemporaryDirectory() as tmp:
+                path = os.path.join(tmp, "env.yaml")
+                with open(path, "w", encoding="utf-8") as f:
+                    f.write("key: ${TEST_CONFIG_SECRET}\nplain: hello\n")
+                cfg = load_config(path)
+                self.assertEqual(cfg["key"], "my-secret-value")
+                self.assertEqual(cfg["plain"], "hello")
+        finally:
+            del os.environ["TEST_CONFIG_SECRET"]
+
+    def test_expands_env_vars_in_nested_dicts(self):
+        """嵌套字典中的 ${VAR} 引用应被递归展开。"""
+        os.environ["TEST_NESTED"] = "expanded"
+        try:
+            with tempfile.TemporaryDirectory() as tmp:
+                path = os.path.join(tmp, "nested.yaml")
+                with open(path, "w", encoding="utf-8") as f:
+                    f.write("outer:\n  inner: ${TEST_NESTED}\n  other: plain\n")
+                cfg = load_config(path)
+                self.assertEqual(cfg["outer"]["inner"], "expanded")
+                self.assertEqual(cfg["outer"]["other"], "plain")
+        finally:
+            del os.environ["TEST_NESTED"]
+
+    def test_unset_env_var_keeps_placeholder(self):
+        """未设置的环境变量 ${} 引用保留原样。"""
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "unset.yaml")
+            with open(path, "w", encoding="utf-8") as f:
+                f.write("key: ${UNDEFINED_VAR_XYZ}\n")
+            cfg = load_config(path)
+            self.assertEqual(cfg["key"], "${UNDEFINED_VAR_XYZ}")
+
+    def test_no_env_vars_works_normally(self):
+        """没有环境变量引用的配置应正常加载。"""
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "plain.yaml")
+            with open(path, "w", encoding="utf-8") as f:
+                f.write("name: test\nvalue: 42\n")
+            cfg = load_config(path)
+            self.assertEqual(cfg["name"], "test")
+            self.assertEqual(cfg["value"], 42)
+
 
 # ============================================================
 # save_config 测试
