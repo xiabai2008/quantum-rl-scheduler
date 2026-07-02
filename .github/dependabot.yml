@@ -1,7 +1,7 @@
 # Dependabot 配置 — 自动更新依赖 + 安全漏洞通知
 version: 2
 updates:
-  # Python 依赖 (requirements.txt)
+  # Python 依赖 (requirements.txt + requirements.lock)
   - package-ecosystem: "pip"
     directory: "/"
     schedule:

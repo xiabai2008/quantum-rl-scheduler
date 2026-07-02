@@ -11,13 +11,13 @@ echo "=========================================="
 
 # 1. 创建项目目录
 echo ""
-echo "[1/5] Creating project directories..."
+echo "[1/6] Creating project directories..."
 mkdir -p /workspace/logs /workspace/models /workspace/data
 echo "  [PASS] Directories ready."
 
 # 2. 复制环境变量模板
 echo ""
-echo "[2/5] Setting up environment variables..."
+echo "[2/6] Setting up environment variables..."
 if [ ! -f /workspace/.env ]; then
     if [ -f /workspace/.env.example ]; then
         cp /workspace/.env.example /workspace/.env
@@ -31,7 +31,7 @@ fi
 
 # 3. 安装 pre-commit hooks（如果配置了）
 echo ""
-echo "[3/5] Setting up Git hooks..."
+echo "[3/6] Setting up Git hooks..."
 if [ -f /workspace/.pre-commit-config.yaml ]; then
     pre-commit install --install-hooks
     echo "  [PASS] Pre-commit hooks installed."
@@ -39,18 +39,40 @@ else
     echo "  [INFO] No .pre-commit-config.yaml found, skipping."
 fi
 
-# 4. 验证关键依赖
+# 4. GPU 检测
 echo ""
-echo "[4/5] Verifying critical dependencies..."
+echo "[4/6] Checking GPU availability..."
+if command -v nvidia-smi &> /dev/null; then
+    nvidia-smi --query-gpu=name,driver_version,memory.total --format=csv,noheader 2>/dev/null && \
+    echo "  [PASS] GPU detected and accessible." || \
+    echo "  [WARN] nvidia-smi found but GPU not accessible."
+else
+    echo "  [INFO] No GPU detected (CPU-only mode)."
+    echo "  [INFO] To enable GPU: use .devcontainer/docker-compose.gpu.yml"
+fi
+
+# PyTorch CUDA 检测
+python -c "
+import torch
+if torch.cuda.is_available():
+    print(f'  [PASS] PyTorch CUDA: {torch.cuda.get_device_name(0)}')
+    print(f'  [PASS] CUDA version: {torch.version.cuda}')
+else:
+    print('  [INFO] PyTorch running in CPU mode')
+" 2>/dev/null || echo "  [WARN] PyTorch not installed yet"
+
+# 5. 验证关键依赖
+echo ""
+echo "[5/6] Verifying critical dependencies..."
 python -c "import gymnasium; print(f'  [PASS] gymnasium {gymnasium.__version__}')" || echo "  [WARN] gymnasium"
 python -c "import stable_baselines3; print(f'  [PASS] stable-baselines3')" || echo "  [WARN] stable-baselines3"
 python -c "import torch; print(f'  [PASS] torch {torch.__version__}')" || echo "  [WARN] torch"
 python -c "import qiskit; print(f'  [PASS] qiskit {qiskit.__version__}')" || echo "  [WARN] qiskit"
 python -c "import fastapi; print(f'  [PASS] fastapi')" || echo "  [WARN] fastapi"
 
-# 5. 打印快速开始信息
+# 6. 打印快速开始信息
 echo ""
-echo "[5/5] Environment setup complete!"
+echo "[6/6] Environment setup complete!"
 echo ""
 echo "=========================================="
 echo " Quick Start"

@@ -1,0 +1,111 @@
+# M5 最终提交物清单
+# 量子RL调度系统 — 比赛最终提交物定义与校验规则
+
+submission:
+  deadline: "2026-09-15"
+  version: "v8.0"
+
+items:
+  # 代码部分
+  - id: CODE_REPO
+    name: 代码仓库
+    type: git_tag
+    path: "."
+    requirements:
+      tag: "v8.0-submission"
+      must_pass_ci: true
+      must_have_readme: true
+
+  - id: CODE_ARCHIVE
+    name: 代码压缩包
+    type: zip
+    path: "dist/quantum-rl-scheduler-v8.0.zip"
+    requirements:
+      max_size_mb: 100
+      exclude:
+        - ".git/"
+        - "__pycache__/"
+        - "logs/"
+        - "results/raw/"
+      include:
+        - "src/"
+        - "tests/"
+        - "scripts/"
+        - "docs/"
+        - "README.md"
+        - "requirements.txt"
+
+  # 文档部分
+  - id: WHITEPAPER
+    name: 技术白皮书
+    type: pdf
+    path: "技术白皮书_量子RL调度系统_v3.pdf"
+    requirements:
+      min_pages: 20
+      max_pages: 50
+      must_contain:
+        - "摘要"
+        - "目录"
+        - "参考文献"
+
+  - id: PRESENTATION
+    name: 答辩 PPT
+    type: pptx
+    path: "答辩PPT_量子RL调度系统.pptx"
+    requirements:
+      min_slides: 15
+      max_slides: 20
+      must_contain_slides:
+        - "封面"
+        - "问题定义"
+        - "架构图"
+        - "实验结果"
+        - "团队介绍"
+
+  - id: DEMO_VIDEO
+    name: 演示视频
+    type: mp4
+    path: "演示视频_量子RL调度系统.mp4"
+    requirements:
+      max_duration_seconds: 300
+      min_duration_seconds: 240
+      max_size_mb: 500
+      resolution: "1920x1080"
+
+  # 实验报告
+  - id: EXP_STRATEGY
+    name: 策略对比报告
+    type: md
+    path: "results/reports/strategy_comparison.md"
+    must_exist: true
+
+  - id: EXP_ABLATION
+    name: 消融实验报告
+    type: md
+    path: "results/reports/ablation_report.md"
+    must_exist: true
+
+  - id: EXP_STRESS
+    name: 压力测试报告
+    type: md
+    path: "results/reports/stress_test_report.md"
+    must_exist: true
+
+  - id: EXP_REAL
+    name: 真机验证报告
+    type: md
+    path: "results/reports/real_machine_validation.md"
+    must_exist: true
+
+  - id: EXP_STAT
+    name: 统计显著性报告
+    type: md
+    path: "results/reports/statistical_validation.md"
+    must_exist: true
+
+  # 其他
+  - id: REQUIREMENTS_MATRIX
+    name: 需求追溯矩阵
+    type: md
+    path: "docs/requirements_traceability.md"
+    must_exist: true

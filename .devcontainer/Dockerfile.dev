@@ -1,11 +1,27 @@
 # =============================================================================
 # 开发容器 Dockerfile
 # 基于 Python 3.11，包含所有开发和调试工具
+# 支持通过构建参数启用 GPU（CUDA/cuDNN）
+#
+# CPU 模式（默认）：docker build -f .devcontainer/Dockerfile.dev .
+# GPU 模式：docker build --build-arg BASE_IMAGE=nvidia/cuda:11.8.0-cudnn8-runtime-ubuntu22.04 -f .devcontainer/Dockerfile.dev .
 # =============================================================================
 
-FROM python:3.11-slim
+# 基础镜像（通过构建参数切换 CPU/GPU）
+ARG BASE_IMAGE=python:3.11-slim
+FROM ${BASE_IMAGE}
 
-# 系统依赖
+# 如果使用 CUDA 基础镜像，需要安装 Python
+ARG BASE_IMAGE=python:3.11-slim
+RUN if echo "${BASE_IMAGE}" | grep -q "cuda"; then \
+        apt-get update && apt-get install -y --no-install-recommends \
+        python3.11 python3.11-dev python3-pip \
+        && ln -sf /usr/bin/python3.11 /usr/bin/python \
+        && ln -sf /usr/bin/pip3 /usr/bin/pip \
+        && rm -rf /var/lib/apt/lists/*; \
+    fi
+
+# 系统依赖（保留原有的，添加 CUDA 相关）
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     curl \
@@ -20,6 +36,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libglib2.0-0 \
     graphviz \
     && rm -rf /var/lib/apt/lists/*
+
+# GPU 健康检查（仅在 CUDA 环境下可用）
+RUN if command -v nvidia-smi &> /dev/null; then \
+        echo "GPU support detected"; \
+    else \
+        echo "CPU-only mode (no nvidia-smi)"; \
+    fi
 
 # 创建非 root 用户
 RUN useradd -m -s /bin/bash vscode \

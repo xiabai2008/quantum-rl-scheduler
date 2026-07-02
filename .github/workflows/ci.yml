@@ -62,13 +62,14 @@ jobs:
   # Job 2: 单元测试 + 覆盖率（Python 多版本矩阵）
   # ---------------------------------------------------------------------------
   test:
-    name: "Test (Python ${{ matrix.python-version }})"
-    runs-on: ubuntu-latest
+    name: "Test (${{ matrix.os }}, Python ${{ matrix.python-version }})"
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     needs: lint
     strategy:
       fail-fast: false
       matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
         python-version: ["3.10", "3.11", "3.12"]
 
     steps:
@@ -82,7 +83,7 @@ jobs:
       - name: Cache pip packages
         uses: actions/cache@v4
         with:
-          path: ~/.cache/pip
+          path: ${{ runner.os == 'Windows' && '~\AppData\Local\pip\Cache' || '~/.cache/pip' }}
           key: ${{ runner.os }}-pip-${{ matrix.python-version }}-${{ hashFiles('requirements.txt') }}
           restore-keys: |
             ${{ runner.os }}-pip-${{ matrix.python-version }}-
@@ -92,6 +93,19 @@ jobs:
           pip install --upgrade pip
           pip install -r requirements.txt
           pip install pytest-flakefinder  # 随机化测试顺序，发现隐式依赖
+
+      - name: Install ffmpeg (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+
+      - name: Install ffmpeg (macOS)
+        if: runner.os == 'macOS'
+        run: brew install ffmpeg
+
+      - name: Install ffmpeg (Windows)
+        if: runner.os == 'Windows'
+        run: choco install ffmpeg -y
+        continue-on-error: true
 
       - name: Run tests with coverage
         run: |
@@ -105,7 +119,7 @@ jobs:
             -W ignore::DeprecationWarning
 
       - name: Upload coverage to Codecov
-        if: matrix.python-version == '3.11'
+        if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.11'
         uses: codecov/codecov-action@v4
         with:
           file: ./coverage.xml
@@ -211,3 +225,48 @@ jobs:
       - name: Show mutation results
         run: mutmut results
         if: always()
+
+  # ---------------------------------------------------------------------------
+  # Job 6: Benchmark 性能追踪（跨版本回归检测）
+  # 对比 main 分支基线，检测性能退化
+  # ---------------------------------------------------------------------------
+  benchmark:
+    name: "Benchmark Regression Check"
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # 需要完整历史用于对比
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run benchmarks
+        run: |
+          python -m pytest tests/benchmarks/ \
+            --benchmark-only \
+            --benchmark-json=benchmark_results.json \
+            -v
+
+      - name: Track and compare benchmarks
+        run: |
+          python scripts/ci/benchmark_tracker.py benchmark_results.json --report
+
+      - name: Upload benchmark results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-results
+          path: |
+            benchmark_results.json
+            results/benchmark_history.jsonl
