@@ -26,6 +26,7 @@ from typing import Any
 
 import numpy as np
 import torch
+import torch.nn.functional as F
 from torch import nn
 
 # ============================================================================
@@ -977,8 +978,6 @@ class QuantumAnnealingOptimizer:
             td_errors: TD 误差数组
             loss     : 标量损失值
         """
-        import torch.nn.functional as F
-
         # 尝试从 replay buffer 采样
         if hasattr(replay_buffer, "sample"):
             try:
