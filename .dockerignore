@@ -1,13 +1,14 @@
 # =============================================================================
-# Docker 构建忽略文件
+# Docker 构建忽略文件 — Issue #116
+# 目标：镜像体积减少 50-80%，构建时间大幅缩短
 # =============================================================================
 
-# Git
+# --- Git ---
 .git
 .gitignore
 .gitattributes
 
-# Python
+# --- Python ---
 __pycache__/
 *.py[cod]
 *$py.class
@@ -20,56 +21,86 @@ dist/
 build/
 *.whl
 
-# 虚拟环境
+# --- 虚拟环境 ---
 venv/
 env/
 .venv/
 ENV/
 
-# IDE
+# --- IDE / 编辑器 ---
 .idea/
 .vscode/
+.trae/
+.editorconfig
 *.swp
 *.swo
 *~
 .DS_Store
 
-# 测试
+# --- CI / DevContainer / GitHub（容器内不需要） ---
+.github/
+.devcontainer/
+
+# --- 测试 ---
 .coverage
 htmlcov/
 .pytest_cache/
 tests/
 
-# 文档
+# --- 文档（容器内不需要 .md / .rst） ---
 docs/
 *.md
+*.rst
 !requirements.txt
 
-# 日志和临时文件
+# --- 日志（可能数百 MB） ---
+logs/
 *.log
-logs/*.log
-*.tmp
-temp/
-tmp/
 
-# 本地模型（如果需要持久化，可以使用 volume）
-# models/*.zip
+# --- 大型运行时产物（应通过 Docker volume 挂载） ---
+models/
+results/
+tensorboard_logs/
 
-# TensorFlow 检查点
+# --- 检查点 & 模型权重 ---
 *.ckpt
 *.h5
+*.pth
+*.pt
 
-# Jupyter
+# --- Jupyter ---
 .ipynb_checkpoints/
 *.ipynb
 
-# 环境变量
+# --- 环境变量（绝对不能进镜像） ---
 .env
-.env.local
-.env.*.local
+.env.*
+!.env.example
 
-# Node.js（如果有前端构建）
+# --- Node.js / 前端 ---
 node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+# --- 临时文件 ---
+*.tmp
+temp/
+tmp/
+
+# --- 媒体文件 & 二进制文档（PPT/PDF/图片/视频） ---
+*.jpg
+*.jpeg
+*.png
+*.gif
+*.svg
+*.pdf
+*.pptx
+*.docx
+*.xlsx
+*.mp4
+*.mov
+*.avi
+
+# --- LICENSE 保留（Docker 不需要） ---
+# LICENSE 已通过 *.md / *.rst 排除，无需额外规则
