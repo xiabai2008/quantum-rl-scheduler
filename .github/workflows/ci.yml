@@ -39,7 +39,7 @@ jobs:
       - name: Install lint dependencies
         run: |
           pip install --upgrade pip
-          pip install black>=23.0.0 isort>=5.12.0 flake8>=6.0.0
+          pip install black>=23.0.0 isort>=5.12.0 flake8>=6.0.0 bandit>=1.7.0
 
       - name: Check code formatting (black)
         run: black --check --diff src/ scripts/ tests/
@@ -54,6 +54,9 @@ jobs:
             --select=E,W,F,N \
             --max-line-length=100 \
             --statistics
+
+      - name: Security scan (bandit)
+        run: bandit -c pyproject.toml -r src/ -ll
 
   # ---------------------------------------------------------------------------
   # Job 2: 单元测试 + 覆盖率（Python 多版本矩阵）
