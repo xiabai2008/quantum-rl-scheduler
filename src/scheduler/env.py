@@ -37,6 +37,7 @@ from typing import Any
 import gymnasium as gym
 import numpy as np
 from gymnasium import spaces
+from loguru import logger
 
 # ---------------------------------------------------------------------------
 # 常量定义
@@ -731,7 +732,7 @@ class QuantumSchedulingEnv(gym.Env):
         output = "\n".join(lines) + "\n"
 
         if self.render_mode == "human":
-            print(output, end="")
+            logger.info(output)
         elif self.render_mode == "ansi":
             return output
 
@@ -956,7 +957,8 @@ class QuantumSchedulingEnv(gym.Env):
                 self._machine_real_submits.get(machine.name, 0) + 1
             )
         except Exception as e:
-            # 真机提交失败不应影响 RL 训练，仅记录
+            # 真机 API 提交可能因网络/认证/服务端等多种原因失败，无法精确收窄
+            logger.error(f"[真机] {machine.name} 提交失败: {e}")
             self._render_log.append(f"[真机] {machine.name} 提交失败: {str(e)[:60]}")
 
     def _recompute_aggregate(self) -> None:

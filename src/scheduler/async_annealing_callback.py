@@ -6,13 +6,11 @@
 """
 
 import copy
-import logging
 
+from loguru import logger
 from stable_baselines3.common.callbacks import BaseCallback
 
 from src.quantum.annealing_loop import AsyncAnnealingLoop
-
-logger = logging.getLogger(__name__)
 
 
 class AsyncAnnealingCallback(BaseCallback):
@@ -52,7 +50,7 @@ class AsyncAnnealingCallback(BaseCallback):
         self.loop.start()
         self._next_trigger_step = self.loop.get_current_interval()
         if self.verbose:
-            print(
+            logger.info(
                 f"[AsyncAnnealingCallback] 异步退火回调已启动，"
                 f"首次触发步数={self._next_trigger_step}"
             )
@@ -72,6 +70,8 @@ class AsyncAnnealingCallback(BaseCallback):
             try:
                 policy_snapshot = copy.deepcopy(self.model.policy).cpu().eval()
             except Exception as e:
+                # PyTorch 模型深拷贝/CPU 转换/eval 切换可能抛出多种异常
+                # （RuntimeError/TypeError/MemoryError 等），无法精确收窄
                 logger.error(
                     f"[AsyncAnnealingCallback] 步数 {self.n_calls}: "
                     f"复制策略网络快照失败 ({type(e).__name__}: {e})"
@@ -84,7 +84,7 @@ class AsyncAnnealingCallback(BaseCallback):
                 interval = self.loop.get_current_interval()
                 self._next_trigger_step = self.n_calls + interval
                 if self.verbose:
-                    print(
+                    logger.info(
                         f"[AsyncAnnealingCallback] 步数 {self.n_calls}: "
                         f"已提交退火任务，下次触发={self._next_trigger_step}"
                     )
@@ -111,11 +111,13 @@ class AsyncAnnealingCallback(BaseCallback):
         try:
             self.model.policy.load_state_dict(state_dict, strict=False)
             if self.verbose:
-                print(
+                logger.info(
                     f"[AsyncAnnealingCallback] rollout 开始前回写退火权重 "
                     f"(step={step}, delta={delta:.4f})"
                 )
         except Exception as e:
+            # PyTorch load_state_dict 可能因键不匹配/张量形状不一致/CPU-GPU 不匹配
+            # 等多种原因抛出 RuntimeError/TypeError，无法精确收窄
             logger.error(
                 f"[AsyncAnnealingCallback] 回写退火权重失败 "
                 f"(step={step}, {type(e).__name__}: {e})"
@@ -125,7 +127,7 @@ class AsyncAnnealingCallback(BaseCallback):
         """训练结束时关闭异步退火工作线程。"""
         self.loop.shutdown(wait=True)
         if self.verbose:
-            print("[AsyncAnnealingCallback] 异步退火工作线程已关闭")
+            logger.info("[AsyncAnnealingCallback] 异步退火工作线程已关闭")
 
 
 if __name__ == "__main__":

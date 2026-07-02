@@ -182,7 +182,7 @@ class AsyncAnnealingLoop:
             try:
                 # 确保策略网络在 CPU 评估模式，避免影响训练设备上的张量
                 eval_policy = eval_policy.cpu().eval()
-            except Exception as e:
+            except (AttributeError, RuntimeError) as e:
                 logger.error(f"[退火闭环] 步数 {step}: 准备策略网络失败 ({type(e).__name__}: {e})")
                 continue
 
@@ -193,6 +193,7 @@ class AsyncAnnealingLoop:
                 optimized_wrapper = self._run_annealing_with_retries(agent_wrapper, step)
                 new_reward = self._evaluate_policy(optimized_wrapper.policy)
             except Exception as e:
+                # 退火与评估涉及优化器、网络推理、环境交互，异常类型无法穷举，保留宽捕获并记录日志
                 logger.error(f"[退火闭环] 步数 {step}: 退火或评估失败 ({type(e).__name__}: {e})")
                 continue
 
@@ -246,6 +247,7 @@ class AsyncAnnealingLoop:
             try:
                 return self.optimizer.optimize_policy(agent_wrapper, head_only=True)
             except Exception as e:
+                # 优化器内部涉及退火与权重更新，异常类型无法穷举，保留宽捕获并记录日志
                 if getattr(self.optimizer, "simulation_mode", True):
                     raise
                 logger.warning(
@@ -260,6 +262,7 @@ class AsyncAnnealingLoop:
             self.optimizer.simulation_mode = True
             return self.optimizer.optimize_policy(agent_wrapper, head_only=True)
         except Exception as e:
+            # 仿真退火仍可能失败（权重更新/张量运算），保留宽捕获并记录日志
             logger.error(f"[退火闭环] 步数 {step}: 仿真退火也失败 ({type(e).__name__}: {e})")
             raise
 
@@ -334,7 +337,8 @@ class AsyncAnnealingLoop:
                 history = copy.deepcopy(self._history)
             with open(self.log_path, "w", encoding="utf-8") as f:
                 json.dump(history, f, ensure_ascii=False, indent=2)
-        except Exception as e:
+        except (OSError, TypeError) as e:
+            # OSError: 文件读写失败；TypeError: history 含不可 JSON 序列化的对象
             logger.error(f"[退火闭环] 保存日志失败 ({type(e).__name__}: {e})")
 
 

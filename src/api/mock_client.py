@@ -551,7 +551,9 @@ def create_tianyan_client(mock_mode: bool | None = None) -> Any:
                 with open(config_path, encoding="utf-8") as f:
                     config = yaml.safe_load(f)
                 mock_mode = config.get("tianyan", {}).get("mock_mode", True)
-            except Exception:
+            except (ImportError, yaml.YAMLError, OSError, AttributeError) as e:
+                # yaml 未安装、文件读取失败、YAML 解析错误或配置结构异常时默认 Mock 模式
+                logger.debug(f"读取 mock_mode 配置失败: {e}，默认使用 Mock 模式")
                 mock_mode = True  # 默认使用 Mock 模式
 
     # 创建客户端

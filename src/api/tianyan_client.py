@@ -2,10 +2,10 @@
 天衍云平台 API 封装客户端
 Tianyan Cloud Platform API Client
 
-封装天衍量子云平台的 REST API 接口，支持量子/经典任务提交、
+封装天衍量子云平台的 API 接口，支持量子/经典任务提交、
 状态查询、结果获取、后端管理等功能。
 
-认证方式：Bearer Token（从环境变量 TIANYAN_API_KEY 读取）
+认证方式：cqlib SDK（从环境变量 TIANYAN_API_KEY 读取）
 配置来源：config/config.yaml + .env
 """
 
@@ -90,17 +90,18 @@ class CircuitBreaker:
 
 
 class TianyanClient:
-    """天衍量子云平台客户端
+    """
+    天衍量子云平台客户端
 
     封装天衍量子云平台的所有 API 接口，提供：
-    - 量子电路任务提交（QASM 格式）
+    - 量子电路任务提交（QCIS/QASM 格式）
     - 经典计算任务提交
     - 任务状态查询与结果获取
     - 量子后端信息查询
     - 队列状态监控
     - 熔断器模式（可选）
 
-    支持真实 API 模式和 Mock 模式（开发阶段使用）。
+    真实模式使用 cqlib SDK；Mock 模式使用模拟客户端（开发阶段使用）。
 
     使用示例::
 
@@ -117,21 +118,16 @@ class TianyanClient:
         client = TianyanClient(enable_circuit_breaker=False)
 
         if client.authenticate():
-            task_id = client.submit_quantum_task(circuit_qasm="OPENQASM 2.0; ...")
+            task_id = client.submit_quantum_task(qcis="H Q0\\nM Q0")
             status = client.get_task_status(task_id)
             result = client.get_task_result(task_id)
 
     Args:
         api_key: API 密钥（默认从环境变量 TIANYAN_API_KEY 读取）
-        base_url: API 基础 URL（默认从 config/config.yaml 读取）
+        base_url: API 基础 URL（默认从 config/config.yaml 读取，仅用于日志）
         mock_mode: 是否使用 Mock 模式（None 表示自动检测）
         enable_circuit_breaker: 是否启用熔断器（默认 True）
     """
-
-    # 指数退避重试参数
-    MAX_RETRIES = 3
-    RETRY_BACKOFF_FACTOR = 2  # 每次重试的等待时间倍数
-    RETRY_INITIAL_WAIT = 1.0  # 首次重试等待秒数
 
     def __init__(
         self,
@@ -209,16 +205,10 @@ class TianyanClient:
                 )
                 logger.info(f"✅ 真实模式委托 cqlib（机器={machine_name}）")
             except Exception as e:
+                # 涉及 cqlib SDK 导入与初始化，异常类型无法穷举，保留宽捕获并记录日志
                 logger.warning(f"cqlib 客户端初始化失败: {e}，回退 REST 路径")
 
-        # 创建会话并设置 Bearer Token 认证头（REST 路径，deprecated）
-        self.session = requests.Session()
-        self.session.headers.update(
-            {
-                "Content-Type": "application/json",
-                "Authorization": f"Bearer {self.api_key}",
-            }
-        )
+        self.session = None
 
     @staticmethod
     def _detect_mock_mode(explicit_mock_mode: bool | None) -> bool:
@@ -247,7 +237,9 @@ class TianyanClient:
                 config = yaml.safe_load(f)
             mock_config = config.get("tianyan", {}).get("mock_mode", True)
             return cast(bool, mock_config)
-        except Exception:
+        except (yaml.YAMLError, OSError, AttributeError) as e:
+            # YAML 解析失败、文件读取失败或配置结构异常时，默认使用 Mock 模式
+            logger.debug(f"读取 mock_mode 配置失败: {e}，默认使用 Mock 模式")
             return True  # 默认使用 Mock 模式
 
     @staticmethod
@@ -269,125 +261,9 @@ class TianyanClient:
         except FileNotFoundError:
             logger.warning(f"配置文件 {config_path} 不存在，使用默认 base_url")
             return default_url
-        except Exception as e:
+        except (yaml.YAMLError, AttributeError, OSError) as e:
             logger.warning(f"读取配置文件失败: {e}，使用默认 base_url")
             return default_url
-
-    # ------------------------------------------------------------------
-    # 核心请求方法（含指数退避重试）
-    # ------------------------------------------------------------------
-
-    def _request(
-        self,
-        method: str,
-        endpoint: str,
-        data: dict | None = None,
-        params: dict | None = None,
-    ) -> dict[str, Any]:
-        """发送 API 请求，内置指数退避重试机制和熔断器
-
-        当请求因网络异常失败或服务端返回 5xx 错误时，自动进行最多
-        ``MAX_RETRIES`` 次重试，每次等待时间按指数增长。
-
-        熔断器机制：连续失败达到阈值后进入 OPEN 状态，在恢复超时内直接拒绝请求。
-
-        Args:
-            method: HTTP 方法（``GET`` / ``POST`` / ``PUT`` / ``DELETE``）
-            endpoint: API 端点路径（如 ``/tasks``），不含 base_url
-            data: JSON 请求体
-            params: URL 查询参数
-
-        Returns:
-            API 返回的 JSON 数据字典
-
-        Raises:
-            TianyanAPIError: 服务端返回非 200 状态码且重试耗尽
-            CircuitOpenError: 熔断器 OPEN 状态时的快速失败
-            requests.exceptions.RequestException: 网络层异常且重试耗尽
-        """
-        if self._circuit_breaker:
-            self._circuit_breaker.before_request()
-
-        url = f"{self.base_url}{endpoint}"
-        last_exception: Exception | None = None
-
-        for attempt in range(self.MAX_RETRIES):
-            try:
-                logger.debug(f"API 请求 {method} {url}（第 {attempt + 1}/{self.MAX_RETRIES} 次）")
-
-                response = self.session.request(
-                    method=method,
-                    url=url,
-                    json=data,
-                    params=params,
-                    timeout=self._get_timeout(),
-                )
-
-                # 2xx 视为成功
-                if response.status_code >= 200 and response.status_code < 300:
-                    if self._circuit_breaker:
-                        self._circuit_breaker.on_success()
-                    return cast(dict[str, Any], response.json())
-
-                # 5xx 服务端错误可重试
-                if response.status_code >= 500:
-                    try:
-                        error_body = response.json()
-                    except Exception:
-                        error_body = {"raw": response.text}
-                    raise TianyanAPIError(
-                        status_code=response.status_code,
-                        message=f"服务端错误: {response.reason}",
-                        response_body=error_body,
-                    )
-
-                # 4xx 客户端错误不重试，直接抛出
-                try:
-                    error_body = response.json()
-                except Exception:
-                    error_body = {"raw": response.text}
-                raise TianyanAPIError(
-                    status_code=response.status_code,
-                    message=f"客户端错误: {response.reason}",
-                    response_body=error_body,
-                )
-
-            except TianyanAPIError as e:
-                # 4xx 直接抛出，不重试
-                if e.status_code < 500:
-                    logger.error(f"API 客户端错误: {e}")
-                    raise
-                last_exception = e
-
-            except requests.exceptions.RequestException as e:
-                last_exception = e
-                logger.warning(f"API 请求异常: {e}")
-
-            # 指数退避等待
-            if attempt < self.MAX_RETRIES - 1:
-                wait_time = self.RETRY_INITIAL_WAIT * (self.RETRY_BACKOFF_FACTOR**attempt)
-                logger.info(f"等待 {wait_time:.1f}s 后重试...")
-                time.sleep(wait_time)
-
-        # 重试耗尽，记录熔断器失败
-        if self._circuit_breaker:
-            self._circuit_breaker.on_failure()
-        logger.error(f"API 请求 {method} {url} 重试 {self.MAX_RETRIES} 次后仍失败")
-        raise last_exception  # type: ignore[misc]
-
-    @staticmethod
-    def _get_timeout() -> int:
-        """从配置文件读取请求超时时间（秒），默认 30
-
-        Returns:
-            超时秒数
-        """
-        try:
-            with open("config/config.yaml", encoding="utf-8") as f:
-                config = yaml.safe_load(f)
-            return int(config.get("tianyan", {}).get("timeout", 30))
-        except Exception:
-            return 30
 
     # ------------------------------------------------------------------
     # 1. 认证验证
@@ -409,19 +285,8 @@ class TianyanClient:
         if self._cqlib is not None:
             return self._cqlib.authenticate()
 
-        # deprecated REST 路径
-        try:
-            self._request("GET", "/auth/verify")  # deprecated
-            logger.info("API 密钥验证通过")
-            return True
-        except TianyanAPIError as e:
-            if e.status_code == 401:
-                logger.error("API 密钥无效或已过期")
-                return False
-            raise
-        except Exception:
-            logger.error("认证请求失败，请检查网络连接")
-            return False
+        logger.error("认证失败：未配置有效 API 密钥或 cqlib 客户端")
+        return False
 
     # ------------------------------------------------------------------
     # 2. 量子任务提交
@@ -472,18 +337,10 @@ class TianyanClient:
                 raise TianyanAPIError(500, "cqlib did not return a task_id")
             return task_id
 
-        # deprecated REST 路径
-        payload = {
-            "type": "quantum",
-            "format": "qasm",
-            "circuit": circuit_qasm,
-            "shots": shots,
-            "backend": backend,
-        }
-        result = self._request("POST", "/tasks", data=payload)  # deprecated
-        task_id = result.get("task_id", "")
-        logger.info(f"量子任务提交成功，task_id={task_id}，后端={backend}，shots={shots}")
-        return cast(str, task_id)
+        raise TianyanAPIError(
+            status_code=500,
+            message="未配置有效 API 密钥或 cqlib 客户端，无法提交量子任务",
+        )
 
     # ------------------------------------------------------------------
     # 3. 查询任务状态
@@ -515,12 +372,13 @@ class TianyanClient:
                     self._circuit_breaker.on_success()
                 return result
 
-            result = self._request("GET", f"/tasks/{task_id}/status")  # deprecated
-            logger.debug(f"任务 {task_id} 状态: {result.get('status')}")
-            if self._circuit_breaker:
-                self._circuit_breaker.on_success()
-            return result
-        except Exception:
+            raise TianyanAPIError(
+                status_code=500,
+                message="未配置有效 API 密钥或 cqlib 客户端，无法查询任务状态",
+            )
+        except Exception as e:
+            # 熔断器需捕获所有异常以记录失败计数，原异常重新抛出由上层处理
+            logger.debug(f"get_task_status 失败，已触发熔断器失败计数: {type(e).__name__}: {e}")
             if self._circuit_breaker:
                 self._circuit_breaker.on_failure()
             raise
@@ -550,9 +408,10 @@ class TianyanClient:
         if self._cqlib is not None:
             return self._cqlib.get_task_result(task_id)
 
-        result = self._request("GET", f"/tasks/{task_id}/result")  # deprecated
-        logger.info(f"获取任务 {task_id} 结果成功")
-        return result
+        raise TianyanAPIError(
+            status_code=500,
+            message="未配置有效 API 密钥或 cqlib 客户端，无法获取任务结果",
+        )
 
     # ------------------------------------------------------------------
     # 5. 列出可用量子后端
@@ -575,10 +434,10 @@ class TianyanClient:
         if self._cqlib is not None:
             return self._cqlib.list_backends()
 
-        result = self._request("GET", "/backends")  # deprecated
-        backends = result.get("backends", [])
-        logger.info(f"可用后端数量: {len(backends)}")
-        return cast(list[dict[str, Any]], backends)
+        raise TianyanAPIError(
+            status_code=500,
+            message="未配置有效 API 密钥或 cqlib 客户端，无法获取后端列表",
+        )
 
     # ------------------------------------------------------------------
     # 6. 获取后端详细信息
@@ -608,9 +467,10 @@ class TianyanClient:
         if self._cqlib is not None:
             return self._cqlib.get_backend_info(backend_name)
 
-        result = self._request("GET", f"/backends/{backend_name}")  # deprecated
-        logger.debug(f"后端 {backend_name} 信息: {result.get('num_qubits')} qubits")
-        return result
+        raise TianyanAPIError(
+            status_code=500,
+            message="未配置有效 API 密钥或 cqlib 客户端，无法获取后端信息",
+        )
 
     # ------------------------------------------------------------------
     # 7. 提交经典计算任务
@@ -634,16 +494,10 @@ class TianyanClient:
         if self.mock_mode and hasattr(self, "_mock_client") and self._mock_client:
             return cast(str, self._mock_client.submit_classical_task(code=code, language=language))
 
-        payload = {
-            "type": "classical",
-            "language": language,
-            "code": code,
-        }
-
-        result = self._request("POST", "/tasks", data=payload)
-        task_id = result.get("task_id", "")
-        logger.info(f"经典任务提交成功，task_id={task_id}，语言={language}")
-        return cast(str, task_id)
+        raise TianyanAPIError(
+            status_code=500,
+            message="未配置有效 API 密钥或 cqlib 客户端，无法提交经典任务",
+        )
 
     # ------------------------------------------------------------------
     # 8. 获取队列状态
@@ -670,12 +524,10 @@ class TianyanClient:
         if self._cqlib is not None:
             return self._cqlib.get_queue_status()
 
-        result = self._request("GET", "/queue/status")  # deprecated
-        logger.info(
-            f"队列状态: {result.get('total_pending', 0)} 待执行, "
-            f"{result.get('total_running', 0)} 执行中"
+        raise TianyanAPIError(
+            status_code=500,
+            message="未配置有效 API 密钥或 cqlib 客户端，无法获取队列状态",
         )
-        return result
 
     # ------------------------------------------------------------------
     # 便捷方法：等待任务完成

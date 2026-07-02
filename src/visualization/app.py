@@ -16,13 +16,15 @@ import json
 import os
 import sys
 import uuid
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from datetime import datetime
 from pathlib import Path
-from typing import Any, AsyncGenerator
+from typing import Any
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse
+from loguru import logger
 from pydantic import BaseModel, Field
 
 # 确保项目根目录在 Python 路径中
@@ -140,7 +142,9 @@ class ConnectionManager:
         for connection in self.active_connections:
             try:
                 await connection.send_json(message)
-            except Exception:
+            except Exception as e:
+                # 防御性错误边界：单个连接发送失败不应中断广播，任何异常均移除该连接
+                logger.debug(f"[Web] WebSocket 广播失败，将移除该连接: {e}")
                 disconnected.append(connection)
         for conn in disconnected:
             if conn in self.active_connections:
@@ -374,11 +378,12 @@ def _get_ppo_model() -> Any:
 
             if os.path.exists(model_path):
                 _ppo_model = PPO.load(model_path, env=_ppo_env)
-                print(f"[PPO] 模型加载成功: {model_path}")
+                logger.info(f"[PPO] 模型加载成功: {model_path}")
             else:
-                print(f"[PPO] 模型文件不存在: {model_path}，尝试使用 DQN")
-        except Exception as e:
-            print(f"[PPO] 模型加载失败: {e}")
+                logger.warning(f"[PPO] 模型文件不存在: {model_path}，尝试使用 DQN")
+        except (OSError, ValueError, RuntimeError) as e:
+            # 文件 I/O 错误 / 模型格式错误 / 运行时错误
+            logger.error(f"[PPO] 模型加载失败: {e}")
             _ppo_model = None
     return _ppo_model
 
@@ -408,7 +413,7 @@ def _get_real_cqlib_client() -> Any:
         load_dotenv()
         api_key = os.getenv("TIANYAN_API_KEY", "")
         if not api_key:
-            print("[Web] 未配置 TIANYAN_API_KEY，真机状态轮询已禁用")
+            logger.info("[Web] 未配置 TIANYAN_API_KEY，真机状态轮询已禁用")
             return None
         from src.api.tianyan_cqlib import CqlibTianyanClient
 
@@ -417,9 +422,10 @@ def _get_real_cqlib_client() -> Any:
             machine_name="tianyan_s",
             auto_retry_machine=True,
         )
-        print("[Web] 真机 cqlib 客户端已就绪: tianyan_s")
+        logger.info("[Web] 真机 cqlib 客户端已就绪: tianyan_s")
     except Exception as e:
-        print(f"[Web] 真机客户端创建失败 ({e})，真机状态降级为离线")
+        # 防御性错误边界：客户端创建可能因依赖缺失/网络/认证/配置等多种原因失败，统一降级为离线
+        logger.warning(f"[Web] 真机客户端创建失败 ({e})，真机状态降级为离线")
         _real_cqlib_client = None
     return _real_cqlib_client
 
@@ -439,8 +445,8 @@ def _get_real_machines_status() -> list[dict]:
         return []
     try:
         return client.list_backends()  # type: ignore[no-any-return]
-    except Exception as e:
-        print(f"[Web] 查询真机状态失败: {e}")
+    except Exception as e:  # 防御性错误边界：cqlib 任意异常均需优雅降级为空列表
+        logger.error(f"[Web] 查询真机状态失败: {e}")
         return []
 
 
@@ -463,8 +469,9 @@ def _load_real_submissions() -> list[dict]:
             # 保留最近 50 条，倒序展示
             return records[-50:][::-1]
         return []
-    except Exception as e:
-        print(f"[Web] 加载真机提交记录失败: {e}")
+    except (json.JSONDecodeError, OSError) as e:
+        # JSON 解析错误 / 文件 I/O 错误
+        logger.error(f"[Web] 加载真机提交记录失败: {e}")
         return []
 
 
@@ -487,7 +494,9 @@ async def get_ppo_comparison() -> dict:
     try:
         with open(latest_file, encoding="utf-8") as f:
             data = json.load(f)
-    except Exception:
+    except (json.JSONDecodeError, OSError) as e:
+        # JSON 解析错误 / 文件 I/O 错误
+        logger.error(f"[Web] 读取仿真结果文件失败: {e}")
         return {"error": f"无法读取: {latest_file}", "strategies": [], "ppo_rank": None}
 
     sorted_items = sorted(data.items(), key=lambda x: x[1].get("avg_reward", -9999), reverse=True)
@@ -535,7 +544,9 @@ async def ppo_predict() -> dict:
             "observation": obs.tolist()[:5],
             "model_type": "PPO",
         }
-    except Exception as e:
+    except (ValueError, RuntimeError, KeyError, OSError) as e:
+        # 路由级错误边界：模型推理可能抛出值错误/运行时错误/键错误/IO错误
+        logger.error(f"[Web] PPO 推理失败: {e}")
         return {"error": str(e), "action": None}
 
 
@@ -557,7 +568,9 @@ async def ppo_stats() -> dict:
     try:
         with open(os.path.join(report_dir, json_files[0]), encoding="utf-8") as f:
             data = json.load(f)
-    except Exception:
+    except (json.JSONDecodeError, OSError) as e:
+        # JSON 解析错误 / 文件 I/O 错误
+        logger.error(f"[Web] 读取结果文件失败: {e}")
         return {"error": "无法读取结果文件"}
 
     ppo_data = None
@@ -626,8 +639,9 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
                     (i + 1 for i, (k, _) in enumerate(sorted_items) if "PPO" in k.upper()), None
                 )
                 ppo_stats = {"ppo_rank": ppo_rank, "total": len(sorted_items)}
-        except Exception:
-            pass
+        except (json.JSONDecodeError, OSError, KeyError) as e:
+            # JSON 解析错误 / 文件 I/O 错误 / 数据字段缺失
+            logger.debug(f"[Web] WebSocket 初始化读取 PPO 数据失败: {e}")
 
         await websocket.send_json(
             {
@@ -690,8 +704,9 @@ async def simulate_scheduler() -> None:
                 system_status["qubit_utilization"] = round(
                     system_status["qubit_utilization"] * 0.7 + target_qubit * 0.3, 4
                 )
-            except Exception:
+            except (ValueError, RuntimeError, OSError) as e:
                 # PPO 推理失败，回退随机
+                logger.debug(f"[Web] PPO 推理失败，回退随机: {e}")
                 system_status["qubit_utilization"] = round(
                     max(
                         0.1,
@@ -721,12 +736,14 @@ async def simulate_scheduler() -> None:
                 real_machines = _get_real_machines_status()
                 if real_machines:
                     system_status["real_machines"] = real_machines
-            except Exception as e:
-                print(f"[Web] 轮询真机状态异常: {e}")
+            except (OSError, RuntimeError, ValueError) as e:
+                # 网络/ API 错误 / 运行时错误 / 返回值格式错误
+                logger.error(f"[Web] 轮询真机状态异常: {e}")
             try:
                 system_status["real_submissions"] = _load_real_submissions()
-            except Exception as e:
-                print(f"[Web] 加载真机提交记录异常: {e}")
+            except (OSError, ValueError, RuntimeError) as e:
+                # 文件 I/O 错误 / 数据格式错误 / 运行时错误
+                logger.error(f"[Web] 加载真机提交记录异常: {e}")
 
         # PPO-Balanced 策略：平衡量子/经典资源分配
         pending = [t for t in task_queue if t["status"] == "pending"]
@@ -1529,10 +1546,10 @@ def start_web_server(
     """启动 Web 服务器"""
     import uvicorn
 
-    print("========================================")
-    print("  量子RL调度系统 - 监控面板")
-    print(f"  访问地址: http://{host}:{port}")
-    print("========================================")
+    logger.info("========================================")
+    logger.info("  量子RL调度系统 - 监控面板")
+    logger.info(f"  访问地址: http://{host}:{port}")
+    logger.info("========================================")
     uvicorn.run(app, host=host, port=port)
 
 

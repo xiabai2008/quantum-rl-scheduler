@@ -12,6 +12,7 @@ Utility Functions Module
 import json
 import os
 import re
+import sys
 from datetime import datetime
 from typing import Any, cast
 
@@ -97,9 +98,9 @@ def setup_logging(
 
     logger.remove()  # 移除默认处理器
 
-    # 控制台输出
+    # 控制台输出（使用 sys.stderr 作为 loguru sink，避免在日志 sink 内部调用 print）
     logger.add(
-        sink=lambda msg: print(msg),
+        sink=sys.stderr,
         level=log_level,
         format="{time:YYYY-MM-DD HH:mm:ss} | {level} | {message}",
     )
@@ -153,7 +154,8 @@ def load_config(
 
         logger.info(f"配置文件加载成功：{config_path}")
         return cast(dict[str, Any], expanded)
-    except Exception as e:
+    except (yaml.YAMLError, OSError, ValueError) as e:
+        # YAML 解析错误 / 文件 I/O 错误 / Pydantic 校验错误（ValidationError 为 ValueError 子类）
         logger.error(f"配置文件加载失败：{e}")
         return {}
 
@@ -171,7 +173,8 @@ def save_config(config: dict[str, Any], config_path: str = "config/config.yaml")
         with open(config_path, "w", encoding="utf-8") as f:
             yaml.dump(config, f, allow_unicode=True, default_flow_style=False)
         logger.info(f"配置文件保存成功：{config_path}")
-    except Exception as e:
+    except (OSError, yaml.YAMLError) as e:
+        # 文件 I/O 错误 / YAML 序列化错误
         logger.error(f"配置文件保存失败：{e}")
 
 
@@ -305,7 +308,8 @@ def load_json(filepath: str) -> Any:
             data = json.load(f)
         logger.info(f"JSON文件加载成功：{filepath}")
         return data
-    except Exception as e:
+    except (json.JSONDecodeError, OSError) as e:
+        # JSON 解析错误 / 文件 I/O 错误
         logger.error(f"JSON文件加载失败：{e}")
         return None
 

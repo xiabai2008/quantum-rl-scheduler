@@ -34,7 +34,6 @@ Multi-Agent PPO for Quantum-Classical Hybrid Task Scheduling
 from __future__ import annotations
 
 import json
-import logging
 import os
 import random
 from typing import Any
@@ -42,6 +41,7 @@ from typing import Any
 import numpy as np
 import torch
 import torch.nn as nn
+from loguru import logger
 from torch.optim import Adam
 
 # 复用现有环境常量，确保观测维度与原环境一致
@@ -50,8 +50,6 @@ from src.scheduler.env import (
     OBS_DIM,
     QuantumSchedulingEnv,
 )
-
-logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # 多智能体环境包装器
@@ -799,7 +797,7 @@ class MultiAgentPPO:
 
             n_rollouts += 1
             if self.verbose >= 1 and n_rollouts % log_interval == 0:
-                print(
+                logger.info(
                     f"[MAPPO] rollout={n_rollouts} steps={self.total_timesteps}/"
                     f"{total_timesteps} "
                     f"mean_reward={update_info['mean_reward']:.2f} "
@@ -819,7 +817,7 @@ class MultiAgentPPO:
             ):
                 eval_result = self.evaluate(num_episodes=n_eval_episodes)
                 if self.verbose >= 1:
-                    print(
+                    logger.info(
                         f"[MAPPO] 评估: mean_reward={eval_result['mean_reward']:.2f} "
                         f"± {eval_result['std_reward']:.2f}"
                     )
@@ -1054,7 +1052,7 @@ class MultiAgentPPO:
         """
         self._save_internal(path)
         if self.verbose >= 1:
-            print(f"[MAPPO] 模型已保存至: {path}.pt + {path}_config.json")
+            logger.info(f"[MAPPO] 模型已保存至: {path}.pt + {path}_config.json")
 
     def load(self, path: str) -> None:
         """
@@ -1089,7 +1087,7 @@ class MultiAgentPPO:
             actor.load_state_dict(state["actors"][i])
         self.critic.load_state_dict(state["critic"])
         if self.verbose >= 1:
-            print(f"[MAPPO] 模型已从 {path} 加载")
+            logger.info(f"[MAPPO] 模型已从 {path} 加载")
 
     # ------------------------------------------------------------------
     # 配置信息

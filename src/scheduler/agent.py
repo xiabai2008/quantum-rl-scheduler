@@ -34,6 +34,7 @@ import gymnasium as gym
 import numpy as np
 import torch as th
 from gymnasium import spaces
+from loguru import logger
 from sb3_contrib import RecurrentPPO
 from stable_baselines3 import DQN, PPO
 from stable_baselines3.common.callbacks import (
@@ -552,7 +553,7 @@ class SchedulerAgent:
 
         # SB3 的 save 方法会自动添加 .zip 扩展名
         self.model.save(path)
-        print(f"[SchedulerAgent] 模型已保存至: {path}.zip")
+        logger.info(f"[SchedulerAgent] 模型已保存至: {path}.zip")
 
     def load(self, path: str) -> None:
         """
@@ -597,7 +598,7 @@ class SchedulerAgent:
                 self.model.set_parameters(params, exact_match=True, device=self.model.device)
         else:
             self.model.set_parameters(params, exact_match=True, device=self.model.device)
-        print(f"[SchedulerAgent] 模型已从 {path} 加载")
+        logger.info(f"[SchedulerAgent] 模型已从 {path} 加载")
 
     def get_config(self) -> dict[str, Any]:
         """
@@ -691,13 +692,14 @@ class AnnealingCallback(BaseCallback):
                     self.optimized_count += 1
 
                     if self.verbose:
-                        print(
+                        logger.info(
                             f"[退火] 步数{self.n_calls}: 优化完成 (质量={quality:.4f}, "
                             f"累计优化{self.optimized_count}次)"
                         )
             except Exception as e:
+                # 量子退火优化可能抛出多种异常（dimod/neal/torch），无法精确收窄
                 if self.verbose:
-                    print(f"[退火] 步数{self.n_calls}: 退火跳过 ({e})")
+                    logger.warning(f"[退火] 步数{self.n_calls}: 退火跳过 ({e})")
         return True
 
 
@@ -776,7 +778,7 @@ class RealMachineCallback(BaseCallback):
             real_clients = getattr(self.env, "_real_clients", {}) or {}
             if not real_clients:
                 if not self._warned_no_client:
-                    print(
+                    logger.warning(
                         f"[RealCallback] env 未绑定真机客户端，真机抽样已禁用 "
                         f"(step={self.n_calls})"
                     )
@@ -790,7 +792,9 @@ class RealMachineCallback(BaseCallback):
         if hasattr(self.env, "get_random_pending_task"):
             try:
                 task = self.env.get_random_pending_task()
-            except Exception:
+            except Exception as e:
+                # 防御性捕获：env 内部状态访问可能抛出多种异常，降级为无任务
+                logger.debug(f"[RealCallback] 获取待处理任务失败: {e}")
                 task = None
 
         # 构造 QCIS（Task 无 qcis 字段时用最小占位电路保证可执行）
@@ -820,16 +824,17 @@ class RealMachineCallback(BaseCallback):
             record["real_task_id"] = str(real_tid) if real_tid else None
             record["status"] = "submitted" if real_tid else "rejected"
             if self.verbose:
-                print(
+                logger.info(
                     f"[RealCallback] step={self.n_calls} machine={machine_name} "
                     f"tid={real_tid} latency={record['latency_s']}s "
                     f"task={task_id_str}"
                 )
         except Exception as e:
+            # 真机 API 提交可能因网络/认证/服务端等多种原因失败，无法精确收窄
             record["latency_s"] = round(time.time() - t0, 3)
             record["status"] = f"error: {str(e)[:80]}"
             if self.verbose:
-                print(f"[RealCallback] step={self.n_calls} 提交失败: {e}")
+                logger.error(f"[RealCallback] step={self.n_calls} 提交失败: {e}")
 
         self.real_times.append(record)
         return True
@@ -845,13 +850,12 @@ class RealMachineCallback(BaseCallback):
             with open(self.save_path, "w", encoding="utf-8") as f:
                 json.dump(self.real_times, f, ensure_ascii=False, indent=2)
             if self.verbose:
-                print(
+                logger.info(
                     f"[RealCallback] 真机提交记录已保存: {self.save_path} "
                     f"(共 {len(self.real_times)} 条)"
                 )
-        except Exception as e:
-            print(f"[RealCallback] 保存记录失败: {e}")
-
+        except OSError as e:
+            logger.error(f"[RealCallback] 保存记录失败: {e}")
 
 # ---------------------------------------------------------------------------
 # PPO 智能体
@@ -926,7 +930,7 @@ class PPOAgent:
                 cqlib_client=kwargs.get("anneal_cqlib_client"),
             )
             sim_tag = "仿真" if self.annealing_optimizer.simulation_mode else "真机"
-            print(
+            logger.info(
                 f"[PPOAgent] 量子退火器已启用（{sim_tag}模式），"
                 f"退火间隔={self.anneal_interval}步"
             )
@@ -946,7 +950,7 @@ class PPOAgent:
                 "lstm_hidden_size": self.lstm_hidden_size,
                 "net_arch": [128, 64],
             }
-            print(
+            logger.info(
                 f"[PPOAgent] 使用 LSTM 策略: layers={self.n_lstm_layers}, "
                 f"hidden_size={self.lstm_hidden_size}"
             )
@@ -1060,7 +1064,7 @@ class PPOAgent:
                 verbose=1,
             )
             callbacks.append(real_callback)
-            print(
+            logger.info(
                 f"[PPOAgent] 真机抽样已启用: interval={real_cb_interval} "
                 f"prob={real_cb_prob} save={real_cb_save_path}"
             )
@@ -1160,7 +1164,7 @@ class PPOAgent:
             raise RuntimeError("没有可保存的模型！请先训练或加载模型。")
 
         self.model.save(path)
-        print(f"[PPOAgent] 模型已保存至: {path}.zip")
+        logger.info(f"[PPOAgent] 模型已保存至: {path}.zip")
 
     def load(self, path: str) -> None:
         """
@@ -1170,7 +1174,7 @@ class PPOAgent:
             path: 模型文件路径
         """
         self.model = PPO.load(path, env=self.env)
-        print(f"[PPOAgent] 模型已从 {path} 加载")
+        logger.info(f"[PPOAgent] 模型已从 {path} 加载")
 
     def get_config(self) -> dict[str, Any]:
         """

@@ -12,6 +12,8 @@ from collections.abc import Callable
 from enum import Enum
 from typing import Any, TypeVar
 
+from loguru import logger
+
 from src.exceptions import CircuitOpenError
 
 __all__ = ["CircuitBreaker", "CircuitState"]
@@ -82,7 +84,9 @@ class CircuitBreaker:
 
         try:
             result = func(*args, **kwargs)
-        except Exception:
+        except Exception as e:
+            # 熔断器需捕获所有异常以记录失败计数，原异常重新抛出由上层处理
+            logger.debug(f"熔断器记录失败: {type(e).__name__}: {e}")
             # 失败：累加计数并更新失败时间
             self.failure_count += 1
             self.last_failure_time = time.monotonic()

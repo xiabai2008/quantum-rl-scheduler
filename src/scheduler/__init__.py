@@ -20,21 +20,19 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 # 直接导入环境模块（不依赖 stable_baselines3）
-from src.scheduler.env import (  # noqa: E402
+from src.scheduler.env import (
     DEFAULT_MACHINE_CONFIGS,
     ClassicalResource,
     QuantumMachine,
     QuantumResource,
     QuantumSchedulingEnv,
-)
-from src.scheduler.env import Task as EnvTask  # noqa: E402
-from src.scheduler.env import (  # noqa: E402
     register_env,
 )
+from src.scheduler.env import Task as EnvTask
 
 # SchedulerAgent 依赖 stable_baselines3，延迟导入
 try:
-    from src.scheduler.agent import (  # noqa: E402
+    from src.scheduler.agent import (
         PPOAgent,
         RealMachineCallback,
         SchedulerAgent,
@@ -51,7 +49,7 @@ except ImportError:
 
 # parser 模块
 try:
-    from src.scheduler.parser import (  # noqa: E402
+    from src.scheduler.parser import (
         LegacyTaskParser,
         Task,
         TaskBuilder,
@@ -75,10 +73,10 @@ make_mo_env: Any | None = None
 MO_DEFAULT_WEIGHTS: Any = {}
 
 try:
-    from src.scheduler.multi_objective_env import (  # noqa: E402
+    from src.scheduler.multi_objective_env import (
         DEFAULT_WEIGHTS as MO_DEFAULT_WEIGHTS,
     )
-    from src.scheduler.multi_objective_env import (  # noqa: E402
+    from src.scheduler.multi_objective_env import (
         MultiObjectiveRewardWrapper,
         make_mo_env,
     )

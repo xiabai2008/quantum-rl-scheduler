@@ -80,6 +80,7 @@ class CqlibTianyanClient:
             _ = self.platform
             return True
         except Exception as e:
+            # cqlib 平台连接异常类型无法穷举，保留宽捕获并记录日志
             logger.error(f"[Cqlib] 认证失败: {e}")
             return False
 
@@ -97,6 +98,7 @@ class CqlibTianyanClient:
                 for m in machines
             ]
         except Exception as e:
+            # cqlib 查询接口异常类型无法穷举，保留宽捕获并记录日志
             logger.error(f"[Cqlib] 获取机器列表失败: {e}")
             return []
 
@@ -163,6 +165,7 @@ class CqlibTianyanClient:
                 return task_id
             return str(result)
         except Exception as e:
+            # cqlib 提交接口异常类型无法穷举，保留宽捕获并记录日志
             err_msg = str(e)
             logger.error(f"[Cqlib] {self.machine_name} 提交失败: {err_msg}")
             # 校准/不可用类错误立即切换，不重试当前机器
@@ -191,8 +194,9 @@ class CqlibTianyanClient:
                     return m.get("status") == "running"
             # 未找到该机器，乐观放行
             return True
-        except Exception:
-            # 查询失败不阻塞，乐观放行
+        except Exception as e:
+            # cqlib 查询失败不阻塞，乐观放行；记录日志便于排查
+            logger.debug(f"[Cqlib] 查询机器 {machine_name} 可用性失败: {e}，乐观放行")
             return True
 
     @staticmethod
@@ -255,8 +259,9 @@ class CqlibTianyanClient:
                 if isinstance(result, list) and len(result) > 0:
                     tid = str(result[0])
                     logger.info(f"[Cqlib] {machine} 提交成功: {tid}")
-                    return tid
+                return tid
             except Exception as e:
+                # cqlib 备用机器提交异常类型无法穷举，保留宽捕获并记录日志
                 logger.debug(f"[Cqlib] {machine} 失败: {str(e)[:60]}")
                 continue
         logger.error("[Cqlib] 所有备用机器均不可用，放弃提交（返回 None）")
@@ -278,6 +283,8 @@ class CqlibTianyanClient:
                     }
             return {"task_id": task_id, "status": "unknown", "raw": result}
         except Exception as e:
+            # cqlib 查询接口异常类型无法穷举，保留宽捕获并记录日志
+            logger.debug(f"[Cqlib] 查询任务 {task_id} 状态失败: {e}")
             return {"task_id": task_id, "status": "error", "error": str(e)}
 
     def get_task_result(self, task_id: str) -> dict[str, Any]:
@@ -390,6 +397,7 @@ class MultiMachineCqlibCoordinator:
             self._submit_count[machine_name] = self._submit_count.get(machine_name, 0) + 1
             return task_id
         except Exception as e:
+            # 涉及客户端获取（ValueError）与提交，异常类型无法穷举，保留宽捕获并记录日志
             self._fail_count[machine_name] = self._fail_count.get(machine_name, 0) + 1
             logger.error(f"[MultiMachine] {machine_name} 提交失败: {e}")
             return None
@@ -406,6 +414,8 @@ class MultiMachineCqlibCoordinator:
                 client = self._get_client(name)
                 status[name] = client.get_queue_status()
             except Exception as e:
+                # 涉及客户端获取与队列查询，异常类型无法穷举，保留宽捕获并记录日志
+                logger.debug(f"[MultiMachine] 获取 {name} 队列状态失败: {e}")
                 status[name] = {"error": str(e)[:80]}
         return status
 

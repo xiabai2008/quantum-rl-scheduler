@@ -19,6 +19,7 @@ from datetime import datetime
 from typing import Any, Literal
 
 import yaml
+from loguru import logger
 
 # ============================================================
 # 常量定义
@@ -318,10 +319,8 @@ class TaskParser:
             raise TypeError(f"validate() expects a Task instance, got {type(task).__name__}")
         errors = self._collect_errors(task)
         if errors:
-            import sys
-
             for e in errors:
-                print(f"[validation error] {e}", file=sys.stderr)
+                logger.error(f"[validation error] {e}")
             return False
         return True
 
@@ -655,8 +654,8 @@ class LegacyTaskParser:
 
             return features
 
-        except Exception as e:
-            print(f"JSON解析失败: {e}")
+        except json.JSONDecodeError as e:
+            logger.error(f"JSON解析失败: {e}")
             return None
 
     def _parse_yaml(self, yaml_str: str) -> TaskFeatures | None:
@@ -664,8 +663,8 @@ class LegacyTaskParser:
         try:
             data = yaml.safe_load(yaml_str)
             return self._parse_json(json.dumps(data))
-        except Exception as e:
-            print(f"YAML解析失败: {e}")
+        except yaml.YAMLError as e:
+            logger.error(f"YAML解析失败: {e}")
             return None
 
     def _parse_qasm(self, qasm_str: str) -> TaskFeatures | None:
@@ -720,8 +719,8 @@ class LegacyTaskParser:
 
             return features
 
-        except Exception as e:
-            print(f"QASM解析失败: {e}")
+        except (re.error, ValueError) as e:
+            logger.error(f"QASM解析失败: {e}")
             return None
 
     def _parse_text(self, text: str) -> TaskFeatures | None:
@@ -766,7 +765,7 @@ class LegacyTaskParser:
             return features
 
         except Exception as e:
-            print(f"文本解析失败: {e}")
+            logger.error(f"文本解析失败: {e}")
             return None
 
     def batch_parse(self, task_descriptions: list[str], format: str = "json") -> list[TaskFeatures]:

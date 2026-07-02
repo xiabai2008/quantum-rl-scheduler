@@ -17,8 +17,9 @@ Configuration Schema Validation with Pydantic
 
 from __future__ import annotations
 
-from typing import Any, Dict, Literal
+from typing import Any, Literal
 
+from loguru import logger
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 # =============================================================================
@@ -38,7 +39,7 @@ class TianyanConfig(BaseModel):
     mock_delay: float = Field(default=90.0, ge=0, description="Mock 模式模拟延迟（秒）")
     mock_delay_note: str = Field(default="", description="Mock 延迟备注说明")
     mock_failure_rate: float = Field(default=0.0, ge=0, le=1, description="Mock 模式失败率")
-    mock_machine_delays: Dict[str, float] = Field(
+    mock_machine_delays: dict[str, float] = Field(
         default_factory=dict, description="Mock 各机器延迟"
     )
     mock_mode: bool = Field(default=True, description="Mock 模式开关")
@@ -178,12 +179,10 @@ def validate_and_print(data: dict[str, Any]) -> AppConfig:
     Returns:
         通过校验的 AppConfig 实例
     """
-    import logging
-
-    logger = logging.getLogger("config")
     try:
         app = AppConfig(**data)
-    except Exception as e:
+    except (ValueError, TypeError) as e:
+        # Pydantic ValidationError 为 ValueError 子类；TypeError 捕获字段类型不匹配
         logger.error(f"配置校验失败 — {e}")
         raise
 

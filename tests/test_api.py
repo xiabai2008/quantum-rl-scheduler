@@ -426,11 +426,6 @@ class TestTianyanClientDetectAndConfig(unittest.TestCase):
         url = TianyanClient._load_base_url_from_config("config/config.yaml")
         self.assertEqual(url, "https://api.tianyanyun.cn/v1")
 
-    def test_get_timeout_from_config(self):
-        """应从 config.yaml 读取 timeout（默认 30）。"""
-        self.assertEqual(TianyanClient._get_timeout(), 30)
-
-
 class TestTianyanClientMockDelegation(unittest.TestCase):
     """测试 TianyanClient 在 Mock 模式下对各方法的委托。"""
 
@@ -522,126 +517,61 @@ class TestTianyanClientMockDelegation(unittest.TestCase):
         self.assertEqual(ctx.exception.status_code, 408)
 
 
-class TestTianyanClientRealRestPath(unittest.TestCase):
-    """测试 TianyanClient 真实模式下 REST _request 重试与各 REST 端点。"""
+class TestTianyanClientNoCqlibFallback(unittest.TestCase):
+    """测试 TianyanClient 在无 cqlib 时的行为（REST 路径已移除，应抛出错误）。"""
 
     def setUp(self):
-        """构造真实模式客户端（无 api_key → _cqlib=None），并替换 session。"""
+        """构造真实模式客户端（无 api_key → _cqlib=None）。"""
         env = _env_without("TIANYAN_API_KEY", "TIANYAN_MOCK_MODE", "TIANYAN_MACHINE")
         with patch.dict(os.environ, env, clear=True), patch("src.api.tianyan_client.load_dotenv"):
             self.client = TianyanClient(api_key="", mock_mode=False)
         self.client._cqlib = None
-        self.client.session = MagicMock()
 
-    @staticmethod
-    def _make_response(status_code, json_data=None, reason="Err", text="err"):
-        """构造 mock HTTP 响应。"""
-        resp = MagicMock()
-        resp.status_code = status_code
-        resp.reason = reason
-        resp.text = text
-        if json_data is not None:
-            resp.json.return_value = json_data
-        else:
-            resp.json.side_effect = ValueError("no json")
-        return resp
+    def test_authenticate_no_cqlib_returns_false(self):
+        """无 cqlib 时 authenticate 应返回 False。"""
+        self.assertFalse(self.client.authenticate())
 
-    def test_request_2xx_returns_json(self):
-        """2xx 响应应返回 JSON 字典。"""
-        self.client.session.request.return_value = self._make_response(200, {"ok": True})
-        result = self.client._request("GET", "/ping")
-        self.assertEqual(result, {"ok": True})
-        self.client.session.request.assert_called_once()
-
-    def test_request_4xx_raises_immediately(self):
-        """4xx 错误应立即抛出 TianyanAPIError 且不重试。"""
-        self.client.session.request.return_value = self._make_response(
-            400, {"error": "bad"}, reason="Bad Request"
-        )
+    def test_submit_quantum_task_no_cqlib_raises(self):
+        """无 cqlib 时 submit_quantum_task 应抛出 TianyanAPIError。"""
         with self.assertRaises(TianyanAPIError) as ctx:
-            self.client._request("GET", "/x")
-        self.assertEqual(ctx.exception.status_code, 400)
-        self.assertEqual(self.client.session.request.call_count, 1)
-
-    def test_request_5xx_retries_then_raises(self):
-        """5xx 错误应重试 MAX_RETRIES 次后抛出 TianyanAPIError。"""
-        self.client.session.request.return_value = self._make_response(
-            500, {"error": "srv"}, reason="Internal"
-        )
-        with patch("time.sleep"), self.assertRaises(TianyanAPIError) as ctx:
-            self.client._request("GET", "/x")
+            self.client.submit_quantum_task(circuit_qasm="OPENQASM 2.0;")
         self.assertEqual(ctx.exception.status_code, 500)
-        self.assertEqual(self.client.session.request.call_count, TianyanClient.MAX_RETRIES)
 
-    def test_request_network_exception_retries(self):
-        """网络异常应重试并最终抛出该异常。"""
-        import requests
+    def test_submit_classical_task_no_cqlib_raises(self):
+        """无 cqlib 时 submit_classical_task 应抛出 TianyanAPIError。"""
+        with self.assertRaises(TianyanAPIError) as ctx:
+            self.client.submit_classical_task(code="print(1)")
+        self.assertEqual(ctx.exception.status_code, 500)
 
-        self.client.session.request.side_effect = requests.exceptions.RequestException("net down")
-        with patch("time.sleep"), self.assertRaises(requests.exceptions.RequestException):
-            self.client._request("GET", "/x")
-        self.assertEqual(self.client.session.request.call_count, TianyanClient.MAX_RETRIES)
+    def test_get_task_status_no_cqlib_raises(self):
+        """无 cqlib 时 get_task_status 应抛出 TianyanAPIError。"""
+        with self.assertRaises(TianyanAPIError) as ctx:
+            self.client.get_task_status("tid-9")
+        self.assertEqual(ctx.exception.status_code, 500)
 
-    def test_authenticate_rest_success(self):
-        """REST 认证成功应返回 True。"""
-        with patch.object(self.client, "_request", return_value={"ok": True}):
-            self.assertTrue(self.client.authenticate())
+    def test_get_task_result_no_cqlib_raises(self):
+        """无 cqlib 时 get_task_result 应抛出 TianyanAPIError。"""
+        with self.assertRaises(TianyanAPIError) as ctx:
+            self.client.get_task_result("tid-9")
+        self.assertEqual(ctx.exception.status_code, 500)
 
-    def test_authenticate_rest_401_returns_false(self):
-        """REST 认证 401 应返回 False。"""
-        with patch.object(self.client, "_request", side_effect=TianyanAPIError(401, "unauth")):
-            self.assertFalse(self.client.authenticate())
+    def test_list_backends_no_cqlib_raises(self):
+        """无 cqlib 时 list_backends 应抛出 TianyanAPIError。"""
+        with self.assertRaises(TianyanAPIError) as ctx:
+            self.client.list_backends()
+        self.assertEqual(ctx.exception.status_code, 500)
 
-    def test_authenticate_rest_other_error_returns_false(self):
-        """REST 认证其他异常应返回 False。"""
-        with patch.object(self.client, "_request", side_effect=Exception("boom")):
-            self.assertFalse(self.client.authenticate())
+    def test_get_backend_info_no_cqlib_raises(self):
+        """无 cqlib 时 get_backend_info 应抛出 TianyanAPIError。"""
+        with self.assertRaises(TianyanAPIError) as ctx:
+            self.client.get_backend_info("tianyan-287")
+        self.assertEqual(ctx.exception.status_code, 500)
 
-    def test_submit_classical_task_rest(self):
-        """真实模式无 cqlib 时 submit_classical_task 走 REST 路径。"""
-        with patch.object(self.client, "_request", return_value={"task_id": "cls-1"}) as mock_req:
-            tid = self.client.submit_classical_task(code="print(1)", language="python3")
-        self.assertEqual(tid, "cls-1")
-        mock_req.assert_called_once()
-        args, _kwargs = mock_req.call_args
-        self.assertEqual(args[0], "POST")
-        self.assertEqual(args[1], "/tasks")
-
-    def test_get_queue_status_rest(self):
-        """真实模式无 cqlib 时 get_queue_status 走 REST 路径。"""
-        expected = {"total_pending": 5, "total_running": 2}
-        with patch.object(self.client, "_request", return_value=expected):
-            q = self.client.get_queue_status()
-        self.assertEqual(q, expected)
-
-    def test_get_task_status_rest(self):
-        """真实模式无 cqlib 时 get_task_status 走 REST 路径。"""
-        with patch.object(self.client, "_request", return_value={"status": "RUNNING"}) as mock_req:
-            result = self.client.get_task_status("tid-9")
-        self.assertEqual(result["status"], "RUNNING")
-        mock_req.assert_called_once_with("GET", "/tasks/tid-9/status")
-
-    def test_get_task_result_rest(self):
-        """真实模式无 cqlib 时 get_task_result 走 REST 路径。"""
-        with patch.object(self.client, "_request", return_value={"counts": {"0": 10}}) as mock_req:
-            result = self.client.get_task_result("tid-9")
-        self.assertEqual(result["counts"]["0"], 10)
-        mock_req.assert_called_once_with("GET", "/tasks/tid-9/result")
-
-    def test_list_backends_rest(self):
-        """真实模式无 cqlib 时 list_backends 走 REST 路径并提取 backends 字段。"""
-        with patch.object(self.client, "_request", return_value={"backends": [{"name": "b1"}]}):
-            backends = self.client.list_backends()
-        self.assertEqual(backends, [{"name": "b1"}])
-
-    def test_get_backend_info_rest(self):
-        """真实模式无 cqlib 时 get_backend_info 走 REST 路径。"""
-        with patch.object(
-            self.client, "_request", return_value={"name": "tianyan-287"}
-        ) as mock_req:
-            info = self.client.get_backend_info("tianyan-287")
-        self.assertEqual(info["name"], "tianyan-287")
-        mock_req.assert_called_once_with("GET", "/backends/tianyan-287")
+    def test_get_queue_status_no_cqlib_raises(self):
+        """无 cqlib 时 get_queue_status 应抛出 TianyanAPIError。"""
+        with self.assertRaises(TianyanAPIError) as ctx:
+            self.client.get_queue_status()
+        self.assertEqual(ctx.exception.status_code, 500)
 
 
 class TestTianyanClientCqlibDelegation(unittest.TestCase):
@@ -1157,12 +1087,12 @@ class TestTianyanClientCircuitBreaker(unittest.TestCase):
     """测试 TianyanClient 熔断器集成：连续失败熔断、OPEN 拒绝、状态查询、禁用。"""
 
     def setUp(self):
-        """构造真实模式客户端（REST 路径），用于熔断器测试。"""
-        env = _env_without("TIANYAN_API_KEY", "TIANYAN_MOCK_MODE", "TIANYAN_MACHINE")
+        """构造真实模式客户端（cqlib 模式），用于熔断器测试。"""
+        env = _env_without("TIANYAN_API_KEY", "TIANYAN_MOCK_MODE")
+        env["TIANYAN_MACHINE"] = "tianyan_s"
         with patch.dict(os.environ, env, clear=True), patch("src.api.tianyan_client.load_dotenv"):
-            self.client = TianyanClient(api_key="", mock_mode=False)
-        self.client._cqlib = None
-        self.client.session = MagicMock()
+            self.client = TianyanClient(api_key="fake-key", mock_mode=False)
+        self.client._cqlib = MagicMock()
 
     def test_initial_circuit_state_is_closed(self):
         """初始熔断器状态应为 closed。"""
@@ -1170,86 +1100,63 @@ class TestTianyanClientCircuitBreaker(unittest.TestCase):
 
     def test_circuit_opens_after_consecutive_failures(self):
         """连续失败达阈值（5 次）后熔断器应进入 OPEN 状态。"""
-        with patch.object(self.client, "_request", side_effect=TianyanAPIError(500, "srv err")):
-            for _ in range(5):
-                with self.assertRaises(TianyanAPIError):
-                    self.client.get_task_status("tid")
+        self.client._cqlib.get_task_status.side_effect = RuntimeError("cqlib 网络异常")
+        for _ in range(5):
+            with self.assertRaises(RuntimeError):
+                self.client.get_task_status("tid")
         self.assertEqual(self.client.get_circuit_state(), "open")
 
     def test_circuit_open_raises_circuit_open_error(self):
         """熔断器 OPEN 时后续调用应抛出 CircuitOpenError 且不实际请求。"""
-        with patch.object(self.client, "_request", side_effect=TianyanAPIError(500, "srv err")):
-            for _ in range(5):
-                with self.assertRaises(TianyanAPIError):
-                    self.client.get_task_status("tid")
-        # 熔断器已 OPEN，下一次调用应直接抛出 CircuitOpenError
-        with patch.object(self.client, "_request") as mock_req:
-            with self.assertRaises(CircuitOpenError):
+        self.client._cqlib.get_task_status.side_effect = RuntimeError("cqlib 网络异常")
+        for _ in range(5):
+            with self.assertRaises(RuntimeError):
                 self.client.get_task_status("tid")
-            # 熔断器 OPEN 时不应实际调用 _request
-            mock_req.assert_not_called()
+        # 熔断器已 OPEN，下一次调用应直接抛出 CircuitOpenError
+        with self.assertRaises(CircuitOpenError):
+            self.client.get_task_status("tid")
 
     def test_get_circuit_state_reflects_half_open(self):
         """OPEN 状态经过 recovery_timeout 后应转为 HALF_OPEN 并在成功后恢复 CLOSED。"""
         cb = self.client._circuit_breaker
-        # 手动置为 OPEN，并模拟已过恢复超时（last_failure_time 置零使 monotonic 差值 >= 60）
         cb.state = CircuitState.OPEN
         cb.last_failure_time = 0.0
-        with patch.object(self.client, "_request", return_value={"status": "ok"}):
-            result = self.client.get_task_status("tid")
+        self.client._cqlib.get_task_status.return_value = {"status": "ok"}
+        result = self.client.get_task_status("tid")
         self.assertEqual(result["status"], "ok")
-        # HALF_OPEN 试探成功后应恢复 CLOSED
         self.assertEqual(self.client.get_circuit_state(), "closed")
 
     def test_success_resets_failure_count(self):
         """成功调用应重置失败计数，熔断器保持 CLOSED。"""
         call_count = {"n": 0}
 
-        def _flaky_request(*args, **kwargs):
+        def _flaky_cqlib(*args, **kwargs):
             call_count["n"] += 1
             if call_count["n"] <= 3:
-                raise TianyanAPIError(500, "srv err")
+                raise RuntimeError("cqlib 网络异常")
             return {"status": "ok"}
 
-        with patch.object(self.client, "_request", side_effect=_flaky_request):
-            for _ in range(3):
-                with self.assertRaises(TianyanAPIError):
-                    self.client.get_task_status("tid")
-            # 第 4 次调用成功，应重置失败计数
-            result = self.client.get_task_status("tid")
-            self.assertEqual(result["status"], "ok")
+        self.client._cqlib.get_task_status.side_effect = _flaky_cqlib
+        for _ in range(3):
+            with self.assertRaises(RuntimeError):
+                self.client.get_task_status("tid")
+        result = self.client.get_task_status("tid")
+        self.assertEqual(result["status"], "ok")
         self.assertEqual(self.client.get_circuit_state(), "closed")
 
     def test_circuit_breaker_disabled(self):
         """enable_circuit_breaker=False 时不应熔断，持续透传异常且状态保持 closed。"""
-        env = _env_without("TIANYAN_API_KEY", "TIANYAN_MOCK_MODE", "TIANYAN_MACHINE")
-        with patch.dict(os.environ, env, clear=True), patch("src.api.tianyan_client.load_dotenv"):
-            client = TianyanClient(api_key="", mock_mode=False, enable_circuit_breaker=False)
-        client._cqlib = None
-        client.session = MagicMock()
-
-        with patch.object(client, "_request", side_effect=TianyanAPIError(500, "srv err")):
-            for _ in range(10):
-                with self.assertRaises(TianyanAPIError):
-                    client.get_task_status("tid")
-        # 禁用熔断器后状态应始终为 closed
-        self.assertEqual(client.get_circuit_state(), "closed")
-
-    def test_cqlib_delegation_protected_by_circuit_breaker(self):
-        """cqlib 委托调用应受熔断器保护，连续失败后熔断并抛出 CircuitOpenError。"""
         env = _env_without("TIANYAN_API_KEY", "TIANYAN_MOCK_MODE")
         env["TIANYAN_MACHINE"] = "tianyan_s"
         with patch.dict(os.environ, env, clear=True), patch("src.api.tianyan_client.load_dotenv"):
-            client = TianyanClient(api_key="fake-key", mock_mode=False)
+            client = TianyanClient(api_key="fake-key", mock_mode=False, enable_circuit_breaker=False)
         client._cqlib = MagicMock()
         client._cqlib.get_task_status.side_effect = RuntimeError("cqlib 网络异常")
 
-        for _ in range(5):
+        for _ in range(10):
             with self.assertRaises(RuntimeError):
                 client.get_task_status("tid")
-        self.assertEqual(client.get_circuit_state(), "open")
-        with self.assertRaises(CircuitOpenError):
-            client.get_task_status("tid")
+        self.assertEqual(client.get_circuit_state(), "closed")
 
 
 if __name__ == "__main__":
