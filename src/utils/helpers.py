@@ -81,38 +81,106 @@ def _warn_unresolved(data: dict[str, Any], source_path: str = "") -> None:
 
 
 # 日志配置
+def _json_serializer(record: dict[str, Any]) -> str:
+    """将 loguru 日志记录序列化为 JSON 格式。
+
+    输出字段：timestamp（ISO 格式）、level、module、function、line、message，
+    以及 record["extra"] 中的所有自定义字段（不覆盖内置字段）。
+
+    Args:
+        record: loguru 日志记录字典
+
+    Returns:
+        JSON 格式的字符串（UTF-8，保留中文，非可序列化值用 str 兜底）
+    """
+    subset: dict[str, Any] = {
+        "timestamp": record["time"].isoformat(),
+        "level": record["level"].name,
+        "module": record["module"],
+        "function": record["function"],
+        "line": record["line"],
+        "message": record["message"],
+    }
+    # 合并 extra 上下文（不覆盖内置字段）
+    extra = record.get("extra")
+    if extra:
+        for key, value in extra.items():
+            if key not in subset:
+                subset[key] = value
+    return json.dumps(subset, ensure_ascii=False, default=str)
+
+
+def _json_console_sink(message: Any) -> None:
+    """loguru JSON 控制台 sink，将日志记录序列化为 JSON 并输出到 stdout。"""
+    sys.stdout.write(_json_serializer(message.record) + "\n")
+
+
+class _JsonFileSink:
+    """JSON 文件 sink，将日志以 JSON Lines 格式写入文件。
+
+    适用于 ELK/Loki/Graylog 等日志采集系统解析。
+    注意：不支持 loguru 内建的 rotation/retention，如需轮转请依赖外部工具（如 logrotate）。
+    """
+
+    def __init__(self, filepath: str) -> None:
+        # 文件句柄需在 sink 生命周期内保持打开，无法使用 with 语句
+        self._file = open(filepath, "a", encoding="utf-8")  # noqa: SIM115
+
+    def write(self, message: Any) -> None:
+        self._file.write(_json_serializer(message.record) + "\n")
+        self._file.flush()
+
+    def stop(self) -> None:
+        self._file.close()
+
+
 def setup_logging(
     log_dir: str = "logs",
     log_level: str = "INFO",
     log_file: str = "scheduler.log",
 ) -> Any:
-    """
-    配置日志系统
+    """配置日志系统，支持文本和 JSON 两种格式。
+
+    通过环境变量 LOG_FORMAT 控制输出格式：
+    - "json": 结构化 JSON 输出（适合 ELK/Loki/Graylog 采集）
+    - "text"（默认）: 人类可读的文本格式
 
     Args:
         log_dir: 日志目录
         log_level: 日志级别
         log_file: 日志文件名
+
+    Returns:
+        配置后的 loguru logger
     """
     os.makedirs(log_dir, exist_ok=True)
 
     logger.remove()  # 移除默认处理器
 
-    # 控制台输出（使用 sys.stderr 作为 loguru sink，避免在日志 sink 内部调用 print）
-    logger.add(
-        sink=sys.stderr,
-        level=log_level,
-        format="{time:YYYY-MM-DD HH:mm:ss} | {level} | {message}",
-    )
+    log_format = os.getenv("LOG_FORMAT", "text").lower()
+    use_json = log_format == "json"
 
-    # 文件输出
-    logger.add(
-        sink=os.path.join(log_dir, log_file),
-        rotation="100 MB",
-        retention="30 days",
-        level=log_level,
-        format="{time:YYYY-MM-DD HH:mm:ss} | {level} | {file}:{function}:{line} | {message}",
-    )
+    if use_json:
+        # JSON 格式：结构化输出，便于 ELK/Loki/Graylog 采集
+        logger.add(sink=_json_console_sink, level=log_level)
+        logger.add(
+            sink=_JsonFileSink(os.path.join(log_dir, log_file)),
+            level=log_level,
+        )
+    else:
+        # 文本格式：人类可读（使用 sys.stderr 避免 print）
+        logger.add(
+            sink=sys.stderr,
+            level=log_level,
+            format="{time:YYYY-MM-DD HH:mm:ss} | {level} | {message}",
+        )
+        logger.add(
+            sink=os.path.join(log_dir, log_file),
+            rotation="100 MB",
+            retention="30 days",
+            level=log_level,
+            format="{time:YYYY-MM-DD HH:mm:ss} | {level} | {file}:{function}:{line} | {message}",
+        )
 
     return logger
 

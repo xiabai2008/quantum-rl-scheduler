@@ -1,6 +1,10 @@
 # =============================================================================
 # Pre-commit 配置 — Git commit 前自动检查
 #
+# 工具栈（与 pyproject.toml / CI 保持一致）：
+#   - ruff：代码格式化 + lint 检查（替代 black + isort + flake8）
+#   - bandit：安全扫描（检测 API 密钥泄露、不安全函数等）
+#
 # 安装：
 #   pip install pre-commit
 #   pre-commit install
@@ -29,31 +33,24 @@ repos:
       - id: name-tests-test
         args: ["--pytest-test-first"]
 
-  # Python 代码格式化
-  - repo: https://github.com/psf/black
-    rev: 24.4.2
+  # ruff — 代码格式化 + lint 检查（Rust 实现，替代 black + isort + flake8）
+  # 配置统一读取 pyproject.toml 的 [tool.ruff] 段
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.15.16
     hooks:
-      - id: black
-        language_version: python3.11
-        args: ["--line-length=100"]
+      # lint 检查 + 自动修复（I 规则处理 import 排序，替代 isort）
+      - id: ruff-check
+        args: [--fix, --config, pyproject.toml]
+      # 代码格式化（替代 black）
+      - id: ruff-format
+        args: [--config, pyproject.toml]
 
-  # import 排序
-  - repo: https://github.com/PyCQA/isort
-    rev: 5.13.2
+  # bandit — 安全扫描（与 CI 一致，配置读取 pyproject.toml 的 [tool.bandit] 段）
+  - repo: https://github.com/PyCQA/bandit
+    rev: 1.7.9
     hooks:
-      - id: isort
-        args: ["--profile=black", "--line-length=100"]
-
-  # flake8 检查
-  - repo: https://github.com/PyCQA/flake8
-    rev: 7.0.0
-    hooks:
-      - id: flake8
-        args: ["--max-line-length=100", "--extend-ignore=E203,E402,E501,W503"]
-        additional_dependencies:
-          - flake8-comprehensions
-          - flake8-bugbear
-          - flake8-simplify
+      - id: bandit
+        args: [-c, pyproject.toml, -ll]
 
   # Commit 消息格式检查
   - repo: https://github.com/commitizen-tools/commitizen
