@@ -268,11 +268,10 @@ class QuantumSchedulingEnv(gym.Env):
         self._machine_schedule_count = {m.name: 0 for m in self._machines}
         self._machine_real_submits = {m.name: 0 for m in self._machines}
 
-        # 重置真机闭环状态（degraded 标志在 episode 间不重置，避免反复探测不可用真机）
+        # 重置真机闭环状态
+        # 注意：success/fail/consecutive_failures 计数器跨 episode 累积，
+        # 仅在 __init__ 中初始化，reset 不清零，确保训练汇总统计准确
         self._pending_real_tasks = []
-        self._real_success_count = 0
-        self._real_fail_count = 0
-        self._real_consecutive_failures = 0
 
         # 随机初始化任务队列（5-20 个任务）
         self._task_queue = []

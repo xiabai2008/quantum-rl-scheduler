@@ -264,7 +264,7 @@ class SchedulerAgent:
         eval_freq: int = 1000,
         n_eval_episodes: int = 5,
         log_dir: str | None = None,
-        **kwargs,
+        **kwargs: Any,
     ) -> DQN:
         """
         训练 DQN 调度智能体

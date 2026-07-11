@@ -94,8 +94,8 @@ REAL_SHOTS = 1024        # 真机 shots 数
 QCIS_CIRCUIT = "H Q0\nM Q0"  # H 门（阶段 0 验证高保真度）
 
 # 预训练模型路径
-PPO_MODEL_PATH = str(_PROJECT_ROOT / "models" / "ppo_seed_42_v4" / "best_model.zip")
-DQN_MODEL_PATH = str(_PROJECT_ROOT / "models" / "dqn_fair_v2" / "seed_42" / "best_model.zip")
+PPO_MODEL_PATH = str(_PROJECT_ROOT / "deliverable_models" / "ppo_best_model_10dim.zip")
+DQN_MODEL_PATH = str(_PROJECT_ROOT / "deliverable_models" / "dqn_best_model_10dim.zip")
 
 # 动作含义
 ACTION_MEANINGS: dict[int, str] = {0: "classical", 1: "quantum", 2: "hybrid"}

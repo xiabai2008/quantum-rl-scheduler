@@ -188,6 +188,10 @@ class CqlibTianyanClient:
             # cqlib 提交接口异常类型无法穷举，保留宽捕获并记录日志
             err_msg = str(e)
             logger.error(f"[Cqlib] {self.machine_name} 提交失败: {err_msg}")
+            # 容量错误（电路超出免费额度）：不重试其他机器，直接返回 None
+            if self._is_capacity_error(err_msg):
+                logger.warning(f"[Cqlib] 容量不足，跳过提交（不重试其他机器）: {err_msg[:80]}")
+                return None
             # 校准/不可用类错误立即切换，不重试当前机器
             if self._is_unavailable_error(err_msg) and self.auto_retry_machine:
                 return self._retry_other_machine(qcis_str, shots, task_name)
@@ -243,6 +247,50 @@ class CqlibTianyanClient:
         lower_msg = err_msg.lower()
         return any(kw.lower() in lower_msg for kw in keywords)
 
+    @staticmethod
+    def _is_capacity_error(err_msg: str) -> bool:
+        """判断错误是否为机时包容量不足（电路超限，非机器问题）。
+
+        此类错误不应触发机器切换，因为电路本身超出免费额度，
+        换机器也无法解决。应直接返回 None 让上层跳过。
+
+        Args:
+            err_msg: 异常消息字符串
+
+        Returns:
+            bool: 命中关键词返回 True
+        """
+        keywords = (
+            "最大比特数",
+            "机时包",
+            "qubit",
+            "capacity",
+            "超出",
+        )
+        lower_msg = err_msg.lower()
+        return any(kw.lower() in lower_msg for kw in keywords)
+
+    @staticmethod
+    def _is_permission_error(err_msg: str) -> bool:
+        """判断错误是否为权限不足（专属资源无权限）。
+
+        此类错误应跳过当前机器，尝试其他机器（而非直接放弃）。
+
+        Args:
+            err_msg: 异常消息字符串
+
+        Returns:
+            bool: 命中关键词返回 True
+        """
+        keywords = (
+            "专属资源",
+            "权限",
+            "permission",
+            "forbidden",
+        )
+        lower_msg = err_msg.lower()
+        return any(kw.lower() in lower_msg for kw in keywords)
+
     def _retry_other_machine(self, qcis: str, shots: int, task_name: str) -> str | None:
         """当前机器不可用时，按 REAL_MACHINES 列表尝试其他机器。
 
@@ -285,15 +333,32 @@ class CqlibTianyanClient:
                 return tid
             except Exception as e:
                 # cqlib 备用机器提交异常类型无法穷举，保留宽捕获并记录日志
-                logger.debug(f"[Cqlib] {machine} 失败: {str(e)[:60]}")
+                err_msg = str(e)
+                logger.debug(f"[Cqlib] {machine} 失败: {err_msg[:80]}")
+                # 容量错误：电路本身超出免费额度，换机器也无效，直接放弃
+                if self._is_capacity_error(err_msg):
+                    logger.warning(f"[Cqlib] 容量不足，放弃所有重试: {err_msg[:80]}")
+                    return None
+                # 权限错误（专属资源）：跳过当前机器，继续尝试其他
+                if self._is_permission_error(err_msg):
+                    logger.debug(f"[Cqlib] {machine} 无权限（专属资源），跳过")
                 continue
         logger.error("[Cqlib] 所有备用机器均不可用，放弃提交（返回 None）")
         return None
 
     def get_task_status(self, task_id: str) -> dict[str, Any]:
-        """查询任务状态"""
+        """查询任务状态（非阻塞，max_wait_time=2s 仅做一次 HTTP 尝试）。
+
+        注意：cqlib 的 query_experiment 默认 max_wait_time=3600s，
+        会导致长时间阻塞。本方法显式传入 max_wait_time=2 实现即时返回。
+        任务未完成时返回 status="running"。
+        """
         try:
-            result = self.platform.query_experiment(task_id)
+            from cqlib.exceptions import CqlibRequestError
+
+            result = self.platform.query_experiment(
+                task_id, max_wait_time=2, sleep_time=1,
+            )
             if isinstance(result, list) and len(result) > 0:
                 data = result[0]
                 if isinstance(data, dict):
@@ -305,6 +370,9 @@ class CqlibTianyanClient:
                         "raw": data,
                     }
             return {"task_id": task_id, "status": "unknown", "raw": result}
+        except CqlibRequestError:
+            # 查询超时（任务仍在运行），返回 running 状态
+            return {"task_id": task_id, "status": "running", "raw": {}}
         except Exception as e:
             # cqlib 查询接口异常类型无法穷举，保留宽捕获并记录日志
             logger.debug(f"[Cqlib] 查询任务 {task_id} 状态失败: {e}")

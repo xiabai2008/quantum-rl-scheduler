@@ -242,6 +242,7 @@ def run_stress_test():
     # 找 PPO 模型
     ppo_path = None
     for candidate in [
+        os.path.join(PROJECT_ROOT, "deliverable_models", "ppo_best_model_10dim.zip"),
         os.path.join(PROJECT_ROOT, "models", "ppo_seed_42_v4", "best_model.zip"),
         os.path.join(
             PROJECT_ROOT, "logs", "ablation_with_anneal_seed42", "best_model", "best_model.zip"

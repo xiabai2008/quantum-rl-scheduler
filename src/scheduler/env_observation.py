@@ -66,7 +66,7 @@ def get_observation(env: "QuantumSchedulingEnv") -> np.ndarray:
     Returns:
         np.ndarray: 形状 (14,)，dtype=float32，值域 [0, 1]
     """
-    obs = np.zeros(OBS_DIM, dtype=np.float32)
+    obs: np.ndarray = np.zeros(OBS_DIM, dtype=np.float32)
 
     obs[OBS_QUBIT_AVAILABILITY] = float(np.clip(env._quantum.available_ratio, 0.0, 1.0))
 

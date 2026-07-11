@@ -101,6 +101,8 @@ class Task:
         urgency        : 紧急程度 0-1，越高越紧急
         priority       : 优先级 1-5
         execution_time : 预估执行时间（步数），与任务规模正相关
+        qcis           : QCIS 格式量子电路（仅量子任务，用于真机提交）
+        tenant_id      : 租户 ID（多租户配额隔离，Issue #97）
     """
 
     task_id: str
@@ -110,6 +112,7 @@ class Task:
     urgency: float = 0.5
     priority: int = 3
     execution_time: int = 3
+    qcis: str | None = None  # QCIS 格式电路，None 表示未生成
     tenant_id: str | None = None  # 租户 ID（多租户配额隔离，Issue #97）
 
 

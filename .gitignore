@@ -81,3 +81,16 @@ datasets/
 models/
 results/
 tensorboard_logs/
+
+# ── 提交必需产物（覆盖上方的 models/ 与 results/ 忽略规则）──
+# 1) 实验证据报告：submission_manifest.yaml 强制要求，必须入库
+!results/
+!results/reports/
+!results/reports/**
+# 2) 重新忽略 results/ 下的大体积数据（JSON 实验数据等），避免仓库膨胀
+results/**/*.json
+results/raw/
+results/fair_comparison/
+results/issue_experiments/
+results/multiseed_evaluation/
+results/real_machine/

@@ -1,0 +1,17 @@
+# 天衍云真机配额配置
+# 用于 QuotaTracker 持久化追踪真机配额消耗（shots/tasks/wall_time_hours）
+# 配置文件缺失时使用默认值：shots=10000, tasks=200, wall_time_hours=50
+
+total_quota:
+  shots: 10000        # 总测量次数配额
+  tasks: 200          # 总任务数配额
+  wall_time_hours: 50 # 总墙上时间配额（小时）
+
+# 阈值告警：达到比例后触发对应级别告警
+warning_threshold: 0.8   # 警告级别阈值（0-1）
+critical_threshold: 0.95 # 危急级别阈值（0-1）
+
+# 通知渠道配置
+notification:
+  type: log               # 告警类型：log（仅日志）/ webhook（调用 webhook_url）
+  webhook_url: null       # Webhook 地址，type=webhook 时生效；null 表示不启用

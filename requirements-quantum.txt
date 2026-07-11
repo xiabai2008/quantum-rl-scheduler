@@ -1,0 +1,24 @@
+# =============================================================================
+# 量子真机依赖（可选）
+# Quantum Real-Machine Dependencies (Optional)
+# =============================================================================
+# 基础依赖已在 requirements.txt 中包含（dimod, dwave-neal, qiskit 等）。
+# 本文件仅包含需要天衍云平台访问权限的真机 SDK。
+#
+# 安装前提：
+#   1. 已在天衍云平台注册并获取 API Key
+#   2. 已配置天衍云内部 pip 源或已手动下载 cqlib wheel 包
+#   3. 已复制 .env.example 为 .env 并填入 TIANYAN_API_KEY
+#
+# 安装方式：
+#   pip install -r requirements.txt           # 先装基础依赖
+#   pip install -r requirements-quantum.txt   # 再装机机依赖
+#
+# 如无天衍云访问权限，系统会自动降级为 Mock 模式运行。
+# =============================================================================
+
+# 天衍云 cqlib SDK（天衍-287 超导量子计算机真机调度）
+# 安装方式 A（内部源）：pip install cqlib -i https://pypi.tianyan.com/simple/
+# 安装方式 B（手动）：从天衍云平台下载 wheel 包后 pip install cqlib-x.x.x-py3-none-any.whl
+--extra-index-url https://pypi.tianyan.com/simple/
+cqlib>=1.0.0

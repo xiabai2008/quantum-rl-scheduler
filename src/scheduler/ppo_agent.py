@@ -44,7 +44,7 @@ class PPOAgent:
         verbose: 日志详细程度
     """
 
-    def __init__(self, env, **kwargs):
+    def __init__(self, env: Any, **kwargs: Any) -> None:
         """
         初始化 PPO 智能体。
 
@@ -53,7 +53,7 @@ class PPOAgent:
             **kwargs: PPO 超参数
         """
         self.env = env
-        self.model = None
+        self.model: PPO | None = None
 
         self.learning_rate = kwargs.get("learning_rate", 3e-4)
         self.n_steps = kwargs.get("n_steps", 2048)
@@ -164,7 +164,9 @@ class PPOAgent:
         eval_freq: int = 5000,
         n_eval_episodes: int = 10,
         log_dir: str | None = None,
-        **kwargs,
+        resume_from: str | None = None,
+        extra_callbacks: list[Any] | None = None,
+        **kwargs: Any,
     ) -> PPO:
         """
         训练 PPO 调度智能体。
@@ -184,8 +186,13 @@ class PPOAgent:
         Returns:
             训练好的 PPO 模型
         """
+        is_resume = bool(resume_from) and os.path.exists(resume_from)
         if self.model is None:
-            self.model = self._build_model()
+            if is_resume:
+                logger.info(f"[PPOAgent] 从检查点续训: {resume_from}")
+                self.load(resume_from)
+            else:
+                self.model = self._build_model()
 
         # 弹出真机抽样回调参数（不传给 learn）
         real_cb_interval = int(kwargs.pop("real_callback_interval", 0))
@@ -234,15 +241,20 @@ class PPOAgent:
             )
 
         # 合并回调
+        if extra_callbacks:
+            callbacks.extend(extra_callbacks)
         callback = CallbackList(callbacks) if len(callbacks) > 1 else callbacks[0]
 
         tb_log_name = log_dir if log_dir else "ppo_scheduling"
 
+        assert self.model is not None  # 由上方 _build_model / load 保证已初始化
+        # 续训时保留历史步数计数，避免指标与时间轴错乱
+        reset_num_timesteps = not is_resume
         self.model.learn(
             total_timesteps=total_timesteps,
             callback=callback,
             tb_log_name=tb_log_name,
-            reset_num_timesteps=True,
+            reset_num_timesteps=reset_num_timesteps,
             **kwargs,
         )
 
@@ -337,7 +349,8 @@ class PPOAgent:
         Args:
             path: 模型文件路径
         """
-        self.model = PPO.load(path, env=self.env)
+        model_cls = RecurrentPPO if self.use_lstm else PPO
+        self.model = model_cls.load(path, env=self.env)
         logger.info(f"[PPOAgent] 模型已从 {path} 加载")
 
     def get_config(self) -> dict[str, Any]:

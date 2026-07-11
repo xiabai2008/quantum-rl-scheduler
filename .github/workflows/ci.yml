@@ -153,7 +153,7 @@ jobs:
           mypy src/ \
             --ignore-missing-imports \
             --follow-imports=skip \
-            --no-error-unused-ignore \
+            --no-warn-unused-ignores \
             --show-error-codes \
             --pretty \
             || echo "[INFO] mypy found type issues — review and fix incrementally"
