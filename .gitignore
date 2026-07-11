@@ -94,3 +94,8 @@ results/fair_comparison/
 results/issue_experiments/
 results/multiseed_evaluation/
 results/real_machine/
+
+# ── 变异测试 / 临时虚拟环境（切勿提交）──
+mutants/
+.venv-mutmut-wsl/
+.venv-mutmut-win/
