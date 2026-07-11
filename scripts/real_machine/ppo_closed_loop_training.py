@@ -95,6 +95,18 @@ RESULTS_DIR = _PROJECT_ROOT / "results" / "real_machine"
 # ---------------------------------------------------------------------------
 
 
+def _json_default(o):
+    """JSON 序列化兜底：把 numpy 标量/数组转成原生 Python 类型。"""
+    if hasattr(o, "item"):
+        try:
+            return o.item()
+        except Exception:
+            pass
+    if hasattr(o, "tolist"):
+        return o.tolist()
+    return str(o)
+
+
 class TrainingRecordCallback:
     """训练记录回调：记录每个真机提交的信息供后续分析。
 
@@ -140,6 +152,7 @@ class TrainingRecordCallback:
                 f,
                 indent=2,
                 ensure_ascii=False,
+                default=_json_default,
             )
         logger.info(f"[Callback] 训练记录已保存: {filepath}")
         return filepath
@@ -148,6 +161,20 @@ class TrainingRecordCallback:
 # ---------------------------------------------------------------------------
 # 训练指标回调（loss / KL / value_loss / entropy 等结构化记录）
 # ---------------------------------------------------------------------------
+
+
+class _MetricCapture:  # pragma: no cover - 保留接口占位，实际捕获改用 _on_step 快照
+    """历史实现占位（已弃用）。
+
+    早期实现试图通过挂载 ``KVWriter`` 在 ``dump()`` 写盘前捕获 ``train/*``，
+    但 SB3 的调用顺序是 ``on_rollout_end`` → ``dump()`` → ``train()``，
+    导致回调永远读到上一轮的快照、首轮缺失 loss。现改为在 ``_on_step``
+    中实时快照 ``logger.name_to_value``（``train()`` 后、``dump()`` 前该字典
+    恰好含有上一轮 ``train/*`` 标量），更稳定且不受 dump 顺序影响。
+    """
+
+    def __init__(self) -> None:
+        self.last: dict[str, float] = {}
 
 
 class TrainingMetricsCallback(BaseCallback):
@@ -174,12 +201,14 @@ class TrainingMetricsCallback(BaseCallback):
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=True)
         self.metrics: list[dict[str, Any]] = []
+        # 实时快照：在 _on_step 中捕获 logger.name_to_value 的最新 train/* 标量
+        self._latest: dict[str, Any] = {}
         self.csv_path = self.output_dir / "training_metrics.csv"
         with open(self.csv_path, "w", newline="", encoding="utf-8") as f:
             csv.writer(f).writerow(self._FIELDS)
 
     def _on_rollout_end(self) -> None:
-        sb = getattr(self.model.logger, "scalar_buffer", {}) or {}
+        sb = self._latest
         ep_info = getattr(self.model, "ep_info_buffer", None)
         ep_rew_mean = float(np.mean([e["r"] for e in ep_info])) if ep_info else None
         ep_len_mean = float(np.mean([e["l"] for e in ep_info])) if ep_info else None
@@ -224,14 +253,24 @@ class TrainingMetricsCallback(BaseCallback):
             )
 
     def _on_step(self) -> bool:
-        """BaseCallback 要求的抽象方法实现；此处无需逐步处理，返回 True 继续训练。"""
+        """BaseCallback 要求的抽象方法；同时实时快照最新 train/* 标量。
+
+        SB3 的 ``train/*`` 标量在 ``train()`` 结束后写入 ``logger.name_to_value``，
+        并在下一次 rollout 末 ``dump()`` 时清空。由于 ``on_rollout_end`` 总在
+        ``dump()`` 之前触发，直接读 ``name_to_value`` 会错过本轮 loss。
+        这里在环境交互阶段（train() 之后、dump() 之前）逐步捕获，确保
+        ``_on_rollout_end`` 能取到上一轮真实的 train/* 指标。
+        """
+        n2v = getattr(self.model.logger, "name_to_value", None)
+        if n2v and "train/loss" in n2v:
+            self._latest = dict(n2v)
         return True
 
     def save(self, prefix: str = "ppo") -> Path:
         """保存指标 JSON（训练结束时调用）。"""
         path = self.output_dir / f"{prefix}_metrics_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
         with open(path, "w", encoding="utf-8") as f:
-            json.dump({"metrics": self.metrics}, f, indent=2, ensure_ascii=False)
+            json.dump({"metrics": self.metrics}, f, indent=2, ensure_ascii=False, default=_json_default)
         logger.info(f"[Metrics] 训练指标已保存: {path}")
         return path
 
