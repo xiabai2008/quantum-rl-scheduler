@@ -126,6 +126,38 @@ TIANYAN_MOCK_MODE=false
 TIANYAN_API_KEY=你的真实API密钥
 ```
 
+## 队友须知
+
+> 认领 Issue 前先读这段，避免走弯路、避免浪费共享真机机时。
+
+### 1. 默认纯本地开发，无需真机
+项目默认 `TIANYAN_MOCK_MODE=true`（见 `.env.example`），**绝大多数开发、测试、仿真都在本地 Mock 模式下完成**，不需要天衍云权限。只有极少数任务在"真机验证环节"才需连接真实硬件。
+
+### 2. 当前开放 Issue 的真机适用范围
+| Issue | 标题 | 是否需要真机 | 说明 |
+|---|---|---|---|
+| #142 | 制作系统演示视频 | 否 | 视频制作 |
+| #143 | 技术白皮书 v3 终稿 | 否 | 文档 |
+| #144 | 答辩 PPT 终稿 | 否 | 文档 |
+| #145 | 清理 v5 克隆 | 否 | 仓库卫生 |
+| #147 | 数字一致性复核 | 否 | 文档核对 |
+| #148 | 突破 head_only 退火限制 | 验证环节需要 | 默认 `simulation_mode=True` 用本地 D-Wave neal 求解器，开发全程可纯仿真；真机仅作"全量/分层 QUBO 上硬件验证"的可选项 |
+| #149 | 补齐 env_real_machine 测试 | 测试用 Mock 即可 | 模块本身即真机集成；按 `docs/真机训练接入指南.md` 用 Mock 降级，不强制连真机 |
+| #150 | 提升 marl（MAPPO）覆盖率 | 否 | `marl.py` 为纯仿真模块，不依赖真机 |
+| #151 | 提升 tianyan_cqlib 覆盖率 | 测试用 Mock 即可 | 真机客户端封装，测试用 Mock 模拟响应即可省机时 |
+| #152 | 提升 env/ppo_agent 覆盖率 | 否 | 默认 `use_real_machine=False` |
+
+> 真机"上手前置"指引仅对 **#148 / #149 / #151** 三个 Issue 适用；其余任务请纯本地仿真完成。
+
+### 3. 真机机时珍贵，省着用
+- 免费机时包仅 1-qubit 电路稳定（默认只用单比特门）。
+- 真机只留给 **#148 / #149 / #151 的验证环节**；开发期一律用 Mock。
+- 连续失败 3 次会自动降级 Mock（正常现象，非 bug）。
+
+### 4. 需要连真机时
+读 [`docs/真机训练接入指南.md`](docs/真机训练接入指南.md)：装 `requirements-quantum.txt` → 配 `.env`（API Key 向瑞哥领取）→ `CqlibTianyanClient.authenticate()` 验证连接 → `python scripts/training/train_agent_real.py --timesteps 5000 --real-prob 0.05`。
+**API Key 不外泄、`.env` 不入库。**
+
 ## 技术栈
 
 | 层级 | 技术 | 用途 |
