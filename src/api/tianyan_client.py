@@ -367,15 +367,16 @@ class TianyanClient:
 
         # 请求超时与重试配置（显式传参 > 环境变量 > 默认值）
         self.timeout: float = (
-            timeout if timeout is not None
-            else float(os.getenv("TIANYAN_API_TIMEOUT", "30.0"))
+            timeout if timeout is not None else float(os.getenv("TIANYAN_API_TIMEOUT", "30.0"))
         )
         self.max_retries: int = (
-            max_retries if max_retries is not None
+            max_retries
+            if max_retries is not None
             else int(os.getenv("TIANYAN_API_MAX_RETRIES", "3"))
         )
         self.retry_delay: float = (
-            retry_delay if retry_delay is not None
+            retry_delay
+            if retry_delay is not None
             else float(os.getenv("TIANYAN_API_RETRY_DELAY", "1.0"))
         )
 
@@ -657,9 +658,7 @@ class TianyanClient:
                         )
                         time.sleep(backoff)
                     else:
-                        logger.debug(
-                            f"API 限流重试耗尽（共 {total_attempts} 次）: {e}"
-                        )
+                        logger.debug(f"API 限流重试耗尽（共 {total_attempts} 次）: {e}")
                     continue
                 last_exc = e
                 if attempt < total_attempts - 1:
@@ -670,8 +669,7 @@ class TianyanClient:
                     time.sleep(self.retry_delay)
                 else:
                     logger.debug(
-                        f"API 调用重试耗尽（共 {total_attempts} 次）: "
-                        f"{type(e).__name__}: {e}"
+                        f"API 调用重试耗尽（共 {total_attempts} 次）: " f"{type(e).__name__}: {e}"
                     )
         assert last_exc is not None
         raise last_exc
@@ -692,9 +690,7 @@ class TianyanClient:
         try:
             yield
         except Exception as e:
-            api_errors.labels(
-                method=method, endpoint=endpoint, error_type=type(e).__name__
-            ).inc()
+            api_errors.labels(method=method, endpoint=endpoint, error_type=type(e).__name__).inc()
             raise
         finally:
             duration = monotonic() - start

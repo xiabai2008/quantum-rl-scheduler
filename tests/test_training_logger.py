@@ -301,34 +301,24 @@ class TestJsonlFallback:
     ) -> None:
         """monkeypatch 关闭 tensorboard 后应降级到 JSONL。"""
         monkeypatch.setattr(tl_module, "_TENSORBOARD_AVAILABLE", False)
-        logger_obj = TrainingMetricsLogger(
-            log_dir=str(tmp_path), experiment_name="fallback1"
-        )
+        logger_obj = TrainingMetricsLogger(log_dir=str(tmp_path), experiment_name="fallback1")
         assert logger_obj.use_tensorboard is False
         assert logger_obj._writer is None
         logger_obj.close()
 
-    def test_jsonl_file_created(
-        self, tmp_path: str, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_jsonl_file_created(self, tmp_path: str, monkeypatch: pytest.MonkeyPatch) -> None:
         """降级模式下记录后应生成 JSONL 文件。"""
         monkeypatch.setattr(tl_module, "_TENSORBOARD_AVAILABLE", False)
-        logger_obj = TrainingMetricsLogger(
-            log_dir=str(tmp_path), experiment_name="fallback2"
-        )
+        logger_obj = TrainingMetricsLogger(log_dir=str(tmp_path), experiment_name="fallback2")
         logger_obj.log_scalar("train/reward", 1.0, step=5)
         logger_obj.close()
         jsonl_path = os.path.join(str(tmp_path), "fallback2.jsonl")
         assert os.path.exists(jsonl_path)
 
-    def test_jsonl_scalar_content(
-        self, tmp_path: str, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_jsonl_scalar_content(self, tmp_path: str, monkeypatch: pytest.MonkeyPatch) -> None:
         """JSONL 标量记录内容应正确。"""
         monkeypatch.setattr(tl_module, "_TENSORBOARD_AVAILABLE", False)
-        logger_obj = TrainingMetricsLogger(
-            log_dir=str(tmp_path), experiment_name="fallback3"
-        )
+        logger_obj = TrainingMetricsLogger(log_dir=str(tmp_path), experiment_name="fallback3")
         logger_obj.log_scalar("a/b", 2.5, step=3)
         logger_obj.close()
         jsonl_path = os.path.join(str(tmp_path), "fallback3.jsonl")
@@ -339,14 +329,10 @@ class TestJsonlFallback:
         assert record["value"] == pytest.approx(2.5)
         assert record["step"] == 3
 
-    def test_jsonl_episode_content(
-        self, tmp_path: str, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_jsonl_episode_content(self, tmp_path: str, monkeypatch: pytest.MonkeyPatch) -> None:
         """JSONL Episode 记录内容应正确。"""
         monkeypatch.setattr(tl_module, "_TENSORBOARD_AVAILABLE", False)
-        logger_obj = TrainingMetricsLogger(
-            log_dir=str(tmp_path), experiment_name="fallback4"
-        )
+        logger_obj = TrainingMetricsLogger(log_dir=str(tmp_path), experiment_name="fallback4")
         logger_obj.log_episode(episode=2, reward=5.0, length=20, info={"k": "v"})
         logger_obj.close()
         jsonl_path = os.path.join(str(tmp_path), "fallback4.jsonl")
@@ -358,14 +344,10 @@ class TestJsonlFallback:
         assert record["length"] == 20
         assert record["info"]["k"] == "v"
 
-    def test_jsonl_histogram_content(
-        self, tmp_path: str, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_jsonl_histogram_content(self, tmp_path: str, monkeypatch: pytest.MonkeyPatch) -> None:
         """JSONL 直方图记录应包含 values 和统计量。"""
         monkeypatch.setattr(tl_module, "_TENSORBOARD_AVAILABLE", False)
-        logger_obj = TrainingMetricsLogger(
-            log_dir=str(tmp_path), experiment_name="fallback5"
-        )
+        logger_obj = TrainingMetricsLogger(log_dir=str(tmp_path), experiment_name="fallback5")
         values = np.array([1.0, 2.0, 3.0])
         logger_obj.log_histogram("dist/q", values, step=7)
         logger_obj.close()
@@ -379,14 +361,10 @@ class TestJsonlFallback:
         assert record["values"] == [1.0, 2.0, 3.0]
         assert record["mean"] == pytest.approx(2.0)
 
-    def test_jsonl_multiple_records(
-        self, tmp_path: str, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_jsonl_multiple_records(self, tmp_path: str, monkeypatch: pytest.MonkeyPatch) -> None:
         """多条 JSONL 记录应按行追加。"""
         monkeypatch.setattr(tl_module, "_TENSORBOARD_AVAILABLE", False)
-        logger_obj = TrainingMetricsLogger(
-            log_dir=str(tmp_path), experiment_name="fallback6"
-        )
+        logger_obj = TrainingMetricsLogger(log_dir=str(tmp_path), experiment_name="fallback6")
         logger_obj.log_scalar("a", 1.0, step=1)
         logger_obj.log_scalar("b", 2.0, step=2)
         logger_obj.log_text("t", "hello", step=3)
@@ -440,14 +418,10 @@ class TestGetSummary:
         assert values == [0.0, 1.0, 2.0, 3.0, 4.0]
         logger_obj.close()
 
-    def test_summary_from_jsonl(
-        self, tmp_path: str, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_summary_from_jsonl(self, tmp_path: str, monkeypatch: pytest.MonkeyPatch) -> None:
         """JSONL 降级模式下摘要应从文件读取。"""
         monkeypatch.setattr(tl_module, "_TENSORBOARD_AVAILABLE", False)
-        logger_obj = TrainingMetricsLogger(
-            log_dir=str(tmp_path), experiment_name="sum4"
-        )
+        logger_obj = TrainingMetricsLogger(log_dir=str(tmp_path), experiment_name="sum4")
         logger_obj.log_scalar("x", 10.0, step=1)
         logger_obj.log_episode(episode=0, reward=5.0, length=10)
         summary = logger_obj.get_summary()
@@ -457,14 +431,10 @@ class TestGetSummary:
         assert summary["episodes"][0]["reward"] == pytest.approx(5.0)
         logger_obj.close()
 
-    def test_summary_mixed_types(
-        self, tmp_path: str, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_summary_mixed_types(self, tmp_path: str, monkeypatch: pytest.MonkeyPatch) -> None:
         """JSONL 模式下多种记录类型应正确分类。"""
         monkeypatch.setattr(tl_module, "_TENSORBOARD_AVAILABLE", False)
-        logger_obj = TrainingMetricsLogger(
-            log_dir=str(tmp_path), experiment_name="sum5"
-        )
+        logger_obj = TrainingMetricsLogger(log_dir=str(tmp_path), experiment_name="sum5")
         logger_obj.log_scalar("s", 1.0, step=1)
         logger_obj.log_text("t", "txt", step=2)
         logger_obj.log_hyperparams({"lr": 0.1}, {"reward": 1.0})
@@ -490,9 +460,7 @@ class TestEdgeCases:
     def test_empty_log_dir_created(self, tmp_path: str) -> None:
         """传入不存在的子目录时应自动创建。"""
         nested = os.path.join(str(tmp_path), "nested", "deep", "path")
-        logger_obj = TrainingMetricsLogger(
-            log_dir=nested, experiment_name="edge1"
-        )
+        logger_obj = TrainingMetricsLogger(log_dir=nested, experiment_name="edge1")
         assert os.path.isdir(nested)
         logger_obj.close()
 
@@ -536,9 +504,7 @@ class TestEdgeCases:
     def test_tempdir_isolation(self) -> None:
         """使用 TemporaryDirectory 隔离测试环境。"""
         with tempfile.TemporaryDirectory() as tmpdir:
-            logger_obj = TrainingMetricsLogger(
-                log_dir=tmpdir, experiment_name="edge6"
-            )
+            logger_obj = TrainingMetricsLogger(log_dir=tmpdir, experiment_name="edge6")
             logger_obj.log_scalar("isolated", 1.0, step=1)
             summary = logger_obj.get_summary()
             assert len(summary["scalars"]) == 1

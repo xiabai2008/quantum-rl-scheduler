@@ -674,9 +674,7 @@ class TestInputSanitization(unittest.TestCase):
 
     def test_parse_strips_whitespace(self):
         """字符串字段首尾空白应被去除。"""
-        task = self.parser.parse(
-            dict(self.base, task_id="  task_001  ", algorithm="  VQE  ")
-        )
+        task = self.parser.parse(dict(self.base, task_id="  task_001  ", algorithm="  VQE  "))
         self.assertEqual(task.task_id, "task_001")
         self.assertEqual(task.algorithm, "VQE")
 

@@ -48,6 +48,7 @@ _ENV_PATH = Path(__file__).resolve().parent.parent.parent / ".env"
 if _ENV_PATH.exists():
     try:
         from dotenv import load_dotenv
+
         load_dotenv(_ENV_PATH)
     except ImportError:
         # fallback：手动解析 .env 文件
@@ -189,13 +190,22 @@ class TrainingMetricsCallback(BaseCallback):
     """
 
     _FIELDS = [
-        "timestep", "ep_rew_mean", "ep_len_mean",
-        "loss", "policy_gradient_loss", "value_loss", "entropy_loss",
-        "approx_kl", "clip_fraction", "explained_variance", "fps",
+        "timestep",
+        "ep_rew_mean",
+        "ep_len_mean",
+        "loss",
+        "policy_gradient_loss",
+        "value_loss",
+        "entropy_loss",
+        "approx_kl",
+        "clip_fraction",
+        "explained_variance",
+        "fps",
     ]
 
-    def __init__(self, record_cb: "TrainingRecordCallback", output_dir: Path,
-                 verbose: int = 0) -> None:
+    def __init__(
+        self, record_cb: "TrainingRecordCallback", output_dir: Path, verbose: int = 0
+    ) -> None:
         super().__init__(verbose=verbose)
         self.record_cb = record_cb
         self.output_dir = Path(output_dir)
@@ -232,15 +242,17 @@ class TrainingMetricsCallback(BaseCallback):
         self.metrics.append(row)
 
         # 同步到训练记录，便于与真机反馈统计合并分析
-        self.record_cb.records.append({
-            "timestep": row["timestep"],
-            "metric": True,
-            "loss": row["loss"],
-            "approx_kl": row["approx_kl"],
-            "value_loss": row["value_loss"],
-            "entropy_loss": row["entropy_loss"],
-            "ep_rew_mean": ep_rew_mean,
-        })
+        self.record_cb.records.append(
+            {
+                "timestep": row["timestep"],
+                "metric": True,
+                "loss": row["loss"],
+                "approx_kl": row["approx_kl"],
+                "value_loss": row["value_loss"],
+                "entropy_loss": row["entropy_loss"],
+                "ep_rew_mean": ep_rew_mean,
+            }
+        )
 
         with open(self.csv_path, "a", newline="", encoding="utf-8") as f:
             csv.writer(f).writerow([row[k] for k in self._FIELDS])
@@ -270,7 +282,9 @@ class TrainingMetricsCallback(BaseCallback):
         """保存指标 JSON（训练结束时调用）。"""
         path = self.output_dir / f"{prefix}_metrics_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
         with open(path, "w", encoding="utf-8") as f:
-            json.dump({"metrics": self.metrics}, f, indent=2, ensure_ascii=False, default=_json_default)
+            json.dump(
+                {"metrics": self.metrics}, f, indent=2, ensure_ascii=False, default=_json_default
+            )
         logger.info(f"[Metrics] 训练指标已保存: {path}")
         return path
 
@@ -285,18 +299,27 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="PPO 真机闭环训练")
     parser.add_argument("--mock", action="store_true", help="Mock 模式（不使用真机）")
     parser.add_argument("--machine", default="tianyan176", help="首选机器名称")
-    parser.add_argument("--timesteps", type=int, default=2000, help="总训练步数（真机模式建议 2000-5000）")
+    parser.add_argument(
+        "--timesteps", type=int, default=2000, help="总训练步数（真机模式建议 2000-5000）"
+    )
     parser.add_argument("--save-interval", type=int, default=1000, help="保存间隔步数")
     parser.add_argument("--learning-rate", type=float, default=3e-4, help="学习率")
     parser.add_argument("--n-steps", type=int, default=512, help="PPO n_steps 参数")
     parser.add_argument("--batch-size", type=int, default=64, help="PPO batch_size")
     parser.add_argument("--seed", type=int, default=42, help="随机种子")
-    parser.add_argument("--output", type=str, default=str(DEFAULT_OUTPUT_DIR),
-                        help="输出模型目录")
-    parser.add_argument("--resume", type=str, default=None,
-                        help="断点续训：指定已有模型 .zip 路径，从该检查点继续训练")
-    parser.add_argument("--real-submit-prob", type=float, default=1.0,
-                        help="量子任务真机提交概率 (1.0=每个量子任务都提交)")
+    parser.add_argument("--output", type=str, default=str(DEFAULT_OUTPUT_DIR), help="输出模型目录")
+    parser.add_argument(
+        "--resume",
+        type=str,
+        default=None,
+        help="断点续训：指定已有模型 .zip 路径，从该检查点继续训练",
+    )
+    parser.add_argument(
+        "--real-submit-prob",
+        type=float,
+        default=1.0,
+        help="量子任务真机提交概率 (1.0=每个量子任务都提交)",
+    )
     parser.add_argument("--verbose", action="store_true", help="详细日志")
     args = parser.parse_args()
 
@@ -371,14 +394,20 @@ def main() -> None:
         # max_wait_time 也无法阻止单次 HTTP 请求阻塞 60s。
         # 将 HTTP 超时降到 15s + 最多 2 次重试，应对间歇性超时。
         import types
+
         _orig_send = client.platform._send_request
 
         def _fast_send_request(
-            plat_self: Any, path: str, method: str = "GET",
-            data: Any = None, params: Any = None, raise_for_code: bool = True,
+            plat_self: Any,
+            path: str,
+            method: str = "GET",
+            data: Any = None,
+            params: Any = None,
+            raise_for_code: bool = True,
         ) -> dict[str, Any]:
             """带重试的短 HTTP 超时版 _send_request：timeout=15s + 最多 2 次重试。"""
             import requests as _requests
+
             url = f"{plat_self.SCHEME}://{plat_self.DOMAIN}{path}"
             headers = {
                 "basicToken": plat_self.access_token,
@@ -388,17 +417,21 @@ def main() -> None:
             for attempt in range(3):  # 1 次原始 + 2 次重试
                 try:
                     res = _requests.request(
-                        method.upper(), url, json=data, headers=headers,
-                        params=params, timeout=15,
+                        method.upper(),
+                        url,
+                        json=data,
+                        headers=headers,
+                        params=params,
+                        timeout=15,
                     )
                     if res.status_code != 200:
                         from cqlib import CqlibRequestError  # type: ignore[import-untyped]
-                        raise CqlibRequestError(
-                            f"Request API failed: {res.text}", res.status_code
-                        )
+
+                        raise CqlibRequestError(f"Request API failed: {res.text}", res.status_code)
                     result: dict[str, Any] = res.json()
                     if raise_for_code and result.get("code", -1) != 0:
                         from cqlib import CqlibRequestError  # type: ignore[import-untyped]
+
                         raise CqlibRequestError(
                             result.get("message", "Unknown error"), result.get("code")
                         )
@@ -407,6 +440,7 @@ def main() -> None:
                     last_error = _e
                     if attempt < 2:
                         import time as _time
+
                         _time.sleep(1.0)  # 重试前等待 1s
             raise last_error  # type: ignore[misc]
 
@@ -422,9 +456,7 @@ def main() -> None:
         def _fast_get_status(task_id: str) -> dict[str, Any]:
             """适中超时版 get_task_status：15s 内返回 running/completed/error。"""
             try:
-                result = client.platform.query_experiment(
-                    task_id, max_wait_time=15, sleep_time=2
-                )
+                result = client.platform.query_experiment(task_id, max_wait_time=15, sleep_time=2)
                 if isinstance(result, list) and len(result) > 0:
                     data = result[0]
                     if isinstance(data, dict):
@@ -456,6 +488,7 @@ def main() -> None:
                 record_real_failure,
                 _update_task_duration,
             )
+
             # 本地覆盖：更宽松的降级参数（适应真机执行慢、网络不稳）
             DEGRADE_THRESHOLD = 5
             MAX_POLL_STEPS = 30
@@ -471,9 +504,11 @@ def main() -> None:
             # 追踪调用次数，每 N 次打印进度
             self._patch_call_count = getattr(self, "_patch_call_count", 0) + 1
             if self._patch_call_count % 10 == 1:
-                print(f"  [Poll #{self._patch_call_count}] pending={len(self._pending_real_tasks)}, "
-                      f"success={self._real_success_count}, step={self._current_step}",
-                      flush=True)
+                print(
+                    f"  [Poll #{self._patch_call_count}] pending={len(self._pending_real_tasks)}, "
+                    f"success={self._real_success_count}, step={self._current_step}",
+                    flush=True,
+                )
 
             MAX_POLL_PER_STEP = 5
             total_feedback = 0.0
@@ -508,52 +543,54 @@ def main() -> None:
                 status_str = str(status.get("status", "unknown"))
 
                 if status_str == "completed":
-                    total_feedback += (
-                        REAL_MACHINE_SUCCESS_BONUS * self.real_machine_feedback_weight
-                    )
+                    total_feedback += REAL_MACHINE_SUCCESS_BONUS * self.real_machine_feedback_weight
                     self._real_success_count += 1
                     self._real_consecutive_failures = 0
                     actual_duration = status.get("execution_time_s", None)
                     _update_task_duration(self, task_id_str, actual_duration)
-                    print(f"  [真机OK] 任务 {task_id_str} 完成! "
-                          f"total_success={self._real_success_count}",
-                          flush=True)
-                    logger.info(
-                        f"[真机闭环] 任务 {task_id_str} 完成 (real_id={real_task_id})"
+                    print(
+                        f"  [真机OK] 任务 {task_id_str} 完成! "
+                        f"total_success={self._real_success_count}",
+                        flush=True,
                     )
+                    logger.info(f"[真机闭环] 任务 {task_id_str} 完成 (real_id={real_task_id})")
                 elif status_str == "error":
-                    total_feedback += (
-                        REAL_MACHINE_FAIL_PENALTY * self.real_machine_feedback_weight
-                    )
+                    total_feedback += REAL_MACHINE_FAIL_PENALTY * self.real_machine_feedback_weight
                     self._real_fail_count += 1
                     self._real_consecutive_failures += 1
                     record_real_failure(self, machine_name, "真机返回 error")
-                    print(f"  [真机FAIL] 任务 {task_id_str} 失败! "
-                          f"consecutive_failures={self._real_consecutive_failures}",
-                          flush=True)
+                    print(
+                        f"  [真机FAIL] 任务 {task_id_str} 失败! "
+                        f"consecutive_failures={self._real_consecutive_failures}",
+                        flush=True,
+                    )
                     if self._real_consecutive_failures >= DEGRADE_THRESHOLD:
                         self._real_machine_degraded = True
                         logger.warning(
                             f"[真机闭环] 连续失败 {self._real_consecutive_failures} 次，"
                             f"自动降级为仿真模式"
                         )
-                        print(f"  [降级] 连续失败 {self._real_consecutive_failures} 次，已降级为仿真模式",
-                              flush=True)
+                        print(
+                            f"  [降级] 连续失败 {self._real_consecutive_failures} 次，已降级为仿真模式",
+                            flush=True,
+                        )
                 elif pending["poll_count"] >= MAX_POLL_STEPS:
                     # 轮询超时：视为失败
-                    total_feedback += (
-                        REAL_MACHINE_FAIL_PENALTY * self.real_machine_feedback_weight
-                    )
+                    total_feedback += REAL_MACHINE_FAIL_PENALTY * self.real_machine_feedback_weight
                     self._real_fail_count += 1
                     self._real_consecutive_failures += 1
                     record_real_failure(self, machine_name, "轮询超时")
-                    print(f"  [超时] 任务 {task_id_str} 轮询超时 "
-                          f"(poll_count={pending['poll_count']})",
-                          flush=True)
+                    print(
+                        f"  [超时] 任务 {task_id_str} 轮询超时 "
+                        f"(poll_count={pending['poll_count']})",
+                        flush=True,
+                    )
                     if self._real_consecutive_failures >= DEGRADE_THRESHOLD:
                         self._real_machine_degraded = True
-                        print(f"  [降级] 连续失败 {self._real_consecutive_failures} 次，已降级为仿真模式",
-                              flush=True)
+                        print(
+                            f"  [降级] 连续失败 {self._real_consecutive_failures} 次，已降级为仿真模式",
+                            flush=True,
+                        )
                 else:
                     # running/unknown: 保留在 pending
                     still_pending.append(pending)
@@ -569,6 +606,7 @@ def main() -> None:
     else:
         # Mock 模式：使用模拟环境，不绑定真机
         from smoke_test import MockSmokeClient  # type: ignore[import-not-found]
+
         client = MockSmokeClient(machine_name=args.machine, mock_delay=0.01)
         env.attach_real_clients({args.machine: client})
         print("[Setup] Mock 客户端已绑定")
@@ -594,9 +632,7 @@ def main() -> None:
     # ── 步骤 4: 开始训练 ──
     print("\n--- [4/5] 开始训练 ---")
     record_cb = TrainingRecordCallback(output_dir)
-    metrics_cb = TrainingMetricsCallback(
-        record_cb, output_dir, verbose=1 if args.verbose else 0
-    )
+    metrics_cb = TrainingMetricsCallback(record_cb, output_dir, verbose=1 if args.verbose else 0)
 
     t0 = time.perf_counter()
 

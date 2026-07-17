@@ -432,6 +432,7 @@ class TestTianyanClientDetectAndConfig(unittest.TestCase):
         url = TianyanClient._load_base_url_from_config("config/config.yaml")
         self.assertEqual(url, "https://api.tianyanyun.cn/v1")
 
+
 class TestTianyanClientMockDelegation(unittest.TestCase):
     """测试 TianyanClient 在 Mock 模式下对各方法的委托。"""
 
@@ -1156,7 +1157,9 @@ class TestTianyanClientCircuitBreaker(unittest.TestCase):
         env = _env_without("TIANYAN_API_KEY", "TIANYAN_MOCK_MODE")
         env["TIANYAN_MACHINE"] = "tianyan_s"
         with patch.dict(os.environ, env, clear=True), patch("src.api.tianyan_client.load_dotenv"):
-            client = TianyanClient(api_key="fake-key", mock_mode=False, enable_circuit_breaker=False)
+            client = TianyanClient(
+                api_key="fake-key", mock_mode=False, enable_circuit_breaker=False
+            )
         client._cqlib = MagicMock()
         client._cqlib.get_task_status.side_effect = RuntimeError("cqlib 网络异常")
 
@@ -1733,7 +1736,9 @@ class TestAdaptiveBackoff(unittest.TestCase):
         env = _env_without("TIANYAN_API_KEY", "TIANYAN_MOCK_MODE")
         env["TIANYAN_MACHINE"] = "tianyan_s"
         with patch.dict(os.environ, env, clear=True), patch("src.api.tianyan_client.load_dotenv"):
-            client = TianyanClient(api_key="fake-key", mock_mode=False, max_retries=3, retry_delay=0.01)
+            client = TianyanClient(
+                api_key="fake-key", mock_mode=False, max_retries=3, retry_delay=0.01
+            )
         client._cqlib = MagicMock()
         call_count = {"n": 0}
 
@@ -1754,7 +1759,9 @@ class TestAdaptiveBackoff(unittest.TestCase):
         env = _env_without("TIANYAN_API_KEY", "TIANYAN_MOCK_MODE")
         env["TIANYAN_MACHINE"] = "tianyan_s"
         with patch.dict(os.environ, env, clear=True), patch("src.api.tianyan_client.load_dotenv"):
-            client = TianyanClient(api_key="fake-key", mock_mode=False, max_retries=1, retry_delay=0.01)
+            client = TianyanClient(
+                api_key="fake-key", mock_mode=False, max_retries=1, retry_delay=0.01
+            )
         client._cqlib = MagicMock()
         client._cqlib.list_backends.side_effect = TianyanAPIError(
             status_code=429, message="Too Many Requests"
@@ -1771,7 +1778,9 @@ class TestAdaptiveBackoff(unittest.TestCase):
         env = _env_without("TIANYAN_API_KEY", "TIANYAN_MOCK_MODE")
         env["TIANYAN_MACHINE"] = "tianyan_s"
         with patch.dict(os.environ, env, clear=True), patch("src.api.tianyan_client.load_dotenv"):
-            client = TianyanClient(api_key="fake-key", mock_mode=False, max_retries=0, retry_delay=0.01)
+            client = TianyanClient(
+                api_key="fake-key", mock_mode=False, max_retries=0, retry_delay=0.01
+            )
         client._cqlib = MagicMock()
         client._cqlib.get_backend_info.side_effect = TianyanAPIError(
             status_code=429, message="Too Many Requests"
@@ -1786,7 +1795,9 @@ class TestAdaptiveBackoff(unittest.TestCase):
         env = _env_without("TIANYAN_API_KEY", "TIANYAN_MOCK_MODE")
         env["TIANYAN_MACHINE"] = "tianyan_s"
         with patch.dict(os.environ, env, clear=True), patch("src.api.tianyan_client.load_dotenv"):
-            client = TianyanClient(api_key="fake-key", mock_mode=False, max_retries=2, retry_delay=0.05)
+            client = TianyanClient(
+                api_key="fake-key", mock_mode=False, max_retries=2, retry_delay=0.05
+            )
         client._cqlib = MagicMock()
         call_count = {"n": 0}
 
@@ -1809,7 +1820,9 @@ class TestAdaptiveBackoff(unittest.TestCase):
         env = _env_without("TIANYAN_API_KEY", "TIANYAN_MOCK_MODE")
         env["TIANYAN_MACHINE"] = "tianyan_s"
         with patch.dict(os.environ, env, clear=True), patch("src.api.tianyan_client.load_dotenv"):
-            client = TianyanClient(api_key="fake-key", mock_mode=False, max_retries=1, retry_delay=0.01)
+            client = TianyanClient(
+                api_key="fake-key", mock_mode=False, max_retries=1, retry_delay=0.01
+            )
         client._cqlib = MagicMock()
         client._cqlib.get_queue_status.side_effect = RateLimitError("限流", retry_after=5.0)
         with (
@@ -1919,7 +1932,9 @@ class TestComprehensiveApiClient(unittest.TestCase):
         env = _env_without("TIANYAN_API_KEY", "TIANYAN_MOCK_MODE")
         env["TIANYAN_MACHINE"] = "tianyan_s"
         with patch.dict(os.environ, env, clear=True), patch("src.api.tianyan_client.load_dotenv"):
-            self.client = TianyanClient(api_key="fake-key", mock_mode=False, max_retries=1, retry_delay=0.01)
+            self.client = TianyanClient(
+                api_key="fake-key", mock_mode=False, max_retries=1, retry_delay=0.01
+            )
         self.client._cqlib = MagicMock()
 
     # -- submit_quantum_task 综合测试 --

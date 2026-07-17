@@ -171,8 +171,10 @@ def train_one_model(
         "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
     }
     print(f"\n[{label}] 训练完成: 耗时={elapsed:.1f}s 真机提交={real_submits_total}")
-    print(f"  真机成功={stats['real_success_count']} 失败={stats['real_fail_count']}"
-          f" 降级={stats['real_degraded']}")
+    print(
+        f"  真机成功={stats['real_success_count']} 失败={stats['real_fail_count']}"
+        f" 降级={stats['real_degraded']}"
+    )
     return stats
 
 
@@ -230,8 +232,10 @@ def evaluate_model(
             done = terminated or truncated
         rewards.append(total_reward)
         if (ep + 1) % max(1, episodes // 5) == 0:
-            print(f"  [{os.path.basename(model_path)}] episode {ep+1}/{episodes}"
-                  f" reward={total_reward:.1f}")
+            print(
+                f"  [{os.path.basename(model_path)}] episode {ep+1}/{episodes}"
+                f" reward={total_reward:.1f}"
+            )
 
     return {
         "mean_reward": float(np.mean(rewards)),
@@ -302,8 +306,10 @@ def generate_comparison_report(
         f"| 奖励标准差 | {sim_eval.get('std_reward', 0.0):.2f} | "
         f"{real_eval.get('std_reward', 0.0):.2f} | — |"
     )
-    lines.append(f"| 评估 episode 数 | {sim_eval.get('episodes', 0)} | "
-                 f"{real_eval.get('episodes', 0)} | — |")
+    lines.append(
+        f"| 评估 episode 数 | {sim_eval.get('episodes', 0)} | "
+        f"{real_eval.get('episodes', 0)} | — |"
+    )
 
     # 收敛速度对比（基于训练耗时）
     if sim_stats["elapsed_s"] > 0 and real_stats["elapsed_s"] > 0:
@@ -318,28 +324,25 @@ def generate_comparison_report(
     lines.append("## 四、结论")
     lines.append("")
     if real_stats["real_submits_total"] > 0:
-        success_rate = (
-            real_stats["real_success_count"] / max(1, real_stats["real_submits_total"])
-        )
+        success_rate = real_stats["real_success_count"] / max(1, real_stats["real_submits_total"])
         lines.append(
             f"- 真机闭环已启用：共提交 {real_stats['real_submits_total']} 个任务，"
             f"成功率 {success_rate:.1%}"
         )
         if real_stats["real_degraded"]:
-            lines.append(
-                "- ⚠️ 真机已降级到 Mock（连续失败超过阈值），建议检查 API Key 或机器状态"
-            )
+            lines.append("- ⚠️ 真机已降级到 Mock（连续失败超过阈值），建议检查 API Key 或机器状态")
         else:
             lines.append("- ✅ 真机未降级，闭环运行稳定")
     else:
         lines.append("- 真机未启用或未成功提交任何任务（纯仿真模式）")
 
     if delta > 0:
-        lines.append(f"- 真机混合训练模型奖励提升 {delta:.2f}，"
-                     f"真机反馈对策略学习有正向作用")
+        lines.append(f"- 真机混合训练模型奖励提升 {delta:.2f}，" f"真机反馈对策略学习有正向作用")
     elif delta < 0:
-        lines.append(f"- 真机混合训练模型奖励下降 {abs(delta):.2f}，"
-                     f"可能是真机延迟导致训练样本减少或真机失败惩罚影响")
+        lines.append(
+            f"- 真机混合训练模型奖励下降 {abs(delta):.2f}，"
+            f"可能是真机延迟导致训练样本减少或真机失败惩罚影响"
+        )
     else:
         lines.append("- 两种训练模式奖励无显著差异")
 
@@ -362,12 +365,8 @@ def generate_comparison_report(
 def main() -> None:
     """真机闭环训练主入口。"""
     parser = argparse.ArgumentParser(description="PPO 真机闭环训练（Issue #64）")
-    parser.add_argument(
-        "--timesteps", type=int, default=5000, help="总训练步数（默认 5000）"
-    )
-    parser.add_argument(
-        "--episodes", type=int, default=5, help="评估 episode 数（默认 5）"
-    )
+    parser.add_argument("--timesteps", type=int, default=5000, help="总训练步数（默认 5000）")
+    parser.add_argument("--episodes", type=int, default=5, help="评估 episode 数（默认 5）")
     parser.add_argument(
         "--real-prob", type=float, default=0.05, help="真机提交抽样概率（默认 0.05）"
     )
@@ -378,9 +377,7 @@ def main() -> None:
         help="真机回调触发间隔步数（默认 1000）",
     )
     parser.add_argument("--seed", type=int, default=42, help="随机种子")
-    parser.add_argument(
-        "--save-dir", type=str, default="models/", help="模型保存目录"
-    )
+    parser.add_argument("--save-dir", type=str, default="models/", help="模型保存目录")
     parser.add_argument(
         "--report-only",
         action="store_true",
@@ -421,21 +418,33 @@ def main() -> None:
         if not args.sim_model or not args.real_model:
             print("[错误] --report-only 模式需要同时提供 --sim-model 和 --real-model")
             sys.exit(1)
-        sim_stats = {"timesteps": 0, "elapsed_s": 0.0, "real_submits_total": 0,
-                     "real_success_count": 0, "real_fail_count": 0,
-                     "real_degraded": False, "real_submit_probability": 0.0}
-        real_stats = {"timesteps": 0, "elapsed_s": 0.0, "real_submits_total": 0,
-                      "real_success_count": 0, "real_fail_count": 0,
-                      "real_degraded": False, "real_submit_probability": args.real_prob}
+        sim_stats = {
+            "timesteps": 0,
+            "elapsed_s": 0.0,
+            "real_submits_total": 0,
+            "real_success_count": 0,
+            "real_fail_count": 0,
+            "real_degraded": False,
+            "real_submit_probability": 0.0,
+        }
+        real_stats = {
+            "timesteps": 0,
+            "elapsed_s": 0.0,
+            "real_submits_total": 0,
+            "real_success_count": 0,
+            "real_fail_count": 0,
+            "real_degraded": False,
+            "real_submit_probability": args.real_prob,
+        }
         print("\n[评估] 纯仿真模型...")
-        sim_eval = evaluate_model(args.sim_model, args.episodes, real_clients=None,
-                                  real_prob=0.0, seed=args.seed)
-        print("\n[评估] 真机混合模型...")
-        real_eval = evaluate_model(args.real_model, args.episodes, real_clients=None,
-                                   real_prob=0.0, seed=args.seed)
-        report = generate_comparison_report(
-            sim_stats, real_stats, sim_eval, real_eval, args.output
+        sim_eval = evaluate_model(
+            args.sim_model, args.episodes, real_clients=None, real_prob=0.0, seed=args.seed
         )
+        print("\n[评估] 真机混合模型...")
+        real_eval = evaluate_model(
+            args.real_model, args.episodes, real_clients=None, real_prob=0.0, seed=args.seed
+        )
+        report = generate_comparison_report(sim_stats, real_stats, sim_eval, real_eval, args.output)
         print(f"\n✅ 报告已保存: {args.output}")
         print("\n报告预览:")
         print(report[:800])
@@ -470,32 +479,37 @@ def main() -> None:
     print(f"{'=' *60}")
     print("\n[评估] 纯仿真模型...")
     sim_eval = evaluate_model(
-        sim_stats["model_path"], args.episodes, real_clients=None,
-        real_prob=0.0, seed=args.seed + 1000,
+        sim_stats["model_path"],
+        args.episodes,
+        real_clients=None,
+        real_prob=0.0,
+        seed=args.seed + 1000,
     )
-    print(f"  纯仿真平均 reward: {sim_eval['mean_reward']:.2f}"
-          f" ± {sim_eval['std_reward']:.2f}")
+    print(f"  纯仿真平均 reward: {sim_eval['mean_reward']:.2f}" f" ± {sim_eval['std_reward']:.2f}")
 
     print("\n[评估] 真机混合模型...")
     real_eval = evaluate_model(
-        real_stats["model_path"], args.episodes, real_clients=None,
-        real_prob=0.0, seed=args.seed + 1000,
+        real_stats["model_path"],
+        args.episodes,
+        real_clients=None,
+        real_prob=0.0,
+        seed=args.seed + 1000,
     )
-    print(f"  真机混合平均 reward: {real_eval['mean_reward']:.2f}"
-          f" ± {real_eval['std_reward']:.2f}")
+    print(
+        f"  真机混合平均 reward: {real_eval['mean_reward']:.2f}" f" ± {real_eval['std_reward']:.2f}"
+    )
 
     # 4. 生成对比报告
-    report = generate_comparison_report(
-        sim_stats, real_stats, sim_eval, real_eval, args.output
-    )
+    report = generate_comparison_report(sim_stats, real_stats, sim_eval, real_eval, args.output)
 
     # 5. 保存训练统计 JSON
     stats_json_path = args.output.replace(".md", "_stats.json")
     with open(stats_json_path, "w", encoding="utf-8") as f:
         json.dump(
-            {"sim": sim_stats, "real": real_stats,
-             "sim_eval": sim_eval, "real_eval": real_eval},
-            f, ensure_ascii=False, indent=2,
+            {"sim": sim_stats, "real": real_stats, "sim_eval": sim_eval, "real_eval": real_eval},
+            f,
+            ensure_ascii=False,
+            indent=2,
         )
 
     print(f"\n{'=' *60}")

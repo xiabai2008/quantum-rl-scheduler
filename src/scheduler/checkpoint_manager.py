@@ -144,9 +144,7 @@ class CheckpointManager:
         short_id = uuid.uuid4().hex[:6]
         return f"v{timestamp}_{short_id}"
 
-    def _find(
-        self, checkpoints: list[CheckpointMeta], version: str
-    ) -> CheckpointMeta | None:
+    def _find(self, checkpoints: list[CheckpointMeta], version: str) -> CheckpointMeta | None:
         """在给定列表中按版本号查找检查点。
 
         Args:
@@ -184,11 +182,7 @@ class CheckpointManager:
         if not isinstance(data, list):
             logger.warning("[CheckpointManager] 元数据文件顶层非列表，返回空列表")
             return []
-        return [
-            CheckpointMeta.from_dict(item)
-            for item in data
-            if isinstance(item, dict)
-        ]
+        return [CheckpointMeta.from_dict(item) for item in data if isinstance(item, dict)]
 
     def save_meta(self, checkpoints: list[CheckpointMeta]) -> None:
         """将检查点列表持久化到元数据 JSON 文件。
@@ -296,13 +290,9 @@ class CheckpointManager:
             ValueError: ``sort_by`` 不在支持字段中。
         """
         if sort_by not in self._SORT_FIELDS:
-            raise ValueError(
-                f"不支持的排序字段: {sort_by}，支持: {sorted(self._SORT_FIELDS)}"
-            )
+            raise ValueError(f"不支持的排序字段: {sort_by}，支持: {sorted(self._SORT_FIELDS)}")
         checkpoints = self.load_meta()
-        return sorted(
-            checkpoints, key=lambda cp: getattr(cp, sort_by), reverse=descending
-        )
+        return sorted(checkpoints, key=lambda cp: getattr(cp, sort_by), reverse=descending)
 
     def get_best(self, metric: str = "mean_reward") -> CheckpointMeta | None:
         """获取指定指标最优的检查点。
@@ -321,9 +311,7 @@ class CheckpointManager:
             ValueError: ``metric`` 不在支持指标中。
         """
         if metric not in self._BEST_METRICS:
-            raise ValueError(
-                f"不支持的指标: {metric}，支持: {sorted(self._BEST_METRICS)}"
-            )
+            raise ValueError(f"不支持的指标: {metric}，支持: {sorted(self._BEST_METRICS)}")
         checkpoints = self.load_meta()
         if not checkpoints:
             return None
@@ -403,9 +391,7 @@ class CheckpointManager:
                 os.remove(target.path)
                 logger.info(f"[CheckpointManager] 删除检查点文件: {target.path}")
             except OSError as e:
-                logger.warning(
-                    f"[CheckpointManager] 删除检查点文件失败 {target.path}: {e}"
-                )
+                logger.warning(f"[CheckpointManager] 删除检查点文件失败 {target.path}: {e}")
 
         survivors = [cp for cp in checkpoints if cp.version != version]
         self.save_meta(survivors)
@@ -467,18 +453,14 @@ class CheckpointManager:
             被清理的版本号列表。
         """
         checkpoints = self.load_meta()
-        orphan_versions = {
-            cp.version for cp in checkpoints if not os.path.exists(cp.path)
-        }
+        orphan_versions = {cp.version for cp in checkpoints if not os.path.exists(cp.path)}
         if not orphan_versions:
             logger.debug("[CheckpointManager] 无孤立条目")
             return []
         survivors = [cp for cp in checkpoints if cp.version not in orphan_versions]
         self.save_meta(survivors)
         result = sorted(orphan_versions)
-        logger.info(
-            f"[CheckpointManager] 清理 {len(result)} 个孤立检查点: {result}"
-        )
+        logger.info(f"[CheckpointManager] 清理 {len(result)} 个孤立检查点: {result}")
         return result
 
 
