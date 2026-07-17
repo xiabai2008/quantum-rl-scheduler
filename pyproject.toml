@@ -247,19 +247,23 @@ insert_final_newline = true
 # mutmut 配置 — Mutation Testing
 # =============================================================================
 [tool.mutmut]
-# Mutation Testing 配置 — 使用 mutmut 评估测试质量
-# 仅对核心模块进行变异测试，避免过长的 CI 运行时间
-paths_to_mutate = [
-    "src/scheduler/env.py",
-    "src/scheduler/parser.py",
-    "src/api/circuit_breaker.py",
-    "src/utils/helpers.py",
+# 变异测试配置（mutmut 3.6.0）
+# 重要：mutmut 3.x 的 trampoline 机制禁止模块名以 "src." 开头（assert not name.startswith("src.")），
+# 而本项目用 src-layout（from src.utils.seeds import ...），直接跑会崩溃。
+# 跑变异测试前需临时将对应测试的 import 从 `from src.X import` 改为 `from X import`
+# （并 sys.path.insert 指向 src 子目录，使模块名变为 utils.X / scheduler.X / api.X），跑完 `git checkout` 恢复。
+# 单模块逐跑：每次只保留一个 source_path + 对应的 pytest_add_cli_args_test_selection 最稳。
+source_paths = [
     "src/utils/seeds.py",
+    "src/utils/helpers.py",
+    "src/scheduler/parser.py",
 ]
-# 测试命令
-tests_dir = "tests/"
-# 运行测试的命令（仅运行相关测试以加速）
-runner_command = "python -m pytest tests/test_scheduler.py tests/test_parser.py tests/test_api.py tests/test_helpers.py tests/test_seeds.py -x -q --timeout=30"
+# 测试选择：只收集/运行这些测试文件（mutmut 3.x 用 pytest_add_cli_args_test_selection，runner_command 已废弃）
+pytest_add_cli_args_test_selection = [
+    "tests/test_seeds.py",
+    "tests/test_helpers.py",
+    "tests/test_parser.py",
+]
 # 并行工作进程数
 workers = 4
 # 排除的变异类型（避免不实用的变异）
