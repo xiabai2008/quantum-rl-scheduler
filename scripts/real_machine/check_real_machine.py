@@ -45,7 +45,11 @@ def main():
     if real_machine_dir.exists():
         for py_file in real_machine_dir.glob("*.py"):
             content = py_file.read_text(encoding="utf-8")
-            if "MockTianyanClient" in content or "create_tianyan_client" in content or "TIANYAN_MOCK_MODE" in content:
+            if (
+                "MockTianyanClient" in content
+                or "create_tianyan_client" in content
+                or "TIANYAN_MOCK_MODE" in content
+            ):
                 print(f"  [WARN] {py_file.name} 包含可能的 Mock 相关代码/环境变量")
                 has_mock_import = True
     else:
@@ -58,6 +62,7 @@ def main():
     print("\n[3/5] 实际提交真机任务验证（H Q0 + M Q0，shots=128）")
     try:
         import cqlib
+
         from src.api.tianyan_cqlib import CqlibTianyanClient
 
         client = CqlibTianyanClient(

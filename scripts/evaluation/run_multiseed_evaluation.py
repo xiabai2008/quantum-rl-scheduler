@@ -26,17 +26,17 @@ if str(_PROJECT_ROOT) not in sys.path:
 # 复用 run_issue_38_67_experiments.py 的基础设施
 sys.path.insert(0, str(_PROJECT_ROOT / "scripts" / "evaluation"))
 from run_issue_38_67_experiments import (  # noqa: E402
+    ClassicalOnlyStrategy,
+    DQNModelStrategy,
+    FCFSStrategy,
+    GreedyStrategy,
     Obs10Wrapper,
+    PPOStrategy,
+    QuantumOnlyStrategy,
+    RandomStrategy,
+    ShortestJobFirstStrategy,
     SimulationEnv,
     SimulationTaskGenerator,
-    FCFSStrategy,
-    RandomStrategy,
-    QuantumOnlyStrategy,
-    ClassicalOnlyStrategy,
-    GreedyStrategy,
-    ShortestJobFirstStrategy,
-    PPOStrategy,
-    DQNModelStrategy,
     build_strategies,
     make_env,
 )
@@ -128,8 +128,10 @@ def run_multiseed(
             imp = (ppo_mean - fcfs_mean) / abs(fcfs_mean) * 100
         else:
             imp = 0
-        print(f"  完成 ({seed_elapsed:.1f}s) | PPO={ppo_mean:.1f}, FCFS={fcfs_mean:.1f}, "
-              f"Δ={imp:+.1f}%")
+        print(
+            f"  完成 ({seed_elapsed:.1f}s) | PPO={ppo_mean:.1f}, FCFS={fcfs_mean:.1f}, "
+            f"Δ={imp:+.1f}%"
+        )
 
     total_elapsed = time.time() - start_time
     n_total = seeds * episodes_per_seed
@@ -174,7 +176,9 @@ def run_multiseed(
     print("\n" + "=" * 70)
     print("  多 Seed 汇总统计（按平均奖励降序）")
     print("=" * 70)
-    print(f"  {'策略':<16} {'平均奖励':>10} {'标准差':>10} {'StdErr':>8} {'最小':>10} {'最大':>10} {'N':>6}")
+    print(
+        f"  {'策略':<16} {'平均奖励':>10} {'标准差':>10} {'StdErr':>8} {'最小':>10} {'最大':>10} {'N':>6}"
+    )
     print("  " + "-" * 70)
 
     sorted_strategies = sorted(
@@ -188,8 +192,10 @@ def run_multiseed(
         m = np.mean(rewards)
         s = np.std(rewards, ddof=1) if n > 1 else 0
         se = s / np.sqrt(n) if n > 0 else 0
-        print(f"  {sname:<16} {m:>10.2f} {s:>10.2f} {se:>8.2f} "
-              f"{np.min(rewards):>10.2f} {np.max(rewards):>10.2f} {n:>6}")
+        print(
+            f"  {sname:<16} {m:>10.2f} {s:>10.2f} {se:>8.2f} "
+            f"{np.min(rewards):>10.2f} {np.max(rewards):>10.2f} {n:>6}"
+        )
 
     ppo_rewards = all_episode_rewards.get("PPO", [])
     fcfs_rewards = all_episode_rewards.get("FCFS", [])
@@ -198,19 +204,23 @@ def run_multiseed(
     fcfs_std = np.std(fcfs_rewards, ddof=1) if len(fcfs_rewards) > 1 else 0
     improvement = (ppo_mean - fcfs_mean) / abs(fcfs_mean) * 100 if fcfs_mean != 0 else 0
 
-    print(f"\n  核心结论：PPO={ppo_mean:.2f}±{np.std(ppo_rewards,ddof=1)/np.sqrt(len(ppo_rewards)):.2f} "
-          f"vs FCFS={fcfs_mean:.2f}±{fcfs_std/np.sqrt(len(fcfs_rewards)):.2f}，"
-          f"提升 {improvement:+.1f}%（N={n_total}）")
+    print(
+        f"\n  核心结论：PPO={ppo_mean:.2f}±{np.std(ppo_rewards,ddof=1)/np.sqrt(len(ppo_rewards)):.2f} "
+        f"vs FCFS={fcfs_mean:.2f}±{fcfs_std/np.sqrt(len(fcfs_rewards)):.2f}，"
+        f"提升 {improvement:+.1f}%（N={n_total}）"
+    )
 
     # -----------------------------------------------------------------------
     # 统计显著性检验
     # -----------------------------------------------------------------------
     print("\n[统计] 运行显著性检验...")
     from src.utils.stats_significance import compare_strategies
+
     sig_results = compare_strategies(all_episode_rewards, alpha=alpha)
 
     # 生成 Markdown 报告
     from scripts.evaluation.statistical_significance import _generate_markdown_report
+
     base_report = _generate_markdown_report(all_episode_rewards, sig_results, alpha, canonical_path)
 
     # 构建权威数字摘要头部
@@ -235,20 +245,22 @@ def run_multiseed(
         s = np.std(rewards, ddof=1) if n > 1 else 0
         se = s / np.sqrt(n) if n > 0 else 0
         if sname != "FCFS" and fcfs_mean != 0:
-            imp = ((m - fcfs_mean) / abs(fcfs_mean) * 100)
+            imp = (m - fcfs_mean) / abs(fcfs_mean) * 100
             imp_str = f"{imp:+.1f}%"
         else:
             imp_str = "基线"
         header_lines.append(f"| {rank} | {sname} | {m:.2f} | {s:.2f} | {se:.2f} | {imp_str} |")
 
-    header_lines.extend([
-        "",
-        f"**核心结论：PPO 平均奖励 {ppo_mean:.2f} vs FCFS {fcfs_mean:.2f}，提升 {improvement:+.1f}%**",
-        f"（N={n_total} 次独立episode，α={alpha}，Bonferroni多重比较校正）",
-        "",
-        "---",
-        "",
-    ])
+    header_lines.extend(
+        [
+            "",
+            f"**核心结论：PPO 平均奖励 {ppo_mean:.2f} vs FCFS {fcfs_mean:.2f}，提升 {improvement:+.1f}%**",
+            f"（N={n_total} 次独立episode，α={alpha}，Bonferroni多重比较校正）",
+            "",
+            "---",
+            "",
+        ]
+    )
 
     # 插入到报告中
     report_lines = base_report.split("\n")
@@ -263,7 +275,7 @@ def run_multiseed(
     final_report = final_report.replace(
         "# 策略对比统计显著性检验报告",
         "# 统计显著性检验报告（多Seed验证）\n\n"
-        f"> 本报告为提交清单 `EXP_STAT` 必需文件，使用 {n_total} 次独立episode验证PPO相对于基线策略的统计显著性。"
+        f"> 本报告为提交清单 `EXP_STAT` 必需文件，使用 {n_total} 次独立episode验证PPO相对于基线策略的统计显著性。",
     )
 
     # 写报告
@@ -284,15 +296,19 @@ def run_multiseed(
     print()
     for pair, info in sig_results.items():
         sig_mark = "✅" if info["significant"] else "❌"
-        print(f"  {sig_mark} {pair}: {info['test']}, p={info['p_value']:.4g}, "
-              f"{info['effect_size_type']}={info['effect_size']:.4f}")
+        print(
+            f"  {sig_mark} {pair}: {info['test']}, p={info['p_value']:.4g}, "
+            f"{info['effect_size_type']}={info['effect_size']:.4f}"
+        )
 
     # PPO vs FCFS 详情
     for pair, info in sig_results.items():
         if "PPO" in pair and "FCFS" in pair:
-            print(f"\n  >>> PPO vs FCFS: p={info['p_value']:.4g}, "
-                  f"显著={'是' if info['significant'] else '否'}, "
-                  f"{info['interpretation'][:80]}...")
+            print(
+                f"\n  >>> PPO vs FCFS: p={info['p_value']:.4g}, "
+                f"显著={'是' if info['significant'] else '否'}, "
+                f"{info['interpretation'][:80]}..."
+            )
 
     print("=" * 70)
     print(f"\n完成！权威数字：PPO={ppo_mean:.2f} vs FCFS={fcfs_mean:.2f}，提升 {improvement:+.1f}%")
@@ -309,12 +325,17 @@ def run_multiseed(
 
 def main():
     import argparse
+
     parser = argparse.ArgumentParser(description="多Seed策略对比统计显著性检验")
     parser.add_argument("--seeds", type=int, default=10, help="随机种子数量（默认10）")
     parser.add_argument("--episodes", type=int, default=5, help="每个seed的episode数（默认5）")
-    parser.add_argument("--tasks-per-episode", type=int, default=200, help="每episode最大步数（默认200）")
+    parser.add_argument(
+        "--tasks-per-episode", type=int, default=200, help="每episode最大步数（默认200）"
+    )
     parser.add_argument("--ppo-model", type=str, default="models/ppo_seed_42_v4/best_model.zip")
-    parser.add_argument("--dqn-model", type=str, default="models/dqn_fair_v2/seed_42/best_model.zip")
+    parser.add_argument(
+        "--dqn-model", type=str, default="models/dqn_fair_v2/seed_42/best_model.zip"
+    )
     parser.add_argument("--alpha", type=float, default=0.05, help="显著性水平")
     args = parser.parse_args()
 

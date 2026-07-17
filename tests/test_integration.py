@@ -31,12 +31,8 @@ from src.scheduler.env import (
     OBS_DIM,
     QuantumSchedulingEnv,
 )
-from src.scheduler.env import (
-    Task as EnvTask,
-)
-from src.scheduler.parser import (
-    Task as ParserTask,
-)
+from src.scheduler.env import Task as EnvTask
+from src.scheduler.parser import Task as ParserTask
 from src.scheduler.parser import (
     TaskParser,
 )

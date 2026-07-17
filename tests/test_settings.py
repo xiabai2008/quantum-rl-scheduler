@@ -67,9 +67,7 @@ class TestEnvVarsMixin:
     """
 
     def _snapshot_env(self) -> None:
-        self._saved_env: dict[str, str | None] = {
-            k: os.environ.get(k) for k in _ENV_VARS
-        }
+        self._saved_env: dict[str, str | None] = {k: os.environ.get(k) for k in _ENV_VARS}
         # 清空所有受管环境变量，确保测试起点干净
         for k in _ENV_VARS:
             os.environ.pop(k, None)
@@ -240,7 +238,7 @@ class TestEnvFileOverride(unittest.TestCase, TestEnvVarsMixin):
             self.assertEqual(s.algorithm, "MAPPO")
 
     def test_env_file_skips_comments_and_blanks(self):
-        """ .env 文件应跳过注释行与空行。"""
+        """.env 文件应跳过注释行与空行。"""
         with tempfile.TemporaryDirectory() as tmp:
             env = os.path.join(tmp, ".env")
             _write_env(
@@ -253,20 +251,19 @@ class TestEnvFileOverride(unittest.TestCase, TestEnvVarsMixin):
             self.assertNotIn("# 这是注释", parsed)
 
     def test_env_file_strips_quotes(self):
-        """ .env 文件值两端的引号应被剥离。"""
+        """.env 文件值两端的引号应被剥离。"""
         with tempfile.TemporaryDirectory() as tmp:
             env = os.path.join(tmp, ".env")
             _write_env(
                 env,
-                'TIANYAN_API_KEY="quoted_key"\n'
-                "TIANYAN_API_TOKEN='single_quoted'\n",
+                'TIANYAN_API_KEY="quoted_key"\n' "TIANYAN_API_TOKEN='single_quoted'\n",
             )
             parsed = _parse_env_file(env)
             self.assertEqual(parsed.get("TIANYAN_API_KEY"), "quoted_key")
             self.assertEqual(parsed.get("TIANYAN_API_TOKEN"), "single_quoted")
 
     def test_missing_env_file_returns_empty(self):
-        """ .env 文件不存在时 _parse_env_file 返回空字典。"""
+        """.env 文件不存在时 _parse_env_file 返回空字典。"""
         result = _parse_env_file("/nonexistent/path/.env")
         self.assertEqual(result, {})
 
@@ -335,7 +332,7 @@ class TestVarExpansion(unittest.TestCase, TestEnvVarsMixin):
             self.assertEqual(s.api_key, "expanded_secret")
 
     def test_env_file_var_expansion(self):
-        """ .env 文件中的 ${VAR} 应使用 os.environ 展开。"""
+        """.env 文件中的 ${VAR} 应使用 os.environ 展开。"""
         os.environ["MY_TEST_BASE"] = "prod"
         with tempfile.TemporaryDirectory() as tmp:
             env = os.path.join(tmp, ".env")
@@ -373,11 +370,20 @@ class TestFieldIntegrity(unittest.TestCase, TestEnvVarsMixin):
     def test_all_expected_fields_present(self):
         """Settings 应包含全部预期字段。"""
         expected = {
-            "api_key", "api_token", "api_timeout", "api_retries",
-            "max_qubits", "max_steps", "algorithm",
-            "annealing_enabled", "quantum_shots",
-            "log_level", "log_format", "log_dir",
-            "viz_api_key", "viz_port",
+            "api_key",
+            "api_token",
+            "api_timeout",
+            "api_retries",
+            "max_qubits",
+            "max_steps",
+            "algorithm",
+            "annealing_enabled",
+            "quantum_shots",
+            "log_level",
+            "log_format",
+            "log_dir",
+            "viz_api_key",
+            "viz_port",
         }
         actual = {f.name for f in __import__("dataclasses").fields(Settings)}
         self.assertEqual(actual, expected)

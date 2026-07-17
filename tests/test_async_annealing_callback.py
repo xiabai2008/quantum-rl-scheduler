@@ -208,10 +208,13 @@ class TestAsyncAnnealingCallbackOnStep(unittest.TestCase):
             n_calls=100,
         )
         cb._next_trigger_step = 100
-        with patch(
-            "src.scheduler.async_annealing_callback.copy.deepcopy",
-            side_effect=TypeError("type error"),
-        ), patch("src.scheduler.async_annealing_callback.logger") as mock_logger:
+        with (
+            patch(
+                "src.scheduler.async_annealing_callback.copy.deepcopy",
+                side_effect=TypeError("type error"),
+            ),
+            patch("src.scheduler.async_annealing_callback.logger") as mock_logger,
+        ):
             cb._on_step()
         mock_logger.error.assert_called_once()
         # 日志应包含异常类型名
@@ -259,9 +262,7 @@ class TestAsyncAnnealingCallbackRolloutStart(unittest.TestCase):
             model=mock_model,
         )
         cb._on_rollout_start()
-        mock_model.policy.load_state_dict.assert_called_once_with(
-            {"weight": 1.0}, strict=False
-        )
+        mock_model.policy.load_state_dict.assert_called_once_with({"weight": 1.0}, strict=False)
 
     def test_on_rollout_start_verbose_logs(self):
         """verbose=1 且回写成功时应记录 info 日志（覆盖第 114-117 行）。"""

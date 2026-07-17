@@ -54,31 +54,31 @@ for p in [_PROJECT_ROOT, _SCRIPT_DIR, _EVAL_DIR]:
 
 from loguru import logger
 
+# 导入基线策略
+from run_simulation import (  # type: ignore[import-not-found]
+    BaseStrategy,
+    ClassicalOnlyStrategy,
+    DQNModelStrategy,
+    FCFSStrategy,
+    GreedyStrategy,
+    PPOStrategy,
+    QuantumOnlyStrategy,
+    RandomStrategy,
+    ShortestJobFirstStrategy,
+)
+
 # 复用 smoke_test.py 工具函数
 from smoke_test import (  # type: ignore[import-not-found]
     MockSmokeClient,
-    parse_probability,
-    compute_probability_from_shots,
-    compute_measurement_error,
     compute_fidelity,
+    compute_measurement_error,
+    compute_probability_from_shots,
+    parse_probability,
     poll_task_result,
 )
 
 from src.api.tianyan_cqlib import CqlibTianyanClient
 from src.scheduler.env import DEFAULT_MACHINE_CONFIGS, QuantumSchedulingEnv
-
-# 导入基线策略
-from run_simulation import (  # type: ignore[import-not-found]
-    BaseStrategy,
-    FCFSStrategy,
-    RandomStrategy,
-    GreedyStrategy,
-    ShortestJobFirstStrategy,
-    QuantumOnlyStrategy,
-    ClassicalOnlyStrategy,
-    PPOStrategy,
-    DQNModelStrategy,
-)
 
 # ---------------------------------------------------------------------------
 # 常量
@@ -86,11 +86,11 @@ from run_simulation import (  # type: ignore[import-not-found]
 RESULTS_DIR = _PROJECT_ROOT / "results" / "real_machine"
 
 # 实验参数
-NUM_TASKS = 200          # 每 episode 任务数
-MAX_STEPS = 500          # 每 episode 最大步数
-SEED = 42                # 随机种子
-REAL_INTERVAL = 100      # 每 100 步提交 1 个真机任务 → 5 个/策略
-REAL_SHOTS = 1024        # 真机 shots 数
+NUM_TASKS = 200  # 每 episode 任务数
+MAX_STEPS = 500  # 每 episode 最大步数
+SEED = 42  # 随机种子
+REAL_INTERVAL = 100  # 每 100 步提交 1 个真机任务 → 5 个/策略
+REAL_SHOTS = 1024  # 真机 shots 数
 QCIS_CIRCUIT = "H Q0\nM Q0"  # H 门（阶段 0 验证高保真度）
 
 # 预训练模型路径
@@ -161,6 +161,7 @@ def create_strategies() -> list[BaseStrategy]:
     # PPO 策略（加载预训练模型，使用兼容包装器处理维度不匹配）
     try:
         from stable_baselines3 import PPO
+
         ppo_model = PPO.load(PPO_MODEL_PATH)
         strategies.append(CompatModelStrategy(ppo_model, name="PPO"))
         logger.info(f"[Strategy] PPO 模型已加载（兼容模式）: {PPO_MODEL_PATH}")
@@ -171,6 +172,7 @@ def create_strategies() -> list[BaseStrategy]:
     # DQN 策略（加载预训练模型，使用兼容包装器）
     try:
         from stable_baselines3 import DQN
+
         dqn_model = DQN.load(DQN_MODEL_PATH)
         strategies.append(CompatModelStrategy(dqn_model, name="DQN"))
         logger.info(f"[Strategy] DQN 模型已加载（兼容模式）: {DQN_MODEL_PATH}")
@@ -412,12 +414,14 @@ def save_results(
             "total_real_tasks": total_real,
             "completed": total_completed,
             "failed": total_real - total_completed,
-            "avg_fidelity": round(sum(all_fidelities) / max(len(all_fidelities), 1), 4)
-            if all_fidelities
-            else None,
-            "avg_probability_diff": round(sum(all_diffs) / max(len(all_diffs), 1), 4)
-            if all_diffs
-            else None,
+            "avg_fidelity": (
+                round(sum(all_fidelities) / max(len(all_fidelities), 1), 4)
+                if all_fidelities
+                else None
+            ),
+            "avg_probability_diff": (
+                round(sum(all_diffs) / max(len(all_diffs), 1), 4) if all_diffs else None
+            ),
         },
         "strategies": all_results,
     }
@@ -439,8 +443,10 @@ def print_summary(all_results: list[dict[str, Any]]) -> None:
     print("  8 策略真机对比实验 - 汇总报告")
     print(f"{'=' * 80}")
 
-    print(f"\n  {'策略':<16s} {'总奖励':>10s} {'步数':>6s} "
-          f"{'真机数':>6s} {'成功':>4s} {'平均保真度':>12s} {'平均差异':>10s}")
+    print(
+        f"\n  {'策略':<16s} {'总奖励':>10s} {'步数':>6s} "
+        f"{'真机数':>6s} {'成功':>4s} {'平均保真度':>12s} {'平均差异':>10s}"
+    )
     print(f"  {'-'*16} {'-'*10} {'-'*6} {'-'*6} {'-'*4} {'-'*12} {'-'*10}")
 
     for result in all_results:
@@ -451,13 +457,17 @@ def print_summary(all_results: list[dict[str, Any]]) -> None:
         real_count = len([r for r in real_records if r.get("real_task_id")])
         completed = len([r for r in real_records if r.get("poll_status") == "completed"])
         fidelities = [r["fidelity"] for r in real_records if r.get("fidelity") is not None]
-        diffs = [r["probability_diff"] for r in real_records if r.get("probability_diff") is not None]
+        diffs = [
+            r["probability_diff"] for r in real_records if r.get("probability_diff") is not None
+        ]
 
         avg_fid = f"{sum(fidelities)/len(fidelities):.4f}" if fidelities else "N/A"
         avg_diff = f"{sum(diffs)/len(diffs):.4f}" if diffs else "N/A"
 
-        print(f"  {name:<16s} {reward:>10.2f} {steps:>6d} "
-              f"{real_count:>6d} {completed:>4d} {avg_fid:>12s} {avg_diff:>10s}")
+        print(
+            f"  {name:<16s} {reward:>10.2f} {steps:>6d} "
+            f"{real_count:>6d} {completed:>4d} {avg_fid:>12s} {avg_diff:>10s}"
+        )
 
     # 动作分布
     print(f"\n  {'策略':<16s} {'classical':>10s} {'quantum':>10s} {'hybrid':>10s}")
@@ -511,8 +521,7 @@ def main() -> None:
 
     # 创建策略
     strategies = create_strategies()
-    print(f"\n[Setup] 已创建 {len(strategies)} 个策略: "
-          f"{', '.join(s.name for s in strategies)}")
+    print(f"\n[Setup] 已创建 {len(strategies)} 个策略: " f"{', '.join(s.name for s in strategies)}")
 
     # 运行所有策略
     all_results: list[dict[str, Any]] = []
@@ -521,8 +530,10 @@ def main() -> None:
     print(f"\n{'=' * 60}")
     print(f"  8 策略真机对比实验")
     print(f"  任务数: {NUM_TASKS} | 真机间隔: {REAL_INTERVAL} | shots: {REAL_SHOTS}")
-    print(f"  预计真机任务: {len(strategies)} x {MAX_STEPS // REAL_INTERVAL} = "
-          f"{len(strategies) * (MAX_STEPS // REAL_INTERVAL)}")
+    print(
+        f"  预计真机任务: {len(strategies)} x {MAX_STEPS // REAL_INTERVAL} = "
+        f"{len(strategies) * (MAX_STEPS // REAL_INTERVAL)}"
+    )
     print(f"{'=' * 60}")
 
     for i, strategy in enumerate(strategies):
@@ -538,9 +549,11 @@ def main() -> None:
         real_count = len([r for r in result["real_records"] if r.get("real_task_id")])
         total_real += real_count
         all_results.append(result)
-        print(f"  {strategy.name}: reward={result['total_reward']:.2f}, "
-              f"steps={result['total_steps']}, real={real_count}, "
-              f"耗时={elapsed}s")
+        print(
+            f"  {strategy.name}: reward={result['total_reward']:.2f}, "
+            f"steps={result['total_steps']}, real={real_count}, "
+            f"耗时={elapsed}s"
+        )
 
     # 轮询所有真机结果
     if total_real > 0:

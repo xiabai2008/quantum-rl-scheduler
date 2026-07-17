@@ -32,7 +32,9 @@ from src.api.tianyan_cqlib import CqlibTianyanClient, MultiMachineCqlibCoordinat
 from src.exceptions import ResourceExhaustedError
 
 
-def _write_config(path: str, total: dict | None = None, warning: float = 0.8, critical: float = 0.95) -> None:
+def _write_config(
+    path: str, total: dict | None = None, warning: float = 0.8, critical: float = 0.95
+) -> None:
     """写入测试用配额配置文件。"""
     import yaml
 
@@ -243,14 +245,24 @@ class TestQuotaTrackerStatus(unittest.TestCase):
         self._tmp.cleanup()
 
     def _make_tracker(self):
-        return QuotaTracker(config_path=os.path.join(self._tmp.name, "quota.yaml"), state_path=self.state_path)
+        return QuotaTracker(
+            config_path=os.path.join(self._tmp.name, "quota.yaml"), state_path=self.state_path
+        )
 
     def test_status_structure_contains_all_fields(self):
         """status 应包含 total/used/remaining/usage_ratio/warning_level 等字段。"""
         tracker = self._make_tracker()
         s = tracker.status()
-        for key in ("total", "used", "remaining", "usage_ratio", "warning_level",
-                    "warning_threshold", "critical_threshold", "estimated_exhaustion_time"):
+        for key in (
+            "total",
+            "used",
+            "remaining",
+            "usage_ratio",
+            "warning_level",
+            "warning_threshold",
+            "critical_threshold",
+            "estimated_exhaustion_time",
+        ):
             self.assertIn(key, s, f"status 缺少字段: {key}")
 
     def test_warning_level_normal(self):
@@ -293,7 +305,9 @@ class TestQuotaTrackerCheckAndAlert(unittest.TestCase):
         self._tmp.cleanup()
 
     def _make_tracker(self):
-        return QuotaTracker(config_path=os.path.join(self._tmp.name, "quota.yaml"), state_path=self.state_path)
+        return QuotaTracker(
+            config_path=os.path.join(self._tmp.name, "quota.yaml"), state_path=self.state_path
+        )
 
     def test_check_and_alert_normal_returns_none(self):
         """未达阈值时 check_and_alert 应返回 None。"""
@@ -344,7 +358,9 @@ class TestQuotaTrackerExhaustionEstimate(unittest.TestCase):
         self._tmp.cleanup()
 
     def _make_tracker(self):
-        return QuotaTracker(config_path=os.path.join(self._tmp.name, "quota.yaml"), state_path=self.state_path)
+        return QuotaTracker(
+            config_path=os.path.join(self._tmp.name, "quota.yaml"), state_path=self.state_path
+        )
 
     def test_no_history_returns_none(self):
         """无历史数据时 estimated_exhaustion_time 应为 None。"""

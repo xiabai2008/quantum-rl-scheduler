@@ -286,9 +286,7 @@ class TenantQuotaManager:
             "active_tasks": quota.active_tasks,
             "daily_used": quota.daily_used,
             "daily_remaining": (
-                max(0, quota.daily_limit - quota.daily_used)
-                if quota.daily_limit > 0
-                else -1
+                max(0, quota.daily_limit - quota.daily_used) if quota.daily_limit > 0 else -1
             ),
         }
 

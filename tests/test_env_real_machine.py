@@ -9,6 +9,7 @@ if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 
 import pytest
+
 from src.scheduler.env_real_machine import generate_qcis_circuit
 from src.scheduler.env_types import Task
 
@@ -42,9 +43,9 @@ class TestGenerateQcisCircuit:
         qcis_low = generate_qcis_circuit(task_low, seed=42)
         qcis_high = generate_qcis_circuit(task_high, seed=42)
         # 高优先级应包含更多门（深度因子更大）
-        assert len(qcis_high) >= len(qcis_low), (
-            f"高优先级电路应更深: {len(qcis_high)} vs {len(qcis_low)}"
-        )
+        assert len(qcis_high) >= len(
+            qcis_low
+        ), f"高优先级电路应更深: {len(qcis_high)} vs {len(qcis_low)}"
 
     def test_deterministic_with_seed(self):
         """相同 seed 生成相同电路"""
@@ -94,7 +95,16 @@ class TestGenerateQcisCircuit:
             assert len(parts) >= 2, f"每行至少要有门和比特: {line}"
             # 门名
             assert parts[0] in [
-                "H", "X", "Y", "Z", "RX", "RY", "RZ", "CNOT", "CZ", "M"
+                "H",
+                "X",
+                "Y",
+                "Z",
+                "RX",
+                "RY",
+                "RZ",
+                "CNOT",
+                "CZ",
+                "M",
             ], f"未知门: {parts[0]}"
             # 比特引用
             for p in parts[1:]:
