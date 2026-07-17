@@ -1,190 +1,76 @@
-# Mutation Testing 基线报告
+# 变异测试报告 (Mutation Testing Report)
 
-**生成时间**: 2026-07-01  
-**工具**: mutmut v3.6.0  
-**配置**: `pyproject.toml` 中 `[tool.mutmut]`  
-**状态**: ⚠️ 待执行（需要在 Linux/WSL 环境中运行）
+- **日期**: 2026-07-11
+- **工具**: mutmut 3.6.0（运行于 WSL，Python 3.14 venv）
+- **目标**: 验证项目宣称的 **93.78% 行覆盖率** 的"含金量"——覆盖率只说明代码被执行过，变异测试才说明测试能否抓住行为变更。
 
 ---
 
-## 执行环境要求
+## 1. 背景
 
-mutmut 不支持 Windows 原生环境，需要在 WSL 或 Linux 中执行：
+项目此前只统计行覆盖率（仓库内真实值有多个写法：87.38% / 87.5% / 91.4% / 93.78%，最新提交已推到 **93.78%**），但从未做变异测试。变异测试（mutation testing）通过故意篡改源码（如 `+`→`-`、`>`→`>=`、`True`→`False`）生成"变异体"，再跑测试套件：若测试失败说明变异被"杀死"（测试有效），若测试仍通过说明变异"存活"（测试有漏洞）。这是测试质量的试金石。
 
+> 结论先行：**行覆盖率 93.78% ≠ 测试质量高**。三个核心轻逻辑模块的 mutation score 仅 50%–68%，意味着约 1/3 到 1/2 的行为变更测试根本抓不住。
+
+---
+
+## 2. 环境与方法
+
+### 关键工程障碍（已逐一解决）
+1. **mutmut 不能在原生 Windows 运行**——官方要求用 WSL。
+2. **依赖链**：`src/__init__.py` 在包初始化时急切 `import src.quantum`（torch）+ `src.scheduler`（gym/sb3），导致任何测试都需 torch/gym/sb3。在 WSL 新建 venv 安装 CPU-only torch + gymnasium + stable_baselines3 + sb3_contrib + scipy 解决。
+3. **mutmut 3.x 不用 `runner_command`**（已废弃），测试选择靠 `pytest_add_cli_args_test_selection`；且只复制 `source_paths` 下文件到 `mutants/`，故必须按模块缩小范围。
+4. **src-layout 不兼容**：mutmut 的 trampoline 机制 `assert not name.startswith("src.")`，而项目用 `from src.utils.seeds import ...` → 模块名 `src.utils.seeds` 直接触发崩溃。
+   - **workaround**：临时将对应测试的 import 从 `from src.X import` 改为 `from X import`（并 `sys.path.insert` 指向 `src` 子目录，使模块名变为 `utils.X`/`scheduler.X`/`api.X`），跑完 `git checkout` 恢复。
+
+### 运行命令（单模块逐跑）
 ```bash
-# 1. 进入 WSL 环境
-wsl bash
-
-# 2. 创建虚拟环境并安装依赖
-cd /mnt/c/Users/HZR/Desktop/揭榜挂帅擂台赛/quantum-rl-scheduler
-python3 -m venv .venv-mutmut
-source .venv-mutmut/bin/activate
-pip install -r requirements.txt
-pip install mutmut pytest pytest-cov
-
-# 3. 执行 mutation testing（分模块避免超时）
-mutmut run src/scheduler/env.py
-mutmut run src/scheduler/marl.py
-mutmut run src/api/tianyan_client.py
-
-# 4. 查看结果
-mutmut results
+# WSL 内，激活 .venv-mutmut-wsl 后
+python -m mutmut run   # 读取 pyproject [tool.mutmut] 的 source_paths + pytest_add_cli_args_test_selection
 ```
 
 ---
 
-## 预期结果格式
+## 3. 结果
 
-### 模块 1: src/scheduler/env.py
+| 模块 | 变异总数 | killed ✅ | suspicious ⚠️ | survived ❌ | Mutation Score* |
+|------|---------|---------|-------------|-----------|----------------|
+| `src/utils/seeds.py` | 26 | 13 | 0 | 13 | **50.0%** |
+| `src/utils/helpers.py` | 348 | 183 | 57 | 108 | **62.9%**（原始 52.6%） |
+| `src/scheduler/parser.py` | 826 | 552 | 10 | 264 | **67.6%**（原始 66.8%） |
+| `src/api/circuit_breaker.py` | — | — | — | — | **未跑**（见 §4） |
 
-**文件描述**: Gymnasium 调度环境（14维状态空间，异质化任务生成，多机器调度）  
-**代码行数**: ~1,100 行  
-**测试覆盖**: test_scheduler.py, test_state_space.py
+> \* Mutation Score = killed / (total − suspicious)，排除可疑变异（多为随机性/计时相关）。
+> 变异速率约 11–13 mutations/second。
 
-| 指标 | 预期值 | 说明 |
-|------|--------|------|
-| 总变异数 | 150-200 | 基于代码复杂度和分支数量 |
-| 杀死变异数 | 90-120 | 测试用例应覆盖核心逻辑 |
-| 存活变异数 | 60-80 | 需要补充测试的场景 |
-| Mutation Score | 60-70% | 基线目标，不要求达到 80% |
-
-**预期存活变异热点**:
-- 边界条件处理（如 `max_qubits` 验证）
-- 异常降级路径（如机器不可用时的回退逻辑）
-- 多机器负载均衡的启发式算法
+### 逐模块分析
+- **seeds.py（最弱，50%）**：13 个存活变异**全部集中在 `set_seed` 函数**（变异点 9–26）。测试只验证了返回值（默认 42、显式参数），未覆盖其分支与算术变更——如环境变量 `QUANTUM_RL_SEED` 覆盖逻辑、边界值、随机性确定性断言。典型的"覆盖到了但没断言行为"。
+- **helpers.py（居中，62.9%）**：57 个 suspicious 多为 `MetricsCalculator` 涉及随机性/计时的分支；108 个 survived 需加固，重点在文件 IO 错误路径（`load_config`/`save_json` 的非法/缺失文件）、`normalize_vector` 的常量/负值边界。
+- **parser.py（最强，67.6%）**：解析器分支覆盖较全（TaskBuilder 校验、TaskParser 各错误收集、LegacyTaskParser 多格式、QASM 边界），但仍有 264 个存活变异，多为容错/异常路径未断言。
 
 ---
 
-### 模块 2: src/scheduler/marl.py
+## 4. circuit_breaker.py 未跑原因
 
-**文件描述**: MAPPO 多智能体调度（MultiAgentEnvWrapper + MAPPO 训练循环）  
-**代码行数**: 952 行  
-**测试覆盖**: test_marl.py（18 用例）
+`circuit_breaker.py` 在**模块顶层** `import src.exceptions` 与 `src.utils.alerts`，且其测试 `test_circuit_breaker.py` 含有 **~50 处** `patch("src.api.circuit_breaker.alert_critical")` / `patch("src.api.circuit_breaker.time.monotonic")` 字符串。在 src-layout workaround 下，需机械修改大量字符串（`src.` → 空前缀）才能让模块名变为 `api.circuit_breaker`，成本高、易错，故本轮跳过。
 
-| 指标 | 预期值 | 说明 |
-|------|--------|------|
-| 总变异数 | 120-160 | 多智能体逻辑复杂 |
-| 杀死变异数 | 70-90 | 测试覆盖单机/双机/三机场景 |
-| 存活变异数 | 50-70 | 边缘场景测试不足 |
-| Mutation Score | 55-65% | 基线目标 |
-
-**预期存活变异热点**:
-- 机器动态加入/离线场景
-- 集中式 Critic 的全局状态拼接逻辑
-- 奖励分配机制（shapley value 等）
+**后续处理建议（二选一）**：
+- **方案 A（快）**：将 `test_circuit_breaker.py` 的 import 与全部 `patch("src.api...")` 字符串批量 `src.` → ``（去掉前缀），临时跑变异后 `git checkout` 恢复。
+- **方案 B（治本）**：等项目迁移为非 src-layout（或将 `src/` 作为可安装包 `pip install -e .`），或待 mutmut 修复对 `src.` 前缀模块名的支持。
 
 ---
 
-### 模块 3: src/api/tianyan_client.py
+## 5. 结论与行动建议（对接 v2 方案「任务 #1：修复并跑通变异测试」）
 
-**文件描述**: 天衍云 API 客户端（含熔断器、重试、Mock 切换）  
-**代码行数**: 633 行  
-**测试覆盖**: test_api.py（129 用例，95.96% 覆盖率）
-
-| 指标 | 预期值 | 说明 |
-|------|--------|------|
-| 总变异数 | 80-100 | API 调用逻辑 + 熔断器 |
-| 杀死变异数 | 65-80 | 高覆盖率测试 |
-| 存活变异数 | 15-20 | 异常路径和超时场景 |
-| Mutation Score | 75-85% | 测试覆盖最完善的模块 |
-
-**预期存活变异热点**:
-- 熔断器状态转换边界（HALF_OPEN → CLOSED 的临界条件）
-- 重试次数耗尽后的降级逻辑
-- Mock 模式与真实模式的切换分支
+1. **核心结论**：93.78% 行覆盖率存在"水分"——三个核心模块 mutation score 仅 50%–68%。覆盖率数字对评委好看，但测试对行为变更的捕获能力不足，属真实的代码质量短板。
+2. **优先加固**：
+   - `seeds.set_seed`：补充环境变量覆盖、边界值、确定性断言；
+   - `helpers` 的 IO 错误路径与 `MetricsCalculator` 各分支；
+   - `parser` 的 264 个容错/异常路径。
+   - 目标将各模块 mutation score 提升到 **80%+**。
+3. **纳入 CI 门禁**：将 mutation score（目标 >80%）与行覆盖率并列作为质量门禁，二者互补——覆盖率防"没测到"，变异测试防"测了但没用"。
+4. **诚实披露**：答辩材料中若引用"测试充分"，应辅以 mutation score 而非仅覆盖率，避免被追问时穿帮（呼应《答辩诚信清单》）。
 
 ---
 
-## 假阳性变异识别指南
-
-以下类型的变异可能是"假阳性"（合理的代码写法但 mutmut 判定为存活）：
-
-1. **日志消息修改**
-   ```python
-   # 原始代码
-   logger.info("Task scheduled successfully")
-   # 变异后
-   logger.info("XXTask scheduled successfullyXX")
-   ```
-   **判定**: 假阳性。日志消息不影响业务逻辑，测试不应依赖日志内容。
-
-2. **注释和文档字符串**
-   ```python
-   # 原始代码
-   """计算任务等待时间"""
-   # 变异后
-   """XX计算任务等待时间XX"""
-   ```
-   **判定**: 假阳性。文档字符串不影响运行时行为。
-
-3. **类型注解修改**
-   ```python
-   # 原始代码
-   def process(task: Task) -> Result:
-   # 变异后
-   def process(task: Task) -> None:
-   ```
-   **判定**: 假阳性。类型注解在运行时被忽略（除非使用 `typing.get_type_hints`）。
-
-4. **变量名重命名（不影响逻辑）**
-   ```python
-   # 原始代码
-   timeout = 30
-   # 变异后
-   timeout = 31
-   ```
-   **判定**: 需人工审查。如果测试未覆盖超时边界，则为真阳性；如果测试明确验证超时值，则为假阳性。
-
----
-
-## 后续改进计划
-
-基于 mutation testing 结果，优先补充以下测试：
-
-1. **env.py 存活变异**
-   - 补充边界条件测试（`max_qubits=0`, `max_steps=-1`）
-   - 补充多机器负载均衡的极端场景（所有机器不可用）
-
-2. **marl.py 存活变异**
-   - 补充机器动态加入/离线的时序测试
-   - 补充奖励分配的边界条件（所有任务失败）
-
-3. **tianyan_client.py 存活变异**
-   - 补充熔断器状态转换的精确时序测试
-   - 补充重试次数耗尽后的降级验证
-
----
-
-## 执行记录
-
-| 时间 | 操作 | 结果 |
-|------|------|------|
-| 2026-07-01 | 配置 mutmut v3.6.0 | ✅ 完成 |
-| 2026-07-01 | 更新 pyproject.toml | ✅ `source_paths` 替代 `paths_to_mutate` |
-| 2026-07-01 | WSL 环境依赖安装 | ⏳ 进行中（网络较慢） |
-| - | 执行 env.py mutation testing | ⏳ 待执行 |
-| - | 执行 marl.py mutation testing | ⏳ 待执行 |
-| - | 执行 tianyan_client.py mutation testing | ⏳ 待执行 |
-| - | 更新本报告的实际数据 | ⏳ 待执行 |
-
----
-
-## 参考命令
-
-```bash
-# 查看某个变异的详细信息
-mutmut show <mutant_id>
-
-# 应用某个变异到源代码（用于调试）
-mutmut apply <mutant_id>
-
-# 导出所有存活变异
-mutmut results --only-surviving > surviving_mutants.txt
-
-# 针对特定文件重新运行
-mutmut run src/scheduler/env.py --rerun
-```
-
----
-
-**备注**: 本报告为基线模板，实际数据需要在 Linux/WSL 环境中执行 `mutmut run` 后更新。目标不是达到 80% mutation score，而是建立基线数据，指导后续测试改进。
+*本报告由变异测试实际运行得出，非估算。环境：WSL + Python 3.14 + mutmut 3.6.0 + CPU torch/gym/sb3。配置固化于 `pyproject.toml [tool.mutmut]`，含 src-layout workaround 说明。*
