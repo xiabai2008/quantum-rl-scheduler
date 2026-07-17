@@ -38,11 +38,13 @@ from src.scheduler.env import (
 )
 from src.scheduler.parser import (
     LegacyTaskParser,
+)
+from src.scheduler.parser import Task as ParserTask
+from src.scheduler.parser import (
     TaskBuilder,
     TaskFeatures,
     TaskParser,
 )
-from src.scheduler.parser import Task as ParserTask
 
 
 class TestQuantumSchedulingEnv(unittest.TestCase):
