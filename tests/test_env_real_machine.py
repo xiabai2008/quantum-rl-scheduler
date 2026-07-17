@@ -9,6 +9,7 @@ if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 
 import pytest
+
 from src.scheduler.env_real_machine import generate_qcis_circuit
 from src.scheduler.env_types import Task
 
