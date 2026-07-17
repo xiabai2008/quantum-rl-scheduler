@@ -248,6 +248,7 @@ TIANYAN_API_KEY=你的真实API密钥
 |------|------|
 | [新人上手指南](docs/新人上手指南.md) | 详细 onboarding（11步 + FAQ） |
 | [队友协同开发指南](docs/队友协同开发指南.md) | 精简版快速上手（15分钟） |
+| [真机训练接入指南](docs/真机训练接入指南.md) | 连接天衍云真机并进入训练（装 cqlib → 配 .env → 验证连接 → 跑训练） |
 | [Git工作流](docs/Git工作流.md) | 分支策略 + Commit规范 + PR流程 |
 | [团队分工](docs/团队分工.md) | 10人角色职责分配 |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | 贡献指南 + 代码规范 |
