@@ -111,7 +111,9 @@ def generate_report(
     if smoke_data:
         experiments = smoke_data.get("experiments", smoke_data.get("results", []))
         total = len(experiments)
-        completed = len([r for r in experiments if r.get("status", r.get("poll_status", "")) == "completed"])
+        completed = len(
+            [r for r in experiments if r.get("status", r.get("poll_status", "")) == "completed"]
+        )
         rate = f"{completed/total*100:.1f}%" if total > 0 else "N/A"
         lines.append(f"| 0 | 冒烟测试 | {total} | {completed} | {rate} | ~10min |")
 
@@ -144,7 +146,13 @@ def generate_report(
     all_completed = []
     if smoke_data:
         t = len(smoke_data.get("experiments", smoke_data.get("results", [])))
-        c = len([r for r in smoke_data.get("experiments", smoke_data.get("results", [])) if r.get("status", r.get("poll_status", "")) == "completed"])
+        c = len(
+            [
+                r
+                for r in smoke_data.get("experiments", smoke_data.get("results", []))
+                if r.get("status", r.get("poll_status", "")) == "completed"
+            ]
+        )
         all_totals.append(t)
         all_completed.append(c)
     if rl_data:
@@ -163,7 +171,9 @@ def generate_report(
     grand_total = sum(all_totals)
     grand_completed = sum(all_completed)
     grand_rate = f"{grand_completed/grand_total*100:.1f}%" if grand_total > 0 else "N/A"
-    lines.append(f"| **合计** | **4 个阶段** | **{grand_total}** | **{grand_completed}** | **{grand_rate}** | **~33min** |")
+    lines.append(
+        f"| **合计** | **4 个阶段** | **{grand_total}** | **{grand_completed}** | **{grand_rate}** | **~33min** |"
+    )
     lines.append(f"")
 
     # ── 2. 冒烟测试结果 ──
@@ -189,9 +199,13 @@ def generate_report(
             group = exp_groups.get(exp_type, [])
             if not group:
                 continue
-            completed = [g for g in group if g.get("status", g.get("poll_status", "")) == "completed"]
+            completed = [
+                g for g in group if g.get("status", g.get("poll_status", "")) == "completed"
+            ]
             fidelities = [g["fidelity"] for g in completed if g.get("fidelity") is not None]
-            errors = [g["measurement_error"] for g in completed if g.get("measurement_error") is not None]
+            errors = [
+                g["measurement_error"] for g in completed if g.get("measurement_error") is not None
+            ]
             qcis = group[0].get("qcis", "N/A")
             theoretical = group[0].get("theoretical", {})
             theo_str = ", ".join(f"P({k})={v}" for k, v in theoretical.items())
@@ -282,8 +296,12 @@ def generate_report(
         lines.append(f"")
         lines.append(f"### 3.4 关键发现")
         lines.append(f"")
-        lines.append(f"- PPO 训练过程中 **{rm.get('completed', 0)}/{rm.get('total_submitted', 0)}** 个真机任务成功")
-        lines.append(f"- 真机平均保真度 **{rm.get('avg_fidelity', 'N/A')}**，平均概率差异仅 **{rm.get('avg_probability_diff', 'N/A')}**")
+        lines.append(
+            f"- PPO 训练过程中 **{rm.get('completed', 0)}/{rm.get('total_submitted', 0)}** 个真机任务成功"
+        )
+        lines.append(
+            f"- 真机平均保真度 **{rm.get('avg_fidelity', 'N/A')}**，平均概率差异仅 **{rm.get('avg_probability_diff', 'N/A')}**"
+        )
         lines.append(f"- RL 调度器在真机环境下稳定运行，classical/quantum/hybrid 三种动作均有覆盖")
         lines.append(f"")
     else:
@@ -311,7 +329,9 @@ def generate_report(
             real_count = len([r for r in real_records if r.get("real_task_id")])
             completed = len([r for r in real_records if r.get("poll_status") == "completed"])
             fidelities = [r["fidelity"] for r in real_records if r.get("fidelity") is not None]
-            diffs = [r["probability_diff"] for r in real_records if r.get("probability_diff") is not None]
+            diffs = [
+                r["probability_diff"] for r in real_records if r.get("probability_diff") is not None
+            ]
             avg_fid = f"{sum(fidelities)/len(fidelities):.4f}" if fidelities else "N/A"
             avg_diff = f"{sum(diffs)/len(diffs):.4f}" if diffs else "N/A"
             lines.append(
@@ -336,18 +356,27 @@ def generate_report(
         lines.append(f"")
         # 找 PPO 排名
         ppo_rank = next(
-            (i for i, s in enumerate(sorted_strategies, 1) if s.get("strategy_name") == "PPO"),
-            None
+            (i for i, s in enumerate(sorted_strategies, 1) if s.get("strategy_name") == "PPO"), None
         )
         if ppo_rank:
             ppo_data = sorted_strategies[ppo_rank - 1]
             ppo_reward = ppo_data.get("total_reward", 0)
             # 找第二名
-            second_reward = sorted_strategies[1].get("total_reward", 0) if len(sorted_strategies) > 1 else 0
-            improvement = ((ppo_reward - second_reward) / abs(second_reward) * 100) if second_reward != 0 else 0
-            lines.append(f"- PPO 排名第 **{ppo_rank}**，总奖励 **{ppo_reward:.2f}**，比第二名高 **{improvement:.1f}%**")
+            second_reward = (
+                sorted_strategies[1].get("total_reward", 0) if len(sorted_strategies) > 1 else 0
+            )
+            improvement = (
+                ((ppo_reward - second_reward) / abs(second_reward) * 100)
+                if second_reward != 0
+                else 0
+            )
+            lines.append(
+                f"- PPO 排名第 **{ppo_rank}**，总奖励 **{ppo_reward:.2f}**，比第二名高 **{improvement:.1f}%**"
+            )
         lines.append(f"- DQN 模型因 Dueling 架构不兼容回退为 SJF 策略")
-        lines.append(f"- PPO 动作分布：偏大量子执行（quantum 占比最高），体现了 RL 学习到的量子加速策略")
+        lines.append(
+            f"- PPO 动作分布：偏大量子执行（quantum 占比最高），体现了 RL 学习到的量子加速策略"
+        )
         lines.append(f"- 真机保真度在各策略间一致（~0.98），说明策略选择不影响真机执行质量")
         lines.append(f"")
     else:
@@ -369,7 +398,9 @@ def generate_report(
         lines.append(f"")
         lines.append(f"| 参数 | 值 |")
         lines.append(f"|------|------|")
-        lines.append(f"| QUBO 规模 | {config.get('qubo_size', 'N/A')}x{config.get('qubo_size', 'N/A')} |")
+        lines.append(
+            f"| QUBO 规模 | {config.get('qubo_size', 'N/A')}x{config.get('qubo_size', 'N/A')} |"
+        )
         lines.append(f"| 采样次数 (num_reads) | {config.get('num_reads', 'N/A')} |")
         lines.append(f"| 退火时间 | {config.get('annealing_time', 'N/A')} us |")
         lines.append(f"")
@@ -428,7 +459,9 @@ def generate_report(
         lines.append(f"")
         lines.append(f"- 模拟退火 **成功找到全局最优解**，能量与蛮力一致（{sim_e} vs {brute_e}）")
         lines.append(f"- 模拟退火求解时间 {sim_t}s，蛮力 {brute_t}s（10 变量规模两者可比）")
-        lines.append(f"- 真机后端连通性验证：{rm.get('completed', 0)}/{rm.get('total_submitted', 0)} 成功，平均保真度 {rm.get('avg_fidelity', 'N/A')}")
+        lines.append(
+            f"- 真机后端连通性验证：{rm.get('completed', 0)}/{rm.get('total_submitted', 0)} 成功，平均保真度 {rm.get('avg_fidelity', 'N/A')}"
+        )
         lines.append(f"")
     else:
         lines.append(f"数据不可用。")
@@ -448,7 +481,9 @@ def generate_report(
     lines.append(f"")
     lines.append(f"### 6.2 性能瓶颈分析")
     lines.append(f"")
-    lines.append(f"- **SDK 超时**: cqlib SDK 在任务失败时进入无限内部重试，需 daemon 线程超时机制兜底")
+    lines.append(
+        f"- **SDK 超时**: cqlib SDK 在任务失败时进入无限内部重试，需 daemon 线程超时机制兜底"
+    )
     lines.append(f"- **双比特门**: 硬件层面 CZ 门保真度不足，限制多比特电路验证")
     lines.append(f"- **机时限制**: 限免窗口期机时有限，需控制 shots 和任务数")
     lines.append(f"")
@@ -479,7 +514,9 @@ def generate_report(
             phase = "2"
         elif f.name.startswith("annealing"):
             phase = "3"
-        lines.append(f"| {phase} | `results/real_machine/{f.name}` | {f.stat().st_size / 1024:.1f} KB |")
+        lines.append(
+            f"| {phase} | `results/real_machine/{f.name}` | {f.stat().st_size / 1024:.1f} KB |"
+        )
     lines.append(f"")
     lines.append(f"---")
     lines.append(f"")

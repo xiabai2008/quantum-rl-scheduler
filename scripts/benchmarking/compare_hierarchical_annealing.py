@@ -109,7 +109,9 @@ class SimpleReplayBuffer:
             self.buffer.pop(0)
 
     def sample(self, batch_size: int = 32):
-        indices = np.random.choice(len(self.buffer), min(batch_size, len(self.buffer)), replace=False)
+        indices = np.random.choice(
+            len(self.buffer), min(batch_size, len(self.buffer)), replace=False
+        )
         obs_list, act_list, rew_list, next_list, done_list = [], [], [], [], []
         for i in indices:
             o, a, r, no, d = self.buffer[i]
@@ -136,6 +138,7 @@ class SimpleReplayBuffer:
 @dataclass
 class RunResult:
     """单次运行结果。"""
+
     mode: str
     iteration: int
     loss_before: float
@@ -151,6 +154,7 @@ class RunResult:
 @dataclass
 class ComparisonReport:
     """对比报告。"""
+
     title: str = "分层退火 vs head_only 退火对比报告"
     results: list[RunResult] = field(default_factory=list)
     summary: dict[str, Any] = field(default_factory=dict)
@@ -159,8 +163,9 @@ class ComparisonReport:
 # ============================================================
 # 核心对比函数
 # ============================================================
-def collect_data(env: SimpleScheduleEnv, agent: SimpleAgent, buffer: SimpleReplayBuffer,
-                 num_steps: int = 50) -> None:
+def collect_data(
+    env: SimpleScheduleEnv, agent: SimpleAgent, buffer: SimpleReplayBuffer, num_steps: int = 50
+) -> None:
     """收集经验数据到回放缓冲区。"""
     obs = env.reset()
     for _ in range(num_steps):
@@ -186,6 +191,7 @@ def run_annealing_mode(
     # 确保量子加速启用
     os.environ["QUANTUM_ACCELERATION_ENABLED"] = "1"
     from src.quantum import annealing as annealing_mod
+
     annealing_mod.QUANTUM_ACCELERATION_ENABLED = True
 
     results: list[RunResult] = []
@@ -239,17 +245,19 @@ def run_annealing_mode(
         loss_after = QuantumAnnealingOptimizer._evaluate_network_quality(policy)
         improvement = (loss_before - loss_after) / max(loss_before, 1e-8) * 100
 
-        results.append(RunResult(
-            mode=mode,
-            iteration=iteration,
-            loss_before=loss_before,
-            loss_after=loss_after,
-            improvement_pct=improvement,
-            accepted=loss_after <= loss_before,
-            duration_sec=time.perf_counter() - start,
-            num_params=total_params,
-            num_blocks=num_blocks if mode == "hierarchical" else 1,
-        ))
+        results.append(
+            RunResult(
+                mode=mode,
+                iteration=iteration,
+                loss_before=loss_before,
+                loss_after=loss_after,
+                improvement_pct=improvement,
+                accepted=loss_after <= loss_before,
+                duration_sec=time.perf_counter() - start,
+                num_params=total_params,
+                num_blocks=num_blocks if mode == "hierarchical" else 1,
+            )
+        )
 
     return results
 
@@ -297,7 +305,9 @@ def compare_modes(
     report.summary["num_tensors"] = len(list(policy.parameters()))
     report.summary["iterations"] = num_iterations
 
-    print(f"\n网络规模: {report.summary['total_params']} 参数 / {report.summary['num_tensors']} 张量")
+    print(
+        f"\n网络规模: {report.summary['total_params']} 参数 / {report.summary['num_tensors']} 张量"
+    )
     print(f"各模式运行 {num_iterations} 轮...\n")
 
     for mode in modes:
@@ -336,12 +346,16 @@ def print_report(report: ComparisonReport) -> None:
         accept_rate = sum(1 for r in mode_results if r.accepted) / len(mode_results) * 100
         params_covered = mode_results[0].num_params if mode_results else 0
         blocks = mode_results[0].num_blocks if mode_results else 1
-        print(f"{mode:<16} {len(mode_results):<6} {avg_imp:+.2f}%{'':>6} {accept_rate:.0f}%{'':>4} "
-              f"{params_covered} ({blocks}块)")
+        print(
+            f"{mode:<16} {len(mode_results):<6} {avg_imp:+.2f}%{'':>6} {accept_rate:.0f}%{'':>4} "
+            f"{params_covered} ({blocks}块)"
+        )
 
     print(f"\n结论:")
-    if all(any(r.improvement_pct > -1e-6 for r in report.results if r.mode == "hierarchical")
-           for _ in [1]):
+    if all(
+        any(r.improvement_pct > -1e-6 for r in report.results if r.mode == "hierarchical")
+        for _ in [1]
+    ):
         print("  ✅ 分层退火成功优化 >4 个参数张量，内存可控")
     print("  ✅ head_only 模式向后兼容")
 
@@ -359,34 +373,18 @@ def print_report(report: ComparisonReport) -> None:
 # 主入口
 # ============================================================
 def main() -> int:
-    parser = argparse.ArgumentParser(
-        description="分层退火 vs head_only 退火对比基准测试"
-    )
+    parser = argparse.ArgumentParser(description="分层退火 vs head_only 退火对比基准测试")
+    parser.add_argument("--quick", action="store_true", help="快速模式（使用小网络和少迭代）")
+    parser.add_argument("--env-size", type=int, default=4, help="环境节点数/观察空间维度（默认 4）")
+    parser.add_argument("--hidden-dim", type=int, default=64, help="策略网络隐藏层维度（默认 64）")
+    parser.add_argument("--iterations", type=int, default=10, help="每个模式的迭代次数（默认 10）")
     parser.add_argument(
-        "--quick", action="store_true",
-        help="快速模式（使用小网络和少迭代）"
-    )
-    parser.add_argument(
-        "--env-size", type=int, default=4,
-        help="环境节点数/观察空间维度（默认 4）"
-    )
-    parser.add_argument(
-        "--hidden-dim", type=int, default=64,
-        help="策略网络隐藏层维度（默认 64）"
-    )
-    parser.add_argument(
-        "--iterations", type=int, default=10,
-        help="每个模式的迭代次数（默认 10）"
-    )
-    parser.add_argument(
-        "--mode", choices=["head_only", "hierarchical", "full", "all"],
+        "--mode",
+        choices=["head_only", "hierarchical", "full", "all"],
         default="all",
-        help="运行模式（默认 all）"
+        help="运行模式（默认 all）",
     )
-    parser.add_argument(
-        "--output", type=str, default=None,
-        help="保存报告 JSON 文件的路径"
-    )
+    parser.add_argument("--output", type=str, default=None, help="保存报告 JSON 文件的路径")
     args = parser.parse_args()
 
     # 快速模式覆盖

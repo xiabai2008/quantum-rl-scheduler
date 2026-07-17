@@ -832,8 +832,11 @@ class QuantumAnnealingOptimizer:
             logger.warning("量子加速功能已禁用，跳过分层退火。")
             return agent
 
-        policy_net = self._get_policy_net(agent) if block_strategy == "size_limited" \
+        policy_net = (
+            self._get_policy_net(agent)
+            if block_strategy == "size_limited"
             else self._get_full_policy(agent)
+        )
         if policy_net is None:
             logger.error("无法获取策略网络，退出分层退火。")
             return agent
@@ -844,9 +847,7 @@ class QuantumAnnealingOptimizer:
         total_params_count = sum(p.numel() for p in all_params)
         n_bits_per_weight = max(1, self.num_qubits // 4)
 
-        blocks = self._create_param_blocks(
-            all_params, block_strategy, max_params_per_block
-        )
+        blocks = self._create_param_blocks(all_params, block_strategy, max_params_per_block)
 
         logger.info(
             f"开始分层/分块量子退火 ({block_strategy}): "
@@ -874,8 +875,7 @@ class QuantumAnnealingOptimizer:
             for block_idx, block_param_indices in enumerate(blocks):
                 # --- 提取该块的权重 ---
                 block_weights = [
-                    all_params[idx].detach().cpu().numpy().copy()
-                    for idx in block_param_indices
+                    all_params[idx].detach().cpu().numpy().copy() for idx in block_param_indices
                 ]
                 block_shapes = [w.shape for w in block_weights]
                 block_param_count = sum(w.size for w in block_weights)
@@ -920,10 +920,12 @@ class QuantumAnnealingOptimizer:
                 )
 
                 # 该块的权重变化统计
-                block_delta = np.concatenate([
-                    (ow - cw).flatten()
-                    for ow, cw in zip(optimized_block_weights, block_weights, strict=False)
-                ])
+                block_delta = np.concatenate(
+                    [
+                        (ow - cw).flatten()
+                        for ow, cw in zip(optimized_block_weights, block_weights, strict=False)
+                    ]
+                )
                 block_delta_l2 = float(np.linalg.norm(block_delta))
 
                 if block_delta_l2 > 1e-12:
@@ -967,9 +969,7 @@ class QuantumAnnealingOptimizer:
             self._set_weights(policy_net, best_weights)
             logger.info(f"[分层退火] 已恢复到最佳权重 (loss={best_loss:.6f})")
 
-        final_improvement = (
-            (initial_loss - best_loss) / max(initial_loss, 1e-8) * 100
-        )
+        final_improvement = (initial_loss - best_loss) / max(initial_loss, 1e-8) * 100
         logger.info(
             f"[分层退火] 完成: 初始 loss={initial_loss:.6f}, "
             f"最佳 loss={best_loss:.6f}, 改进={final_improvement:.2f}%, "
@@ -1478,9 +1478,7 @@ def build_qubo_matrix(
             f"{task_priorities.shape} vs {task_times.shape}"
         )
     if task_priorities.ndim != 1:
-        raise ValueError(
-            f"task_priorities 必须为一维数组，实际 ndim={task_priorities.ndim}"
-        )
+        raise ValueError(f"task_priorities 必须为一维数组，实际 ndim={task_priorities.ndim}")
 
     n = task_priorities.shape[0]
     qubo = np.zeros((n, n), dtype=np.float64)
@@ -1493,9 +1491,10 @@ def build_qubo_matrix(
     for i in range(n):
         for j in range(n):
             if i != j:
-                qubo[i, j] = 0.5 * penalty * (
-                    task_priorities[i] * task_times[j]
-                    + task_priorities[j] * task_times[i]
+                qubo[i, j] = (
+                    0.5
+                    * penalty
+                    * (task_priorities[i] * task_times[j] + task_priorities[j] * task_times[i])
                 )
 
     return qubo
@@ -1539,9 +1538,7 @@ def build_qubo_matrix_optimized(
             f"{task_priorities.shape} vs {task_times.shape}"
         )
     if task_priorities.ndim != 1:
-        raise ValueError(
-            f"task_priorities 必须为一维数组，实际 ndim={task_priorities.ndim}"
-        )
+        raise ValueError(f"task_priorities 必须为一维数组，实际 ndim={task_priorities.ndim}")
 
     n = task_priorities.shape[0]
     # 外积 PT[i,j] = P[i] * T[j]；加上其转置得到对称的成对冲突代价

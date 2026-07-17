@@ -357,7 +357,9 @@ class CqlibTianyanClient:
             from cqlib.exceptions import CqlibRequestError
 
             result = self.platform.query_experiment(
-                task_id, max_wait_time=2, sleep_time=1,
+                task_id,
+                max_wait_time=2,
+                sleep_time=1,
             )
             if isinstance(result, list) and len(result) > 0:
                 data = result[0]

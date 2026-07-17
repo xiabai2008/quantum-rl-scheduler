@@ -24,9 +24,9 @@ from __future__ import annotations
 
 import json
 import os
+import random
 import sys
 import time
-import random
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -50,18 +50,18 @@ if str(_SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPT_DIR))
 
 from loguru import logger
-from stable_baselines3.common.callbacks import BaseCallback, CallbackList, EvalCallback
-from stable_baselines3.common.monitor import Monitor
 
 # 复用 smoke_test.py 中的工具函数
 from smoke_test import (  # type: ignore[import-not-found]
     MockSmokeClient,
-    parse_probability,
-    compute_probability_from_shots,
-    compute_measurement_error,
     compute_fidelity,
+    compute_measurement_error,
+    compute_probability_from_shots,
+    parse_probability,
     poll_task_result,
 )
+from stable_baselines3.common.callbacks import BaseCallback, CallbackList, EvalCallback
+from stable_baselines3.common.monitor import Monitor
 
 from src.api.tianyan_cqlib import CqlibTianyanClient
 from src.scheduler.agent import PPOAgent
@@ -158,9 +158,7 @@ class EnhancedRealCallback(BaseCallback):
         # 客户端检查
         if self.client is None:
             if not self._warned_no_client:
-                logger.warning(
-                    f"[EnhancedCB] 无客户端，真机抽样已禁用 (step={self.n_calls})"
-                )
+                logger.warning(f"[EnhancedCB] 无客户端，真机抽样已禁用 (step={self.n_calls})")
                 self._warned_no_client = True
             return True
 
@@ -293,9 +291,7 @@ class RewardTrackerCallback(BaseCallback):
 
         self._current_reward += reward
         self._current_length += 1
-        self.step_rewards.append(
-            {"step": float(self.n_calls), "reward": reward}
-        )
+        self.step_rewards.append({"step": float(self.n_calls), "reward": reward})
 
         if done:
             self.episode_rewards.append(self._current_reward)
@@ -387,8 +383,10 @@ def run_training(
     )
     print(f"\n{'=' * 60}")
     print(f"  [{tag}] RL 调度器真机闭环验证")
-    print(f"  总步数: {TOTAL_TIMESTEPS} | 真机间隔: {REAL_CALLBACK_INTERVAL} | "
-          f"概率: {REAL_CALLBACK_PROB}")
+    print(
+        f"  总步数: {TOTAL_TIMESTEPS} | 真机间隔: {REAL_CALLBACK_INTERVAL} | "
+        f"概率: {REAL_CALLBACK_PROB}"
+    )
     print(f"  预计真机任务数: {TOTAL_TIMESTEPS // REAL_CALLBACK_INTERVAL}")
     print(f"{'=' * 60}")
 
@@ -474,9 +472,9 @@ def poll_all_real_results(
             record["probability_diff"] = round(prob_diff, 4)
             record["fidelity"] = round(fidelity, 4)
             record["measurement_error"] = round(prob_diff, 4)
-            record["duration_sec"] = round(
-                result.get("duration_sec", 0.0), 2
-            ) if result.get("duration_sec") else None
+            record["duration_sec"] = (
+                round(result.get("duration_sec", 0.0), 2) if result.get("duration_sec") else None
+            )
             record["poll_status"] = "completed"
             print(f"[PASS] fidelity={record['fidelity']}")
         else:
@@ -527,7 +525,9 @@ def save_results(
     real_submitted = [r for r in real_records if r.get("real_task_id")]
     real_completed = [r for r in real_records if r.get("poll_status") == "completed"]
     real_fidelities = [r["fidelity"] for r in real_completed if r.get("fidelity") is not None]
-    real_prob_diffs = [r["probability_diff"] for r in real_completed if r.get("probability_diff") is not None]
+    real_prob_diffs = [
+        r["probability_diff"] for r in real_completed if r.get("probability_diff") is not None
+    ]
 
     summary = {
         "test_type": "rl_validation",
@@ -543,25 +543,33 @@ def save_results(
             "total_submitted": len(real_submitted),
             "completed": len(real_completed),
             "failed": len(real_submitted) - len(real_completed),
-            "avg_fidelity": round(
-                sum(real_fidelities) / max(len(real_fidelities), 1), 4
-            ) if real_fidelities else None,
-            "avg_probability_diff": round(
-                sum(real_prob_diffs) / max(len(real_prob_diffs), 1), 4
-            ) if real_prob_diffs else None,
+            "avg_fidelity": (
+                round(sum(real_fidelities) / max(len(real_fidelities), 1), 4)
+                if real_fidelities
+                else None
+            ),
+            "avg_probability_diff": (
+                round(sum(real_prob_diffs) / max(len(real_prob_diffs), 1), 4)
+                if real_prob_diffs
+                else None
+            ),
             "episode_rewards": real_episode_rewards,
             "episode_lengths": real_episode_lengths,
-            "avg_episode_reward": round(
-                sum(real_episode_rewards) / max(len(real_episode_rewards), 1), 4
-            ) if real_episode_rewards else None,
+            "avg_episode_reward": (
+                round(sum(real_episode_rewards) / max(len(real_episode_rewards), 1), 4)
+                if real_episode_rewards
+                else None
+            ),
         },
         "mock_control": {
             "total_submitted": len([r for r in mock_records if r.get("real_task_id")]),
             "episode_rewards": mock_episode_rewards,
             "episode_lengths": mock_episode_lengths,
-            "avg_episode_reward": round(
-                sum(mock_episode_rewards) / max(len(mock_episode_rewards), 1), 4
-            ) if mock_episode_rewards else None,
+            "avg_episode_reward": (
+                round(sum(mock_episode_rewards) / max(len(mock_episode_rewards), 1), 4)
+                if mock_episode_rewards
+                else None
+            ),
         },
         "real_task_records": real_records,
         "mock_task_records": mock_records,
@@ -591,7 +599,9 @@ def print_summary(
     real_submitted = [r for r in real_records if r.get("real_task_id")]
     real_completed = [r for r in real_records if r.get("poll_status") == "completed"]
     real_fidelities = [r["fidelity"] for r in real_completed if r.get("fidelity") is not None]
-    real_diffs = [r["probability_diff"] for r in real_completed if r.get("probability_diff") is not None]
+    real_diffs = [
+        r["probability_diff"] for r in real_completed if r.get("probability_diff") is not None
+    ]
 
     print(f"\n{'=' * 60}")
     print("  RL 调度器真机闭环验证 - 汇总报告")
@@ -625,8 +635,10 @@ def print_summary(
         print(f"  差异: {diff:+.2f} ({'真机优' if diff > 0 else 'Mock优' if diff < 0 else '相同'})")
 
     # 真机任务详情
-    print(f"\n  {'Step':<6s} {'Machine':<12s} {'Action':<10s} {'Reward':>8s} "
-          f"{'Fidelity':>10s} {'ProbDiff':>10s}")
+    print(
+        f"\n  {'Step':<6s} {'Machine':<12s} {'Action':<10s} {'Reward':>8s} "
+        f"{'Fidelity':>10s} {'ProbDiff':>10s}"
+    )
     print(f"  {'-'*6} {'-'*12} {'-'*10} {'-'*8} {'-'*10} {'-'*10}")
     for r in real_records:
         step = r.get("step", "?")

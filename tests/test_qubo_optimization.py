@@ -9,6 +9,7 @@ Issue #45: QUBO 矩阵构建性能剖析与加速 — 测试模块
     - TestQuboEdgeCases            : 单任务、空任务、大任务数、形状校验
     - TestQuboMatrixProperties     : 对称性、对角线值、非负性、非对角公式
 """
+
 import numpy as np
 import pytest
 

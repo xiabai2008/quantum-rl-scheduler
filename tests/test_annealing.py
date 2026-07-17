@@ -713,12 +713,14 @@ class TestParamBlockCreation(unittest.TestCase):
         """超大单张量应独立成块。"""
         # 构造一个 500 参数的大张量 + 若干小张量
         large_param = nn.Parameter(torch.randn(500))
+
         class TestNet(nn.Module):
             def __init__(self):
                 super().__init__()
                 self.large = large_param
                 self.small1 = nn.Parameter(torch.randn(10))
                 self.small2 = nn.Parameter(torch.randn(5))
+
         net = TestNet()
         params = list(net.parameters())
         blocks = QuantumAnnealingOptimizer._create_param_blocks(
@@ -731,9 +733,7 @@ class TestParamBlockCreation(unittest.TestCase):
 
     def test_no_params_returns_empty(self):
         """空参数列表返回空块列表。"""
-        blocks = QuantumAnnealingOptimizer._create_param_blocks(
-            [], block_strategy="size_limited"
-        )
+        blocks = QuantumAnnealingOptimizer._create_param_blocks([], block_strategy="size_limited")
         self.assertEqual(blocks, [])
 
 
@@ -750,10 +750,12 @@ class TestHierarchicalAnnealing(unittest.TestCase):
             nn.ReLU(),
             nn.Linear(8, 4),
         )
+
         # 使用 SimpleAgent 接口
         class TestAgent:
             def __init__(self, net):
                 self.policy_net = net
+
         self.agent = TestAgent(self.net)
 
     def tearDown(self):
@@ -780,13 +782,14 @@ class TestHierarchicalAnnealing(unittest.TestCase):
             nn.ReLU(),
             nn.Linear(8, 4),
         )
+
         class BigAgent:
             def __init__(self, net):
                 self.policy_net = net
+
         agent = BigAgent(big_net)
         total_tensors = len(list(big_net.parameters()))
-        self.assertGreater(total_tensors, 4,
-                           f"测试网络应有 >4 张量, 实际 {total_tensors}")
+        self.assertGreater(total_tensors, 4, f"测试网络应有 >4 张量, 实际 {total_tensors}")
 
     def test_hierarchical_via_mode_parameter(self):
         """通过 optimize_policy 的 mode='hierarchical' 应正确路由。"""
@@ -808,8 +811,7 @@ class TestHierarchicalAnnealing(unittest.TestCase):
         loss_after = QuantumAnnealingOptimizer._evaluate_network_quality(self.net)
         # loss 不应显著增加（允许微小波动，<5%）
         self.assertLessEqual(
-            loss_after, loss_before * 1.05,
-            f"loss 不应增加: {loss_before:.4f} → {loss_after:.4f}"
+            loss_after, loss_before * 1.05, f"loss 不应增加: {loss_before:.4f} → {loss_after:.4f}"
         )
 
     def test_hierarchical_disabled_when_quantum_disabled(self):
@@ -833,6 +835,7 @@ class TestHierarchicalAnnealing(unittest.TestCase):
     def test_hierarchical_memory_efficient(self):
         """分层退火内存应可控（不触发 OOM）。"""
         import sys
+
         # 模拟较大的网络（8 个参数张量，总参数 ~2000）
         big_net = nn.Sequential(
             nn.Linear(16, 64),
@@ -843,17 +846,17 @@ class TestHierarchicalAnnealing(unittest.TestCase):
             nn.ReLU(),
             nn.Linear(16, 8),
         )
+
         class BigAgent:
             def __init__(self, net):
                 self.policy_net = net
+
         agent = BigAgent(big_net)
         total_params = sum(p.numel() for p in big_net.parameters())
         total_tensors = len(list(big_net.parameters()))
 
-        self.assertGreater(total_tensors, 4,
-                           f"大网络应有 >4 张量, 实际 {total_tensors}")
-        self.assertGreater(total_params, 500,
-                           f"大网络应有 >500 参数, 实际 {total_params}")
+        self.assertGreater(total_tensors, 4, f"大网络应有 >4 张量, 实际 {total_tensors}")
+        self.assertGreater(total_params, 500, f"大网络应有 >500 参数, 实际 {total_params}")
 
         # 分块运行，不应 OOM
         try:

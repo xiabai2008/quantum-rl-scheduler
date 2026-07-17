@@ -67,9 +67,7 @@ class Obs10Wrapper(gym.Wrapper):
 
     def __init__(self, env: QuantumSchedulingEnv):
         super().__init__(env)
-        self.observation_space = spaces.Box(
-            low=0.0, high=1.0, shape=(10,), dtype=np.float32
-        )
+        self.observation_space = spaces.Box(low=0.0, high=1.0, shape=(10,), dtype=np.float32)
 
     def reset(self, **kwargs: Any) -> tuple[np.ndarray, dict]:
         obs, info = self.env.reset(**kwargs)
@@ -202,15 +200,19 @@ class SimulationEnv:
                 4,
             ),
             "classical_utilization": round(
-                float(np.mean(self._classical_util_samples))
-                if self._classical_util_samples
-                else 0.0,
+                (
+                    float(np.mean(self._classical_util_samples))
+                    if self._classical_util_samples
+                    else 0.0
+                ),
                 4,
             ),
             "avg_execution_time": round(
-                float(np.mean(self._execution_time_samples))
-                if self._execution_time_samples
-                else 0.0,
+                (
+                    float(np.mean(self._execution_time_samples))
+                    if self._execution_time_samples
+                    else 0.0
+                ),
                 4,
             ),
         }
@@ -405,6 +407,7 @@ def build_strategies(
 ) -> list[BaseStrategy]:
     """构建 8 个策略，自动加载可用的 DQN/PPO 模型。"""
     from stable_baselines3 import DQN, PPO
+
     from src.scheduler.agent import SchedulerAgent
 
     strategies: list[BaseStrategy] = []
@@ -712,9 +715,7 @@ def generate_strategy_report(
     data_path: Path,
 ) -> None:
     """生成 strategy_comparison.md。"""
-    sorted_by_reward = sorted(
-        results.items(), key=lambda kv: kv[1]["avg_reward"], reverse=True
-    )
+    sorted_by_reward = sorted(results.items(), key=lambda kv: kv[1]["avg_reward"], reverse=True)
     ppo_reward = results.get("PPO", {}).get("avg_reward", 0.0)
     fcfs_reward = results.get("FCFS", {}).get("avg_reward", 0.0)
     random_reward = results.get("Random", {}).get("avg_reward", 0.0)

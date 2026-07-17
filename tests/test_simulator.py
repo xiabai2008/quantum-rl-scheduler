@@ -121,9 +121,7 @@ class TestSimulateSchedulerPpoPath(unittest.IsolatedAsyncioTestCase):
                 await simulate_scheduler()
 
         # PPO 推理分支：action=1 → target=0.45，更新后利用率应为 0.5*0.7 + 0.45*0.3 = 0.485
-        self.assertAlmostEqual(
-            mock_app.system_status["qubit_utilization"], 0.485, places=4
-        )
+        self.assertAlmostEqual(mock_app.system_status["qubit_utilization"], 0.485, places=4)
         # current_step 应递增
         self.assertEqual(mock_app.system_status["current_step"], 1)
         # 决策日志应记录 PPO 动作
@@ -187,9 +185,7 @@ class TestSimulateSchedulerPpoPath(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(mock_app._decision_log[0]["action_label"], "混合")
         # action=2 → target=0.40，0.5*0.7 + 0.40*0.3 = 0.47
-        self.assertAlmostEqual(
-            mock_app.system_status["qubit_utilization"], 0.47, places=4
-        )
+        self.assertAlmostEqual(mock_app.system_status["qubit_utilization"], 0.47, places=4)
 
     async def test_ppo_predict_exception_fallback_to_random(self):
         """PPO predict 抛 ValueError 时应回退到随机更新路径。"""
@@ -215,9 +211,7 @@ class TestSimulateSchedulerPpoPath(unittest.IsolatedAsyncioTestCase):
                 await simulate_scheduler()
 
         # 异常回退随机：utilization = 0.5 + 0.0 = 0.5（clamp 后）
-        self.assertAlmostEqual(
-            mock_app.system_status["qubit_utilization"], 0.5, places=4
-        )
+        self.assertAlmostEqual(mock_app.system_status["qubit_utilization"], 0.5, places=4)
         # 异常路径不应记录决策日志（action 仍为 -1）
         self.assertEqual(len(mock_app._decision_log), 0)
 
@@ -297,9 +291,7 @@ class TestSimulateSchedulerNoModel(unittest.IsolatedAsyncioTestCase):
                 await simulate_scheduler()
 
         # 随机路径：utilization = 0.5 + 0.0 = 0.5
-        self.assertAlmostEqual(
-            mock_app.system_status["qubit_utilization"], 0.5, places=4
-        )
+        self.assertAlmostEqual(mock_app.system_status["qubit_utilization"], 0.5, places=4)
         # 无 PPO 推理 → 不记录决策日志
         self.assertEqual(len(mock_app._decision_log), 0)
 
@@ -369,9 +361,7 @@ class TestSimulateSchedulerNoModel(unittest.IsolatedAsyncioTestCase):
             with self.assertRaises(asyncio.CancelledError):
                 await simulate_scheduler()
 
-        self.assertAlmostEqual(
-            mock_app.system_status["qubit_utilization"], 0.1, places=4
-        )
+        self.assertAlmostEqual(mock_app.system_status["qubit_utilization"], 0.1, places=4)
 
     async def test_qubit_utilization_clamped_to_max(self):
         """qubit_utilization 偏高时应被 clamp 到 1.0 上限。"""
@@ -391,9 +381,7 @@ class TestSimulateSchedulerNoModel(unittest.IsolatedAsyncioTestCase):
             with self.assertRaises(asyncio.CancelledError):
                 await simulate_scheduler()
 
-        self.assertAlmostEqual(
-            mock_app.system_status["qubit_utilization"], 1.0, places=4
-        )
+        self.assertAlmostEqual(mock_app.system_status["qubit_utilization"], 1.0, places=4)
 
     async def test_average_wait_time_clamped_to_min(self):
         """average_wait_time 应被 clamp 到 0.5 下限。"""
@@ -530,13 +518,9 @@ class TestSimulateSchedulerRealMachinePoll(unittest.IsolatedAsyncioTestCase):
         """tick=20 时应调用 _get_real_machines_status 并更新 real_machines 字段。"""
         mock_app = _build_mock_app()
         mock_app._get_ppo_model.return_value = None
-        machines = [
-            {"id": "1", "type": "sc", "status": "running", "name": "tianyan_s"}
-        ]
+        machines = [{"id": "1", "type": "sc", "status": "running", "name": "tianyan_s"}]
         mock_app._get_real_machines_status = MagicMock(return_value=machines)
-        mock_app._load_real_submissions = MagicMock(
-            return_value=[{"step": 1, "task_id": "t1"}]
-        )
+        mock_app._load_real_submissions = MagicMock(return_value=[{"step": 1, "task_id": "t1"}])
 
         # 让循环跑 21 次后退出：第 21 次 sleep 抛 CancelledError
         # tick 从 1 递增到 20，第 20 次迭代时 tick%20==0 触发轮询
@@ -553,9 +537,7 @@ class TestSimulateSchedulerRealMachinePoll(unittest.IsolatedAsyncioTestCase):
                 await simulate_scheduler()
 
         # 真机状态应被写入 system_status
-        self.assertEqual(
-            mock_app.system_status["real_machines"], machines
-        )
+        self.assertEqual(mock_app.system_status["real_machines"], machines)
         # real_submissions 应被写入
         self.assertEqual(
             mock_app.system_status["real_submissions"],
@@ -589,9 +571,7 @@ class TestSimulateSchedulerRealMachinePoll(unittest.IsolatedAsyncioTestCase):
         """tick=20 时 _get_real_machines_status 抛 OSError 应被捕获不崩溃。"""
         mock_app = _build_mock_app()
         mock_app._get_ppo_model.return_value = None
-        mock_app._get_real_machines_status = MagicMock(
-            side_effect=OSError("net down")
-        )
+        mock_app._get_real_machines_status = MagicMock(side_effect=OSError("net down"))
         mock_app._load_real_submissions = MagicMock(return_value=[])
 
         with (
@@ -613,9 +593,7 @@ class TestSimulateSchedulerRealMachinePoll(unittest.IsolatedAsyncioTestCase):
         """tick=20 时 _get_real_machines_status 抛 RuntimeError 应被捕获。"""
         mock_app = _build_mock_app()
         mock_app._get_ppo_model.return_value = None
-        mock_app._get_real_machines_status = MagicMock(
-            side_effect=RuntimeError("rt fail")
-        )
+        mock_app._get_real_machines_status = MagicMock(side_effect=RuntimeError("rt fail"))
 
         with (
             patch("src.visualization.simulator._app", mock_app),
@@ -635,9 +613,7 @@ class TestSimulateSchedulerRealMachinePoll(unittest.IsolatedAsyncioTestCase):
         """tick=20 时 _get_real_machines_status 抛 ValueError 应被捕获。"""
         mock_app = _build_mock_app()
         mock_app._get_ppo_model.return_value = None
-        mock_app._get_real_machines_status = MagicMock(
-            side_effect=ValueError("bad value")
-        )
+        mock_app._get_real_machines_status = MagicMock(side_effect=ValueError("bad value"))
 
         with (
             patch("src.visualization.simulator._app", mock_app),
@@ -680,9 +656,7 @@ class TestSimulateSchedulerRealMachinePoll(unittest.IsolatedAsyncioTestCase):
         mock_app = _build_mock_app()
         mock_app._get_ppo_model.return_value = None
         mock_app._get_real_machines_status = MagicMock(return_value=[])
-        mock_app._load_real_submissions = MagicMock(
-            side_effect=ValueError("bad json")
-        )
+        mock_app._load_real_submissions = MagicMock(side_effect=ValueError("bad json"))
 
         with (
             patch("src.visualization.simulator._app", mock_app),
@@ -703,9 +677,7 @@ class TestSimulateSchedulerRealMachinePoll(unittest.IsolatedAsyncioTestCase):
         mock_app = _build_mock_app()
         mock_app._get_ppo_model.return_value = None
         mock_app._get_real_machines_status = MagicMock(return_value=[])
-        mock_app._load_real_submissions = MagicMock(
-            side_effect=RuntimeError("rt fail")
-        )
+        mock_app._load_real_submissions = MagicMock(side_effect=RuntimeError("rt fail"))
 
         with (
             patch("src.visualization.simulator._app", mock_app),
@@ -761,8 +733,13 @@ class TestSimulateSchedulerHistoryAndLog(unittest.IsolatedAsyncioTestCase):
         mock_app._get_ppo_model.return_value = None
         # 预填充 99 条，再跑 3 次迭代 → 第 101 条触发 pop(0)
         mock_app._resource_history = [
-            {"step": i, "qubit_utilization": 0.5, "queue_length": 0,
-             "completed_tasks": 0, "average_wait_time": 1.0}
+            {
+                "step": i,
+                "qubit_utilization": 0.5,
+                "queue_length": 0,
+                "completed_tasks": 0,
+                "average_wait_time": 1.0,
+            }
             for i in range(99)
         ]
 

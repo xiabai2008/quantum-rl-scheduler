@@ -117,17 +117,13 @@ def route_to_machine(
             qubits=getattr(task, "qubit_count", 0),
             tasks=1,
         ):
-            logger.warning(
-                f"[Tenant] 租户 {tenant_id} 配额不足，任务 {task.task_id} 调度被拒绝"
-            )
+            logger.warning(f"[Tenant] 租户 {tenant_id} 配额不足，任务 {task.task_id} 调度被拒绝")
             env._last_selected_machine = None
             return
 
     machine.quantum_queue += 1
     env._last_selected_machine = machine.name
-    env._machine_schedule_count[machine.name] = (
-        env._machine_schedule_count.get(machine.name, 0) + 1
-    )
+    env._machine_schedule_count[machine.name] = env._machine_schedule_count.get(machine.name, 0) + 1
 
     # 选择性真机提交（控制机时成本）
     if (
@@ -161,8 +157,6 @@ def recompute_aggregate(env: "QuantumSchedulingEnv") -> None:
     env._quantum.available_ratio = float(
         sum(m.available_ratio * m.total_qubits for m in env._machines) / total_q
     )
-    env._quantum.fidelity = float(
-        sum(m.fidelity * m.total_qubits for m in env._machines) / total_q
-    )
+    env._quantum.fidelity = float(sum(m.fidelity * m.total_qubits for m in env._machines) / total_q)
     env._quantum.quantum_queue = sum(m.quantum_queue for m in env._machines)
     env._quantum_available = any(m.available for m in env._machines)

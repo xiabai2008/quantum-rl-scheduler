@@ -167,11 +167,10 @@ class MockSmokeClient:
         """
         # 模拟 1024 次测量，50/50 分布
         import random
+
         random.seed(hash(task_id) % 2**32)
         shots = 1024
-        result_status = [
-            [random.randint(0, 1)] for _ in range(shots)
-        ]
+        result_status = [[random.randint(0, 1)] for _ in range(shots)]
         return {
             "task_id": task_id,
             "status": "completed",
@@ -265,7 +264,9 @@ def parse_probability(raw_result: Any) -> dict[str, float]:
             try:
                 parsed = json.loads(raw_str)
                 if isinstance(parsed, dict):
-                    return {str(k): float(v) for k, v in parsed.items() if isinstance(v, (int, float))}
+                    return {
+                        str(k): float(v) for k, v in parsed.items() if isinstance(v, (int, float))
+                    }
             except (json.JSONDecodeError, ValueError, TypeError):
                 pass
 
@@ -321,9 +322,7 @@ def compute_probability_from_shots(result_status: Any) -> dict[str, float]:
     return {k: round(v / total, 6) for k, v in counts.items()}
 
 
-def compute_measurement_error(
-    measured: dict[str, float], theoretical: dict[str, float]
-) -> float:
+def compute_measurement_error(measured: dict[str, float], theoretical: dict[str, float]) -> float:
     """计算测量误差。
 
     测量误差 = sum(|P_measured(k) - P_theoretical(k)|) / 2
@@ -344,9 +343,7 @@ def compute_measurement_error(
     return total_diff / 2.0
 
 
-def compute_fidelity(
-    measured: dict[str, float], theoretical: dict[str, float]
-) -> float:
+def compute_fidelity(measured: dict[str, float], theoretical: dict[str, float]) -> float:
     """计算保真度。
 
     保真度 = 1 - measurement_error
@@ -369,7 +366,7 @@ def compute_fidelity(
 # ---------------------------------------------------------------------------
 
 # 失败任务错误关键词
-_FAILURE_KEYWORDS = ("failed", "失败", "error", "code\":1", "code':1")
+_FAILURE_KEYWORDS = ("failed", "失败", "error", 'code":1', "code':1")
 
 
 def _is_task_failed(status_result: dict[str, Any]) -> bool:
@@ -404,9 +401,7 @@ def _is_task_failed(status_result: dict[str, Any]) -> bool:
     return False
 
 
-def _get_status_with_timeout(
-    client: Any, task_id: str, timeout: int = 15
-) -> dict[str, Any] | None:
+def _get_status_with_timeout(client: Any, task_id: str, timeout: int = 15) -> dict[str, Any] | None:
     """在单独 daemon 线程中调用 get_task_status，带超时。
 
     cqlib SDK 的 query_experiment 对失败任务会进入无限内部重试，
@@ -579,9 +574,7 @@ def run_single_experiment(
         record["task_id"] = task_id
 
         # 自定义轮询等待结果（正确处理失败任务）
-        result = poll_task_result(
-            client, task_id, timeout=180, poll_interval=3, max_unknown=5
-        )
+        result = poll_task_result(client, task_id, timeout=180, poll_interval=3, max_unknown=5)
         elapsed = round(time.time() - start, 2)
         complete_time = datetime.now().astimezone().isoformat()
 
@@ -610,9 +603,7 @@ def run_single_experiment(
                 result_status = raw_data.get("resultStatus")
                 if result_status:
                     probability = compute_probability_from_shots(result_status)
-                    logger.debug(
-                        f"[Smoke] 从 resultStatus 统计概率: {probability}"
-                    )
+                    logger.debug(f"[Smoke] 从 resultStatus 统计概率: {probability}")
 
             # 尝试4: result["raw"] 本身就是概率 dict
             if not probability and isinstance(raw_data, dict):
@@ -624,9 +615,7 @@ def run_single_experiment(
             record["measurement_error"] = round(
                 compute_measurement_error(probability, theoretical), 4
             )
-            record["fidelity"] = round(
-                compute_fidelity(probability, theoretical), 4
-            )
+            record["fidelity"] = round(compute_fidelity(probability, theoretical), 4)
             record["status"] = "completed"
 
             # 打印原始结果用于调试
@@ -635,7 +624,9 @@ def run_single_experiment(
                 f"耗时={elapsed}s, 保真度={record['fidelity']}, "
                 f"概率={probability}"
             )
-            logger.debug(f"[Smoke] raw_data keys={list(raw_data.keys()) if isinstance(raw_data, dict) else type(raw_data)}")
+            logger.debug(
+                f"[Smoke] raw_data keys={list(raw_data.keys()) if isinstance(raw_data, dict) else type(raw_data)}"
+            )
         else:
             record["status"] = result.get("status", "unknown")
             record["error"] = str(result.get("error", result))[:200]
@@ -723,13 +714,11 @@ def save_results(records: list[dict[str, Any]], output_dir: Path | None = None) 
     # 汇总统计
     total = len(records)
     completed = sum(1 for r in records if r["status"] == "completed")
-    avg_duration = (
-        sum(r["duration_sec"] for r in records if r["duration_sec"] is not None)
-        / max(completed, 1)
+    avg_duration = sum(r["duration_sec"] for r in records if r["duration_sec"] is not None) / max(
+        completed, 1
     )
-    avg_fidelity = (
-        sum(r["fidelity"] for r in records if r["fidelity"] is not None)
-        / max(completed, 1)
+    avg_fidelity = sum(r["fidelity"] for r in records if r["fidelity"] is not None) / max(
+        completed, 1
     )
 
     summary = {
@@ -781,12 +770,8 @@ def print_summary(records: list[dict[str, Any]]) -> None:
         exp_types.setdefault(r["experiment_type"], []).append(r)
 
     for exp_type, exp_records in exp_types.items():
-        exp_durations = [
-            r["duration_sec"] for r in exp_records if r["duration_sec"] is not None
-        ]
-        exp_fidelities = [
-            r["fidelity"] for r in exp_records if r["fidelity"] is not None
-        ]
+        exp_durations = [r["duration_sec"] for r in exp_records if r["duration_sec"] is not None]
+        exp_fidelities = [r["fidelity"] for r in exp_records if r["fidelity"] is not None]
         cnt = len(exp_records)
         avg_d = sum(exp_durations) / max(len(exp_durations), 1)
         avg_f = sum(exp_fidelities) / max(len(exp_fidelities), 1)

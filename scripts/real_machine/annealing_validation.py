@@ -56,10 +56,10 @@ from loguru import logger
 # 复用 smoke_test.py 工具函数
 from smoke_test import (  # type: ignore[import-not-found]
     MockSmokeClient,
-    parse_probability,
-    compute_probability_from_shots,
-    compute_measurement_error,
     compute_fidelity,
+    compute_measurement_error,
+    compute_probability_from_shots,
+    parse_probability,
     poll_task_result,
 )
 
@@ -71,14 +71,14 @@ from src.api.tianyan_cqlib import CqlibTianyanClient
 RESULTS_DIR = _PROJECT_ROOT / "results" / "real_machine"
 
 # QUBO 参数
-QUBO_SIZE = 10            # 10 变量 QUBO 问题
-NUM_READS = 100           # 退火采样次数
-ANNEALING_TIME = 1.0      # 退火时间 (微秒)
-SEED = 42                 # 随机种子
+QUBO_SIZE = 10  # 10 变量 QUBO 问题
+NUM_READS = 100  # 退火采样次数
+ANNEALING_TIME = 1.0  # 退火时间 (微秒)
+SEED = 42  # 随机种子
 
 # 真机参数
-REAL_SHOTS = 1024         # 真机 shots 数
-REAL_TASK_COUNT = 5       # 真机任务数
+REAL_SHOTS = 1024  # 真机 shots 数
+REAL_TASK_COUNT = 5  # 真机任务数
 QCIS_CIRCUIT = "H Q0\nM Q0"  # H 门电路
 
 
@@ -137,7 +137,7 @@ def brute_force_solve(qubo_matrix: np.ndarray) -> dict[str, Any]:
         求解结果字典: {bitstring, energy, solve_time_sec, total_evaluated}
     """
     n = qubo_matrix.shape[0]
-    total = 2 ** n
+    total = 2**n
     t0 = time.perf_counter()
 
     best_energy = float("inf")
@@ -283,8 +283,8 @@ def dwave_neal_solve(
         求解结果字典，或 None（SDK 不可用时）
     """
     try:
-        import neal  # type: ignore[import-untyped]
         import dimod  # type: ignore[import-untyped]
+        import neal  # type: ignore[import-untyped]
     except ImportError:
         logger.info("[DWave] neal SDK 不可用，跳过 D-Wave neal 求解")
         return None
@@ -544,9 +544,9 @@ def save_results(
             "total_submitted": total_real,
             "completed": completed_real,
             "failed": total_real - completed_real,
-            "avg_fidelity": round(sum(fidelities) / max(len(fidelities), 1), 4)
-            if fidelities
-            else None,
+            "avg_fidelity": (
+                round(sum(fidelities) / max(len(fidelities), 1), 4) if fidelities else None
+            ),
             "tasks": real_records,
         },
     }
@@ -582,29 +582,36 @@ def print_summary(
     print(f"{'=' * 80}")
 
     # QUBO 求解对比
-    print(f"\n  {'方法':<28s} {'最优能量':>12s} {'耗时(s)':>10s} "
-          f"{'与最优差距':>12s} {'找到最优':>10s}")
+    print(
+        f"\n  {'方法':<28s} {'最优能量':>12s} {'耗时(s)':>10s} "
+        f"{'与最优差距':>12s} {'找到最优':>10s}"
+    )
     print(f"  {'-'*28} {'-'*12} {'-'*10} {'-'*12} {'-'*10}")
 
     brute_e = brute_result["energy"]
-    print(f"  {'Brute Force (exact)':<28s} {brute_e:>12.6f} "
-          f"{brute_result['solve_time_sec']:>10.4f} {'0.000000':>12s} {'Y':>10s}")
+    print(
+        f"  {'Brute Force (exact)':<28s} {brute_e:>12.6f} "
+        f"{brute_result['solve_time_sec']:>10.4f} {'0.000000':>12s} {'Y':>10s}"
+    )
 
     sim_e = sim_result["energy"]
     sim_gap = sim_e - brute_e
-    print(f"  {'Sim Annealing (numpy)':<28s} {sim_e:>12.6f} "
-          f"{sim_result['solve_time_sec']:>10.4f} {sim_gap:>12.6f} "
-          f"{'Y' if sim_gap < 1e-6 else 'N':>10s}")
+    print(
+        f"  {'Sim Annealing (numpy)':<28s} {sim_e:>12.6f} "
+        f"{sim_result['solve_time_sec']:>10.4f} {sim_gap:>12.6f} "
+        f"{'Y' if sim_gap < 1e-6 else 'N':>10s}"
+    )
 
     if dwave_result:
         dw_e = dwave_result["energy"]
         dw_gap = dw_e - brute_e
-        print(f"  {'D-Wave neal':<28s} {dw_e:>12.6f} "
-              f"{dwave_result['solve_time_sec']:>10.4f} {dw_gap:>12.6f} "
-              f"{'Y' if dw_gap < 1e-6 else 'N':>10s}")
+        print(
+            f"  {'D-Wave neal':<28s} {dw_e:>12.6f} "
+            f"{dwave_result['solve_time_sec']:>10.4f} {dw_gap:>12.6f} "
+            f"{'Y' if dw_gap < 1e-6 else 'N':>10s}"
+        )
     else:
-        print(f"  {'D-Wave neal':<28s} {'N/A':>12s} {'N/A':>10s} "
-              f"{'N/A':>12s} {'N/A':>10s}")
+        print(f"  {'D-Wave neal':<28s} {'N/A':>12s} {'N/A':>10s} " f"{'N/A':>12s} {'N/A':>10s}")
 
     # 真机验证
     total_real = len([r for r in real_records if r.get("real_task_id")])
@@ -644,8 +651,10 @@ def main() -> None:
 
     print(f"\n{'=' * 60}")
     print("  退火算法真机验证 (阶段 3)")
-    print(f"  QUBO 规模: {QUBO_SIZE}x{QUBO_SIZE} | num_reads: {NUM_READS} | "
-          f"annealing_time: {ANNEALING_TIME}")
+    print(
+        f"  QUBO 规模: {QUBO_SIZE}x{QUBO_SIZE} | num_reads: {NUM_READS} | "
+        f"annealing_time: {ANNEALING_TIME}"
+    )
     print(f"  真机任务: {REAL_TASK_COUNT} x H门 (shots={REAL_SHOTS})")
     print(f"{'=' * 60}")
 
@@ -659,15 +668,11 @@ def main() -> None:
 
     # ── 步骤 3: 模拟退火求解 ──
     print("\n--- [3/5] 模拟退火求解 (numpy) ---")
-    sim_result = simulated_annealing_solve(
-        qubo_matrix, num_reads=NUM_READS, seed=SEED
-    )
+    sim_result = simulated_annealing_solve(qubo_matrix, num_reads=NUM_READS, seed=SEED)
 
     # ── 步骤 4: D-Wave neal 求解（如可用）──
     print("\n--- [4/5] D-Wave neal 求解 ---")
-    dwave_result = dwave_neal_solve(
-        qubo_matrix, num_reads=NUM_READS, annealing_time=ANNEALING_TIME
-    )
+    dwave_result = dwave_neal_solve(qubo_matrix, num_reads=NUM_READS, annealing_time=ANNEALING_TIME)
     if dwave_result is None:
         print("  D-Wave neal SDK 不可用，跳过")
 

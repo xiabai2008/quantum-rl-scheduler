@@ -97,9 +97,7 @@ def get_observation(env: "QuantumSchedulingEnv") -> np.ndarray:
     # 添加任务类型编码
     if env._current_task is not None:
         obs[OBS_TASK_TYPE_QUANTUM] = 1.0 if env._current_task.task_type == "quantum" else 0.0
-        obs[OBS_TASK_TYPE_CLASSICAL] = (
-            1.0 if env._current_task.task_type == "classical" else 0.0
-        )
+        obs[OBS_TASK_TYPE_CLASSICAL] = 1.0 if env._current_task.task_type == "classical" else 0.0
     else:
         obs[OBS_TASK_TYPE_QUANTUM] = 0.0
         obs[OBS_TASK_TYPE_CLASSICAL] = 0.0
@@ -110,8 +108,7 @@ def get_observation(env: "QuantumSchedulingEnv") -> np.ndarray:
         if total_q > 0:
             obs[OBS_SINGLE_GATE_FIDELITY] = float(
                 np.clip(
-                    sum(m.single_gate_fidelity * m.total_qubits for m in env._machines)
-                    / total_q,
+                    sum(m.single_gate_fidelity * m.total_qubits for m in env._machines) / total_q,
                     0.0,
                     1.0,
                 )
