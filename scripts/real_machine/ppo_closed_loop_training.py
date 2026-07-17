@@ -75,9 +75,9 @@ for p in [_PROJECT_ROOT, _SCRIPT_DIR]:
     if str(p) not in sys.path:
         sys.path.insert(0, str(p))
 
-from loguru import logger
-
 import csv
+
+from loguru import logger
 from stable_baselines3.common.callbacks import BaseCallback
 
 from src.api.tianyan_cqlib import CqlibTianyanClient
@@ -480,13 +480,13 @@ def main() -> None:
 
         def _patched_poll(self: Any) -> float:  # type: ignore[misc]
             """带配额限制的真机轮询：每步最多 3 个任务。"""
+            from src.scheduler.env_real_machine import (
+                _update_task_duration,
+                record_real_failure,
+            )
             from src.scheduler.env_types import (
                 REAL_MACHINE_FAIL_PENALTY,
                 REAL_MACHINE_SUCCESS_BONUS,
-            )
-            from src.scheduler.env_real_machine import (
-                record_real_failure,
-                _update_task_duration,
             )
 
             # 本地覆盖：更宽松的降级参数（适应真机执行慢、网络不稳）

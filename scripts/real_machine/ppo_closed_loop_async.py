@@ -626,8 +626,8 @@ def main() -> None:
         from src.scheduler.env_real_machine import (
             REAL_MACHINE_FAIL_PENALTY,
             REAL_MACHINE_SUCCESS_BONUS,
-            record_real_failure,
             _update_task_duration,
+            record_real_failure,
         )
 
         def _on_real_completed(task_id_str: str, status: dict[str, Any]) -> None:

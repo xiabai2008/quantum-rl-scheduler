@@ -54,31 +54,31 @@ for p in [_PROJECT_ROOT, _SCRIPT_DIR, _EVAL_DIR]:
 
 from loguru import logger
 
+# 导入基线策略
+from run_simulation import (  # type: ignore[import-not-found]
+    BaseStrategy,
+    ClassicalOnlyStrategy,
+    DQNModelStrategy,
+    FCFSStrategy,
+    GreedyStrategy,
+    PPOStrategy,
+    QuantumOnlyStrategy,
+    RandomStrategy,
+    ShortestJobFirstStrategy,
+)
+
 # 复用 smoke_test.py 工具函数
 from smoke_test import (  # type: ignore[import-not-found]
     MockSmokeClient,
-    parse_probability,
-    compute_probability_from_shots,
-    compute_measurement_error,
     compute_fidelity,
+    compute_measurement_error,
+    compute_probability_from_shots,
+    parse_probability,
     poll_task_result,
 )
 
 from src.api.tianyan_cqlib import CqlibTianyanClient
 from src.scheduler.env import DEFAULT_MACHINE_CONFIGS, QuantumSchedulingEnv
-
-# 导入基线策略
-from run_simulation import (  # type: ignore[import-not-found]
-    BaseStrategy,
-    FCFSStrategy,
-    RandomStrategy,
-    GreedyStrategy,
-    ShortestJobFirstStrategy,
-    QuantumOnlyStrategy,
-    ClassicalOnlyStrategy,
-    PPOStrategy,
-    DQNModelStrategy,
-)
 
 # ---------------------------------------------------------------------------
 # 常量
