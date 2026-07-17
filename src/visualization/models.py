@@ -22,9 +22,7 @@ class TaskSubmit(BaseModel):
     priority: int = Field(default=3, ge=1, le=5, description="优先级 1-5")
     qubit_count: int = Field(default=10, ge=1, le=287, description="所需量子比特数")
     circuit_depth: int = Field(default=100, ge=1, le=10000, description="电路深度")
-    estimated_time: float = Field(
-        default=60.0, ge=0.1, le=86400.0, description="预计执行时间(秒)"
-    )
+    estimated_time: float = Field(default=60.0, ge=0.1, le=86400.0, description="预计执行时间(秒)")
 
 
 class SystemStatusUpdate(BaseModel):

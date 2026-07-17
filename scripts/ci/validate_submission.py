@@ -112,14 +112,10 @@ class SubmissionValidator:
             max_pages = reqs.get("max_pages")
 
             if min_pages and num_pages < min_pages:
-                self.errors.append(
-                    f"[{item['id']}] PDF 页数不足: {num_pages} < {min_pages}"
-                )
+                self.errors.append(f"[{item['id']}] PDF 页数不足: {num_pages} < {min_pages}")
                 print(f"  ❌ 页数不足: {num_pages} < {min_pages}")
             elif max_pages and num_pages > max_pages:
-                self.errors.append(
-                    f"[{item['id']}] PDF 页数超限: {num_pages} > {max_pages}"
-                )
+                self.errors.append(f"[{item['id']}] PDF 页数超限: {num_pages} > {max_pages}")
                 print(f"  ❌ 页数超限: {num_pages} > {max_pages}")
             else:
                 print(f"  ✅ 页数: {num_pages}")
@@ -133,9 +129,7 @@ class SubmissionValidator:
 
                 missing = [kw for kw in must_contain if kw not in text]
                 if missing:
-                    self.warnings.append(
-                        f"[{item['id']}] PDF 缺少关键词: {', '.join(missing)}"
-                    )
+                    self.warnings.append(f"[{item['id']}] PDF 缺少关键词: {', '.join(missing)}")
                     print(f"  ⚠️  缺少关键词: {', '.join(missing)}")
                 else:
                     print(f"  ✅ 包含所有必需关键词")
@@ -165,14 +159,10 @@ class SubmissionValidator:
             max_slides = reqs.get("max_slides")
 
             if min_slides and num_slides < min_slides:
-                self.errors.append(
-                    f"[{item['id']}] PPT 页数不足: {num_slides} < {min_slides}"
-                )
+                self.errors.append(f"[{item['id']}] PPT 页数不足: {num_slides} < {min_slides}")
                 print(f"  ❌ 页数不足: {num_slides} < {min_slides}")
             elif max_slides and num_slides > max_slides:
-                self.errors.append(
-                    f"[{item['id']}] PPT 页数超限: {num_slides} > {max_slides}"
-                )
+                self.errors.append(f"[{item['id']}] PPT 页数超限: {num_slides} > {max_slides}")
                 print(f"  ❌ 页数超限: {num_slides} > {max_slides}")
             else:
                 print(f"  ✅ 幻灯片数: {num_slides}")
@@ -186,22 +176,16 @@ class SubmissionValidator:
                         slide_titles.append(slide.shapes.title.text)
 
                 missing = [
-                    title
-                    for title in must_contain
-                    if not any(title in t for t in slide_titles)
+                    title for title in must_contain if not any(title in t for t in slide_titles)
                 ]
                 if missing:
-                    self.warnings.append(
-                        f"[{item['id']}] PPT 缺少幻灯片: {', '.join(missing)}"
-                    )
+                    self.warnings.append(f"[{item['id']}] PPT 缺少幻灯片: {', '.join(missing)}")
                     print(f"  ⚠️  缺少幻灯片: {', '.join(missing)}")
                 else:
                     print(f"  ✅ 包含所有必需幻灯片")
 
         except ImportError:
-            self.warnings.append(
-                f"[{item['id']}] python-pptx 未安装，跳过 PPTX 详细校验"
-            )
+            self.warnings.append(f"[{item['id']}] python-pptx 未安装，跳过 PPTX 详细校验")
             print(f"  ⚠️  python-pptx 未安装，跳过详细校验")
         except Exception as e:
             self.errors.append(f"[{item['id']}] PPTX 校验失败: {e}")
@@ -221,9 +205,7 @@ class SubmissionValidator:
             max_size = reqs.get("max_size_mb")
 
             if max_size and size_mb > max_size:
-                self.errors.append(
-                    f"[{item['id']}] 视频文件过大: {size_mb:.1f}MB > {max_size}MB"
-                )
+                self.errors.append(f"[{item['id']}] 视频文件过大: {size_mb:.1f}MB > {max_size}MB")
                 print(f"  ❌ 文件过大: {size_mb:.1f}MB > {max_size}MB")
             else:
                 print(f"  ✅ 文件大小: {size_mb:.1f}MB")
@@ -283,9 +265,7 @@ class SubmissionValidator:
                     print(f"  ✅ 分辨率: {width}x{height}")
 
         except FileNotFoundError:
-            self.warnings.append(
-                f"[{item['id']}] ffprobe 未安装，跳过 MP4 详细校验"
-            )
+            self.warnings.append(f"[{item['id']}] ffprobe 未安装，跳过 MP4 详细校验")
             print(f"  ⚠️  ffprobe 未安装，跳过详细校验")
         except subprocess.CalledProcessError as e:
             self.errors.append(f"[{item['id']}] ffprobe 执行失败: {e}")
@@ -306,9 +286,7 @@ class SubmissionValidator:
         max_size = reqs.get("max_size_mb")
 
         if max_size and size_mb > max_size:
-            self.errors.append(
-                f"[{item['id']}] ZIP 文件过大: {size_mb:.1f}MB > {max_size}MB"
-            )
+            self.errors.append(f"[{item['id']}] ZIP 文件过大: {size_mb:.1f}MB > {max_size}MB")
             print(f"  ❌ 文件过大: {size_mb:.1f}MB > {max_size}MB")
         else:
             print(f"  ✅ 文件大小: {size_mb:.1f}MB")
@@ -449,12 +427,8 @@ def main() -> None:
         """,
     )
 
-    parser.add_argument(
-        "--check", action="store_true", help="仅校验提交物"
-    )
-    parser.add_argument(
-        "--pack", action="store_true", help="校验并打包提交物"
-    )
+    parser.add_argument("--check", action="store_true", help="仅校验提交物")
+    parser.add_argument("--pack", action="store_true", help="校验并打包提交物")
     parser.add_argument(
         "--manifest",
         type=str,

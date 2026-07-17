@@ -33,8 +33,7 @@ def set_seed(seed: int = 42) -> int:
             seed = int(env_seed)
         except ValueError:
             logger.warning(
-                f"环境变量 QUANTUM_RL_SEED={env_seed!r} 不是有效整数，"
-                f"使用传入参数 seed={seed}"
+                f"环境变量 QUANTUM_RL_SEED={env_seed!r} 不是有效整数，" f"使用传入参数 seed={seed}"
             )
 
     # 设置 PYTHONHASHSEED（影响 dict/set 哈希顺序）

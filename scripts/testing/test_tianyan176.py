@@ -15,7 +15,9 @@ import time
 
 # --- 设置环境变量（必须在导入前） ---
 os.environ["TIANYAN_MOCK_MODE"] = "false"
-os.environ["TIANYAN_API_KEY"] = "qCNQVWtZacuH6XLWz9O/Ngqqps8AZU6HrlUfDzqjsc7hkowBxbdjuZnSUxaiO6v4srso4Q=="
+os.environ["TIANYAN_API_KEY"] = (
+    "qCNQVWtZacuH6XLWz9O/Ngqqps8AZU6HrlUfDzqjsc7hkowBxbdjuZnSUxaiO6v4srso4Q=="
+)
 
 # 添加项目路径
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -35,7 +37,10 @@ def test_tianyan176():
     print("\n[Step 1] 导入 cqlib 库...")
     try:
         import cqlib
-        print(f"  [PASS] cqlib 版本: {cqlib.__version__ if hasattr(cqlib, '__version__') else 'OK'}")
+
+        print(
+            f"  [PASS] cqlib 版本: {cqlib.__version__ if hasattr(cqlib, '__version__') else 'OK'}"
+        )
     except ImportError as e:
         print(f"  [FAIL] cqlib 未安装: {e}")
         print("  请运行: pip install cqlib")
@@ -62,7 +67,9 @@ def test_tianyan176():
             for m in machines:
                 mid, mtype, status, name = m[0], m[1], m[2], m[3]
                 status_icon = "[ON]" if status == "running" else "[OFF]"
-                print(f"    {status_icon} {name:20s} | ID={mid:12s} | type={mtype:10s} | status={status}")
+                print(
+                    f"    {status_icon} {name:20s} | ID={mid:12s} | type={mtype:10s} | status={status}"
+                )
         else:
             print("  [WARN] 机器列表为空")
     except Exception as e:
@@ -151,7 +158,9 @@ def test_tianyan176():
                 time.sleep(poll_interval)
                 waited += poll_interval
         else:
-            print(f"  [WARN] 超时 {max_wait}s，任务可能仍在执行中。可稍后手动查询 task_id={task_id}")
+            print(
+                f"  [WARN] 超时 {max_wait}s，任务可能仍在执行中。可稍后手动查询 task_id={task_id}"
+            )
 
     # ==================== 总结 ====================
     print(f"\n{SEPARATOR}")

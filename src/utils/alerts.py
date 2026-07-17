@@ -163,9 +163,7 @@ class AlertManager:
         while self._recent_timestamps and now - self._recent_timestamps[0] > 60.0:
             self._recent_timestamps.popleft()
         if len(self._recent_timestamps) >= self.max_alerts_per_minute:
-            logger.warning(
-                f"告警速率限制触发，丢弃告警: [{level.value}] {category}: {message}"
-            )
+            logger.warning(f"告警速率限制触发，丢弃告警: [{level.value}] {category}: {message}")
             return None
         self._recent_timestamps.append(now)
 

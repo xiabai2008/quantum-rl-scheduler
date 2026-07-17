@@ -388,11 +388,7 @@ class TestCriticalPath(unittest.TestCase):
         scheduler.add_task(DAGTask(task_id="b", estimated_time=2.0, dependencies=["a"]))
         # 路径2: a->c->d (1+5+1=7) ← 关键路径
         scheduler.add_task(DAGTask(task_id="c", estimated_time=5.0, dependencies=["a"]))
-        scheduler.add_task(
-            DAGTask(
-                task_id="d", estimated_time=1.0, dependencies=["b", "c"]
-            )
-        )
+        scheduler.add_task(DAGTask(task_id="d", estimated_time=1.0, dependencies=["b", "c"]))
         path = scheduler.critical_path()
         self.assertEqual(path, ["a", "c", "d"])
 
@@ -426,15 +422,9 @@ class TestScheduleWithResources(unittest.TestCase):
     def test_schedule_basic(self) -> None:
         """测试基本调度（资源充足时并行）。"""
         scheduler = DAGScheduler()
-        scheduler.add_task(
-            DAGTask(task_id="a", qubits_required=2, estimated_time=5.0)
-        )
-        scheduler.add_task(
-            DAGTask(task_id="b", qubits_required=2, estimated_time=5.0)
-        )
-        schedule = scheduler.schedule_with_resources(
-            available_qubits=10, available_machines=1
-        )
+        scheduler.add_task(DAGTask(task_id="a", qubits_required=2, estimated_time=5.0))
+        scheduler.add_task(DAGTask(task_id="b", qubits_required=2, estimated_time=5.0))
+        schedule = scheduler.schedule_with_resources(available_qubits=10, available_machines=1)
         self.assertEqual(len(schedule), 2)
         # 资源充足，两任务可并行（同一机器）
         for item in schedule:
@@ -444,15 +434,9 @@ class TestScheduleWithResources(unittest.TestCase):
     def test_schedule_resource_queuing(self) -> None:
         """测试资源不足时任务排队。"""
         scheduler = DAGScheduler()
-        scheduler.add_task(
-            DAGTask(task_id="a", qubits_required=3, estimated_time=5.0)
-        )
-        scheduler.add_task(
-            DAGTask(task_id="b", qubits_required=3, estimated_time=5.0)
-        )
-        schedule = scheduler.schedule_with_resources(
-            available_qubits=4, available_machines=1
-        )
+        scheduler.add_task(DAGTask(task_id="a", qubits_required=3, estimated_time=5.0))
+        scheduler.add_task(DAGTask(task_id="b", qubits_required=3, estimated_time=5.0))
+        schedule = scheduler.schedule_with_resources(available_qubits=4, available_machines=1)
         # a、b 各需 3 比特，容量 4，无法并行（3+3>4），b 须等 a 完成
         schedule_by_id = {item["task_id"]: item for item in schedule}
         self.assertEqual(schedule_by_id["a"]["start_time"], 0.0)
@@ -463,15 +447,9 @@ class TestScheduleWithResources(unittest.TestCase):
     def test_schedule_multi_machine(self) -> None:
         """测试多机器分配。"""
         scheduler = DAGScheduler()
-        scheduler.add_task(
-            DAGTask(task_id="a", qubits_required=3, estimated_time=5.0)
-        )
-        scheduler.add_task(
-            DAGTask(task_id="b", qubits_required=3, estimated_time=5.0)
-        )
-        schedule = scheduler.schedule_with_resources(
-            available_qubits=4, available_machines=2
-        )
+        scheduler.add_task(DAGTask(task_id="a", qubits_required=3, estimated_time=5.0))
+        scheduler.add_task(DAGTask(task_id="b", qubits_required=3, estimated_time=5.0))
+        schedule = scheduler.schedule_with_resources(available_qubits=4, available_machines=2)
         # 两台机器，两任务可分别在不同机器上并行
         machine_ids = {item["machine_id"] for item in schedule}
         self.assertEqual(machine_ids, {0, 1})
@@ -481,17 +459,11 @@ class TestScheduleWithResources(unittest.TestCase):
     def test_schedule_with_dependencies(self) -> None:
         """测试依赖约束影响开始时间。"""
         scheduler = DAGScheduler()
+        scheduler.add_task(DAGTask(task_id="a", qubits_required=2, estimated_time=5.0))
         scheduler.add_task(
-            DAGTask(task_id="a", qubits_required=2, estimated_time=5.0)
+            DAGTask(task_id="b", qubits_required=2, estimated_time=3.0, dependencies=["a"])
         )
-        scheduler.add_task(
-            DAGTask(
-                task_id="b", qubits_required=2, estimated_time=3.0, dependencies=["a"]
-            )
-        )
-        schedule = scheduler.schedule_with_resources(
-            available_qubits=10, available_machines=1
-        )
+        schedule = scheduler.schedule_with_resources(available_qubits=10, available_machines=1)
         schedule_by_id = {item["task_id"]: item for item in schedule}
         self.assertEqual(schedule_by_id["a"]["start_time"], 0.0)
         self.assertEqual(schedule_by_id["a"]["estimated_finish"], 5.0)
@@ -502,36 +474,24 @@ class TestScheduleWithResources(unittest.TestCase):
     def test_schedule_sorted_by_start_time(self) -> None:
         """测试调度结果按开始时间排序。"""
         scheduler = DAGScheduler()
+        scheduler.add_task(DAGTask(task_id="a", qubits_required=2, estimated_time=5.0))
         scheduler.add_task(
-            DAGTask(task_id="a", qubits_required=2, estimated_time=5.0)
+            DAGTask(task_id="b", qubits_required=2, estimated_time=3.0, dependencies=["a"])
         )
-        scheduler.add_task(
-            DAGTask(
-                task_id="b", qubits_required=2, estimated_time=3.0, dependencies=["a"]
-            )
-        )
-        schedule = scheduler.schedule_with_resources(
-            available_qubits=10, available_machines=1
-        )
+        schedule = scheduler.schedule_with_resources(available_qubits=10, available_machines=1)
         start_times = [item["start_time"] for item in schedule]
         self.assertEqual(start_times, sorted(start_times))
 
     def test_schedule_empty(self) -> None:
         """测试空图调度返回空列表。"""
         scheduler = DAGScheduler()
-        self.assertEqual(
-            scheduler.schedule_with_resources(available_qubits=10), []
-        )
+        self.assertEqual(scheduler.schedule_with_resources(available_qubits=10), [])
 
     def test_schedule_result_fields(self) -> None:
         """测试调度结果包含所有必要字段。"""
         scheduler = DAGScheduler()
-        scheduler.add_task(
-            DAGTask(task_id="a", qubits_required=2, estimated_time=5.0)
-        )
-        schedule = scheduler.schedule_with_resources(
-            available_qubits=10, available_machines=1
-        )
+        scheduler.add_task(DAGTask(task_id="a", qubits_required=2, estimated_time=5.0))
+        schedule = scheduler.schedule_with_resources(available_qubits=10, available_machines=1)
         item = schedule[0]
         self.assertIn("task_id", item)
         self.assertIn("start_time", item)
@@ -549,9 +509,7 @@ class TestExecutionOrder(unittest.TestCase):
         """测试基本执行顺序。"""
         scheduler = DAGScheduler(max_qubits=10)
         scheduler.add_task(DAGTask(task_id="a", estimated_time=1.0))
-        scheduler.add_task(
-            DAGTask(task_id="b", estimated_time=1.0, dependencies=["a"])
-        )
+        scheduler.add_task(DAGTask(task_id="b", estimated_time=1.0, dependencies=["a"]))
         order = scheduler.get_execution_order()
         self.assertEqual(order, ["a", "b"])
 
@@ -571,9 +529,7 @@ class TestSerialization(unittest.TestCase):
         """测试 to_dict 返回结构。"""
         scheduler = DAGScheduler()
         scheduler.add_task(DAGTask(task_id="a", qubits_required=5))
-        scheduler.add_task(
-            DAGTask(task_id="b", qubits_required=3, dependencies=["a"])
-        )
+        scheduler.add_task(DAGTask(task_id="b", qubits_required=3, dependencies=["a"]))
         result = scheduler.to_dict()
         self.assertIn("nodes", result)
         self.assertIn("edges", result)
@@ -727,12 +683,8 @@ class TestEdgeCases(unittest.TestCase):
     def test_single_node_schedule(self) -> None:
         """测试单节点资源调度。"""
         scheduler = DAGScheduler()
-        scheduler.add_task(
-            DAGTask(task_id="solo", qubits_required=3, estimated_time=5.0)
-        )
-        schedule = scheduler.schedule_with_resources(
-            available_qubits=10, available_machines=1
-        )
+        scheduler.add_task(DAGTask(task_id="solo", qubits_required=3, estimated_time=5.0))
+        schedule = scheduler.schedule_with_resources(available_qubits=10, available_machines=1)
         self.assertEqual(len(schedule), 1)
         self.assertEqual(schedule[0]["task_id"], "solo")
         self.assertEqual(schedule[0]["start_time"], 0.0)

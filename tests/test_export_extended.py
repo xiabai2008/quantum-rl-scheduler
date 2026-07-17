@@ -183,9 +183,7 @@ class TestShapeInferenceFallback(_ExportExtendedTestBase):
             output_dir=self.tmpdir,
         )
         # mock _load_model 抛异常，触发 except 分支回退默认值
-        with mock.patch.object(
-            exporter, "_load_model", side_effect=RuntimeError("load failed")
-        ):
+        with mock.patch.object(exporter, "_load_model", side_effect=RuntimeError("load failed")):
             shape = exporter._get_input_shape()
         self.assertEqual(shape, _DEFAULT_INPUT_SHAPE)
 
@@ -195,9 +193,7 @@ class TestShapeInferenceFallback(_ExportExtendedTestBase):
             os.path.join(self.tmpdir, "fake.zip"),
             output_dir=self.tmpdir,
         )
-        with mock.patch.object(
-            exporter, "_load_model", side_effect=RuntimeError("load failed")
-        ):
+        with mock.patch.object(exporter, "_load_model", side_effect=RuntimeError("load failed")):
             shape = exporter._resolve_shape(_DEFAULT_INPUT_SHAPE)
         self.assertEqual(shape, _DEFAULT_INPUT_SHAPE)
 
@@ -217,9 +213,10 @@ class TestExportOnnxWithMock(_ExportExtendedTestBase):
 
         # 注入 mock onnx 模块使 import onnx 成功
         mock_onnx = mock.MagicMock()
-        with mock.patch.dict(sys.modules, {"onnx": mock_onnx}), mock.patch(
-            "torch.onnx.export", side_effect=_fake_onnx_export
-        ) as mock_export:
+        with (
+            mock.patch.dict(sys.modules, {"onnx": mock_onnx}),
+            mock.patch("torch.onnx.export", side_effect=_fake_onnx_export) as mock_export,
+        ):
             onnx_path = exporter.export_onnx(input_shape=self.input_shape)
 
         self.assertTrue(os.path.exists(onnx_path))
@@ -232,8 +229,9 @@ class TestExportOnnxWithMock(_ExportExtendedTestBase):
         exporter = ModelExporter(model_path, output_dir=self.tmpdir)
 
         mock_onnx = mock.MagicMock()
-        with mock.patch.dict(sys.modules, {"onnx": mock_onnx}), mock.patch(
-            "torch.onnx.export", side_effect=RuntimeError("export failed")
+        with (
+            mock.patch.dict(sys.modules, {"onnx": mock_onnx}),
+            mock.patch("torch.onnx.export", side_effect=RuntimeError("export failed")),
         ):
             with self.assertRaises(RuntimeError) as cm:
                 exporter.export_onnx(input_shape=self.input_shape)
@@ -277,9 +275,7 @@ class TestValidateExportEdgeCases(_ExportExtendedTestBase):
         self.assertFalse(result["details"]["onnx"]["valid"])
         self.assertEqual(result["details"]["onnx"]["error"], "文件不存在")
 
-    @unittest.skipIf(
-        HAS_ONNXRUNTIME, "onnxruntime 已安装，跳过降级测试"
-    )
+    @unittest.skipIf(HAS_ONNXRUNTIME, "onnxruntime 已安装，跳过降级测试")
     def test_validate_onnx_runtime_not_installed(self) -> None:
         """onnxruntime 未安装时 ONNX 验证应标记 invalid 并记录错误。"""
         model_path = self._create_ppo_model()
@@ -319,9 +315,7 @@ class TestValidateExportEdgeCases(_ExportExtendedTestBase):
         mock_ort.InferenceSession.return_value = mock_sess
 
         with mock.patch.dict(sys.modules, {"onnxruntime": mock_ort}):
-            result = exporter.validate_export(
-                onnx_path=onnx_path, test_input=test_input
-            )
+            result = exporter.validate_export(onnx_path=onnx_path, test_input=test_input)
 
         self.assertIn("onnx", result["details"])
         self.assertTrue(result["details"]["onnx"]["valid"])
@@ -377,8 +371,9 @@ class TestExportAllOnnxPaths(_ExportExtendedTestBase):
         exporter = ModelExporter(model_path, output_dir=self.tmpdir)
 
         mock_onnx = mock.MagicMock()
-        with mock.patch.dict(sys.modules, {"onnx": mock_onnx}), mock.patch(
-            "torch.onnx.export", side_effect=RuntimeError("export failed")
+        with (
+            mock.patch.dict(sys.modules, {"onnx": mock_onnx}),
+            mock.patch("torch.onnx.export", side_effect=RuntimeError("export failed")),
         ):
             result = exporter.export_all(input_shape=self.input_shape)
 
@@ -403,9 +398,7 @@ class TestExportModelOnnxPaths(_ExportExtendedTestBase):
         mock_onnx = mock.MagicMock()
         with mock.patch.dict(sys.modules, {"onnx": mock_onnx}):
             with mock.patch("torch.onnx.export", side_effect=_fake_onnx_export):
-                result = export_model(
-                    model_path, output_dir=self.tmpdir, formats=["onnx"]
-                )
+                result = export_model(model_path, output_dir=self.tmpdir, formats=["onnx"])
 
         self.assertIsNotNone(result["onnx_path"])
         self.assertTrue(os.path.exists(result["onnx_path"]))
@@ -416,12 +409,11 @@ class TestExportModelOnnxPaths(_ExportExtendedTestBase):
         model_path = self._create_ppo_model()
 
         mock_onnx = mock.MagicMock()
-        with mock.patch.dict(sys.modules, {"onnx": mock_onnx}), mock.patch(
-            "torch.onnx.export", side_effect=RuntimeError("export failed")
+        with (
+            mock.patch.dict(sys.modules, {"onnx": mock_onnx}),
+            mock.patch("torch.onnx.export", side_effect=RuntimeError("export failed")),
         ):
-            result = export_model(
-                model_path, output_dir=self.tmpdir, formats=["onnx"]
-            )
+            result = export_model(model_path, output_dir=self.tmpdir, formats=["onnx"])
 
         self.assertIsNone(result["onnx_path"])
         self.assertIsNone(result["torchscript_path"])
