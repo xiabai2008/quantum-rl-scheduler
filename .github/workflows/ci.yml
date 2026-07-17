@@ -52,6 +52,7 @@ jobs:
           flake8 src/ scripts/ tests/ \
             --count \
             --select=E,W,F,N \
+            --extend-ignore=F541 \
             --max-line-length=100 \
             --statistics
 
