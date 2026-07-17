@@ -71,9 +71,7 @@ def _validate_input_length(value: Any, max_input_length: int) -> None:
         ValueError: 输入字符串长度超过 ``max_input_length``。
     """
     if isinstance(value, str) and len(value) > max_input_length:
-        raise ValueError(
-            f"输入长度 {len(value)} 超过上限 {max_input_length}（防止滥用/DoS）。"
-        )
+        raise ValueError(f"输入长度 {len(value)} 超过上限 {max_input_length}（防止滥用/DoS）。")
 
 
 def _sanitize_string(value: str, max_input_length: int = MAX_INPUT_LENGTH) -> str:
@@ -92,9 +90,7 @@ def _sanitize_string(value: str, max_input_length: int = MAX_INPUT_LENGTH) -> st
     if not isinstance(value, str):
         raise TypeError(f"期望 str 类型，得到 {type(value).__name__}")
     if len(value) > max_input_length:
-        raise ValueError(
-            f"输入长度 {len(value)} 超过上限 {max_input_length}（防止滥用/DoS）。"
-        )
+        raise ValueError(f"输入长度 {len(value)} 超过上限 {max_input_length}（防止滥用/DoS）。")
     stripped = value.strip()
     if _DANGEROUS_CTRL_PATTERN.search(stripped):
         raise ValueError("输入包含非法控制字符（null 字节或其它控制字符）。")
@@ -692,9 +688,7 @@ class LegacyTaskParser:
             TypeError: 输入非字符串。
         """
         if not isinstance(task_description, str):
-            raise TypeError(
-                f"task_description must be str, got {type(task_description).__name__}"
-            )
+            raise TypeError(f"task_description must be str, got {type(task_description).__name__}")
         # 输入安全：长度校验 + 危险控制字符检测（不去除空白，因 QASM/YAML 可能依赖缩进）
         if len(task_description) > max_input_length:
             raise ValueError(

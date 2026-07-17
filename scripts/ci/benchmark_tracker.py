@@ -37,9 +37,7 @@ from typing import Any, Dict, List, Optional
 class BenchmarkTracker:
     """Benchmark 结果追踪器"""
 
-    def __init__(
-        self, history_path: str = "results/benchmark_history.jsonl"
-    ) -> None:
+    def __init__(self, history_path: str = "results/benchmark_history.jsonl") -> None:
         """初始化追踪器
 
         Args:
@@ -259,9 +257,7 @@ def main() -> None:
         default=10.0,
         help="回归检测阈值（百分比，默认: 10.0）",
     )
-    parser.add_argument(
-        "--report", action="store_true", help="生成对比报告"
-    )
+    parser.add_argument("--report", action="store_true", help="生成对比报告")
 
     args = parser.parse_args()
 
@@ -284,9 +280,7 @@ def main() -> None:
 
     # 检测回归
     if previous:
-        regressions = tracker.detect_regressions(
-            current, previous["benchmarks"], args.threshold
-        )
+        regressions = tracker.detect_regressions(current, previous["benchmarks"], args.threshold)
         if regressions:
             print(f"\n⚠️  检测到 {len(regressions)} 个性能回归")
             sys.exit(1)

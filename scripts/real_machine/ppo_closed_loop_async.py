@@ -51,6 +51,7 @@ _ENV_PATH = Path(__file__).resolve().parent.parent.parent / ".env"
 if _ENV_PATH.exists():
     try:
         from dotenv import load_dotenv
+
         load_dotenv(_ENV_PATH)
     except ImportError:
         # fallback：手动解析 .env 文件
@@ -93,6 +94,7 @@ RESULTS_DIR = _PROJECT_ROOT / "results" / "real_machine"
 # ---------------------------------------------------------------------------
 # 异步结果轮询器：后台 daemon 线程持续轮询 pending 任务
 # ---------------------------------------------------------------------------
+
 
 class AsyncResultPoller:
     """异步结果轮询器：后台 daemon 线程轮询真机任务结果。
@@ -141,7 +143,10 @@ class AsyncResultPoller:
         )
 
     def submit_pending(
-        self, task_id_str: str, real_task_id: str, machine_name: str,
+        self,
+        task_id_str: str,
+        real_task_id: str,
+        machine_name: str,
     ) -> None:
         """提交一个新 pending 任务给后台轮询。
 
@@ -151,13 +156,15 @@ class AsyncResultPoller:
             machine_name: 提交的机器名
         """
         with self._pending_lock:
-            self._pending.append({
-                "task_id_str": task_id_str,
-                "real_task_id": real_task_id,
-                "machine_name": machine_name,
-                "submit_time": time.time(),
-                "poll_count": 0,
-            })
+            self._pending.append(
+                {
+                    "task_id_str": task_id_str,
+                    "real_task_id": real_task_id,
+                    "machine_name": machine_name,
+                    "submit_time": time.time(),
+                    "poll_count": 0,
+                }
+            )
         logger.debug(f"[AsyncPoller] 任务 {task_id_str} (real={real_task_id}) 加入轮询队列")
 
     def set_degraded(self, degraded: bool) -> None:
@@ -167,9 +174,7 @@ class AsyncResultPoller:
             with self._pending_lock:
                 pending_count = len(self._pending)
                 if pending_count > 0:
-                    logger.warning(
-                        f"[AsyncPoller] 已降级，清空 {pending_count} 个 pending 任务"
-                    )
+                    logger.warning(f"[AsyncPoller] 已降级，清空 {pending_count} 个 pending 任务")
                     self._pending.clear()
 
     def start(self) -> None:
@@ -263,9 +268,7 @@ class AsyncResultPoller:
                     return (task, "failed", err_msg)  # 真机运行失败
                 return (task, False, None)  # 其他 API 错误，可能仍在运行
             except Exception as e:
-                logger.debug(
-                    f"[AsyncPoller] 任务 {task['task_id_str']} 查询异常: {e}"
-                )
+                logger.debug(f"[AsyncPoller] 任务 {task['task_id_str']} 查询异常: {e}")
                 return (task, False, None)  # 网络错误，重试
 
         while self._running and not self._degraded:
@@ -275,9 +278,7 @@ class AsyncResultPoller:
                     continue
                 tasks_snapshot = list(self._pending)
 
-            logger.debug(
-                f"[AsyncPoller] 轮询心跳: {len(tasks_snapshot)} 个任务待查询"
-            )
+            logger.debug(f"[AsyncPoller] 轮询心跳: {len(tasks_snapshot)} 个任务待查询")
 
             now = time.time()
             active_tasks: list[dict[str, Any]] = []
@@ -286,9 +287,7 @@ class AsyncResultPoller:
             for task in tasks_snapshot:
                 task["poll_count"] += 1
                 if now - task["submit_time"] > self._max_wait_seconds:
-                    logger.warning(
-                        f"[AsyncPoller] 任务 {task['task_id_str']} 超时，标记为失败"
-                    )
+                    logger.warning(f"[AsyncPoller] 任务 {task['task_id_str']} 超时，标记为失败")
                     self._on_failed(task["task_id_str"], "轮询超时")
                 else:
                     active_tasks.append(task)
@@ -302,9 +301,7 @@ class AsyncResultPoller:
             # 第二遍：并行查询所有活跃任务
             still_pending: list[dict[str, Any]] = []
             with ThreadPoolExecutor(max_workers=self._max_workers) as executor:
-                futures = {
-                    executor.submit(_query_one, t): t for t in active_tasks
-                }
+                futures = {executor.submit(_query_one, t): t for t in active_tasks}
                 for future in as_completed(futures):
                     task, status, result = future.result()
                     if status is True:
@@ -416,26 +413,33 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="PPO 真机闭环训练（异步版）")
     parser.add_argument("--mock", action="store_true", help="Mock 模式（不使用真机）")
     parser.add_argument("--machine", default="tianyan176", help="首选机器名称")
-    parser.add_argument("--timesteps", type=int, default=2000, help="总训练步数（真机模式建议 2000-5000）")
+    parser.add_argument(
+        "--timesteps", type=int, default=2000, help="总训练步数（真机模式建议 2000-5000）"
+    )
     parser.add_argument("--save-interval", type=int, default=1000, help="保存间隔步数")
     parser.add_argument("--learning-rate", type=float, default=3e-4, help="学习率")
     parser.add_argument("--n-steps", type=int, default=512, help="PPO n_steps 参数")
     parser.add_argument("--batch-size", type=int, default=64, help="PPO batch_size")
     parser.add_argument("--seed", type=int, default=42, help="随机种子")
-    parser.add_argument("--output", type=str, default=str(DEFAULT_OUTPUT_DIR),
-                        help="输出模型目录")
-    parser.add_argument("--real-submit-prob", type=float, default=0.3,
-                        help="量子任务真机提交概率 (1.0=每个量子任务都提交)")
-    parser.add_argument("--poll-interval", type=float, default=5.0,
-                        help="后台轮询间隔（秒）")
-    parser.add_argument("--max-wait", type=float, default=120.0,
-                        help="单任务最大等待时间（秒）")
-    parser.add_argument("--degrade-threshold", type=int, default=5,
-                        help="连续失败多少次降级")
-    parser.add_argument("--max-workers", type=int, default=5,
-                        help="后台轮询并行查询线程数（默认 5）")
-    parser.add_argument("--max-real-tasks", type=int, default=0,
-                        help="真机任务总数上限（0=不限，到达后自动切换仿真模式）")
+    parser.add_argument("--output", type=str, default=str(DEFAULT_OUTPUT_DIR), help="输出模型目录")
+    parser.add_argument(
+        "--real-submit-prob",
+        type=float,
+        default=0.3,
+        help="量子任务真机提交概率 (1.0=每个量子任务都提交)",
+    )
+    parser.add_argument("--poll-interval", type=float, default=5.0, help="后台轮询间隔（秒）")
+    parser.add_argument("--max-wait", type=float, default=120.0, help="单任务最大等待时间（秒）")
+    parser.add_argument("--degrade-threshold", type=int, default=5, help="连续失败多少次降级")
+    parser.add_argument(
+        "--max-workers", type=int, default=5, help="后台轮询并行查询线程数（默认 5）"
+    )
+    parser.add_argument(
+        "--max-real-tasks",
+        type=int,
+        default=0,
+        help="真机任务总数上限（0=不限，到达后自动切换仿真模式）",
+    )
     parser.add_argument("--verbose", action="store_true", help="详细日志")
     args = parser.parse_args()
 
@@ -518,11 +522,16 @@ def main() -> None:
         # max_wait_time 也无法阻止单次 HTTP 请求阻塞 60s。
         # 将 HTTP 超时降到 15s + 最多 2 次重试，应对间歇性超时。
         import types
+
         _orig_send = client.platform._send_request
 
         def _fast_send_request(
-            plat_self: Any, path: str, method: str = "GET",
-            data: Any = None, params: Any = None, raise_for_code: bool = True,
+            plat_self: Any,
+            path: str,
+            method: str = "GET",
+            data: Any = None,
+            params: Any = None,
+            raise_for_code: bool = True,
         ) -> dict[str, Any]:
             """带重试的短 HTTP 超时版 _send_request：timeout=15s + 最多 2 次重试。
 
@@ -541,13 +550,15 @@ def main() -> None:
             for attempt in range(3):  # 1 次原始 + 2 次重试（仅网络错误）
                 try:
                     res = _requests.request(
-                        method.upper(), url, json=data, headers=headers,
-                        params=params, timeout=15,
+                        method.upper(),
+                        url,
+                        json=data,
+                        headers=headers,
+                        params=params,
+                        timeout=15,
                     )
                     if res.status_code != 200:
-                        raise CqlibRequestError(
-                            f"Request API failed: {res.text}", res.status_code
-                        )
+                        raise CqlibRequestError(f"Request API failed: {res.text}", res.status_code)
                     result: dict[str, Any] = res.json()
                     if raise_for_code and result.get("code", -1) != 0:
                         # API 级别错误（运行失败、权限不足等）→ 不重试，直接抛出
@@ -562,6 +573,7 @@ def main() -> None:
                     last_error = _e
                     if attempt < 2:
                         import time as _time
+
                         _time.sleep(1.0)
             raise last_error  # type: ignore[misc]
 
@@ -597,9 +609,11 @@ def main() -> None:
             self._patch_call_count = getattr(self, "_patch_call_count", 0) + 1
             if self._patch_call_count % 10 == 1:
                 pending_count = async_poller.pending_count if async_poller else 0
-                print(f"  [Poll #{self._patch_call_count}] async_pending={pending_count}, "
-                      f"success={self._real_success_count}, step={self._current_step}",
-                      flush=True)
+                print(
+                    f"  [Poll #{self._patch_call_count}] async_pending={pending_count}, "
+                    f"success={self._real_success_count}, step={self._current_step}",
+                    flush=True,
+                )
 
             # 异步轮询：后台处理一切，这里只返回 0（反馈由回调累加）
             return 0.0
@@ -624,17 +638,20 @@ def main() -> None:
             actual_duration = status.get("raw", {}).get("executionTime", None)
             _update_task_duration(env, task_id_str, actual_duration)
             total_real = env._real_success_count + env._real_fail_count
-            print(f"  [真机OK] 任务 {task_id_str} 完成! "
-                  f"total_success={env._real_success_count} "
-                  f"total_real={total_real}",
-                  flush=True)
+            print(
+                f"  [真机OK] 任务 {task_id_str} 完成! "
+                f"total_success={env._real_success_count} "
+                f"total_real={total_real}",
+                flush=True,
+            )
             logger.info(f"[异步回调] 任务 {task_id_str} 完成")
             if args.max_real_tasks > 0 and total_real >= args.max_real_tasks:
                 env._real_machine_degraded = True
                 if async_poller:
                     async_poller.set_degraded(True)
-                print(f"  [限流] 真机任务已达上限 {args.max_real_tasks}，自动切换仿真模式",
-                      flush=True)
+                print(
+                    f"  [限流] 真机任务已达上限 {args.max_real_tasks}，自动切换仿真模式", flush=True
+                )
 
         def _on_real_failed(task_id_str: str, reason: str) -> None:
             """真机任务失败回调：更新环境统计，触发降级检查。"""
@@ -643,9 +660,11 @@ def main() -> None:
             env._real_consecutive_failures += 1
             record_real_failure(env, args.machine, reason)
             total_real = env._real_success_count + env._real_fail_count
-            print(f"  [真机FAIL] 任务 {task_id_str} 失败: {reason} "
-                  f"consecutive_failures={env._real_consecutive_failures}",
-                  flush=True)
+            print(
+                f"  [真机FAIL] 任务 {task_id_str} 失败: {reason} "
+                f"consecutive_failures={env._real_consecutive_failures}",
+                flush=True,
+            )
             # 降级条件 1：连续失败超阈值
             if env._real_consecutive_failures >= args.degrade_threshold:
                 env._real_machine_degraded = True
@@ -653,15 +672,18 @@ def main() -> None:
                     f"[异步回调] 连续失败 {env._real_consecutive_failures} 次，"
                     f"自动降级为仿真模式"
                 )
-                print(f"  [降级] 连续失败 {env._real_consecutive_failures} 次，已降级为仿真模式",
-                      flush=True)
+                print(
+                    f"  [降级] 连续失败 {env._real_consecutive_failures} 次，已降级为仿真模式",
+                    flush=True,
+                )
             # 降级条件 2：真机任务总数达上限
             elif args.max_real_tasks > 0 and total_real >= args.max_real_tasks:
                 env._real_machine_degraded = True
                 if async_poller:
                     async_poller.set_degraded(True)
-                print(f"  [限流] 真机任务已达上限 {args.max_real_tasks}，自动切换仿真模式",
-                      flush=True)
+                print(
+                    f"  [限流] 真机任务已达上限 {args.max_real_tasks}，自动切换仿真模式", flush=True
+                )
 
         async_poller = AsyncResultPoller(
             client=client,
@@ -687,8 +709,10 @@ def main() -> None:
             def append(self, _item: Any) -> None:
                 super().append(_item)
                 if isinstance(_item, dict) and "task_id" in _item and "task_id_str" in _item:
-                    print(f"  [AsyncPoller] 注册任务 {_item['task_id_str']} (real={_item['task_id'][:12]}...)",
-                          flush=True)
+                    print(
+                        f"  [AsyncPoller] 注册任务 {_item['task_id_str']} (real={_item['task_id'][:12]}...)",
+                        flush=True,
+                    )
                     self._poller.submit_pending(
                         task_id_str=_item["task_id_str"],
                         real_task_id=_item["task_id"],

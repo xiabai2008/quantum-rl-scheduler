@@ -70,9 +70,7 @@ class TrainingMetricsLogger:
             tb_dir = os.path.join(log_dir, experiment_name)
             os.makedirs(tb_dir, exist_ok=True)
             self._writer: Any = SummaryWriter(log_dir=tb_dir)
-            logger.info(
-                f"[TrainingMetricsLogger] TensorBoard 后端已启用，日志目录: {tb_dir}"
-            )
+            logger.info(f"[TrainingMetricsLogger] TensorBoard 后端已启用，日志目录: {tb_dir}")
         else:
             self.use_tensorboard = False
             self._writer = None
@@ -174,8 +172,7 @@ class TrainingMetricsLogger:
                 self._writer.add_hparams(flat_params, safe_metrics)
             except Exception as exc:
                 logger.warning(
-                    f"[TrainingMetricsLogger] add_hparams 失败: "
-                    f"{type(exc).__name__}: {exc}"
+                    f"[TrainingMetricsLogger] add_hparams 失败: " f"{type(exc).__name__}: {exc}"
                 )
         else:
             self._append_jsonl({"type": "hyperparams", **record})

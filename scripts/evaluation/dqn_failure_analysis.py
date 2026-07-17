@@ -11,7 +11,9 @@ PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, PROJECT_ROOT)
 os.chdir(PROJECT_ROOT)
 
-import matplotlib; matplotlib.use("Agg")
+import matplotlib
+
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 from src.scheduler.env import QuantumSchedulingEnv
@@ -25,12 +27,15 @@ REPORTS_DIR = os.path.join(RESULTS_DIR, "reports")
 # 环境工厂（与 stress_test.py 一致）
 # ============================================================================
 
+
 def make_env(max_steps=200):
     return QuantumSchedulingEnv(max_steps=max_steps, max_qubits=287, seed=SEED)
+
 
 def make_volatile_env(max_steps=200):
     env = QuantumSchedulingEnv(max_steps=max_steps, max_qubits=287, seed=SEED)
     orig = env._advance_time
+
     def patched(self, rng):
         orig(rng)
         c = getattr(self, "_vc", 0)
@@ -38,14 +43,18 @@ def make_volatile_env(max_steps=200):
             ratio = max(0.1, min(1.0, 0.5 + np.random.uniform(-0.2, 0.2)))
             self._quantum_resources[0].available_ratio = ratio
         self._vc = c + 1
+
     import types
+
     env._advance_time = types.MethodType(patched, env)
     env._vc = 0
     return env
 
+
 def make_tidal_env(max_steps=200):
     env = QuantumSchedulingEnv(max_steps=max_steps, max_qubits=287, seed=SEED)
     orig = env._generate_random_task
+
     def patched(self, rng, task_id):
         task = orig(rng, task_id)
         if self._current_step < max_steps // 2:
@@ -53,9 +62,12 @@ def make_tidal_env(max_steps=200):
         else:
             task.task_type = "classical" if rng.random() < 0.9 else "quantum"
         return task
+
     import types
+
     env._generate_random_task = types.MethodType(patched, env)
     return env
+
 
 SCENARIOS = [
     ("baseline", "默认负载", lambda: make_env(200)),
@@ -68,6 +80,7 @@ SCENARIOS = [
 # ============================================================================
 # 策略运行
 # ============================================================================
+
 
 def run_simulation(env, agent, max_steps=500):
     """运行一次完整的调度仿真，返回详细的统计指标"""
@@ -93,14 +106,19 @@ def run_simulation(env, agent, max_steps=500):
                 obs_t = np.array([obs], dtype=np.float32)
                 if hasattr(agent.model.policy, "q_net"):
                     # DQN
-                    with __import__('torch').no_grad():
-                        q_vals = agent.model.policy.q_net(
-                            __import__('torch').from_numpy(obs_t)
-                        ).squeeze().detach().cpu().numpy().tolist()
+                    with __import__("torch").no_grad():
+                        q_vals = (
+                            agent.model.policy.q_net(__import__("torch").from_numpy(obs_t))
+                            .squeeze()
+                            .detach()
+                            .cpu()
+                            .numpy()
+                            .tolist()
+                        )
                 elif hasattr(agent.model.policy, "evaluate_actions"):
                     # PPO — extract value
-                    obs_t = __import__('torch').from_numpy(obs_t)
-                    with __import__('torch').no_grad():
+                    obs_t = __import__("torch").from_numpy(obs_t)
+                    with __import__("torch").no_grad():
                         q_vals = [float(agent.model.policy.predict_values(obs_t).item()), 0, 0]
         except Exception:
             pass
@@ -131,6 +149,7 @@ def run_simulation(env, agent, max_steps=500):
 # 主流程
 # ============================================================================
 
+
 def main():
     os.makedirs(REPORTS_DIR, exist_ok=True)
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -150,7 +169,9 @@ def main():
     ppo_path = None
     candidates = [
         os.path.join(PROJECT_ROOT, "models", "ppo_seed_42_v4", "best_model.zip"),
-        os.path.join(PROJECT_ROOT, "logs", "ablation_with_anneal_seed42", "best_model", "best_model.zip"),
+        os.path.join(
+            PROJECT_ROOT, "logs", "ablation_with_anneal_seed42", "best_model", "best_model.zip"
+        ),
     ]
     for c in candidates:
         if os.path.exists(c):
@@ -215,8 +236,10 @@ def main():
                     "q_mean": [float(v) for v in q_avg],
                     "q_std": [float(v) for v in q_std],
                     "q_range": [
-                        [float(min(qv[i] for qv in qvs if len(qv) > i)),
-                         float(max(qv[i] for qv in qvs if len(qv) > i))]
+                        [
+                            float(min(qv[i] for qv in qvs if len(qv) > i)),
+                            float(max(qv[i] for qv in qvs if len(qv) > i)),
+                        ]
                         for i in range(3)
                     ],
                 }
@@ -247,16 +270,25 @@ def main():
         bar_colors = []
         for n in names:
             if n.startswith("DQN"):
-                bar_colors.append(colors_dqn[dqn_models.index(
-                    next((s, p, f) for s, p, f in dqn_models if f in n))])
+                bar_colors.append(
+                    colors_dqn[
+                        dqn_models.index(next((s, p, f) for s, p, f in dqn_models if f in n))
+                    ]
+                )
             else:
                 bar_colors.append(color_ppo)
 
         bars = ax.barh(names, rewards, color=bar_colors)
         for b, v in zip(bars, rewards):
             x = b.get_width()
-            ax.text(x + max(x * 0.02, 20), b.get_y() + b.get_height() / 2,
-                    f"{v:.0f}", va="center", fontsize=9, fontweight="bold")
+            ax.text(
+                x + max(x * 0.02, 20),
+                b.get_y() + b.get_height() / 2,
+                f"{v:.0f}",
+                va="center",
+                fontsize=9,
+                fontweight="bold",
+            )
         ax.set_title(f"{label}", fontsize=11)
         ax.set_xlabel("Total Reward")
         ax.grid(True, alpha=0.3, axis="x")
@@ -282,7 +314,9 @@ def main():
     ]
 
     # 对比表
-    report_lines.append("| 场景 | PPO | " + " | ".join(f"DQN@{s}" for s, _, _ in sorted(dqn_models)) + " |")
+    report_lines.append(
+        "| 场景 | PPO | " + " | ".join(f"DQN@{s}" for s, _, _ in sorted(dqn_models)) + " |"
+    )
     report_lines.append("|------|-----|" + "|".join("---" for _ in dqn_models) + "|")
     for key, label, _ in SCENARIOS:
         sd = all_data[key]["data"]
@@ -293,11 +327,13 @@ def main():
             dqn_rs.append(f"{dqn_r:.0f}")
         report_lines.append(f"| {label} | {ppo_r:.0f} | " + " | ".join(dqn_rs) + " |")
 
-    report_lines.extend([
-        f"",
-        f"## 3. 行动分布分析（默认负载场景）",
-        f"",
-    ])
+    report_lines.extend(
+        [
+            f"",
+            f"## 3. 行动分布分析（默认负载场景）",
+            f"",
+        ]
+    )
 
     if "baseline" in all_data:
         report_lines.append("| 模型 | Action0(经典) | Action1(量子) | Action2(混合) | 总步数 |")
@@ -308,13 +344,15 @@ def main():
                 f"| {model_name} | {ad.get(0,0)} | {ad.get(1,0)} | {ad.get(2,0)} | {d.get('n_steps',0)} |"
             )
 
-    report_lines.extend([
-        f"",
-        f"## 4. Q 值分析（默认负载场景）",
-        f"",
-        f"| 模型 | Q(action0) | Q(action1) | Q(action2) |",
-        f"|------|-----------|-----------|-----------|",
-    ])
+    report_lines.extend(
+        [
+            f"",
+            f"## 4. Q 值分析（默认负载场景）",
+            f"",
+            f"| 模型 | Q(action0) | Q(action1) | Q(action2) |",
+            f"|------|-----------|-----------|-----------|",
+        ]
+    )
     for model_name, qd in q_analysis.items():
         report_lines.append(
             f"| {model_name} | {qd['q_mean'][0]:.2f} +/- {qd['q_std'][0]:.2f} | "
@@ -322,62 +360,64 @@ def main():
             f"{qd['q_mean'][2]:.2f} +/- {qd['q_std'][2]:.2f} |"
         )
 
-    report_lines.extend([
-        f"",
-        f"## 5. 失败原因诊断",
-        f"",
-        f"### 5.1 Off-Policy 的不稳定性",
-        f"",
-        f"DQN 是 off-policy 算法，依赖经验回放缓冲区。在调度任务中：",
-        f"- 环境奖励分布随时间剧烈变化（任务类型、紧急程度、资源可用性实时波动）",
-        f"- 旧的经验（buffer 中的 transition）在后续环境中不再有效",
-        f"- 导致 Q 值更新基于过时的数据，产生**过高的方差**",
-        f"",
-        f"### 5.2 Q 值过估计（Overestimation Bias）",
-        f"",
-        f"标准 DQN 使用 max Q(s', a') 作为目标值，在离散动作空间中容易**"
-        f"系统性地高估某些动作的 Q 值**。在调度任务中，由于奖励稀疏，这种**"
-        f"过估计会导致智能体**固执地选择同一个动作**，忽略探索。",
-        f"",
-        f"### 5.3 部分可观测性",
-        f"",
-        f"10 维观测向量仅包含**当前瞬时快照**，不含有历史信息。DQN 没有**"
-        f"记忆机制来追踪任务的到达模式、资源使用的周期性规律。在潮汐场景下，"
-        f"这种信息缺失尤为致命。",
-        f"",
-        f"### 5.4 训练不充分",
-        f"",
-        f"查阅 `models/dqn_fair/seed_42/` 中的训练记录，DQN 仅训练了 "
-        f"{max(s for s, _, _ in dqn_models) if dqn_models else '?'} 步，"
-        f"远不足以让 Dueling DQN 收敛。",
-        f"",
-        f"### 5.5 对比：为什么 PPO 更好？",
-        f"",
-        f"| 维度 | DQN | PPO |",
-        f"|------|-----|-----|",
-        f"| 策略类型 | Off-Policy（Q-Learning） | On-Policy（Actor-Critic） |",
-        f"| 数据利用 | 依赖 replay buffer，可能使用过期数据 | 使用最近 rollout 的数据 |",
-        f"| 稳定性 | Q 值过估计 + 高方差 | Clip 机制限制策略更新幅度 |",
-        f"| 探索策略 | Epsilon-greedy（无方向性） | Entropy bonus + 策略分布 |",
-        f"| 适合场景 | 环境稳定、奖励密集的任务 | **环境动态变化、奖励稀疏的任务** |",
-        f"",
-        f"**结论**：调度任务具有高度动态性（任务到达、资源波动、负载变化），"
-        f"这天然不利于 off-policy 的 DQN。PPO 的 on-policy 性质 + clip 机制"
-        f"使其能更稳定地从近期经验中学习，在量子资源波动场景下优势尤为明显（+91.6%）。",
-        f"",
-        f"## 6. 对系统的启示",
-        f"",
-        f"1. **不要用 DQN 做调度** — 它的失败不是实现问题，是算法本质不匹配问题",
-        f"2. **PPO + 量子退火是正确方向** — on-policy + clip 稳定训练，退火加速收敛",
-        f"3. **未来可探索 PPO + LSTM** — 加入历史记忆，解决部分可观测性问题",
-        f"4. **Double DQN 或 Rainbow 也不乐观** — 根因不在过估计，在 off-policy 本质",
-        f"",
-        f"## 7. 相关文件",
-        f"",
-        f"- 原始数据: `{jpath}`",
-        f"- 对比图: `{ppath}`",
-        f"",
-    ])
+    report_lines.extend(
+        [
+            f"",
+            f"## 5. 失败原因诊断",
+            f"",
+            f"### 5.1 Off-Policy 的不稳定性",
+            f"",
+            f"DQN 是 off-policy 算法，依赖经验回放缓冲区。在调度任务中：",
+            f"- 环境奖励分布随时间剧烈变化（任务类型、紧急程度、资源可用性实时波动）",
+            f"- 旧的经验（buffer 中的 transition）在后续环境中不再有效",
+            f"- 导致 Q 值更新基于过时的数据，产生**过高的方差**",
+            f"",
+            f"### 5.2 Q 值过估计（Overestimation Bias）",
+            f"",
+            f"标准 DQN 使用 max Q(s', a') 作为目标值，在离散动作空间中容易**"
+            f"系统性地高估某些动作的 Q 值**。在调度任务中，由于奖励稀疏，这种**"
+            f"过估计会导致智能体**固执地选择同一个动作**，忽略探索。",
+            f"",
+            f"### 5.3 部分可观测性",
+            f"",
+            f"10 维观测向量仅包含**当前瞬时快照**，不含有历史信息。DQN 没有**"
+            f"记忆机制来追踪任务的到达模式、资源使用的周期性规律。在潮汐场景下，"
+            f"这种信息缺失尤为致命。",
+            f"",
+            f"### 5.4 训练不充分",
+            f"",
+            f"查阅 `models/dqn_fair/seed_42/` 中的训练记录，DQN 仅训练了 "
+            f"{max(s for s, _, _ in dqn_models) if dqn_models else '?'} 步，"
+            f"远不足以让 Dueling DQN 收敛。",
+            f"",
+            f"### 5.5 对比：为什么 PPO 更好？",
+            f"",
+            f"| 维度 | DQN | PPO |",
+            f"|------|-----|-----|",
+            f"| 策略类型 | Off-Policy（Q-Learning） | On-Policy（Actor-Critic） |",
+            f"| 数据利用 | 依赖 replay buffer，可能使用过期数据 | 使用最近 rollout 的数据 |",
+            f"| 稳定性 | Q 值过估计 + 高方差 | Clip 机制限制策略更新幅度 |",
+            f"| 探索策略 | Epsilon-greedy（无方向性） | Entropy bonus + 策略分布 |",
+            f"| 适合场景 | 环境稳定、奖励密集的任务 | **环境动态变化、奖励稀疏的任务** |",
+            f"",
+            f"**结论**：调度任务具有高度动态性（任务到达、资源波动、负载变化），"
+            f"这天然不利于 off-policy 的 DQN。PPO 的 on-policy 性质 + clip 机制"
+            f"使其能更稳定地从近期经验中学习，在量子资源波动场景下优势尤为明显（+91.6%）。",
+            f"",
+            f"## 6. 对系统的启示",
+            f"",
+            f"1. **不要用 DQN 做调度** — 它的失败不是实现问题，是算法本质不匹配问题",
+            f"2. **PPO + 量子退火是正确方向** — on-policy + clip 稳定训练，退火加速收敛",
+            f"3. **未来可探索 PPO + LSTM** — 加入历史记忆，解决部分可观测性问题",
+            f"4. **Double DQN 或 Rainbow 也不乐观** — 根因不在过估计，在 off-policy 本质",
+            f"",
+            f"## 7. 相关文件",
+            f"",
+            f"- 原始数据: `{jpath}`",
+            f"- 对比图: `{ppath}`",
+            f"",
+        ]
+    )
 
     mpath = os.path.join(REPORTS_DIR, "dqn_failure_analysis.md")
     with open(mpath, "w", encoding="utf-8") as f:

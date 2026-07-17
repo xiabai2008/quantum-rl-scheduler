@@ -173,9 +173,7 @@ def submit_to_real_machine(
             shots=512,
             task_name=f"RL_{task.task_id}",
         )
-        env._machine_real_submits[machine.name] = (
-            env._machine_real_submits.get(machine.name, 0) + 1
-        )
+        env._machine_real_submits[machine.name] = env._machine_real_submits.get(machine.name, 0) + 1
         # 登记到 pending 列表，后续轮询结果（Issue #64）
         # real_task_id 为 None 表示提交被拒绝（如机器校准中），计入失败
         if real_task_id is not None:
@@ -284,9 +282,7 @@ def poll_pending_real_tasks(env: "QuantumSchedulingEnv") -> float:
 
         if status_str == "completed":
             # 真机成功：正向反馈
-            total_feedback += (
-                REAL_MACHINE_SUCCESS_BONUS * env.real_machine_feedback_weight
-            )
+            total_feedback += REAL_MACHINE_SUCCESS_BONUS * env.real_machine_feedback_weight
             env._real_success_count += 1
             env._real_consecutive_failures = 0  # 成功重置连续失败计数
 
@@ -300,19 +296,14 @@ def poll_pending_real_tasks(env: "QuantumSchedulingEnv") -> float:
             )
         elif status_str == "error":
             # 真机失败：负向反馈 + 降级判断
-            total_feedback += (
-                REAL_MACHINE_FAIL_PENALTY * env.real_machine_feedback_weight
-            )
+            total_feedback += REAL_MACHINE_FAIL_PENALTY * env.real_machine_feedback_weight
             record_real_failure(env, machine_name, "任务状态=error")
         elif pending["poll_count"] >= REAL_MACHINE_MAX_POLL_STEPS:
             # 超时：视为失败
-            total_feedback += (
-                REAL_MACHINE_FAIL_PENALTY * env.real_machine_feedback_weight
-            )
+            total_feedback += REAL_MACHINE_FAIL_PENALTY * env.real_machine_feedback_weight
             record_real_failure(env, machine_name, "轮询超时")
             logger.debug(
-                f"[真机闭环] 任务 {task_id_str} 轮询超时 "
-                f"(poll_count={pending['poll_count']})"
+                f"[真机闭环] 任务 {task_id_str} 轮询超时 " f"(poll_count={pending['poll_count']})"
             )
         else:
             # 仍在运行，保留到下一步轮询
@@ -325,6 +316,7 @@ def poll_pending_real_tasks(env: "QuantumSchedulingEnv") -> float:
 # =============================================================================
 # 真机执行时间回写
 # =============================================================================
+
 
 def _update_task_duration(
     env: "QuantumSchedulingEnv",
@@ -349,10 +341,7 @@ def _update_task_duration(
         return
 
     # 1. 检查当前正在执行的任务
-    if (
-        env._current_task is not None
-        and str(env._current_task.task_id) == task_id_str
-    ):
+    if env._current_task is not None and str(env._current_task.task_id) == task_id_str:
         env._current_task.execution_time = 0
         logger.debug(
             f"[真机闭环] 回写当前任务 {task_id_str} "

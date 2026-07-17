@@ -122,9 +122,7 @@ def advance_time(env: "QuantumSchedulingEnv", rng: np.random.Generator) -> None:
     # ---- 每台量子机器独立波动 ----
     for m in env._machines:
         # 可用比特比率波动
-        m.available_ratio = float(
-            np.clip(m.available_ratio + rng.uniform(-0.1, 0.1), 0.05, 1.0)
-        )
+        m.available_ratio = float(np.clip(m.available_ratio + rng.uniform(-0.1, 0.1), 0.05, 1.0))
         # 保真度衰减 + 随机恢复
         m.fidelity = float(np.clip(m.fidelity - 0.002 + rng.uniform(0.0, 0.01), 0.7, 0.999))
         # 更新物理噪声特征（基于新的 fidelity）

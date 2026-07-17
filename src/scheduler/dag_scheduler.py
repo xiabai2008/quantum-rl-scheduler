@@ -64,9 +64,7 @@ class DAGScheduler:
         failed: 已失败任务 ID 集合。
     """
 
-    def __init__(
-        self, tasks: list[DAGTask] | None = None, max_qubits: int = 287
-    ) -> None:
+    def __init__(self, tasks: list[DAGTask] | None = None, max_qubits: int = 287) -> None:
         """初始化 DAG 调度器。
 
         Args:
@@ -137,9 +135,7 @@ class DAGScheduler:
         for task_id, task in self.tasks.items():
             for dep in task.dependencies:
                 if dep not in self.tasks:
-                    raise ValueError(
-                        f"任务 '{task_id}' 依赖不存在的任务 '{dep}'。"
-                    )
+                    raise ValueError(f"任务 '{task_id}' 依赖不存在的任务 '{dep}'。")
         # 检查环
         if self._detect_cycle():
             raise ValueError("DAG 中存在环，无法进行拓扑排序。")
@@ -207,9 +203,7 @@ class DAGScheduler:
                     in_degree[tid] += 1
 
         adj = self._build_adjacency()
-        queue: deque[str] = deque(
-            tid for tid, deg in in_degree.items() if deg == 0
-        )
+        queue: deque[str] = deque(tid for tid, deg in in_degree.items() if deg == 0)
         order: list[str] = []
         while queue:
             node = queue.popleft()
@@ -235,11 +229,7 @@ class DAGScheduler:
         for task in self.tasks.values():
             if task.status != "pending":
                 continue
-            if all(
-                dep in self.completed
-                for dep in task.dependencies
-                if dep in self.tasks
-            ):
+            if all(dep in self.completed for dep in task.dependencies if dep in self.tasks):
                 ready.append(task)
         ready.sort(key=lambda t: (-t.priority, t.task_id))
         return ready
@@ -379,9 +369,7 @@ class DAGScheduler:
                 }
             )
 
-        schedule.sort(
-            key=lambda x: (x["start_time"], x["machine_id"], x["task_id"])
-        )
+        schedule.sort(key=lambda x: (x["start_time"], x["machine_id"], x["task_id"]))
         return schedule
 
     @staticmethod
@@ -461,9 +449,7 @@ class DAGScheduler:
             if seg_end <= start or seg_start >= end:
                 continue
             # 该子段内已用比特 = 完全覆盖该子段的所有任务比特之和
-            used = sum(
-                q for s, e, q in intervals if s <= seg_start and e >= seg_end
-            )
+            used = sum(q for s, e, q in intervals if s <= seg_start and e >= seg_end)
             if used + qubits_needed > capacity:
                 return False
         return True
