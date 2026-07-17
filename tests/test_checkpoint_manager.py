@@ -197,9 +197,7 @@ class TestRegister(unittest.TestCase):
         """未提供 version 时应自动生成以 'v' 开头的版本号。"""
         with tempfile.TemporaryDirectory() as tmp:
             mgr = make_manager(tmp)
-            meta = mgr.register(
-                path="cp.zip", algorithm="ppo", timesteps=1000, mean_reward=10.0
-            )
+            meta = mgr.register(path="cp.zip", algorithm="ppo", timesteps=1000, mean_reward=10.0)
             self.assertTrue(meta.version.startswith("v"))
             self.assertGreater(len(meta.version), 1)
 
@@ -221,9 +219,7 @@ class TestRegister(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             mgr = make_manager(tmp)
             self.assertFalse(os.path.exists(mgr.meta_file))
-            mgr.register(
-                path="cp.zip", algorithm="ppo", timesteps=1000, mean_reward=10.0
-            )
+            mgr.register(path="cp.zip", algorithm="ppo", timesteps=1000, mean_reward=10.0)
             self.assertTrue(os.path.exists(mgr.meta_file))
             with open(mgr.meta_file, encoding="utf-8") as f:
                 data = json.load(f)
@@ -754,9 +750,7 @@ class TestEdgeCases(unittest.TestCase):
         """register 使用默认参数应正常工作。"""
         with tempfile.TemporaryDirectory() as tmp:
             mgr = make_manager(tmp)
-            meta = mgr.register(
-                path="cp.zip", algorithm="ppo", timesteps=1000, mean_reward=10.0
-            )
+            meta = mgr.register(path="cp.zip", algorithm="ppo", timesteps=1000, mean_reward=10.0)
             self.assertEqual(meta.std_reward, 0.0)
             self.assertEqual(meta.tags, [])
             self.assertEqual(meta.notes, "")

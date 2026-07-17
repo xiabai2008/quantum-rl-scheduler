@@ -130,9 +130,7 @@ class QuotaTracker:
     def _load_config(self) -> None:
         """从 config_path 加载配额配置，文件缺失或格式错误时使用默认值。"""
         if not os.path.exists(self._config_path):
-            logger.warning(
-                f"[QuotaTracker] 配置文件不存在: {self._config_path}，使用默认配额"
-            )
+            logger.warning(f"[QuotaTracker] 配置文件不存在: {self._config_path}，使用默认配额")
             return
         try:
             with open(self._config_path, encoding="utf-8") as f:
@@ -220,7 +218,11 @@ class QuotaTracker:
         Returns:
             bool: 全部维度均在配额内返回 True，任一维度超额返回 False
         """
-        request = {"shots": float(shots), "tasks": float(tasks), "wall_time_hours": float(wall_time_hours)}
+        request = {
+            "shots": float(shots),
+            "tasks": float(tasks),
+            "wall_time_hours": float(wall_time_hours),
+        }
         with self._lock:
             for dim in _QUOTA_DIMENSIONS:
                 if self._used[dim] + request[dim] > self._total_quota[dim]:
@@ -243,7 +245,11 @@ class QuotaTracker:
         Returns:
             bool: 允许消费并已记录返回 True；任一维度超额返回 False（不抛异常）
         """
-        request = {"shots": float(shots), "tasks": float(tasks), "wall_time_hours": float(wall_time_hours)}
+        request = {
+            "shots": float(shots),
+            "tasks": float(tasks),
+            "wall_time_hours": float(wall_time_hours),
+        }
         with self._lock:
             for dim in _QUOTA_DIMENSIONS:
                 if self._used[dim] + request[dim] > self._total_quota[dim]:
@@ -254,9 +260,7 @@ class QuotaTracker:
             for dim in _QUOTA_DIMENSIONS:
                 self._used[dim] += request[dim]
             self._persist_state()
-            logger.debug(
-                f"[QuotaTracker] 消费成功: {request}，当前 used={self._used}"
-            )
+            logger.debug(f"[QuotaTracker] 消费成功: {request}，当前 used={self._used}")
             return True
 
     def remaining(self) -> dict[str, float]:
@@ -267,8 +271,7 @@ class QuotaTracker:
         """
         with self._lock:
             return {
-                dim: max(0.0, self._total_quota[dim] - self._used[dim])
-                for dim in _QUOTA_DIMENSIONS
+                dim: max(0.0, self._total_quota[dim] - self._used[dim]) for dim in _QUOTA_DIMENSIONS
             }
 
     def usage_ratio(self) -> dict[str, float]:
@@ -297,9 +300,7 @@ class QuotaTracker:
         with self._lock:
             total = dict(self._total_quota)
             used = dict(self._used)
-            remaining = {
-                dim: max(0.0, total[dim] - used[dim]) for dim in _QUOTA_DIMENSIONS
-            }
+            remaining = {dim: max(0.0, total[dim] - used[dim]) for dim in _QUOTA_DIMENSIONS}
             ratio = {
                 dim: (used[dim] / total[dim]) if total[dim] > 0 else 0.0
                 for dim in _QUOTA_DIMENSIONS
@@ -390,24 +391,22 @@ class QuotaTracker:
         """
         with self._lock:
             ratio = {
-                dim: (self._used[dim] / self._total_quota[dim])
-                if self._total_quota[dim] > 0
-                else 0.0
+                dim: (
+                    (self._used[dim] / self._total_quota[dim])
+                    if self._total_quota[dim] > 0
+                    else 0.0
+                )
                 for dim in _QUOTA_DIMENSIONS
             }
             warning_level = self._compute_warning_level(ratio)
             est_exhaustion = self._estimate_exhaustion_time(ratio)
 
         if warning_level == "critical":
-            logger.critical(
-                f"[QuotaTracker] 配额危急! ratio={ratio}, 估算耗尽={est_exhaustion}"
-            )
+            logger.critical(f"[QuotaTracker] 配额危急! ratio={ratio}, 估算耗尽={est_exhaustion}")
             self._dispatch_notification("critical", ratio, est_exhaustion)
             return "critical"
         if warning_level == "warning":
-            logger.warning(
-                f"[QuotaTracker] 配额警告: ratio={ratio}, 估算耗尽={est_exhaustion}"
-            )
+            logger.warning(f"[QuotaTracker] 配额警告: ratio={ratio}, 估算耗尽={est_exhaustion}")
             self._dispatch_notification("warning", ratio, est_exhaustion)
             return "warning"
         return None

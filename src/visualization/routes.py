@@ -178,9 +178,7 @@ async def metrics() -> Response:
 
 
 @router.post("/api/strategy")
-async def switch_strategy(
-    strategy: str, _auth: None = Depends(verify_api_key)
-) -> dict:
+async def switch_strategy(strategy: str, _auth: None = Depends(verify_api_key)) -> dict:
     """切换调度策略"""
     if strategy not in _app.system_status["strategy_options"]:
         return {"message": f"未知策略: {strategy}", "success": False}
@@ -199,9 +197,7 @@ async def switch_strategy(
 
 
 @router.post("/api/update")
-async def update_status(
-    update: SystemStatusUpdate, _auth: None = Depends(verify_api_key)
-) -> dict:
+async def update_status(update: SystemStatusUpdate, _auth: None = Depends(verify_api_key)) -> dict:
     """更新系统状态（供调度引擎调用）"""
     _app.system_status["qubit_utilization"] = update.qubit_utilization
     _app.system_status["queue_length"] = update.queue_length
@@ -441,9 +437,7 @@ async def get_tenants() -> dict:
     try:
         from src.scheduler.tenant import TenantQuotaManager
 
-        mgr = TenantQuotaManager.from_config(
-            str(_app._PROJECT_ROOT / "config" / "tenants.yaml")
-        )
+        mgr = TenantQuotaManager.from_config(str(_app._PROJECT_ROOT / "config" / "tenants.yaml"))
         return {"tenants": mgr.get_all_tenants_info()}
     except Exception as e:
         logger.debug(f"[Web] 租户状态查询失败: {e}")

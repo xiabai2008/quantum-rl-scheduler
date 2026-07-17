@@ -317,9 +317,7 @@ def load_settings(
     # ── 第 2 层：.env 文件 ──
     env_file_data = _parse_env_file(env_path)
     # 展开 .env 值中的 ${VAR} 引用（使用 os.environ）
-    env_file_data = {
-        k: cast(str, _expand_env_vars(v)) for k, v in env_file_data.items()
-    }
+    env_file_data = {k: cast(str, _expand_env_vars(v)) for k, v in env_file_data.items()}
 
     # ── 合并：按字段逐个解析 ──
     defaults = Settings()
