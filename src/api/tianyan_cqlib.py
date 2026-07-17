@@ -327,6 +327,8 @@ class CqlibTianyanClient:
                 if isinstance(result, list) and len(result) > 0:
                     tid = str(result[0])
                     logger.info(f"[Cqlib] {machine} 提交成功: {tid}")
+                else:
+                    tid = str(result)
                 # 备用机器提交成功后记录配额消耗（与主路径一致）
                 if self._quota_tracker is not None:
                     self._quota_tracker.consume(shots=shots, tasks=1)
@@ -357,7 +359,9 @@ class CqlibTianyanClient:
             from cqlib.exceptions import CqlibRequestError
 
             result = self.platform.query_experiment(
-                task_id, max_wait_time=2, sleep_time=1,
+                task_id,
+                max_wait_time=2,
+                sleep_time=1,
             )
             if isinstance(result, list) and len(result) > 0:
                 data = result[0]
