@@ -1,0 +1,40 @@
+{
+  "issue": 164,
+  "status": "blocked_preflight",
+  "generated_at": "2026-07-17T23:17:49+08:00",
+  "config": {
+    "timesteps": 10000,
+    "episodes": 5,
+    "real_prob": 0.04,
+    "max_real_submissions": 8,
+    "shots": 64,
+    "machine": "tianyan_s",
+    "seed": 42
+  },
+  "preflight": {
+    "authenticate": true,
+    "machine": "tianyan_s",
+    "backend_status": "running",
+    "backend_type": "free",
+    "platform_quota_api_available": false,
+    "local_quota_remaining_before": {
+      "shots": 10000.0,
+      "tasks": 200.0,
+      "wall_time_hours": 50.0
+    },
+    "local_quota_remaining_after_smoke": {
+      "shots": 10000.0,
+      "tasks": 200.0,
+      "wall_time_hours": 50.0
+    },
+    "smoke": {
+      "mode": "real_hardware",
+      "task_id": null,
+      "qubits": 1,
+      "shots": 64,
+      "status": "submit_rejected",
+      "reason": "platform_remaining_machine_time_insufficient"
+    }
+  },
+  "conditions": {}
+}

@@ -152,9 +152,18 @@ def submit_to_real_machine(
     if env._real_machine_degraded:
         return
 
+    if (
+        env.max_real_submissions is not None
+        and env._real_submission_attempts_total >= env.max_real_submissions
+    ):
+        return
+
     client = env._real_clients.get(machine.name)
     if client is None:
         return
+
+    # 在真正调用 SDK 前计数；无论平台接受或拒绝，该调用都占用硬上限。
+    env._real_submission_attempts_total += 1
 
     # 优先使用 task.qcis（由 parser 生成），否则动态生成电路
     # 注意：免费机时包有量子比特数限制（FREE_TIER_MAX_QUBITS），
@@ -170,7 +179,7 @@ def submit_to_real_machine(
     try:
         real_task_id = client.submit_quantum_task(
             qcis=qcis,
-            shots=512,
+            shots=env.real_machine_shots,
             task_name=f"RL_{task.task_id}",
         )
         env._machine_real_submits[machine.name] = env._machine_real_submits.get(machine.name, 0) + 1
