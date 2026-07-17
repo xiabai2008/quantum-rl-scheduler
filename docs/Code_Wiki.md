@@ -1045,8 +1045,9 @@ PYTHONUTF8=1 python -m mypy src
 # 退火性能基准
 pytest tests/benchmarks/test_annealing_benchmark.py --benchmark-only
 
-# 8 策略对比（v4 核心成果）
-# 排名：PPO(+2804) > FCFS(+1456) > SJF(+1443) > Random(+1267) > Greedy(-143) > ...
+# 8 策略对比（多 Seed 权威结果）
+# 排名：PPO(2814.19) > SJF(1468.17) > FCFS(1462.48) > Random(1275.91)
+#       > Greedy(-71.87) > DQN/Quantum-Only(-897.08) > Classical-Only(-1134.35)
 ```
 
 ---
