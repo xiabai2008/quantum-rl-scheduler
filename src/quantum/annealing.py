@@ -514,6 +514,9 @@ class QuantumAnnealingOptimizer:
         replay_buffer: Any | None = None,
         head_only: bool = True,
         max_head_tensors: int = 4,
+        mode: str = "head_only",
+        max_params_per_block: int = 200,
+        block_strategy: str = "tensor_wise",
     ) -> Any:
         """
         主优化循环：用量子退火加速策略更新（v2 - 梯度引导）
@@ -526,21 +529,40 @@ class QuantumAnnealingOptimizer:
             5. 用学习率缩放更新量，更新网络权重
             6. 接受准则：只有当 loss 下降时才接受更新（防止 loss 增加）
 
+        支持三种优化模式 (mode 参数)：
+            - "head_only" (默认): 仅优化网络尾部 N 个参数张量，向后兼容
+            - "hierarchical": 分层/分块退火，逐块 QUBO → 全量网络覆盖，突破 OOM
+            - "full": 全量单次 QUBO（仅在小网络 <200 参数时使用）
+
         Args:
-            agent          : RL 智能体（需具有 policy_net 属性，为 nn.Module）
-            num_iterations : 量子退火优化迭代次数（默认 10）
-            learning_rate  : 权重更新学习率（默认 0.01），控制更新幅度
-            callback       : 可选的回调函数，签名为 callback(iteration, loss)
-            replay_buffer  : 可选，经验回放缓冲区。若提供，用于计算梯度；
-                             若未提供，退化为基于权重正则化的优化。
-            head_only       : 是否仅优化网络输出头权重（默认 True）。
-                             设为 True 时仅优化最后 max_head_tensors 个参数张量，
-                             避免全量参数的 QUBO 矩阵 OOM。
-            max_head_tensors: head_only=True 时，最多优化的尾部参数张量数（默认 4）。
+            agent               : RL 智能体（需具有 policy_net 属性，为 nn.Module）
+            num_iterations      : 量子退火优化迭代次数（默认 10）
+            learning_rate       : 权重更新学习率（默认 0.01），控制更新幅度
+            callback            : 可选的回调函数，签名为 callback(iteration, loss)
+            replay_buffer       : 可选，经验回放缓冲区。若提供，用于计算梯度；
+                                  若未提供，退化为基于权重正则化的优化。
+            head_only           : [已废弃，使用 mode="head_only" 替代]
+                                  是否仅优化网络输出头权重（默认 True）。
+            max_head_tensors    : head_only 模式时，最多优化的尾部参数张量数（默认 4）。
+            mode                : 优化模式: "head_only" / "hierarchical" / "full"
+            max_params_per_block: hierarchical 模式时每块最大参数数（默认 200）
+            block_strategy      : hierarchical 模式的分块策略: "tensor_wise" / "size_limited"
 
         Returns:
             agent: 优化后的智能体（原地修改并返回）
         """
+        # 模式路由：hierarchical 模式委托给独立方法
+        if mode == "hierarchical":
+            return self.optimize_policy_hierarchical(
+                agent=agent,
+                num_iterations=num_iterations,
+                learning_rate=learning_rate,
+                callback=callback,
+                replay_buffer=replay_buffer,
+                max_params_per_block=max_params_per_block,
+                block_strategy=block_strategy,
+            )
+
         if not QUANTUM_ACCELERATION_ENABLED:
             logger.warning(
                 "量子加速功能已禁用 (QUANTUM_ACCELERATION_ENABLED 未设置)。"
@@ -755,9 +777,268 @@ class QuantumAnnealingOptimizer:
 
         return agent
 
+    # ------------------------------------------------------------------
+    # 方法 6: optimize_policy_hierarchical（分块/分层 QUBO 退火）
+    # ------------------------------------------------------------------
+    def optimize_policy_hierarchical(
+        self,
+        agent: Any,
+        num_iterations: int = 10,
+        learning_rate: float = 0.01,
+        callback: Any | None = None,
+        replay_buffer: Any | None = None,
+        max_params_per_block: int = 200,
+        block_strategy: str = "tensor_wise",
+    ) -> Any:
+        """
+        分层/分块量子退火策略优化（突破 head_only 限制，全量网络退火）
+
+        核心思想：
+            将全量网络参数按张量或参数量分块，每块独立构造小规模 QUBO 并退火求解，
+            避免全量参数合并成大 QUBO 矩阵导致 OOM（当前 head_only 的瓶颈）。
+
+        分块策略 (block_strategy)：
+            - "tensor_wise": 每个参数张量作为一个独立块（推荐，符合网络层结构）
+            - "size_limited": 按 max_params_per_block 动态分块，保证每块 ≤ 指定上限
+
+        工作流程（每轮迭代）：
+            1. 提取全量网络权重
+            2. 按策略将参数分块
+            3. 对每块：
+                a. 提取该块的权重和梯度（如有 replay_buffer）
+                b. 构造小块 QUBO 矩阵
+                c. 退火求解最优比特串
+                d. 解码为权重更新量并应用到网络
+            4. 评估全量网络的 loss，决定是否接受本轮更新
+            5. 多轮迭代，逐块逼近全局最优
+
+        内存优势：
+            每块 QUBO 矩阵大小 = (块内参数 × 每参数比特)²
+            例如 200 参数 × 4bit = 800² ≈ 5 MB（vs 全量 2000+ 参数 × 4bit = 8000² ≈ 512 MB）
+
+        Args:
+            agent               : RL 智能体
+            num_iterations      : 外层迭代轮数（默认 10）
+            learning_rate       : 权重更新学习率（默认 0.01）
+            callback            : 可选回调，签名 callback(iteration, loss)
+            replay_buffer       : 可选，经验回放缓冲区
+            max_params_per_block: 每块最大参数数（仅在 size_limited 策略下生效，默认 200）
+            block_strategy      : 分块策略，默认 "tensor_wise"
+
+        Returns:
+            agent: 优化后的智能体
+        """
+        if not QUANTUM_ACCELERATION_ENABLED:
+            logger.warning("量子加速功能已禁用，跳过分层退火。")
+            return agent
+
+        policy_net = self._get_policy_net(agent) if block_strategy == "size_limited" \
+            else self._get_full_policy(agent)
+        if policy_net is None:
+            logger.error("无法获取策略网络，退出分层退火。")
+            return agent
+
+        # 获取全量参数，构建分块索引
+        all_params = list(policy_net.parameters())
+        total_tensors = len(all_params)
+        total_params_count = sum(p.numel() for p in all_params)
+        n_bits_per_weight = max(1, self.num_qubits // 4)
+
+        blocks = self._create_param_blocks(
+            all_params, block_strategy, max_params_per_block
+        )
+
+        logger.info(
+            f"开始分层/分块量子退火 ({block_strategy}): "
+            f"{num_iterations} 轮, 全量 {total_tensors} 张量/{total_params_count} 参数, "
+            f"分为 {len(blocks)} 块, 每块 ≤{max_params_per_block} 参数, "
+            f"预估每块 QUBO ≤{(max_params_per_block * n_bits_per_weight) ** 2 * 8 / 1024 / 1024:.1f} MB"
+        )
+
+        # 初始评估
+        initial_loss = self._evaluate_network_quality(policy_net)
+        best_loss = initial_loss
+        best_weights, _ = self._extract_weights(policy_net)
+
+        logger.info(
+            f"[分层退火] 初始 loss={initial_loss:.6f}, "
+            f"全量参数={total_params_count}, 分块数={len(blocks)}"
+        )
+
+        for iteration in range(num_iterations):
+            # 保存本轮开始前的全量权重（用于可能的回滚）
+            old_all_weights, old_all_shapes = self._extract_weights(policy_net)
+
+            # 逐块处理
+            total_accepted_blocks = 0
+            for block_idx, block_param_indices in enumerate(blocks):
+                # --- 提取该块的权重 ---
+                block_weights = [
+                    all_params[idx].detach().cpu().numpy().copy()
+                    for idx in block_param_indices
+                ]
+                block_shapes = [w.shape for w in block_weights]
+                block_param_count = sum(w.size for w in block_weights)
+
+                # --- 计算该块的梯度 ---
+                block_gradients = None
+                td_errors = None
+                if replay_buffer is not None and hasattr(replay_buffer, "sample"):
+                    try:
+                        full_gradients, td_errors, _ = self._compute_gradients(
+                            policy_net, replay_buffer, agent
+                        )
+                        if full_gradients is not None:
+                            block_gradients = [full_gradients[i] for i in block_param_indices]
+                    except Exception:
+                        block_gradients = None
+
+                # --- 构造小块 QUBO ---
+                qubo_matrix = self.network_to_qubo(
+                    block_weights,
+                    gradients=block_gradients,
+                    td_errors=td_errors,
+                )
+
+                # --- 退火求解 ---
+                best_bitstring = self.anneal(qubo_matrix)
+
+                # --- 解码为权重更新 ---
+                optimized_block_weights = self.bitstring_to_weights(
+                    best_bitstring,
+                    block_shapes,
+                    current_weights=block_weights,
+                )
+
+                # --- 应用权重更新（仅该块）---
+                block_params = [all_params[idx] for idx in block_param_indices]
+                self._apply_weights_v2_partial(
+                    block_params,
+                    block_weights,
+                    optimized_block_weights,
+                    learning_rate=learning_rate,
+                )
+
+                # 该块的权重变化统计
+                block_delta = np.concatenate([
+                    (ow - cw).flatten()
+                    for ow, cw in zip(optimized_block_weights, block_weights, strict=False)
+                ])
+                block_delta_l2 = float(np.linalg.norm(block_delta))
+
+                if block_delta_l2 > 1e-12:
+                    total_accepted_blocks += 1
+
+                logger.debug(
+                    f"  块 {block_idx + 1}/{len(blocks)} ({block_param_count} 参数): "
+                    f"QUBO {qubo_matrix.shape[0]}×{qubo_matrix.shape[0]}, "
+                    f"ΔL2={block_delta_l2:.6e}"
+                )
+
+            # --- 评估本轮全量更新后的 loss ---
+            new_loss = self._evaluate_network_quality(policy_net)
+            loss_improvement = best_loss - new_loss
+
+            # 接受准则
+            accept_threshold = 0.01 * best_loss
+            if new_loss <= best_loss or loss_improvement > -accept_threshold:
+                accepted = True
+                if new_loss < best_loss:
+                    best_loss = new_loss
+                    best_weights, _ = self._extract_weights(policy_net)
+            else:
+                # 回滚全量权重
+                self._set_weights(policy_net, old_all_weights)
+                accepted = False
+
+            logger.info(
+                f"[分层退火] 轮次 {iteration + 1}/{num_iterations}: "
+                f"更新前 loss={initial_loss:.6f}, 更新后 loss={new_loss:.6f}, "
+                f"最佳 loss={best_loss:.6f}, "
+                f"{'✅' if accepted else '❌'}, "
+                f"有效块 {total_accepted_blocks}/{len(blocks)}"
+            )
+
+            if callback is not None:
+                callback(iteration, new_loss)
+
+        # 恢复最佳权重
+        if best_weights is not None:
+            self._set_weights(policy_net, best_weights)
+            logger.info(f"[分层退火] 已恢复到最佳权重 (loss={best_loss:.6f})")
+
+        final_improvement = (
+            (initial_loss - best_loss) / max(initial_loss, 1e-8) * 100
+        )
+        logger.info(
+            f"[分层退火] 完成: 初始 loss={initial_loss:.6f}, "
+            f"最佳 loss={best_loss:.6f}, 改进={final_improvement:.2f}%, "
+            f"处理了 {len(blocks)} 个参数块 × {num_iterations} 轮"
+        )
+
+        # 同步 target_net
+        if hasattr(agent, "target_net"):
+            agent.target_net.load_state_dict(agent.policy_net.state_dict())
+
+        return agent
+
     # ==================================================================
     # 内部辅助方法
     # ==================================================================
+
+    @staticmethod
+    def _create_param_blocks(
+        all_params: list,
+        block_strategy: str = "tensor_wise",
+        max_params_per_block: int = 200,
+    ) -> list[list[int]]:
+        """
+        将网络参数分块，每块独立构造 QUBO 并退火
+
+        分块策略：
+            - "tensor_wise": 每个参数张量作为一个独立块
+            - "size_limited": 按参数量动态分块，保证每块 ≤ max_params_per_block
+
+        Args:
+            all_params         : PyTorch 模型参数列表 (list of nn.Parameter)
+            block_strategy     : 分块策略
+            max_params_per_block: 每块最大参数数（仅 size_limited 生效）
+
+        Returns:
+            blocks: 块索引列表，每个元素为 [param_idx, ...]
+        """
+        if block_strategy == "tensor_wise":
+            # 每个张量独立成块
+            return [[i] for i in range(len(all_params))]
+
+        # size_limited: 按参数量动态分组
+        blocks: list[list[int]] = []
+        current_block: list[int] = []
+        current_size = 0
+
+        for idx, param in enumerate(all_params):
+            param_count = param.numel()
+            # 如果单个张量就超过上限，独立成块
+            if param_count > max_params_per_block:
+                if current_block:
+                    blocks.append(current_block)
+                    current_block = []
+                    current_size = 0
+                blocks.append([idx])
+                continue
+
+            if current_size + param_count > max_params_per_block and current_block:
+                blocks.append(current_block)
+                current_block = [idx]
+                current_size = param_count
+            else:
+                current_block.append(idx)
+                current_size += param_count
+
+        if current_block:
+            blocks.append(current_block)
+
+        return blocks
 
     @staticmethod
     def _get_policy_net(agent: Any) -> nn.Module | None:

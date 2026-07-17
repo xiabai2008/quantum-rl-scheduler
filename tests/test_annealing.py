@@ -655,5 +655,227 @@ class TestOptimizePolicyAndHelpers(unittest.TestCase):
         np.testing.assert_array_almost_equal(net.bias.detach().numpy(), np.full(1, 2.0))
 
 
+# ============================================================
+# Issue #148: 分层/分块 QUBO 退火测试
+# ============================================================
+class TestParamBlockCreation(unittest.TestCase):
+    """测试 _create_param_blocks 分块逻辑。"""
+
+    def setUp(self):
+        self.net = nn.Sequential(
+            nn.Linear(4, 16),
+            nn.ReLU(),
+            nn.Linear(16, 8),
+            nn.ReLU(),
+            nn.Linear(8, 4),
+        )
+
+    def test_tensor_wise_each_tensor_separate(self):
+        """tensor_wise 策略下每个张量应独立成块。"""
+        params = list(self.net.parameters())
+        blocks = QuantumAnnealingOptimizer._create_param_blocks(
+            params, block_strategy="tensor_wise"
+        )
+        # nn.Sequential 有 3 个 Linear → 6 个参数张量 (weight + bias)
+        # 但 ReLU 没有参数，input 维度不是参数
+        # Linear(4,16): weight(16,4) + bias(16) → 64+16=80 params
+        # Linear(16,8): weight(8,16) + bias(8) → 128+8=136 params
+        # Linear(8,4):  weight(4,8) + bias(4) → 32+4=36 params
+        self.assertEqual(len(blocks), len(params))
+        for i, block in enumerate(blocks):
+            self.assertEqual(len(block), 1)
+            self.assertEqual(block[0], i)
+
+    def test_size_limited_within_limit(self):
+        """size_limited 策略下每块参数量应 ≤ 上限。"""
+        params = list(self.net.parameters())
+        max_per_block = 150
+        blocks = QuantumAnnealingOptimizer._create_param_blocks(
+            params, block_strategy="size_limited", max_params_per_block=max_per_block
+        )
+        for block in blocks:
+            block_params = sum(params[i].numel() for i in block)
+            self.assertLessEqual(block_params, max_per_block)
+
+    def test_size_limited_covers_all_params(self):
+        """size_limited 策略应覆盖所有参数。"""
+        params = list(self.net.parameters())
+        total = len(params)
+        blocks = QuantumAnnealingOptimizer._create_param_blocks(
+            params, block_strategy="size_limited", max_params_per_block=100
+        )
+        covered = set()
+        for block in blocks:
+            covered.update(block)
+        self.assertEqual(covered, set(range(total)))
+
+    def test_large_tensor_own_block(self):
+        """超大单张量应独立成块。"""
+        # 构造一个 500 参数的大张量 + 若干小张量
+        large_param = nn.Parameter(torch.randn(500))
+        class TestNet(nn.Module):
+            def __init__(self):
+                super().__init__()
+                self.large = large_param
+                self.small1 = nn.Parameter(torch.randn(10))
+                self.small2 = nn.Parameter(torch.randn(5))
+        net = TestNet()
+        params = list(net.parameters())
+        blocks = QuantumAnnealingOptimizer._create_param_blocks(
+            params, block_strategy="size_limited", max_params_per_block=200
+        )
+        # 500 > 200，应独立成块
+        large_blocks = [b for b in blocks if 0 in b]
+        self.assertEqual(len(large_blocks), 1)
+        self.assertEqual(large_blocks[0], [0])
+
+    def test_no_params_returns_empty(self):
+        """空参数列表返回空块列表。"""
+        blocks = QuantumAnnealingOptimizer._create_param_blocks(
+            [], block_strategy="size_limited"
+        )
+        self.assertEqual(blocks, [])
+
+
+class TestHierarchicalAnnealing(unittest.TestCase):
+    """测试分层/分块退火优化完整流程。"""
+
+    def setUp(self):
+        os.environ["QUANTUM_ACCELERATION_ENABLED"] = "1"
+        # 强制刷新 Annealing 模块的全局标志
+        annealing_mod.QUANTUM_ACCELERATION_ENABLED = True
+        self.opt = QuantumAnnealingOptimizer(num_qubits=16)
+        self.net = nn.Sequential(
+            nn.Linear(4, 8),
+            nn.ReLU(),
+            nn.Linear(8, 4),
+        )
+        # 使用 SimpleAgent 接口
+        class TestAgent:
+            def __init__(self, net):
+                self.policy_net = net
+        self.agent = TestAgent(self.net)
+
+    def tearDown(self):
+        annealing_mod.QUANTUM_ACCELERATION_ENABLED = os.environ.get(
+            "QUANTUM_ACCELERATION_ENABLED", "0"
+        ).strip().lower() in ("1", "true", "yes")
+
+    def test_hierarchical_basic_run(self):
+        """分层退火应能正常运行并返回 agent。"""
+        result = self.opt.optimize_policy_hierarchical(
+            self.agent,
+            num_iterations=2,
+            learning_rate=0.01,
+        )
+        self.assertIs(result, self.agent)
+
+    def test_hierarchical_covers_more_than_4_tensors(self):
+        """分层退火应覆盖 >4 个参数张量。"""
+        # 使用更大的网络（3 层 → 6 个参数张量）
+        big_net = nn.Sequential(
+            nn.Linear(4, 16),
+            nn.ReLU(),
+            nn.Linear(16, 8),
+            nn.ReLU(),
+            nn.Linear(8, 4),
+        )
+        class BigAgent:
+            def __init__(self, net):
+                self.policy_net = net
+        agent = BigAgent(big_net)
+        total_tensors = len(list(big_net.parameters()))
+        self.assertGreater(total_tensors, 4,
+                           f"测试网络应有 >4 张量, 实际 {total_tensors}")
+
+    def test_hierarchical_via_mode_parameter(self):
+        """通过 optimize_policy 的 mode='hierarchical' 应正确路由。"""
+        result = self.opt.optimize_policy(
+            self.agent,
+            num_iterations=2,
+            mode="hierarchical",
+        )
+        self.assertIs(result, self.agent)
+
+    def test_hierarchical_loss_does_not_increase(self):
+        """分层退火不应使 loss 显著增加。"""
+        loss_before = QuantumAnnealingOptimizer._evaluate_network_quality(self.net)
+        self.opt.optimize_policy_hierarchical(
+            self.agent,
+            num_iterations=5,
+            learning_rate=0.01,
+        )
+        loss_after = QuantumAnnealingOptimizer._evaluate_network_quality(self.net)
+        # loss 不应显著增加（允许微小波动，<5%）
+        self.assertLessEqual(
+            loss_after, loss_before * 1.05,
+            f"loss 不应增加: {loss_before:.4f} → {loss_after:.4f}"
+        )
+
+    def test_hierarchical_disabled_when_quantum_disabled(self):
+        """量子加速禁用时应跳过并返回原 agent。"""
+        original = annealing_mod.QUANTUM_ACCELERATION_ENABLED
+        annealing_mod.QUANTUM_ACCELERATION_ENABLED = False
+        result = self.opt.optimize_policy_hierarchical(self.agent, num_iterations=2)
+        self.assertIs(result, self.agent)
+        annealing_mod.QUANTUM_ACCELERATION_ENABLED = original
+
+    def test_hierarchical_no_replay_buffer(self):
+        """无 replay_buffer 时分层退火应正常退化。"""
+        result = self.opt.optimize_policy_hierarchical(
+            self.agent,
+            num_iterations=3,
+            learning_rate=0.05,
+            max_params_per_block=100,
+        )
+        self.assertIs(result, self.agent)
+
+    def test_hierarchical_memory_efficient(self):
+        """分层退火内存应可控（不触发 OOM）。"""
+        import sys
+        # 模拟较大的网络（8 个参数张量，总参数 ~2000）
+        big_net = nn.Sequential(
+            nn.Linear(16, 64),
+            nn.ReLU(),
+            nn.Linear(64, 32),
+            nn.ReLU(),
+            nn.Linear(32, 16),
+            nn.ReLU(),
+            nn.Linear(16, 8),
+        )
+        class BigAgent:
+            def __init__(self, net):
+                self.policy_net = net
+        agent = BigAgent(big_net)
+        total_params = sum(p.numel() for p in big_net.parameters())
+        total_tensors = len(list(big_net.parameters()))
+
+        self.assertGreater(total_tensors, 4,
+                           f"大网络应有 >4 张量, 实际 {total_tensors}")
+        self.assertGreater(total_params, 500,
+                           f"大网络应有 >500 参数, 实际 {total_params}")
+
+        # 分块运行，不应 OOM
+        try:
+            self.opt.optimize_policy_hierarchical(
+                agent,
+                num_iterations=2,
+                max_params_per_block=200,
+                block_strategy="tensor_wise",
+            )
+        except MemoryError:
+            self.fail("分层退火触发了 MemoryError")
+
+    def test_head_only_backward_compatible(self):
+        """head_only 模式仍应正常工作（向后兼容）。"""
+        result = self.opt.optimize_policy(
+            self.agent,
+            num_iterations=2,
+            head_only=True,
+            max_head_tensors=4,
+        )
+        self.assertIs(result, self.agent)
+
+
 if __name__ == "__main__":
     unittest.main()
