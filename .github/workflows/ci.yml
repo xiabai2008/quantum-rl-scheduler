@@ -30,56 +30,30 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: "3.11"
 
       - name: Install lint dependencies
         run: |
           pip install --upgrade pip
           pip install black>=23.0.0 isort>=5.12.0 flake8>=6.0.0 bandit>=1.7.0
 
-      - name: Collect changed Python files
-        shell: bash
-        env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
-        run: |
-          if [[ -n "$BASE_SHA" && ! "$BASE_SHA" =~ ^0+$ ]]; then
-            git diff --name-only --diff-filter=ACMR "$BASE_SHA" "$GITHUB_SHA" -- src scripts tests \
-              | grep -E '\.py$' > /tmp/changed-python-files.txt || true
-          else
-            find src scripts tests -type f -name '*.py' > /tmp/changed-python-files.txt
-          fi
-          echo "Changed Python files:"
-          cat /tmp/changed-python-files.txt
-
       - name: Check code formatting (black)
-        shell: bash
-        run: |
-          mapfile -t files < /tmp/changed-python-files.txt
-          (( ${#files[@]} == 0 )) || black --check --diff "${files[@]}"
+        run: black --check --diff src/ scripts/ tests/
 
       - name: Check import ordering (isort)
-        shell: bash
-        run: |
-          mapfile -t files < /tmp/changed-python-files.txt
-          (( ${#files[@]} == 0 )) || isort --check-only --diff "${files[@]}"
+        run: isort --check-only --diff src/ scripts/ tests/
 
       - name: Lint with flake8
-        shell: bash
         run: |
-          mapfile -t files < /tmp/changed-python-files.txt
-          if (( ${#files[@]} > 0 )); then
-            flake8 "${files[@]}" \
-              --count \
-              --select=E,W,F,N \
-              --max-line-length=100 \
-              --statistics
-          fi
+          flake8 src/ scripts/ tests/ \
+            --count \
+            --select=E,W,F,N \
+            --max-line-length=100 \
+            --statistics
 
       - name: Security scan (bandit)
         run: bandit -c pyproject.toml -r src/ -ll

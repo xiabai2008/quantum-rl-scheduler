@@ -29,7 +29,8 @@ Reinforcement Learning Agent for Quantum-Classical Hybrid Task Scheduling
     PPOAgent、策略网络、回调、检查点恢复等组件已拆分至：
         - src/scheduler/ppo_agent.py: PPOAgent
         - src/scheduler/networks.py: DuelingQNetwork
-        - src/scheduler/callbacks.py: EpsilonExplorationCallback / AnnealingCallback / RealMachineCallback
+        - src/scheduler/callbacks.py: EpsilonExplorationCallback / AnnealingCallback /
+          RealMachineCallback
         - src/scheduler/training.py: find_latest_checkpoint / resume_training / auto_resume_train
     为保持向后兼容，所有拆分出去的符号通过本模块重新导出（见 __all__）。
 """
