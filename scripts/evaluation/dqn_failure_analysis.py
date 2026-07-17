@@ -4,8 +4,13 @@
 DQN 失败分析 — 收集 DQN vs PPO 对比数据 + 生成分析报告
 """
 
-import os, sys, json, time, numpy as np
+import json
+import os
+import sys
+import time
 from datetime import datetime
+
+import numpy as np
 
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, PROJECT_ROOT)
@@ -16,8 +21,8 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
-from src.scheduler.env import QuantumSchedulingEnv
 from src.scheduler.agent import SchedulerAgent
+from src.scheduler.env import QuantumSchedulingEnv
 
 SEED = 42
 RESULTS_DIR = os.path.join(PROJECT_ROOT, "results")
@@ -183,7 +188,8 @@ def main():
 
     # ---- 跨场景收集数据 ----
     all_data = {}
-    from stable_baselines3 import DQN, PPO as SB3PPO
+    from stable_baselines3 import DQN
+    from stable_baselines3 import PPO as SB3PPO
 
     for key, label, factory in SCENARIOS:
         print(f"\n{'='*50}\n场景: {label}")

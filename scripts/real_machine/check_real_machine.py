@@ -62,6 +62,7 @@ def main():
     print("\n[3/5] 实际提交真机任务验证（H Q0 + M Q0，shots=128）")
     try:
         import cqlib
+
         from src.api.tianyan_cqlib import CqlibTianyanClient
 
         client = CqlibTianyanClient(
