@@ -38,6 +38,8 @@ DEFAULT_PLOT = (
 )
 DEFAULT_MODEL_DIR = _PROJECT_ROOT / "models" / "issue164"
 DEFAULT_QUOTA_STATE = _PROJECT_ROOT / "results" / "real_machine" / "issue164_quota_state.json"
+PHYSICAL_HARDWARE_MACHINES = frozenset({"tianyan176", "tianyan176-2"})
+TIANYAN176_ALLOCATED_QUBITS = 66
 
 
 class PreflightError(RuntimeError):
@@ -76,17 +78,22 @@ class AuditedRealClient:
     delegate: CqlibTianyanClient
     wait_timeout: int = 180
     poll_interval: int = 3
+    fixed_qcis: str = "H Q0\nM Q0"
     records: list[dict[str, Any]] = field(default_factory=list)
     _cached_status: dict[str, dict[str, Any]] = field(default_factory=dict)
 
     def submit_quantum_task(self, **kwargs: Any) -> str | None:
         started = time.perf_counter()
+        # 天衍-176 免费/稳定路径固定使用已通过冒烟验证的 1-qubit H+测量线路。
+        # 环境生成的随机 RY/RZ 等参数门曾被平台接受后运行失败，不用于正式闭环。
+        kwargs["qcis"] = self.fixed_qcis
         task_id = self.delegate.submit_quantum_task(**kwargs)
         record: dict[str, Any] = {
             "task_id": str(task_id) if task_id is not None else None,
             "task_name": str(kwargs.get("task_name", "")),
             "shots": int(kwargs.get("shots", 0)),
             "machine": self.delegate.machine_name,
+            "circuit_profile": "1q_h_measure",
             "status": "submit_rejected" if task_id is None else "submitted",
             "elapsed_s": 0.0,
         }
@@ -95,6 +102,7 @@ class AuditedRealClient:
                 str(task_id), timeout=self.wait_timeout, poll_interval=self.poll_interval
             )
             record["status"] = str(status.get("status", "unknown"))
+            record["probability"] = status.get("result")
             self._cached_status[str(task_id)] = status
         record["elapsed_s"] = round(time.perf_counter() - started, 3)
         self.records.append(record)
@@ -113,7 +121,7 @@ def _machine_config(machine: str, *, is_real: bool) -> list[dict[str, Any]]:
     return [
         {
             "name": machine,
-            "total_qubits": 287,
+            "total_qubits": TIANYAN176_ALLOCATED_QUBITS,
             "supported_gates": ("H", "X", "Y", "Z", "RX", "RY", "RZ", "M"),
             "is_real": is_real,
         }
@@ -128,6 +136,11 @@ def run_preflight(
     quota_state_path: Path,
 ) -> tuple[CqlibTianyanClient, QuotaTracker, dict[str, Any]]:
     """执行不泄密预检和一个 1-qubit 真机冒烟任务。"""
+    if machine not in PHYSICAL_HARDWARE_MACHINES:
+        raise RuntimeError(
+            f"{machine} 不是本实验允许的物理真机；"
+            "tianyan_s/sw/tn/tnn/sa 等均为模拟器，禁止计作真机"
+        )
     load_dotenv(_PROJECT_ROOT / ".env")
     api_key = os.getenv("TIANYAN_API_KEY", "")
     if not api_key:
@@ -211,6 +224,7 @@ def run_preflight(
             "qubits": 1,
             "shots": shots,
             "status": "completed",
+            "probability": smoke_status.get("result"),
             "elapsed_s": smoke_elapsed,
         },
     }
@@ -305,7 +319,7 @@ def evaluate_model(model: PPO, seed: int, episodes: int = 5) -> dict[str, Any]:
             total += float(reward)
             done = terminated or truncated
         rewards.append(total)
-        completion_rates.append(float(info.get("completion_rate", 0.0)))
+        completion_rates.append(completion_rate_from_info(info))
     return {
         "episodes": episodes,
         "tasks_per_episode": 200,
@@ -316,13 +330,24 @@ def evaluate_model(model: PPO, seed: int, episodes: int = 5) -> dict[str, Any]:
     }
 
 
+def completion_rate_from_info(info: dict[str, Any]) -> float:
+    """根据环境实际提供的成功计数计算任务完成率。"""
+    successes = sum(
+        int(info.get(key, 0)) for key in ("quantum_success", "classical_success", "hybrid_success")
+    )
+    total_scheduled = int(info.get("total_scheduled", 0))
+    return successes / total_scheduled if total_scheduled else 0.0
+
+
 def convergence_timestep(curve: list[dict[str, Any]]) -> int | None:
     """返回首次达到末五集平均 reward 90% 的 timestep。"""
     if not curve:
         return None
     rewards = np.asarray([float(point["reward"]) for point in curve], dtype=float)
     target = 0.9 * float(np.mean(rewards[-5:]))
-    smooth = np.convolve(rewards, np.ones(min(5, len(rewards))) / min(5, len(rewards)), mode="valid")
+    smooth = np.convolve(
+        rewards, np.ones(min(5, len(rewards))) / min(5, len(rewards)), mode="valid"
+    )
     for index, value in enumerate(smooth):
         if value >= target:
             return int(curve[index + min(5, len(rewards)) - 1]["timestep"])
@@ -407,22 +432,26 @@ def generate_report(results: dict[str, Any], report_path: Path, plot_path: Path)
         f"收敛 timestep（末五集均值 90% 阈值）：仿真 {sim_conv}，混合 {mixed_conv}；"
         + (f"收敛加速比 {speedup:.3f}×。" if speedup is not None else "无法计算加速比。"),
         "",
+        "加速比小于 1 表示没有获得收敛步数加速。混合训练墙钟时间包含真机排队、"
+        "提交和结果轮询开销。单 seed 与高 reward 方差意味着本结果不能用于宣称统计显著或量子加速。",
+        "",
         "## 收敛曲线",
         "",
         f"![PPO 真机闭环收敛曲线]({rel_plot})",
         "",
         "## 真机任务审计",
         "",
-        "| task_id | 状态 | shots | 机器 | 耗时(s) |",
-        "|---|---|---:|---|---:|",
+        "| task_id | 状态 | shots | 机器 | 测量概率 | 耗时(s) |",
+        "|---|---|---:|---|---|---:|",
     ]
     for record in records:
         lines.append(
             f"| {record['task_id'] or '—'} | {record['status']} | {record['shots']} | "
-            f"{record['machine']} | {record['elapsed_s']:.3f} |"
+            f"{record['machine']} | `{record.get('probability')}` | "
+            f"{record['elapsed_s']:.3f} |"
         )
     if not records:
-        lines.append("| — | 无真实提交 | 0 | — | 0 |")
+        lines.append("| — | 无真实提交 | 0 | — | — | 0 |")
     lines.extend(
         [
             "",
@@ -474,8 +503,10 @@ def main() -> None:
     parser.add_argument("--episodes", type=int, default=5)
     parser.add_argument("--real-prob", type=float, default=0.04)
     parser.add_argument("--max-real-submissions", type=int, default=8)
-    parser.add_argument("--shots", type=int, default=64)
-    parser.add_argument("--machine", default="tianyan_s")
+    parser.add_argument("--shots", type=int, default=32)
+    parser.add_argument(
+        "--machine", choices=sorted(PHYSICAL_HARDWARE_MACHINES), default="tianyan176"
+    )
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--wait-timeout", type=int, default=180)
     parser.add_argument("--results", type=Path, default=DEFAULT_RESULTS)
@@ -561,7 +592,10 @@ def main() -> None:
             "mixed_real": {"training": mixed_training, "evaluation": mixed_eval},
         },
     }
-    results["config"] = {key: str(value) if isinstance(value, Path) else value for key, value in results["config"].items()}
+    results["config"] = {
+        key: str(value) if isinstance(value, Path) else value
+        for key, value in results["config"].items()
+    }
     args.results.parent.mkdir(parents=True, exist_ok=True)
     args.results.write_text(json.dumps(results, ensure_ascii=False, indent=2), encoding="utf-8")
     save_plot(sim_training, mixed_training, args.plot)

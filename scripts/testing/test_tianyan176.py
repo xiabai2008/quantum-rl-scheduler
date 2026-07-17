@@ -13,11 +13,11 @@ import os
 import sys
 import time
 
+from dotenv import load_dotenv
+
 # --- 设置环境变量（必须在导入前） ---
+load_dotenv()
 os.environ["TIANYAN_MOCK_MODE"] = "false"
-os.environ["TIANYAN_API_KEY"] = (
-    "qCNQVWtZacuH6XLWz9O/Ngqqps8AZU6HrlUfDzqjsc7hkowBxbdjuZnSUxaiO6v4srso4Q=="
-)
 
 # 添加项目路径
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -27,7 +27,10 @@ SEPARATOR = "=" * 60
 
 def test_tianyan176():
     machine_name = "tianyan176"
-    api_key = os.environ["TIANYAN_API_KEY"]
+    api_key = os.environ.get("TIANYAN_API_KEY", "")
+    if not api_key:
+        print("  [FAIL] TIANYAN_API_KEY 未配置")
+        return False
 
     print(SEPARATOR)
     print("  天衍-176 真机连通性测试")

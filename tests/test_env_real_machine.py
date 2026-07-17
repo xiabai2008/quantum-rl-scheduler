@@ -151,7 +151,7 @@ class TestRealSubmissionBudget:
         env = QuantumSchedulingEnv(
             machine_configs=[
                 {
-                    "name": "tianyan_s",
+                    "name": "tianyan176",
                     "total_qubits": 287,
                     "supported_gates": ("H", "M"),
                     "is_real": True,
@@ -162,8 +162,8 @@ class TestRealSubmissionBudget:
             real_machine_shots=64,
         )
         client = _RecordingClient()
-        env.attach_real_clients({"tianyan_s": client})
-        machine = QuantumMachine(name="tianyan_s", total_qubits=287, is_real=True)
+        env.attach_real_clients({"tianyan176": client})
+        machine = QuantumMachine(name="tianyan176", total_qubits=66, is_real=True)
         task = Task(task_id="budget", task_type="quantum", qubit_count=1)
         return env, client, machine, task
 

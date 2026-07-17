@@ -1,40 +1,635 @@
 {
   "issue": 164,
-  "status": "blocked_preflight",
-  "generated_at": "2026-07-17T23:17:49+08:00",
+  "generated_at": "2026-07-18T00:38:19.444809+08:00",
+  "preliminary_audit": [
+    {
+      "task_id": "2078151135430213633",
+      "status": "completed",
+      "machine": "tianyan176",
+      "shots": 32,
+      "circuit_profile": "1q_h_measure",
+      "probability": "{\"0\":0.3664565902423123,\"1\":0.6335434097576876}",
+      "purpose": "operator_preflight_before_issue164_rerun"
+    },
+    {
+      "task_id": "2078155939812507649",
+      "status": "completed",
+      "machine": "tianyan176",
+      "shots": 32,
+      "circuit_profile": "1q_h_measure",
+      "probability": null,
+      "purpose": "first_formal_attempt_smoke"
+    },
+    {
+      "task_id": "2078156058729385986",
+      "status": "failed",
+      "machine": "tianyan176",
+      "shots": 32,
+      "circuit_profile": "random_1q_ry_measure",
+      "probability": null,
+      "purpose": "first_formal_attempt_training",
+      "failure_reason": "platform_run_failure"
+    }
+  ],
   "config": {
     "timesteps": 10000,
     "episodes": 5,
     "real_prob": 0.04,
     "max_real_submissions": 8,
-    "shots": 64,
-    "machine": "tianyan_s",
-    "seed": 42
+    "shots": 32,
+    "machine": "tianyan176",
+    "seed": 42,
+    "wait_timeout": 120,
+    "results": "E:\\quantum-rl-scheduler\\results\\real_machine\\issue164_closed_loop.json",
+    "report": "E:\\quantum-rl-scheduler\\results\\reports\\real_machine_closed_loop.md",
+    "plot": "E:\\quantum-rl-scheduler\\results\\real_machine\\real_machine_closed_loop_convergence.png",
+    "model_dir": "E:\\quantum-rl-scheduler\\models\\issue164",
+    "quota_state": "E:\\quantum-rl-scheduler\\results\\real_machine\\issue164_quota_state.json"
   },
   "preflight": {
     "authenticate": true,
-    "machine": "tianyan_s",
+    "machine": "tianyan176",
     "backend_status": "running",
     "backend_type": "free",
     "platform_quota_api_available": false,
     "local_quota_remaining_before": {
-      "shots": 10000.0,
-      "tasks": 200.0,
+      "shots": 9936.0,
+      "tasks": 198.0,
       "wall_time_hours": 50.0
     },
     "local_quota_remaining_after_smoke": {
-      "shots": 10000.0,
-      "tasks": 200.0,
+      "shots": 9904.0,
+      "tasks": 197.0,
       "wall_time_hours": 50.0
     },
     "smoke": {
       "mode": "real_hardware",
-      "task_id": null,
+      "task_id": "2078156758599368706",
       "qubits": 1,
-      "shots": 64,
-      "status": "submit_rejected",
-      "reason": "platform_remaining_machine_time_insufficient"
+      "shots": 32,
+      "status": "completed",
+      "probability": "{\"0\":0.4396813353566008,\"1\":0.5603186646433991}",
+      "elapsed_s": 7.727
     }
   },
-  "conditions": {}
+  "quota_remaining_after": {
+    "shots": 9648.0,
+    "tasks": 189.0,
+    "wall_time_hours": 50.0
+  },
+  "conditions": {
+    "simulation": {
+      "training": {
+        "label": "simulation",
+        "mode": "simulation",
+        "timesteps_requested": 10000,
+        "timesteps_actual": 10000,
+        "episode_horizon_tasks": 200,
+        "elapsed_s": 19.082,
+        "real_probability": 0.0,
+        "max_real_submissions": 0,
+        "real_submission_attempts": 0,
+        "real_accepted": 0,
+        "real_completed": 0,
+        "real_failed_or_rejected": 0,
+        "real_degraded": false,
+        "real_participation_rate_per_200_tasks": 0.0,
+        "curve": [
+          {
+            "timestep": 200,
+            "reward": 1248.777575
+          },
+          {
+            "timestep": 400,
+            "reward": 1213.589241
+          },
+          {
+            "timestep": 600,
+            "reward": 1144.797612
+          },
+          {
+            "timestep": 800,
+            "reward": 899.072203
+          },
+          {
+            "timestep": 1000,
+            "reward": 1260.184241
+          },
+          {
+            "timestep": 1200,
+            "reward": 1027.440247
+          },
+          {
+            "timestep": 1400,
+            "reward": 805.211208
+          },
+          {
+            "timestep": 1600,
+            "reward": 722.141308
+          },
+          {
+            "timestep": 1800,
+            "reward": 1243.310927
+          },
+          {
+            "timestep": 2000,
+            "reward": 1171.965223
+          },
+          {
+            "timestep": 2200,
+            "reward": 1074.579106
+          },
+          {
+            "timestep": 2400,
+            "reward": 1574.87109
+          },
+          {
+            "timestep": 2600,
+            "reward": 744.690216
+          },
+          {
+            "timestep": 2800,
+            "reward": 1236.071767
+          },
+          {
+            "timestep": 3000,
+            "reward": 1358.892424
+          },
+          {
+            "timestep": 3200,
+            "reward": 1985.170819
+          },
+          {
+            "timestep": 3400,
+            "reward": 1682.02797
+          },
+          {
+            "timestep": 3600,
+            "reward": 818.710927
+          },
+          {
+            "timestep": 3800,
+            "reward": 1325.979384
+          },
+          {
+            "timestep": 4000,
+            "reward": 1559.810561
+          },
+          {
+            "timestep": 4200,
+            "reward": 1310.669062
+          },
+          {
+            "timestep": 4400,
+            "reward": 1465.218894
+          },
+          {
+            "timestep": 4600,
+            "reward": 857.943727
+          },
+          {
+            "timestep": 4800,
+            "reward": 1901.10495
+          },
+          {
+            "timestep": 5000,
+            "reward": 1379.846766
+          },
+          {
+            "timestep": 5200,
+            "reward": 1323.162072
+          },
+          {
+            "timestep": 5400,
+            "reward": 1434.424221
+          },
+          {
+            "timestep": 5600,
+            "reward": 1657.174278
+          },
+          {
+            "timestep": 5800,
+            "reward": 1553.512092
+          },
+          {
+            "timestep": 6000,
+            "reward": 1506.954124
+          },
+          {
+            "timestep": 6200,
+            "reward": 1948.550965
+          },
+          {
+            "timestep": 6400,
+            "reward": 1561.920894
+          },
+          {
+            "timestep": 6600,
+            "reward": 1803.941572
+          },
+          {
+            "timestep": 6800,
+            "reward": 1367.878685
+          },
+          {
+            "timestep": 7000,
+            "reward": 1621.009166
+          },
+          {
+            "timestep": 7200,
+            "reward": 1483.878838
+          },
+          {
+            "timestep": 7400,
+            "reward": 2312.626416
+          },
+          {
+            "timestep": 7600,
+            "reward": 1496.254414
+          },
+          {
+            "timestep": 7800,
+            "reward": 1488.746883
+          },
+          {
+            "timestep": 8000,
+            "reward": 1325.559136
+          },
+          {
+            "timestep": 8200,
+            "reward": 1909.773243
+          },
+          {
+            "timestep": 8400,
+            "reward": 1535.471871
+          },
+          {
+            "timestep": 8600,
+            "reward": 1041.945785
+          },
+          {
+            "timestep": 8800,
+            "reward": 1693.069825
+          },
+          {
+            "timestep": 9000,
+            "reward": 1109.243126
+          },
+          {
+            "timestep": 9200,
+            "reward": 1094.116013
+          },
+          {
+            "timestep": 9400,
+            "reward": 1590.225371
+          },
+          {
+            "timestep": 9600,
+            "reward": 1788.50902
+          },
+          {
+            "timestep": 9800,
+            "reward": 2260.187098
+          },
+          {
+            "timestep": 10000,
+            "reward": 1473.553561
+          }
+        ],
+        "model_path": "E:\\quantum-rl-scheduler\\models\\issue164\\ppo_simulation_seed_42.zip",
+        "real_records": []
+      },
+      "evaluation": {
+        "episodes": 5,
+        "tasks_per_episode": 200,
+        "mean_reward": 1463.5531299190222,
+        "std_reward": 59.64040280749229,
+        "mean_completion_rate": 1.0,
+        "episode_rewards": [
+          1468.502349541276,
+          1347.1370243865717,
+          1504.9504436355799,
+          1503.0079712383929,
+          1494.167860793291
+        ]
+      }
+    },
+    "mixed_real": {
+      "training": {
+        "label": "mixed_real",
+        "mode": "simulation+real_hardware",
+        "timesteps_requested": 10000,
+        "timesteps_actual": 10000,
+        "episode_horizon_tasks": 200,
+        "elapsed_s": 115.298,
+        "real_probability": 0.04,
+        "max_real_submissions": 8,
+        "real_submission_attempts": 8,
+        "real_accepted": 8,
+        "real_completed": 8,
+        "real_failed_or_rejected": 0,
+        "real_degraded": false,
+        "real_participation_rate_per_200_tasks": 0.04,
+        "curve": [
+          {
+            "timestep": 200,
+            "reward": 1361.480807
+          },
+          {
+            "timestep": 400,
+            "reward": 1591.804823
+          },
+          {
+            "timestep": 600,
+            "reward": 939.176893
+          },
+          {
+            "timestep": 800,
+            "reward": 558.023054
+          },
+          {
+            "timestep": 1000,
+            "reward": 1551.32738
+          },
+          {
+            "timestep": 1200,
+            "reward": 701.570077
+          },
+          {
+            "timestep": 1400,
+            "reward": 662.06552
+          },
+          {
+            "timestep": 1600,
+            "reward": 971.559844
+          },
+          {
+            "timestep": 1800,
+            "reward": 876.104237
+          },
+          {
+            "timestep": 2000,
+            "reward": 1612.251841
+          },
+          {
+            "timestep": 2200,
+            "reward": 1101.063089
+          },
+          {
+            "timestep": 2400,
+            "reward": 1166.626729
+          },
+          {
+            "timestep": 2600,
+            "reward": 1368.191572
+          },
+          {
+            "timestep": 2800,
+            "reward": 954.568239
+          },
+          {
+            "timestep": 3000,
+            "reward": 1880.828271
+          },
+          {
+            "timestep": 3200,
+            "reward": 1111.597665
+          },
+          {
+            "timestep": 3400,
+            "reward": 958.103867
+          },
+          {
+            "timestep": 3600,
+            "reward": 1147.947655
+          },
+          {
+            "timestep": 3800,
+            "reward": 1152.177578
+          },
+          {
+            "timestep": 4000,
+            "reward": 1463.705491
+          },
+          {
+            "timestep": 4200,
+            "reward": 1358.074949
+          },
+          {
+            "timestep": 4400,
+            "reward": 1413.225164
+          },
+          {
+            "timestep": 4600,
+            "reward": 1073.775805
+          },
+          {
+            "timestep": 4800,
+            "reward": 1523.974652
+          },
+          {
+            "timestep": 5000,
+            "reward": 1684.169408
+          },
+          {
+            "timestep": 5200,
+            "reward": 1484.324009
+          },
+          {
+            "timestep": 5400,
+            "reward": 1155.387149
+          },
+          {
+            "timestep": 5600,
+            "reward": 1551.127609
+          },
+          {
+            "timestep": 5800,
+            "reward": 1458.736468
+          },
+          {
+            "timestep": 6000,
+            "reward": 1702.433013
+          },
+          {
+            "timestep": 6200,
+            "reward": 1585.658034
+          },
+          {
+            "timestep": 6400,
+            "reward": 1700.640476
+          },
+          {
+            "timestep": 6600,
+            "reward": 1847.648811
+          },
+          {
+            "timestep": 6800,
+            "reward": 1847.924203
+          },
+          {
+            "timestep": 7000,
+            "reward": 1284.252397
+          },
+          {
+            "timestep": 7200,
+            "reward": 1618.175611
+          },
+          {
+            "timestep": 7400,
+            "reward": 824.958565
+          },
+          {
+            "timestep": 7600,
+            "reward": 1906.910447
+          },
+          {
+            "timestep": 7800,
+            "reward": 1844.353709
+          },
+          {
+            "timestep": 8000,
+            "reward": 1602.370098
+          },
+          {
+            "timestep": 8200,
+            "reward": 1847.975624
+          },
+          {
+            "timestep": 8400,
+            "reward": 1801.9011
+          },
+          {
+            "timestep": 8600,
+            "reward": 1621.177192
+          },
+          {
+            "timestep": 8800,
+            "reward": 1023.25248
+          },
+          {
+            "timestep": 9000,
+            "reward": 1617.064007
+          },
+          {
+            "timestep": 9200,
+            "reward": 2278.678545
+          },
+          {
+            "timestep": 9400,
+            "reward": 1434.064902
+          },
+          {
+            "timestep": 9600,
+            "reward": 1686.614247
+          },
+          {
+            "timestep": 9800,
+            "reward": 1681.968266
+          },
+          {
+            "timestep": 10000,
+            "reward": 1740.717113
+          }
+        ],
+        "model_path": "E:\\quantum-rl-scheduler\\models\\issue164\\ppo_mixed_real_seed_42.zip",
+        "real_records": [
+          {
+            "task_id": "2078156874995470337",
+            "task_name": "RL_T0001",
+            "shots": 32,
+            "machine": "tianyan176",
+            "circuit_profile": "1q_h_measure",
+            "status": "completed",
+            "elapsed_s": 6.567,
+            "probability": "{\"0\":0.5074246694125297,\"1\":0.4925753305874702}"
+          },
+          {
+            "task_id": "2078156903143444481",
+            "task_name": "RL_T0078",
+            "shots": 32,
+            "machine": "tianyan176",
+            "circuit_profile": "1q_h_measure",
+            "status": "completed",
+            "elapsed_s": 12.198,
+            "probability": "{\"0\":0.5412963364404942,\"1\":0.45870366355950576}"
+          },
+          {
+            "task_id": "2078156954561445890",
+            "task_name": "RL_T0116",
+            "shots": 32,
+            "machine": "tianyan176",
+            "circuit_profile": "1q_h_measure",
+            "status": "completed",
+            "elapsed_s": 6.424,
+            "probability": "{\"0\":0.5074246694125297,\"1\":0.4925753305874702}"
+          },
+          {
+            "task_id": "2078156982625533954",
+            "task_name": "RL_T0054",
+            "shots": 32,
+            "machine": "tianyan176",
+            "circuit_profile": "1q_h_measure",
+            "status": "completed",
+            "elapsed_s": 11.933,
+            "probability": "{\"0\":0.4396813353566008,\"1\":0.5603186646433991}"
+          },
+          {
+            "task_id": "2078157036543283201",
+            "task_name": "RL_T0123",
+            "shots": 32,
+            "machine": "tianyan176",
+            "circuit_profile": "1q_h_measure",
+            "status": "completed",
+            "elapsed_s": 17.256,
+            "probability": "{\"0\":0.27032300021677863,\"1\":0.7296769997832213}"
+          },
+          {
+            "task_id": "2078157110333702146",
+            "task_name": "RL_T0068",
+            "shots": 32,
+            "machine": "tianyan176",
+            "circuit_profile": "1q_h_measure",
+            "status": "completed",
+            "elapsed_s": 17.211,
+            "probability": "{\"0\":0.5412963364404942,\"1\":0.45870366355950576}"
+          },
+          {
+            "task_id": "2078157183125819393",
+            "task_name": "RL_T0099",
+            "shots": 32,
+            "machine": "tianyan176",
+            "circuit_profile": "1q_h_measure",
+            "status": "completed",
+            "elapsed_s": 6.392,
+            "probability": "{\"0\":0.5412963364404942,\"1\":0.45870366355950576}"
+          },
+          {
+            "task_id": "2078157210002919426",
+            "task_name": "RL_T0128",
+            "shots": 32,
+            "machine": "tianyan176",
+            "circuit_profile": "1q_h_measure",
+            "status": "completed",
+            "elapsed_s": 17.237,
+            "probability": "{\"0\":0.47355300238456527,\"1\":0.5264469976154347}"
+          }
+        ]
+      },
+      "evaluation": {
+        "episodes": 5,
+        "tasks_per_episode": 200,
+        "mean_reward": 2489.062608053116,
+        "std_reward": 1910.6290268758735,
+        "mean_completion_rate": 1.0,
+        "episode_rewards": [
+          1373.2761461798789,
+          1186.3175195111123,
+          345.6443746736054,
+          5164.028337005803,
+          4376.046662895182
+        ]
+      }
+    }
+  }
 }
