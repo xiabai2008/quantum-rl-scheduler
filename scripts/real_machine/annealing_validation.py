@@ -56,10 +56,10 @@ from loguru import logger
 # 复用 smoke_test.py 工具函数
 from smoke_test import (  # type: ignore[import-not-found]
     MockSmokeClient,
-    parse_probability,
-    compute_probability_from_shots,
-    compute_measurement_error,
     compute_fidelity,
+    compute_measurement_error,
+    compute_probability_from_shots,
+    parse_probability,
     poll_task_result,
 )
 
@@ -283,8 +283,8 @@ def dwave_neal_solve(
         求解结果字典，或 None（SDK 不可用时）
     """
     try:
-        import neal  # type: ignore[import-untyped]
         import dimod  # type: ignore[import-untyped]
+        import neal  # type: ignore[import-untyped]
     except ImportError:
         logger.info("[DWave] neal SDK 不可用，跳过 D-Wave neal 求解")
         return None

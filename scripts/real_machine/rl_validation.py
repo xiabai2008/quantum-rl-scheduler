@@ -24,9 +24,9 @@ from __future__ import annotations
 
 import json
 import os
+import random
 import sys
 import time
-import random
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -50,18 +50,18 @@ if str(_SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPT_DIR))
 
 from loguru import logger
-from stable_baselines3.common.callbacks import BaseCallback, CallbackList, EvalCallback
-from stable_baselines3.common.monitor import Monitor
 
 # 复用 smoke_test.py 中的工具函数
 from smoke_test import (  # type: ignore[import-not-found]
     MockSmokeClient,
-    parse_probability,
-    compute_probability_from_shots,
-    compute_measurement_error,
     compute_fidelity,
+    compute_measurement_error,
+    compute_probability_from_shots,
+    parse_probability,
     poll_task_result,
 )
+from stable_baselines3.common.callbacks import BaseCallback, CallbackList, EvalCallback
+from stable_baselines3.common.monitor import Monitor
 
 from src.api.tianyan_cqlib import CqlibTianyanClient
 from src.scheduler.agent import PPOAgent
