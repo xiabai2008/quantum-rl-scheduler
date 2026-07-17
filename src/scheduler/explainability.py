@@ -141,9 +141,7 @@ class DecisionRecord:
             state=np.asarray(data["state"], dtype=np.float64),
             action=int(data["action"]),
             action_prob=float(data["action_prob"]),
-            q_values=(
-                np.asarray(q_raw, dtype=np.float64) if q_raw is not None else None
-            ),
+            q_values=(np.asarray(q_raw, dtype=np.float64) if q_raw is not None else None),
             feature_contributions={str(k): float(v) for k, v in fc_raw.items()},
             timestamp=str(data["timestamp"]),
         )

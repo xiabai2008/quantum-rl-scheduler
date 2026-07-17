@@ -307,9 +307,7 @@ class TestRunBaselineComparison(unittest.TestCase):
         ]
         results = run_baseline_comparison(tasks, num_steps=10)
         for name, metrics in results.items():
-            self.assertEqual(
-                metrics["completed_tasks"], 2, f"{name} 应完成全部 2 个任务"
-            )
+            self.assertEqual(metrics["completed_tasks"], 2, f"{name} 应完成全部 2 个任务")
 
     def test_throughput_within_range(self):
         """吞吐率应在 [0, 1] 区间内。"""

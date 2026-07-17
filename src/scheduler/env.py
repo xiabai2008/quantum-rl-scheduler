@@ -77,19 +77,49 @@ from src.scheduler.env_types import (
 )
 
 __all__ = [
-    "ACTION_CLASSICAL", "ACTION_HYBRID", "ACTION_QUANTUM", "DEFAULT_MACHINE_CONFIGS",
-    "INITIAL_QUEUE_RANGE", "MAX_QUEUE_SIZE", "MAX_STEPS_DEFAULT", "MAX_WAIT_STEPS",
-    "OBS_AVG_CONNECTIVITY", "OBS_AVG_WAIT_TIME", "OBS_CLASSICAL_LOAD",
-    "OBS_COUPLING_DENSITY", "OBS_DIM", "OBS_FIDELITY", "OBS_QUANTUM_QUEUE_RATIO",
-    "OBS_QUBIT_AVAILABILITY", "OBS_QUEUE_LENGTH", "OBS_SINGLE_GATE_FIDELITY",
-    "OBS_TASK_TYPE_CLASSICAL", "OBS_TASK_TYPE_QUANTUM", "OBS_TIME_OF_DAY",
-    "OBS_TWO_GATE_FIDELITY", "OBS_URGENCY_LEVEL", "QUANTUM_SPEEDUP_RANGE",
-    "QUBIT_UTIL_THRESHOLD", "REAL_MACHINE_DEGRADE_FAIL_THRESHOLD", "REAL_MACHINE_FAIL_PENALTY",
-    "REAL_MACHINE_MAX_POLL_STEPS", "REAL_MACHINE_SUCCESS_BONUS", "REAL_SUBMIT_PROBABILITY_DEFAULT",
-    "REWARD_CLASSICAL", "REWARD_HYBRID", "REWARD_LOW_QUBIT_UTIL", "REWARD_MISMATCH",
-    "REWARD_QUANTUM_BASE", "REWARD_SUCCESS_BONUS", "REWARD_WAIT_OVER_THRESHOLD",
-    "ClassicalResource", "QuantumMachine", "QuantumResource", "QuantumSchedulingEnv",
-    "Task", "register_env",
+    "ACTION_CLASSICAL",
+    "ACTION_HYBRID",
+    "ACTION_QUANTUM",
+    "DEFAULT_MACHINE_CONFIGS",
+    "INITIAL_QUEUE_RANGE",
+    "MAX_QUEUE_SIZE",
+    "MAX_STEPS_DEFAULT",
+    "MAX_WAIT_STEPS",
+    "OBS_AVG_CONNECTIVITY",
+    "OBS_AVG_WAIT_TIME",
+    "OBS_CLASSICAL_LOAD",
+    "OBS_COUPLING_DENSITY",
+    "OBS_DIM",
+    "OBS_FIDELITY",
+    "OBS_QUANTUM_QUEUE_RATIO",
+    "OBS_QUBIT_AVAILABILITY",
+    "OBS_QUEUE_LENGTH",
+    "OBS_SINGLE_GATE_FIDELITY",
+    "OBS_TASK_TYPE_CLASSICAL",
+    "OBS_TASK_TYPE_QUANTUM",
+    "OBS_TIME_OF_DAY",
+    "OBS_TWO_GATE_FIDELITY",
+    "OBS_URGENCY_LEVEL",
+    "QUANTUM_SPEEDUP_RANGE",
+    "QUBIT_UTIL_THRESHOLD",
+    "REAL_MACHINE_DEGRADE_FAIL_THRESHOLD",
+    "REAL_MACHINE_FAIL_PENALTY",
+    "REAL_MACHINE_MAX_POLL_STEPS",
+    "REAL_MACHINE_SUCCESS_BONUS",
+    "REAL_SUBMIT_PROBABILITY_DEFAULT",
+    "REWARD_CLASSICAL",
+    "REWARD_HYBRID",
+    "REWARD_LOW_QUBIT_UTIL",
+    "REWARD_MISMATCH",
+    "REWARD_QUANTUM_BASE",
+    "REWARD_SUCCESS_BONUS",
+    "REWARD_WAIT_OVER_THRESHOLD",
+    "ClassicalResource",
+    "QuantumMachine",
+    "QuantumResource",
+    "QuantumSchedulingEnv",
+    "Task",
+    "register_env",
 ]
 
 
@@ -452,11 +482,11 @@ class QuantumSchedulingEnv(gym.Env):
     def _recompute_aggregate(self) -> None:
         recompute_aggregate(self)
 
-    def _compute_execution_reward(
-        self, task: Task, action: int, rng: np.random.Generator
-    ) -> float:
+    def _compute_execution_reward(self, task: Task, action: int, rng: np.random.Generator) -> float:
         return compute_execution_reward(
-            task=task, action=action, rng=rng,
+            task=task,
+            action=action,
+            rng=rng,
             quantum_fidelity=self._quantum.fidelity,
             quantum_available_ratio=self._quantum.available_ratio,
         )

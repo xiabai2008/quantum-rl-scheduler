@@ -1564,9 +1564,7 @@ class TestErrorHandling:
         assert "error" in data
 
     @pytest.mark.asyncio
-    async def test_ppo_stats_invalid_json_returns_error(
-        self, async_client, monkeypatch, tmp_path
-    ):
+    async def test_ppo_stats_invalid_json_returns_error(self, async_client, monkeypatch, tmp_path):
         """仿真结果文件非法 JSON 时 /api/ppo/stats 应返回 error。"""
         results_dir = tmp_path / "results"
         results_dir.mkdir()
@@ -1589,9 +1587,7 @@ class TestErrorHandling:
         assert data["action"] is None
 
     @pytest.mark.asyncio
-    async def test_ppo_comparison_no_files_returns_error(
-        self, async_client, monkeypatch, tmp_path
-    ):
+    async def test_ppo_comparison_no_files_returns_error(self, async_client, monkeypatch, tmp_path):
         """无仿真结果文件时 /api/ppo/comparison 应返回 error。"""
         (tmp_path / "results").mkdir()
         monkeypatch.setattr(app_module, "_PROJECT_ROOT", str(tmp_path))

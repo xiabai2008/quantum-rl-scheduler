@@ -42,9 +42,7 @@ class TestAlertManager(unittest.TestCase):
     def test_alert_manager_records_alert(self):
         """alert() 应将告警对象记录到内部列表并返回该对象。"""
         manager = AlertManager()
-        result = manager.alert(
-            AlertLevel.WARNING, "circuit_breaker", "熔断器打开", failure_count=5
-        )
+        result = manager.alert(AlertLevel.WARNING, "circuit_breaker", "熔断器打开", failure_count=5)
         self.assertIsNotNone(result)
         alerts = manager.get_alerts()
         self.assertEqual(len(alerts), 1)

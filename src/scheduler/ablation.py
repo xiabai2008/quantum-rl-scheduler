@@ -291,14 +291,10 @@ class AblationRunner:
                 + int(info.get("classical_success", 0))
                 + int(info.get("hybrid_success", 0))
             )
-            completion_rates.append(
-                successes / total_scheduled if total_scheduled > 0 else 0.0
-            )
+            completion_rates.append(successes / total_scheduled if total_scheduled > 0 else 0.0)
             avg_waits.append(step_wait_sum / step_count if step_count > 0 else 0.0)
             resource_utils.append(
-                total_scheduled / float(max_steps_value)
-                if max_steps_value > 0
-                else 0.0
+                total_scheduled / float(max_steps_value) if max_steps_value > 0 else 0.0
             )
 
         # 关闭环境释放资源
@@ -383,9 +379,7 @@ class AblationRunner:
                 "reward_pct": float(reward_pct),
                 "completion_delta": float(r.completion_rate - baseline.completion_rate),
                 "wait_delta": float(r.avg_wait_time - baseline.avg_wait_time),
-                "utilization_delta": float(
-                    r.resource_utilization - baseline.resource_utilization
-                ),
+                "utilization_delta": float(r.resource_utilization - baseline.resource_utilization),
             }
 
         return {"baseline": baseline_summary, "deltas": deltas}
@@ -416,8 +410,7 @@ class AblationRunner:
         lines.append("# 消融实验报告")
         lines.append("")
         lines.append(
-            f"> 生成时间: {datetime.now(timezone.utc).isoformat()}  "
-            f"| 配置数: {len(results)}"
+            f"> 生成时间: {datetime.now(timezone.utc).isoformat()}  " f"| 配置数: {len(results)}"
         )
         lines.append("")
         lines.append("---")
@@ -427,8 +420,7 @@ class AblationRunner:
         lines.append("## 结果汇总")
         lines.append("")
         lines.append(
-            "| 配置名 | 描述 | 平均奖励 | 标准差 | 完成率 | "
-            "平均等待(步) | 资源利用率 | 回合数 |"
+            "| 配置名 | 描述 | 平均奖励 | 标准差 | 完成率 | " "平均等待(步) | 资源利用率 | 回合数 |"
         )
         lines.append("|:--|:--|--:|--:|--:|--:|--:|--:|")
         for r in results:
@@ -453,9 +445,7 @@ class AblationRunner:
             lines.append("| 配置名 | 奖励差值 | 奖励变化% | 完成率差值 | 等待差值 | 利用率差值 |")
             lines.append("|:--|--:|--:|--:|--:|--:|")
             # 基线自身行
-            lines.append(
-                f"| {baseline['name']} (基线) | 0.00 | 0.00% | 0.0000 | 0.00 | 0.0000 |"
-            )
+            lines.append(f"| {baseline['name']} (基线) | 0.00 | 0.00% | 0.0000 | 0.00 | 0.0000 |")
             for name, d in deltas.items():
                 lines.append(
                     f"| {name} | {d['reward_delta']:.2f} | {d['reward_pct']:.2f}% "

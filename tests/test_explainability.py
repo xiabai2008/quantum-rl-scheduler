@@ -164,9 +164,7 @@ class TestDecisionExplainerExplain(unittest.TestCase):
 
     def test_contributions_normalized_with_q_values(self):
         """有 q_values 时贡献度应归一化（和≈1）。"""
-        rec = self.explainer.explain(
-            self.state, action=1, q_values=np.array([1.0, 5.0, 2.0])
-        )
+        rec = self.explainer.explain(self.state, action=1, q_values=np.array([1.0, 5.0, 2.0]))
         total = sum(rec.feature_contributions.values())
         self.assertAlmostEqual(total, 1.0, places=6)
 
@@ -293,13 +291,21 @@ class TestFeatureImportance(unittest.TestCase):
         """应正确计算多条记录的均值贡献度。"""
         explainer = DecisionExplainer(feature_names=["a", "b"])
         rec1 = DecisionRecord(
-            step=0, state=np.array([1.0, 0.0]), action=0, action_prob=1.0,
-            q_values=None, feature_contributions={"a": 1.0, "b": 0.0},
+            step=0,
+            state=np.array([1.0, 0.0]),
+            action=0,
+            action_prob=1.0,
+            q_values=None,
+            feature_contributions={"a": 1.0, "b": 0.0},
             timestamp="t1",
         )
         rec2 = DecisionRecord(
-            step=1, state=np.array([0.0, 1.0]), action=1, action_prob=1.0,
-            q_values=None, feature_contributions={"a": 0.0, "b": 1.0},
+            step=1,
+            state=np.array([0.0, 1.0]),
+            action=1,
+            action_prob=1.0,
+            q_values=None,
+            feature_contributions={"a": 0.0, "b": 1.0},
             timestamp="t2",
         )
         imp = explainer.get_feature_importance([rec1, rec2])
@@ -310,8 +316,12 @@ class TestFeatureImportance(unittest.TestCase):
         """单条记录的聚合重要性应等于该记录的贡献度。"""
         explainer = DecisionExplainer(feature_names=["a", "b", "c"])
         rec = DecisionRecord(
-            step=0, state=np.array([1.0, 1.0, 1.0]), action=0, action_prob=1.0,
-            q_values=None, feature_contributions={"a": 0.5, "b": 0.3, "c": 0.2},
+            step=0,
+            state=np.array([1.0, 1.0, 1.0]),
+            action=0,
+            action_prob=1.0,
+            q_values=None,
+            feature_contributions={"a": 0.5, "b": 0.3, "c": 0.2},
             timestamp="t",
         )
         imp = explainer.get_feature_importance([rec])
@@ -323,8 +333,12 @@ class TestFeatureImportance(unittest.TestCase):
         """聚合结果应可用于排序（高贡献度在前）。"""
         explainer = DecisionExplainer(feature_names=["a", "b", "c"])
         rec = DecisionRecord(
-            step=0, state=np.array([1.0, 1.0, 1.0]), action=0, action_prob=1.0,
-            q_values=None, feature_contributions={"a": 0.6, "b": 0.3, "c": 0.1},
+            step=0,
+            state=np.array([1.0, 1.0, 1.0]),
+            action=0,
+            action_prob=1.0,
+            q_values=None,
+            feature_contributions={"a": 0.6, "b": 0.3, "c": 0.1},
             timestamp="t",
         )
         imp = explainer.get_feature_importance([rec])
@@ -343,8 +357,12 @@ class TestDetectAnomalies(unittest.TestCase):
         """action_prob < 0.3 应被检测为异常。"""
         explainer = DecisionExplainer(feature_names=["a", "b"])
         rec = DecisionRecord(
-            step=0, state=np.array([1.0, 0.0]), action=0, action_prob=0.2,
-            q_values=None, feature_contributions={"a": 0.5, "b": 0.5},
+            step=0,
+            state=np.array([1.0, 0.0]),
+            action=0,
+            action_prob=0.2,
+            q_values=None,
+            feature_contributions={"a": 0.5, "b": 0.5},
             timestamp="t",
         )
         anomalies = explainer.detect_anomalies([rec])
@@ -355,7 +373,10 @@ class TestDetectAnomalies(unittest.TestCase):
         explainer = DecisionExplainer(feature_names=["a", "b", "c", "d"])
         # 均匀贡献：max/mean = 1.0 < threshold 2.0
         rec = DecisionRecord(
-            step=0, state=np.array([1.0, 1.0, 1.0, 1.0]), action=0, action_prob=0.95,
+            step=0,
+            state=np.array([1.0, 1.0, 1.0, 1.0]),
+            action=0,
+            action_prob=0.95,
             q_values=None,
             feature_contributions={"a": 0.25, "b": 0.25, "c": 0.25, "d": 0.25},
             timestamp="t",
@@ -368,18 +389,30 @@ class TestDetectAnomalies(unittest.TestCase):
         explainer = DecisionExplainer(feature_names=["a", "b"])
         recs = [
             DecisionRecord(  # 正常
-                step=0, state=np.array([1.0, 1.0]), action=0, action_prob=0.9,
-                q_values=None, feature_contributions={"a": 0.5, "b": 0.5},
+                step=0,
+                state=np.array([1.0, 1.0]),
+                action=0,
+                action_prob=0.9,
+                q_values=None,
+                feature_contributions={"a": 0.5, "b": 0.5},
                 timestamp="t0",
             ),
             DecisionRecord(  # 异常：低置信度
-                step=1, state=np.array([1.0, 0.0]), action=1, action_prob=0.1,
-                q_values=None, feature_contributions={"a": 0.5, "b": 0.5},
+                step=1,
+                state=np.array([1.0, 0.0]),
+                action=1,
+                action_prob=0.1,
+                q_values=None,
+                feature_contributions={"a": 0.5, "b": 0.5},
                 timestamp="t1",
             ),
             DecisionRecord(  # 正常
-                step=2, state=np.array([0.5, 0.5]), action=0, action_prob=0.85,
-                q_values=None, feature_contributions={"a": 0.5, "b": 0.5},
+                step=2,
+                state=np.array([0.5, 0.5]),
+                action=0,
+                action_prob=0.85,
+                q_values=None,
+                feature_contributions={"a": 0.5, "b": 0.5},
                 timestamp="t2",
             ),
         ]
@@ -396,7 +429,10 @@ class TestDetectAnomalies(unittest.TestCase):
         explainer = DecisionExplainer(feature_names=["a", "b", "c", "d"])
         # a 占 0.7，其余各 0.1；mean=0.25，max/mean=2.8 > 2.0
         rec = DecisionRecord(
-            step=0, state=np.array([1.0, 0.0, 0.0, 0.0]), action=0, action_prob=0.9,
+            step=0,
+            state=np.array([1.0, 0.0, 0.0, 0.0]),
+            action=0,
+            action_prob=0.9,
             q_values=None,
             feature_contributions={"a": 0.7, "b": 0.1, "c": 0.1, "d": 0.1},
             timestamp="t",
@@ -409,7 +445,10 @@ class TestDetectAnomalies(unittest.TestCase):
         explainer = DecisionExplainer(feature_names=["a", "b", "c", "d"])
         # a 占 0.4，其余各 0.2；mean=0.25，max/mean=1.6
         rec = DecisionRecord(
-            step=0, state=np.array([1.0, 0.0, 0.0, 0.0]), action=0, action_prob=0.9,
+            step=0,
+            state=np.array([1.0, 0.0, 0.0, 0.0]),
+            action=0,
+            action_prob=0.9,
             q_values=None,
             feature_contributions={"a": 0.4, "b": 0.2, "c": 0.2, "d": 0.2},
             timestamp="t",
@@ -431,18 +470,30 @@ class TestSummarizeSession(unittest.TestCase):
         explainer = DecisionExplainer(feature_names=["a", "b"])
         recs = [
             DecisionRecord(
-                step=0, state=np.array([1.0, 0.0]), action=0, action_prob=0.9,
-                q_values=None, feature_contributions={"a": 0.6, "b": 0.4},
+                step=0,
+                state=np.array([1.0, 0.0]),
+                action=0,
+                action_prob=0.9,
+                q_values=None,
+                feature_contributions={"a": 0.6, "b": 0.4},
                 timestamp="t0",
             ),
             DecisionRecord(
-                step=1, state=np.array([0.0, 1.0]), action=1, action_prob=0.9,
-                q_values=None, feature_contributions={"a": 0.3, "b": 0.7},
+                step=1,
+                state=np.array([0.0, 1.0]),
+                action=1,
+                action_prob=0.9,
+                q_values=None,
+                feature_contributions={"a": 0.3, "b": 0.7},
                 timestamp="t1",
             ),
             DecisionRecord(
-                step=2, state=np.array([1.0, 1.0]), action=0, action_prob=0.2,
-                q_values=None, feature_contributions={"a": 0.5, "b": 0.5},
+                step=2,
+                state=np.array([1.0, 1.0]),
+                action=0,
+                action_prob=0.2,
+                q_values=None,
+                feature_contributions={"a": 0.5, "b": 0.5},
                 timestamp="t2",
             ),
         ]
@@ -466,7 +517,10 @@ class TestSummarizeSession(unittest.TestCase):
         """top5_features 应按重要性降序排列。"""
         explainer = DecisionExplainer(feature_names=["a", "b", "c"])
         rec = DecisionRecord(
-            step=0, state=np.array([1.0, 1.0, 1.0]), action=0, action_prob=0.9,
+            step=0,
+            state=np.array([1.0, 1.0, 1.0]),
+            action=0,
+            action_prob=0.9,
             q_values=None,
             feature_contributions={"a": 0.1, "b": 0.7, "c": 0.2},
             timestamp="t",
@@ -481,13 +535,21 @@ class TestSummarizeSession(unittest.TestCase):
         explainer = DecisionExplainer(feature_names=["a", "b"])
         recs = [
             DecisionRecord(
-                step=0, state=np.array([1.0, 0.0]), action=0, action_prob=0.9,
-                q_values=None, feature_contributions={"a": 0.5, "b": 0.5},
+                step=0,
+                state=np.array([1.0, 0.0]),
+                action=0,
+                action_prob=0.9,
+                q_values=None,
+                feature_contributions={"a": 0.5, "b": 0.5},
                 timestamp="t0",
             ),
             DecisionRecord(
-                step=1, state=np.array([0.0, 1.0]), action=2, action_prob=0.9,
-                q_values=None, feature_contributions={"a": 0.5, "b": 0.5},
+                step=1,
+                state=np.array([0.0, 1.0]),
+                action=2,
+                action_prob=0.9,
+                q_values=None,
+                feature_contributions={"a": 0.5, "b": 0.5},
                 timestamp="t1",
             ),
         ]
@@ -520,9 +582,7 @@ class TestDecisionLogger(unittest.TestCase):
             self.assertEqual(loaded[0].step, 3)
             self.assertEqual(loaded[0].action, 1)
             self.assertAlmostEqual(loaded[0].action_prob, 0.8)
-            np.testing.assert_array_almost_equal(
-                loaded[0].state, np.arange(14, dtype=np.float64)
-            )
+            np.testing.assert_array_almost_equal(loaded[0].state, np.arange(14, dtype=np.float64))
 
     def test_jsonl_format(self):
         """日志文件应为 JSONL 格式（每行一个 JSON 对象）。"""
@@ -605,9 +665,7 @@ class TestDecisionLogger(unittest.TestCase):
             logger_obj.log(rec)
             loaded = logger_obj.load()
             self.assertIsNotNone(loaded[0].q_values)
-            np.testing.assert_array_almost_equal(
-                loaded[0].q_values, np.array([1.0, 2.0, 3.0])
-            )
+            np.testing.assert_array_almost_equal(loaded[0].q_values, np.array([1.0, 2.0, 3.0]))
 
 
 # ============================================================

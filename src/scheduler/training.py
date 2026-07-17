@@ -135,8 +135,7 @@ def resume_training(
 
     if model is None:
         raise FileNotFoundError(
-            f"无法从 {model_path} 加载模型（尝试 PPO/DQN 均失败）。"
-            f"错误详情: {load_errors}"
+            f"无法从 {model_path} 加载模型（尝试 PPO/DQN 均失败）。" f"错误详情: {load_errors}"
         )
 
     # 计算还需训练的步数
@@ -146,9 +145,7 @@ def resume_training(
     else:
         steps_to_train = max(0, total_timesteps - trained_steps)
 
-    logger.info(
-        f"[ResumeTraining] 已训练 {trained_steps} 步，本次再训练 {steps_to_train} 步"
-    )
+    logger.info(f"[ResumeTraining] 已训练 {trained_steps} 步，本次再训练 {steps_to_train} 步")
 
     if steps_to_train <= 0:
         logger.warning("[ResumeTraining] 已达到总训练步数，无需继续训练")
@@ -161,9 +158,7 @@ def resume_training(
         reset_num_timesteps=False,
     )
 
-    logger.info(
-        f"[ResumeTraining] 恢复训练完成，累计训练步数: {model.num_timesteps}"
-    )
+    logger.info(f"[ResumeTraining] 恢复训练完成，累计训练步数: {model.num_timesteps}")
     return model
 
 
@@ -198,9 +193,7 @@ def auto_resume_train(
     """
     algorithm = algorithm.lower().strip()
     if algorithm not in ("ppo", "dqn"):
-        raise ValueError(
-            f"不支持的算法类型: {algorithm}，仅支持 'ppo' 或 'dqn'"
-        )
+        raise ValueError(f"不支持的算法类型: {algorithm}，仅支持 'ppo' 或 'dqn'")
 
     # 默认环境：延迟导入避免循环依赖
     if env is None:
@@ -225,9 +218,7 @@ def auto_resume_train(
 
     if latest_ckpt is not None:
         # 检查点存在，恢复训练
-        logger.info(
-            f"[AutoResume] 发现检查点 {latest_ckpt}，从检查点恢复训练"
-        )
+        logger.info(f"[AutoResume] 发现检查点 {latest_ckpt}，从检查点恢复训练")
         return resume_training(
             model_path=latest_ckpt,
             env=env,
@@ -236,9 +227,7 @@ def auto_resume_train(
         )
     else:
         # 无检查点，从头训练
-        logger.info(
-            f"[AutoResume] 检查点目录 {checkpoint_dir} 无检查点，从头开始训练"
-        )
+        logger.info(f"[AutoResume] 检查点目录 {checkpoint_dir} 无检查点，从头开始训练")
         if algorithm == "ppo":
             model = PPO(
                 "MlpPolicy",
@@ -262,9 +251,7 @@ def auto_resume_train(
             callback=checkpoint_callback,
             reset_num_timesteps=True,
         )
-        logger.info(
-            f"[AutoResume] 从头训练完成，累计训练步数: {model.num_timesteps}"
-        )
+        logger.info(f"[AutoResume] 从头训练完成，累计训练步数: {model.num_timesteps}")
         return model
 
 

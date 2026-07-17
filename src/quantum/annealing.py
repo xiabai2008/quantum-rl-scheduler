@@ -1197,9 +1197,7 @@ def build_qubo_matrix(
             f"{task_priorities.shape} vs {task_times.shape}"
         )
     if task_priorities.ndim != 1:
-        raise ValueError(
-            f"task_priorities 必须为一维数组，实际 ndim={task_priorities.ndim}"
-        )
+        raise ValueError(f"task_priorities 必须为一维数组，实际 ndim={task_priorities.ndim}")
 
     n = task_priorities.shape[0]
     qubo = np.zeros((n, n), dtype=np.float64)
@@ -1212,9 +1210,10 @@ def build_qubo_matrix(
     for i in range(n):
         for j in range(n):
             if i != j:
-                qubo[i, j] = 0.5 * penalty * (
-                    task_priorities[i] * task_times[j]
-                    + task_priorities[j] * task_times[i]
+                qubo[i, j] = (
+                    0.5
+                    * penalty
+                    * (task_priorities[i] * task_times[j] + task_priorities[j] * task_times[i])
                 )
 
     return qubo
@@ -1258,9 +1257,7 @@ def build_qubo_matrix_optimized(
             f"{task_priorities.shape} vs {task_times.shape}"
         )
     if task_priorities.ndim != 1:
-        raise ValueError(
-            f"task_priorities 必须为一维数组，实际 ndim={task_priorities.ndim}"
-        )
+        raise ValueError(f"task_priorities 必须为一维数组，实际 ndim={task_priorities.ndim}")
 
     n = task_priorities.shape[0]
     # 外积 PT[i,j] = P[i] * T[j]；加上其转置得到对称的成对冲突代价

@@ -78,8 +78,7 @@ class TestTenantQuotaManagerConfig(unittest.TestCase):
 
     def test_from_config_normal(self):
         """正常配置文件应正确加载。"""
-        path = _write_temp_yaml(
-            """
+        path = _write_temp_yaml("""
 default_tenant: default
 tenants:
   - tenant_id: default
@@ -90,8 +89,7 @@ tenants:
     max_concurrent_tasks: 5
     daily_limit: 50
     priority: 4
-"""
-        )
+""")
         try:
             mgr = TenantQuotaManager.from_config(path)
             self.assertEqual(len(mgr.tenant_ids), 2)
@@ -119,14 +117,12 @@ tenants:
 
     def test_from_config_ensures_default_tenant(self):
         """配置文件未含默认租户时应自动补全。"""
-        path = _write_temp_yaml(
-            """
+        path = _write_temp_yaml("""
 default_tenant: default
 tenants:
   - tenant_id: lab
     max_qubits: 128
-"""
-        )
+""")
         try:
             mgr = TenantQuotaManager.from_config(path)
             self.assertIn("default", mgr.tenant_ids)
@@ -284,9 +280,7 @@ class TestTenantManagement(unittest.TestCase):
 
     def setUp(self):
         """创建测试用管理器。"""
-        self.mgr = TenantQuotaManager(
-            tenants={"default": TenantQuota(tenant_id="default")}
-        )
+        self.mgr = TenantQuotaManager(tenants={"default": TenantQuota(tenant_id="default")})
 
     def test_add_tenant(self):
         """添加租户应成功。"""
@@ -381,16 +375,12 @@ class TestEnvIntegration(unittest.TestCase):
         env.reset(seed=42)
 
         # 第一次调度成功（配额内）
-        task1 = Task(
-            task_id="t1", task_type="quantum", qubit_count=4, tenant_id="restricted"
-        )
+        task1 = Task(task_id="t1", task_type="quantum", qubit_count=4, tenant_id="restricted")
         env._route_to_machine(env._machines[0], task1, env.np_random)
         self.assertEqual(env._last_selected_machine, env._machines[0].name)
 
         # 第二次调度应被拒绝（并发任务超过上限 1）
-        task2 = Task(
-            task_id="t2", task_type="quantum", qubit_count=4, tenant_id="restricted"
-        )
+        task2 = Task(task_id="t2", task_type="quantum", qubit_count=4, tenant_id="restricted")
         env._route_to_machine(env._machines[0], task2, env.np_random)
         self.assertIsNone(env._last_selected_machine)
 
@@ -412,9 +402,7 @@ class TestEnvIntegration(unittest.TestCase):
         env.reset(seed=42)
 
         # 请求 32 比特但租户上限 16
-        task = Task(
-            task_id="t1", task_type="quantum", qubit_count=32, tenant_id="small"
-        )
+        task = Task(task_id="t1", task_type="quantum", qubit_count=32, tenant_id="small")
         env._route_to_machine(env._machines[0], task, env.np_random)
         self.assertIsNone(env._last_selected_machine)
 
