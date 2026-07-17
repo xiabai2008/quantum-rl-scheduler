@@ -93,6 +93,18 @@ class MultiAgentEnvWrapper:
         # 局部观测维度 = 全局 10 + 本机 3
         self.local_obs_dim = OBS_DIM + self.PER_MACHINE_FEATURE_DIM
 
+    def refresh_machines(self) -> bool:
+        """刷新环境中的机器列表，支持包装器运行期间动态加入机器。
+
+        Returns:
+            机器名称或数量发生变化时返回 ``True``，否则返回 ``False``。
+        """
+        names = list(self.env.machine_names)
+        changed = names != self.machine_names
+        self.machine_names = names
+        self.num_agents = len(names)
+        return changed
+
     # ------------------------------------------------------------------
     # 局部观测构建
     # ------------------------------------------------------------------
@@ -515,6 +527,12 @@ class RolloutBuffer:
             done: 是否终止
             value: Critic 估计的价值
         """
+        if self.full:
+            raise OverflowError("RolloutBuffer 已满，请先 reset()")
+        if not (len(local_obs) == len(actions) == len(log_probs) == self.num_agents):
+            raise ValueError("每个 Agent 必须提供一份观测、动作和对数概率")
+        if not np.isfinite(reward) or not np.isfinite(value):
+            raise ValueError("reward 和 value 必须是有限数值")
         t = self.pos
         for i in range(self.num_agents):
             self.local_obs[i][t] = local_obs[i]
