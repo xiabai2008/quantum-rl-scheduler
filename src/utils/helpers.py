@@ -170,7 +170,7 @@ def setup_logging(
     else:
         # 文本格式：人类可读（动态访问 sys.stderr，支持 redirect_stderr 测试）
         logger.add(
-            sink=lambda message: sys.stderr.write(message),
+            sink=cast(Any, lambda message: sys.stderr.write(message)),
             level=log_level,
             format="{time:YYYY-MM-DD HH:mm:ss} | {level} | {message}",
         )
@@ -265,8 +265,8 @@ def normalize_vector(
         return []
 
     vec_array = np.array(vector)
-    min_v = np.min(vec_array)
-    max_v = np.max(vec_array)
+    min_v: float = float(np.min(vec_array))
+    max_v: float = float(np.max(vec_array))
 
     if max_v - min_v < 1e-10:
         return [0.5] * len(vector)

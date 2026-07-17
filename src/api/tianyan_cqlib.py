@@ -12,9 +12,12 @@ Cqlib Wrapper for Tianyan Cloud Platform
 """
 
 import time
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from loguru import logger
+
+if TYPE_CHECKING:
+    from src.api.quota_tracker import QuotaTracker
 
 
 class CqlibTianyanClient:
@@ -46,6 +49,7 @@ class CqlibTianyanClient:
         login_key: str,
         machine_name: str = "tianyan_s",
         auto_retry_machine: bool = True,
+        quota_tracker: "QuotaTracker | None" = None,
     ):
         """初始化 cqlib 客户端
 
@@ -53,6 +57,8 @@ class CqlibTianyanClient:
             login_key: API Key（从个人中心获取）
             machine_name: 默认使用的量子计算机名称
             auto_retry_machine: 当前机器不可用时是否自动切换
+            quota_tracker: 真机配额追踪器（可选，传入后提交前做配额预检，
+                          提交成功后记录消耗；为 None 时不做配额控制）
         """
         import cqlib
 
@@ -61,6 +67,7 @@ class CqlibTianyanClient:
         self.machine_name = machine_name
         self.auto_retry_machine = auto_retry_machine
         self._platform = None
+        self._quota_tracker = quota_tracker
 
         logger.info(f"[Cqlib] 客户端初始化，默认机器={machine_name}")
 
@@ -142,6 +149,13 @@ class CqlibTianyanClient:
         else:
             raise ValueError("必须提供 qcis 或 circuit")
 
+        # 配额预检查：配额不足时跳过提交，保持"全部不可用返回 None"语义
+        if self._quota_tracker is not None and not self._quota_tracker.can_consume(
+            shots=shots, tasks=1
+        ):
+            logger.warning(f"[Cqlib] 真机配额不足，跳过提交: {task_name}, shots={shots}")
+            return None
+
         logger.info(f"[Cqlib] 提交量子任务: {task_name}, shots={shots}")
         logger.debug(f"[Cqlib] QCIS: {qcis_str[:100]}")
 
@@ -162,12 +176,22 @@ class CqlibTianyanClient:
             if isinstance(result, list) and len(result) > 0:
                 task_id = str(result[0])
                 logger.info(f"[Cqlib] 任务已提交: {task_id}")
+                # 提交成功后记录配额消耗
+                if self._quota_tracker is not None:
+                    self._quota_tracker.consume(shots=shots, tasks=1)
                 return task_id
+            # 非列表结果同样视为提交成功，记录配额消耗
+            if self._quota_tracker is not None:
+                self._quota_tracker.consume(shots=shots, tasks=1)
             return str(result)
         except Exception as e:
             # cqlib 提交接口异常类型无法穷举，保留宽捕获并记录日志
             err_msg = str(e)
             logger.error(f"[Cqlib] {self.machine_name} 提交失败: {err_msg}")
+            # 容量错误（电路超出免费额度）：不重试其他机器，直接返回 None
+            if self._is_capacity_error(err_msg):
+                logger.warning(f"[Cqlib] 容量不足，跳过提交（不重试其他机器）: {err_msg[:80]}")
+                return None
             # 校准/不可用类错误立即切换，不重试当前机器
             if self._is_unavailable_error(err_msg) and self.auto_retry_machine:
                 return self._retry_other_machine(qcis_str, shots, task_name)
@@ -223,6 +247,50 @@ class CqlibTianyanClient:
         lower_msg = err_msg.lower()
         return any(kw.lower() in lower_msg for kw in keywords)
 
+    @staticmethod
+    def _is_capacity_error(err_msg: str) -> bool:
+        """判断错误是否为机时包容量不足（电路超限，非机器问题）。
+
+        此类错误不应触发机器切换，因为电路本身超出免费额度，
+        换机器也无法解决。应直接返回 None 让上层跳过。
+
+        Args:
+            err_msg: 异常消息字符串
+
+        Returns:
+            bool: 命中关键词返回 True
+        """
+        keywords = (
+            "最大比特数",
+            "机时包",
+            "qubit",
+            "capacity",
+            "超出",
+        )
+        lower_msg = err_msg.lower()
+        return any(kw.lower() in lower_msg for kw in keywords)
+
+    @staticmethod
+    def _is_permission_error(err_msg: str) -> bool:
+        """判断错误是否为权限不足（专属资源无权限）。
+
+        此类错误应跳过当前机器，尝试其他机器（而非直接放弃）。
+
+        Args:
+            err_msg: 异常消息字符串
+
+        Returns:
+            bool: 命中关键词返回 True
+        """
+        keywords = (
+            "专属资源",
+            "权限",
+            "permission",
+            "forbidden",
+        )
+        lower_msg = err_msg.lower()
+        return any(kw.lower() in lower_msg for kw in keywords)
+
     def _retry_other_machine(self, qcis: str, shots: int, task_name: str) -> str | None:
         """当前机器不可用时，按 REAL_MACHINES 列表尝试其他机器。
 
@@ -259,18 +327,38 @@ class CqlibTianyanClient:
                 if isinstance(result, list) and len(result) > 0:
                     tid = str(result[0])
                     logger.info(f"[Cqlib] {machine} 提交成功: {tid}")
+                # 备用机器提交成功后记录配额消耗（与主路径一致）
+                if self._quota_tracker is not None:
+                    self._quota_tracker.consume(shots=shots, tasks=1)
                 return tid
             except Exception as e:
                 # cqlib 备用机器提交异常类型无法穷举，保留宽捕获并记录日志
-                logger.debug(f"[Cqlib] {machine} 失败: {str(e)[:60]}")
+                err_msg = str(e)
+                logger.debug(f"[Cqlib] {machine} 失败: {err_msg[:80]}")
+                # 容量错误：电路本身超出免费额度，换机器也无效，直接放弃
+                if self._is_capacity_error(err_msg):
+                    logger.warning(f"[Cqlib] 容量不足，放弃所有重试: {err_msg[:80]}")
+                    return None
+                # 权限错误（专属资源）：跳过当前机器，继续尝试其他
+                if self._is_permission_error(err_msg):
+                    logger.debug(f"[Cqlib] {machine} 无权限（专属资源），跳过")
                 continue
         logger.error("[Cqlib] 所有备用机器均不可用，放弃提交（返回 None）")
         return None
 
     def get_task_status(self, task_id: str) -> dict[str, Any]:
-        """查询任务状态"""
+        """查询任务状态（非阻塞，max_wait_time=2s 仅做一次 HTTP 尝试）。
+
+        注意：cqlib 的 query_experiment 默认 max_wait_time=3600s，
+        会导致长时间阻塞。本方法显式传入 max_wait_time=2 实现即时返回。
+        任务未完成时返回 status="running"。
+        """
         try:
-            result = self.platform.query_experiment(task_id)
+            from cqlib.exceptions import CqlibRequestError
+
+            result = self.platform.query_experiment(
+                task_id, max_wait_time=2, sleep_time=1,
+            )
             if isinstance(result, list) and len(result) > 0:
                 data = result[0]
                 if isinstance(data, dict):
@@ -282,6 +370,9 @@ class CqlibTianyanClient:
                         "raw": data,
                     }
             return {"task_id": task_id, "status": "unknown", "raw": result}
+        except CqlibRequestError:
+            # 查询超时（任务仍在运行），返回 running 状态
+            return {"task_id": task_id, "status": "running", "raw": {}}
         except Exception as e:
             # cqlib 查询接口异常类型无法穷举，保留宽捕获并记录日志
             logger.debug(f"[Cqlib] 查询任务 {task_id} 状态失败: {e}")
@@ -321,6 +412,53 @@ class CqlibTianyanClient:
             "available": [m["name"] for m in machines if m["status"] == "running"],
         }
 
+    def is_available(self) -> bool:
+        """检查真机是否可用（用于降级判断）。
+
+        判定逻辑：
+            1. 平台连接可建立（authenticate 通过）
+            2. 当前机器在列表中且状态为 running
+
+        任何异常均视为不可用，调用方可据此降级到 Mock。
+
+        Returns:
+            bool: True 表示真机可提交，False 表示应降级
+        """
+        try:
+            if not self.authenticate():
+                return False
+            return self._is_machine_available(self.machine_name)
+        except Exception as e:
+            # cqlib 平台访问异常类型无法穷举，保留宽捕获并记录日志
+            logger.debug(f"[Cqlib] is_available 检查失败: {e}")
+            return False
+
+    def submit_and_get_task_id(
+        self,
+        qcis: str,
+        shots: int = 512,
+        task_name: str = "Scheduler_Real_Task",
+    ) -> str | None:
+        """提交量子任务并立即返回 task_id（非阻塞）。
+
+        本方法是 ``submit_quantum_task`` 的语义化别名，强调“提交后立即返回，
+        不等待结果”，便于调度循环在 step() 中非阻塞调用，后续通过
+        ``get_task_status`` 轮询结果。
+
+        Args:
+            qcis      : QCIS 指令字符串
+            shots     : 测量次数
+            task_name : 任务名称
+
+        Returns:
+            task_id 字符串；提交失败或真机不可用时返回 None
+        """
+        return self.submit_quantum_task(
+            qcis=qcis,
+            shots=shots,
+            task_name=task_name,
+        )
+
 
 class MultiMachineCqlibCoordinator:
     """多机器 cqlib 协调器：统一管理多台天衍云真机的提交与状态聚合。
@@ -343,6 +481,7 @@ class MultiMachineCqlibCoordinator:
         login_key: str,
         machine_names: list[str],
         auto_retry_machine: bool = False,
+        quota_tracker: "QuotaTracker | None" = None,
     ):
         """初始化多机器协调器。
 
@@ -351,10 +490,13 @@ class MultiMachineCqlibCoordinator:
             machine_names    : 要纳管的机器名列表
             auto_retry_machine: 单机提交失败时是否自动切换其他机器（默认 False，
                                多机器场景下由调度器决定路由，通常关闭单机重试）
+            quota_tracker    : 真机配额追踪器（可选，传入后 submit_to_machine
+                              成功时记录消耗；为 None 时不做配额记录）
         """
         self.login_key = login_key
         self.machine_names = list(machine_names)
         self.auto_retry_machine = auto_retry_machine
+        self._quota_tracker = quota_tracker
         self._clients: dict[str, CqlibTianyanClient] = {}
         self._submit_count: dict[str, int] = dict.fromkeys(self.machine_names, 0)
         self._fail_count: dict[str, int] = dict.fromkeys(self.machine_names, 0)
@@ -395,6 +537,9 @@ class MultiMachineCqlibCoordinator:
             client = self._get_client(machine_name)
             task_id = client.submit_quantum_task(qcis=qcis, shots=shots, task_name=task_name)
             self._submit_count[machine_name] = self._submit_count.get(machine_name, 0) + 1
+            # 提交成功后记录配额消耗（仅当 task_id 非 None 时）
+            if self._quota_tracker is not None and task_id is not None:
+                self._quota_tracker.consume(shots=shots, tasks=1)
             return task_id
         except Exception as e:
             # 涉及客户端获取（ValueError）与提交，异常类型无法穷举，保留宽捕获并记录日志

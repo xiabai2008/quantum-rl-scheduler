@@ -1,0 +1,120 @@
+// =============================================================================
+// VS Code Dev Container 配置
+// 基于 Dockerfile 构建开发环境，一键启动所有所需工具
+//
+// 使用方式：
+//   1. 安装 Docker Desktop + VS Code + "Dev Containers" 扩展
+//   2. 打开本项目文件夹
+//   3. VS Code 右下角会提示 "Reopen in Container"，点击即可
+//
+// GPU 支持说明：
+//   - 默认配置为 CPU 模式，无需 GPU
+//   - 如需启用 GPU：
+//     1. 将 "runArgs" 中的 "--gpus", "all" 取消注释（已默认启用）
+//     2. 将 "build.args.BASE_IMAGE" 改为 "nvidia/cuda:11.8.0-cudnn8-runtime-ubuntu22.04"
+//     3. 确保宿主机已安装 NVIDIA 驱动和 NVIDIA Container Toolkit
+//   - 无 GPU 的机器：删除或注释掉 "runArgs" 部分即可回退到 CPU 模式
+// =============================================================================
+{
+  "name": "Quantum RL Scheduler Dev",
+  "build": {
+    "dockerfile": "Dockerfile.dev",
+    "context": "..",
+    "args": {
+      // 切换基础镜像以启用 GPU 支持
+      // CPU 模式（默认）：python:3.11-slim
+      // GPU 模式：nvidia/cuda:11.8.0-cudnn8-runtime-ubuntu22.04
+      "BASE_IMAGE": "python:3.11-slim"
+    }
+  },
+  // GPU 设备透传（需要 NVIDIA Container Toolkit）
+  // 无 GPU 的机器请删除或注释掉以下 runArgs 部分
+  "runArgs": [
+    "--gpus", "all"
+  ],
+  // GPU 相关环境变量
+  "containerEnv": {
+    "NVIDIA_VISIBLE_DEVICES": "all",
+    "NVIDIA_DRIVER_CAPABILITIES": "compute,utility"
+  },
+  "customizations": {
+    "vscode": {
+      "settings": {
+        // Python
+        "python.defaultInterpreterPath": "/usr/local/bin/python",
+        "python.testing.pytestEnabled": true,
+        "python.testing.pytestArgs": ["tests/", "-v"],
+        "python.testing.autoTestDiscoverOnSaveEnabled": true,
+        "python.analysis.typeCheckingMode": "basic",
+        "python.analysis.autoImportCompletions": true,
+
+        // 编辑器
+        "editor.formatOnSave": true,
+        "editor.rulers": [100],
+        "editor.tabSize": 4,
+        "editor.insertSpaces": true,
+        "files.trimTrailingWhitespace": true,
+        "files.insertFinalNewline": true,
+
+        // Python 格式化
+        "[python]": {
+          "editor.defaultFormatter": "ms-python.black-formatter",
+          "editor.formatOnSave": true,
+          "editor.codeActionsOnSave": {
+            "source.organizeImports": "explicit"
+          }
+        },
+
+        // 语言
+        "files.autoGuessEncoding": true
+      },
+      "extensions": [
+        // Python 核心
+        "ms-python.python",
+        "ms-python.vscode-pylance",
+        "ms-python.black-formatter",
+        "ms-python.isort",
+        "ms-python.flake8",
+        "ms-python.mypy-type-checker",
+
+        // Git
+        "eamodio.gitlens",
+        "github.vscode-github-actions",
+        "github.vscode-pull-request-github",
+
+        // 协作
+        "editorconfig.editorconfig",
+
+        // 可视化
+        "mechatroner.rainbow-csv",
+        "redhat.vscode-yaml",
+        "bierner.markdown-mermaid",
+
+        // Jupyter
+        "ms-toolsai.jupyter",
+
+        // Docker
+        "ms-azuretools.vscode-docker"
+      ]
+    }
+  },
+  // 开发容器端口转发
+  "forwardPorts": [8000, 6006],
+
+  // 挂载 Git 配置
+  "mounts": [
+    "source=${localEnv:HOME}/.gitconfig,target=/home/vscode/.gitconfig,type=bind,consistency=cached"
+  ],
+
+  // 容器启动后执行的命令
+  "postCreateCommand": "bash .devcontainer/post-create.sh",
+
+  // 容器内的默认用户
+  "remoteUser": "vscode",
+
+  // 附加特性
+  "features": {
+    "ghcr.io/devcontainers/features/git:1": {},
+    "ghcr.io/devcontainers/features/github-cli:1": {}
+  }
+}

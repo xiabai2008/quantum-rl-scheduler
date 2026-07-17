@@ -119,7 +119,8 @@ class MultiAgentEnvWrapper:
             ],
             dtype=np.float32,
         )
-        return np.concatenate([global_obs.astype(np.float32), per_machine])
+        result: np.ndarray = np.concatenate([global_obs.astype(np.float32), per_machine])
+        return result
 
     def get_local_observations(self) -> dict[str, np.ndarray]:
         """
@@ -475,16 +476,20 @@ class RolloutBuffer:
         self.global_state_dim = global_state_dim
 
         # 每 Agent 独立数据
-        self.local_obs = [
+        self.local_obs: list[np.ndarray] = [
             np.zeros((n_steps, local_obs_dim), dtype=np.float32) for _ in range(num_agents)
         ]
-        self.actions = [np.zeros(n_steps, dtype=np.int64) for _ in range(num_agents)]
-        self.log_probs = [np.zeros(n_steps, dtype=np.float32) for _ in range(num_agents)]
+        self.actions: list[np.ndarray] = [
+            np.zeros(n_steps, dtype=np.int64) for _ in range(num_agents)
+        ]
+        self.log_probs: list[np.ndarray] = [
+            np.zeros(n_steps, dtype=np.float32) for _ in range(num_agents)
+        ]
         # 共享数据
-        self.rewards = np.zeros(n_steps, dtype=np.float32)
-        self.global_states = np.zeros((n_steps, global_state_dim), dtype=np.float32)
-        self.dones = np.zeros(n_steps, dtype=np.float32)
-        self.values = np.zeros(n_steps, dtype=np.float32)
+        self.rewards: np.ndarray = np.zeros(n_steps, dtype=np.float32)
+        self.global_states: np.ndarray = np.zeros((n_steps, global_state_dim), dtype=np.float32)
+        self.dones: np.ndarray = np.zeros(n_steps, dtype=np.float32)
+        self.values: np.ndarray = np.zeros(n_steps, dtype=np.float32)
 
         self.pos = 0
 
@@ -549,7 +554,7 @@ class RolloutBuffer:
                 returns: 共享的回报数组
         """
         n = self.pos
-        advantages = np.zeros(n, dtype=np.float32)
+        advantages: np.ndarray = np.zeros(n, dtype=np.float32)
         last_gae = 0.0
         for t in reversed(range(n)):
             next_value = last_value if t == n - 1 else self.values[t + 1]

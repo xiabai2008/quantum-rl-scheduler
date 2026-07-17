@@ -21,7 +21,7 @@ RUN if echo "${BASE_IMAGE}" | grep -q "cuda"; then \
         && rm -rf /var/lib/apt/lists/*; \
     fi
 
-# 系统依赖（保留原有的，添加 CUDA 相关）
+# 系统依赖
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     curl \

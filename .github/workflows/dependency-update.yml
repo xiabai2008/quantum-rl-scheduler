@@ -9,6 +9,8 @@ jobs:
   check-updates:
     name: "Check Dependency Updates"
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+    
     steps:
       - uses: actions/checkout@v4
 
@@ -20,21 +22,37 @@ jobs:
       - name: Install pip-tools
         run: pip install pip-tools
 
+      - name: Install current dependencies
+        run: pip install -r requirements.txt
+
       - name: Check for outdated packages
         run: |
-          pip install -r requirements.txt
           pip list --outdated --format=columns > outdated_packages.txt
+          echo "=== 过期包列表 ==="
           cat outdated_packages.txt
 
       - name: Generate updated lock file
         run: |
           pip-compile requirements.txt -o requirements.lock.new --allow-unsafe
-          diff requirements.lock requirements.lock.new || echo "Updates available"
+          echo "=== 对比差异 ==="
+          diff requirements.lock requirements.lock.new || echo "发现更新"
 
       - name: Upload results
         uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: dependency-check-results
           path: |
             outdated_packages.txt
             requirements.lock.new
+          retention-days: 30
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "## 依赖检查结果" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 过期包" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          cat outdated_packages.txt >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY

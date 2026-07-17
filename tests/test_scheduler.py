@@ -38,13 +38,11 @@ from src.scheduler.env import (
 )
 from src.scheduler.parser import (
     LegacyTaskParser,
-)
-from src.scheduler.parser import Task as ParserTask
-from src.scheduler.parser import (
     TaskBuilder,
     TaskFeatures,
     TaskParser,
 )
+from src.scheduler.parser import Task as ParserTask
 
 
 class TestQuantumSchedulingEnv(unittest.TestCase):
@@ -310,6 +308,188 @@ class TestMultiMachineScheduling(unittest.TestCase):
         self.assertIn("last_selected_machine", info)
         self.assertIn("machine_schedule_count", info)
         self.assertEqual(len(info["machines"]), 3)
+
+    def test_use_real_machine_param_default_false(self):
+        """use_real_machine 默认应为 False（向后兼容）"""
+        env = QuantumSchedulingEnv(max_steps=20, seed=42)
+        self.assertFalse(env.use_real_machine)
+        self.assertFalse(env.is_real_machine_degraded())
+
+    def test_use_real_machine_param_enabled(self):
+        """启用 use_real_machine 后环境应记录该状态"""
+        env = QuantumSchedulingEnv(
+            max_steps=20,
+            machine_configs=DEFAULT_MACHINE_CONFIGS,
+            use_real_machine=True,
+            real_submit_probability=0.0,  # 不实际提交
+            seed=42,
+        )
+        self.assertTrue(env.use_real_machine)
+        # 未绑定客户端时不应报错
+        env.reset(seed=42)
+        _obs, _reward, _term, _trunc, info = env.step(1)
+        self.assertIn("real_machine_stats", info)
+        self.assertIn("real_machine_degraded", info)
+        self.assertEqual(info["real_machine_stats"]["pending_count"], 0)
+
+    def test_real_machine_stats_initial_state(self):
+        """真机闭环统计初始状态应为全零"""
+        env = QuantumSchedulingEnv(max_steps=20, seed=42)
+        stats = env.get_real_machine_stats()
+        self.assertEqual(stats["pending_count"], 0)
+        self.assertEqual(stats["success_count"], 0)
+        self.assertEqual(stats["fail_count"], 0)
+        self.assertFalse(stats["degraded"])
+        self.assertEqual(stats["consecutive_failures"], 0)
+
+    def test_real_machine_degrade_after_consecutive_failures(self):
+        """连续失败超过阈值应触发降级"""
+        env = QuantumSchedulingEnv(
+            max_steps=20,
+            machine_configs=DEFAULT_MACHINE_CONFIGS,
+            use_real_machine=True,
+            real_submit_probability=1.0,
+            seed=42,
+        )
+
+        # 模拟真机客户端：提交总是抛异常（触发 _record_real_failure）
+        class FailingClient:
+            machine_name = "tianyan_s"
+
+            def submit_quantum_task(self, **kwargs):
+                raise RuntimeError("simulated network failure")
+
+            def get_task_status(self, task_id):
+                return {"status": "error"}
+
+        env.attach_real_clients({"tianyan_s": FailingClient()})
+        env.reset(seed=42)
+        # 直接调用 _submit_to_real_machine 触发失败（绕过任务兼容性检查）
+        machine = env._machines[0]
+        quantum_task = Task(task_id="T_test", task_type="quantum", qubit_count=2)
+        for _ in range(3):
+            env._submit_to_real_machine(machine, quantum_task)
+            if env.is_real_machine_degraded():
+                break
+        self.assertTrue(env.is_real_machine_degraded())
+        stats = env.get_real_machine_stats()
+        self.assertGreaterEqual(stats["fail_count"], 3)
+        self.assertTrue(stats["degraded"])
+
+    def test_real_machine_success_feedback_resets_failure_count(self):
+        """真机成功反馈应重置连续失败计数"""
+        env = QuantumSchedulingEnv(
+            max_steps=30,
+            machine_configs=DEFAULT_MACHINE_CONFIGS,
+            use_real_machine=True,
+            real_submit_probability=1.0,
+            seed=42,
+        )
+
+        # 模拟客户端：提交成功返回 task_id，状态查询返回 completed
+        class SuccessClient:
+            machine_name = "tianyan_s"
+            _counter = 0
+
+            def submit_quantum_task(self, **kwargs):
+                SuccessClient._counter += 1
+                return f"real_task_{SuccessClient._counter}"
+
+            def get_task_status(self, task_id):
+                return {"status": "completed", "result": {"0": 0.5}}
+
+        env.attach_real_clients({"tianyan_s": SuccessClient()})
+        env.reset(seed=42)
+        # 直接提交一个真机任务（绕过任务兼容性检查）
+        machine = env._machines[0]
+        quantum_task = Task(task_id="T_test", task_type="quantum", qubit_count=2)
+        env._submit_to_real_machine(machine, quantum_task)
+        self.assertEqual(len(env._pending_real_tasks), 1)
+        # 触发轮询（_poll_pending_real_tasks 不依赖 step 的 action）
+        feedback = env._poll_pending_real_tasks()
+        self.assertGreater(feedback, 0.0)  # 成功反馈应为正
+        stats = env.get_real_machine_stats()
+        self.assertGreaterEqual(stats["success_count"], 1)
+        self.assertEqual(stats["consecutive_failures"], 0)
+        self.assertFalse(stats["degraded"])
+
+    def test_real_machine_degraded_skips_submission(self):
+        """降级后应跳过真机提交（fallback 到 Mock）"""
+        env = QuantumSchedulingEnv(
+            max_steps=20,
+            machine_configs=DEFAULT_MACHINE_CONFIGS,
+            use_real_machine=True,
+            real_submit_probability=1.0,
+            seed=42,
+        )
+
+        submit_count = {"n": 0}
+
+        class CountingFailingClient:
+            machine_name = "tianyan_s"
+
+            def submit_quantum_task(self, **kwargs):
+                submit_count["n"] += 1
+                raise RuntimeError("fail")
+
+            def get_task_status(self, task_id):
+                return {"status": "error"}
+
+        env.attach_real_clients({"tianyan_s": CountingFailingClient()})
+        env.reset(seed=42)
+        # 触发降级（直接调用 _submit_to_real_machine）
+        machine = env._machines[0]
+        quantum_task = Task(task_id="T_test", task_type="quantum", qubit_count=2)
+        for _ in range(3):
+            env._submit_to_real_machine(machine, quantum_task)
+            if env.is_real_machine_degraded():
+                break
+        self.assertTrue(env.is_real_machine_degraded())
+
+        # 降级后继续提交，提交次数不应增长
+        submits_before = submit_count["n"]
+        for _ in range(5):
+            env._submit_to_real_machine(machine, quantum_task)
+        self.assertEqual(submit_count["n"], submits_before)
+
+    def test_real_machine_pending_task_polling(self):
+        """提交后任务应进入 pending 列表，轮询后移出"""
+        env = QuantumSchedulingEnv(
+            max_steps=30,
+            machine_configs=DEFAULT_MACHINE_CONFIGS,
+            use_real_machine=True,
+            real_submit_probability=1.0,
+            seed=42,
+        )
+
+        class PollClient:
+            machine_name = "tianyan_s"
+
+            def submit_quantum_task(self, **kwargs):
+                return "poll_task_001"
+
+            def get_task_status(self, task_id):
+                # 第一次查询返回 running，第二次返回 completed
+                PollClient._calls = getattr(PollClient, "_calls", 0) + 1
+                if PollClient._calls == 1:
+                    return {"status": "running"}
+                return {"status": "completed"}
+
+        env.attach_real_clients({"tianyan_s": PollClient()})
+        env.reset(seed=42)
+        # 直接提交（绕过任务兼容性检查）
+        machine = env._machines[0]
+        quantum_task = Task(task_id="T_test", task_type="quantum", qubit_count=2)
+        env._submit_to_real_machine(machine, quantum_task)
+        self.assertEqual(len(env._pending_real_tasks), 1)
+        # 第一次轮询：running，任务仍在 pending
+        env._poll_pending_real_tasks()
+        self.assertEqual(len(env._pending_real_tasks), 1)
+        # 第二次轮询：completed，任务移出 pending
+        env._poll_pending_real_tasks()
+        self.assertEqual(len(env._pending_real_tasks), 0)
+        stats = env.get_real_machine_stats()
+        self.assertEqual(stats["success_count"], 1)
 
 
 class TestSchedulerAgent(unittest.TestCase):

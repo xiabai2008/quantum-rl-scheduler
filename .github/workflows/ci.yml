@@ -59,7 +59,7 @@ jobs:
         run: bandit -c pyproject.toml -r src/ -ll
 
   # ---------------------------------------------------------------------------
-  # Job 2: 单元测试 + 覆盖率（Python 多版本矩阵）
+  # Job 2: 单元测试 + 覆盖率（跨平台 × Python 多版本矩阵）
   # ---------------------------------------------------------------------------
   test:
     name: "Test (${{ matrix.os }}, Python ${{ matrix.python-version }})"
@@ -153,7 +153,7 @@ jobs:
           mypy src/ \
             --ignore-missing-imports \
             --follow-imports=skip \
-            --no-error-unused-ignore \
+            --no-warn-unused-ignores \
             --show-error-codes \
             --pretty \
             || echo "[INFO] mypy found type issues — review and fix incrementally"
@@ -239,7 +239,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # 需要完整历史用于对比
+          fetch-depth: 0
 
       - name: Setup Python
         uses: actions/setup-python@v5

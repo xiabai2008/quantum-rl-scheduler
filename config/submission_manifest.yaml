@@ -103,6 +103,23 @@ items:
     path: "results/reports/statistical_validation.md"
     must_exist: true
 
+  # 训练好的权威模型检查点（换机复现所必需）
+  - id: MODEL_PPO
+    name: PPO 权威模型（10维观测）
+    type: zip
+    path: "deliverable_models/ppo_best_model_10dim.zip"
+    requirements:
+      max_size_mb: 50
+      must_exist: true
+
+  - id: MODEL_DQN
+    name: DQN 权威模型（10维观测）
+    type: zip
+    path: "deliverable_models/dqn_best_model_10dim.zip"
+    requirements:
+      max_size_mb: 50
+      must_exist: true
+
   # 其他
   - id: REQUIREMENTS_MATRIX
     name: 需求追溯矩阵

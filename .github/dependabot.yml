@@ -1,4 +1,5 @@
 # Dependabot 配置 — 自动更新依赖 + 安全漏洞通知
+# 同时管理 requirements.txt 和 requirements.lock
 version: 2
 updates:
   # Python 依赖 (requirements.txt + requirements.lock)

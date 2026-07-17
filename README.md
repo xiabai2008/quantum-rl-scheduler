@@ -17,15 +17,15 @@
 
 **量化目标：** 资源利用率提升 ≥30%，平均等待时间降低 ≥40%
 
-## 项目状态（v7）
+## 项目状态（v8.0）
 
 | 指标 | 数值 |
 |------|------|
-| 核心代码量 | ~11,000 行 Python（src/ 22 文件） |
-| 测试文件 | 14 个文件，100+ 测试用例 |
+| 核心代码量 | 约 1.1 万行 Python（src/ 57 文件） |
+| 测试文件 | 42 个文件，500+ 测试用例 |
 | CI 强制覆盖率 | 60%（目标 80%） |
 | 真机验证 | 32 个量子任务成功提交天衍云 3 台超导量子计算机 |
-| PPO vs FCFS | 综合奖励提升 95.4% |
+| PPO vs FCFS | 综合奖励提升 92.4% |
 | 多机器 MAPPO | 奖励 4,294（vs 单机 2,305，提升 +86.3%） |
 | 消融实验 | 五维度全量完成（D1-D5） |
 | 压力测试 | 4 种极限场景 PPO 综合稳定性最强 |
@@ -50,7 +50,7 @@ quantum-rl-scheduler/
 │   └── cli.py                # Click 统一命令行入口
 ├── docs/                     # 团队文档（上手指南、Git规范、分工、协同开发）
 ├── config/                   # 系统配置（config.yaml + .env.example）
-├── results/reports/          # 实验数据固化报告（4份）
+├── results/reports/          # 实验数据固化报告（9份）
 ├── .github/workflows/        # CI/CD 4 Job 流水线 + PR 自动化
 ├── .devcontainer/            # VS Code 开发容器
 ├── pyproject.toml            # 统一配置（Black/ruff/bandit/mypy/pytest/coverage/mutmut）
@@ -146,7 +146,7 @@ TIANYAN_API_KEY=你的真实API密钥
 | 工具 | 用途 |
 |------|------|
 | `pyproject.toml` | Black + ruff + bandit + mypy + pytest + coverage + mutmut 统一配置 |
-| `mypy.ini` | 8项严格类型检查（仅2模块暂时豁免） |
+| `mypy.ini` | 8项严格类型检查（仅2模块暂时豁免：annealing/scripts） |
 | `.pre-commit-config.yaml` | Git commit 前自动格式检查 + Commit 格式校验 |
 | GitHub Actions CI | lint(ruff+bandit) + test(3.10/3.11/3.12矩阵) + typecheck(mypy) + benchmarks |
 | Dependabot | pip + GitHub Actions 自动依赖更新 |
@@ -182,8 +182,8 @@ TIANYAN_API_KEY=你的真实API密钥
 
 | 实验 | 核心结论 |
 |------|---------|
-| 8策略对比 | PPO奖励2864 vs FCFS 1466，+95.4% |
-| 五维消融 | D4多机+86.3% > D1算法+95.4% > D5退火+6.4% > D2状态+2.1% |
+| 8策略对比 | PPO奖励2814 vs FCFS 1462，+92.4% |
+| 五维消融 | D4多机+86.3% > D1算法+92.4% > D5退火+6.4% > D2状态+2.1% |
 | 压力测试 | 4场景PPO综合稳定性最强；量子波动场景PPO +91.4% |
 | 真机验证 | 32任务100%成功率；Mock校准后偏差<5% |
 

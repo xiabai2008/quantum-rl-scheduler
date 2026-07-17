@@ -2,11 +2,12 @@
 # 使用方式：docker-compose -f .devcontainer/docker-compose.gpu.yml up
 #
 # 前提条件：
-#   1. 宿主机已安装 NVIDIA 驱动（nvidia-smi 可用）
-#   2. 已安装 NVIDIA Container Toolkit
-#      - Linux: https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html
-#      - Windows: Docker Desktop 4.13+ 原生支持 GPU 透传
-#   3. Docker Engine 19.03+ （支持 --gpus 标志）
+# 1. 安装 NVIDIA 驱动（>= 450.80.02）
+# 2. 安装 NVIDIA Container Toolkit
+#    - Linux: https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html
+#    - Windows: Docker Desktop 4.15+ 已内置支持
+# 3. 验证 GPU 可用：nvidia-smi
+
 version: "3.8"
 
 services:
@@ -15,8 +16,10 @@ services:
       context: ..
       dockerfile: .devcontainer/Dockerfile.dev
       args:
-        # 使用 NVIDIA CUDA 基础镜像
+        # 使用 CUDA 基础镜像
         BASE_IMAGE: "nvidia/cuda:11.8.0-cudnn8-runtime-ubuntu22.04"
+    
+    # GPU 设备预留
     deploy:
       resources:
         reservations:
@@ -24,14 +27,31 @@ services:
             - driver: nvidia
               count: all
               capabilities: [gpu]
-    volumes:
-      - ..:/workspace:cached
+    
+    # 环境变量
     environment:
       - NVIDIA_VISIBLE_DEVICES=all
       - NVIDIA_DRIVER_CAPABILITIES=compute,utility
       - PYTHONDONTWRITEBYTECODE=1
       - PYTHONUNBUFFERED=1
+      - PYTHONPATH=/workspace
+    
+    # 卷挂载
+    volumes:
+      - ..:/workspace:cached
+      - vscode-extensions:/home/vscode/.vscode-server/extensions
+    
+    # 端口映射
     ports:
-      - "8000:8000"   # Web 监控界面
-      - "6006:6006"   # TensorBoard
+      - "8000:8000"  # Web 监控
+      - "6006:6006"  # TensorBoard
+    
+    # 保持容器运行
     command: sleep infinity
+    
+    # 资源限制（可选）
+    # mem_limit: 16g
+    # cpus: 4
+
+volumes:
+  vscode-extensions:
