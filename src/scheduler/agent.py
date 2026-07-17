@@ -6,7 +6,8 @@ Reinforcement Learning Agent for Quantum-Classical Hybrid Task Scheduling
 任务调度决策。支持 Dueling DQN 架构、Epsilon-Greedy 探索策略以及 TensorBoard
 训练可视化。
 
-状态空间（10维，对应 env.py 的 QuantumSchedulingEnv）：
+状态空间：`QuantumSchedulingEnv` 原生输出 14 维；权威公平对比通过
+`Obs10Wrapper` 截断为下列 10 维，以兼容现有 DQN/PPO 模型：
     0 - qubit_availability  : 当前可用量子比特比率（0-1）
     1 - queue_length         : 当前任务队列长度（归一化 0-1）
     2 - avg_wait_time        : 队列中任务平均等待时间（归一化）
