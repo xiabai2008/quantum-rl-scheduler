@@ -4,11 +4,14 @@
 用法: PYTHONPATH=. python scripts/benchmarking/multi_tenant_fairness.py
 """
 
-import sys, os
+import os
+import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
-import numpy as np
 from dataclasses import dataclass
+
+import numpy as np
+
 from src.scheduler.fairness import MultiTenantFairnessTracker
 
 
