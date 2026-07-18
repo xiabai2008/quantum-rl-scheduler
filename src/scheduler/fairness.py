@@ -17,10 +17,10 @@ import math
 from dataclasses import dataclass, field
 from typing import Any
 
-
 # ============================================================================
 # Jain Fairness Index
 # ============================================================================
+
 
 def jain_fairness_index(values: list[float]) -> float:
     """计算 Jain 公平性指数。
@@ -79,6 +79,7 @@ def max_min_fairness(values: list[float]) -> float:
 # 多租户公平性跟踪器
 # ============================================================================
 
+
 @dataclass
 class TenantFairnessStats:
     """单个租户的公平性统计。
@@ -93,6 +94,7 @@ class TenantFairnessStats:
         completion_rate  : 完成率（tasks_completed / tasks_submitted）
         avg_wait_steps   : 平均等待步数
     """
+
     tenant_id: str = ""
     tasks_submitted: int = 0
     tasks_completed: int = 0
@@ -200,7 +202,7 @@ class MultiTenantFairnessTracker:
 
     def jain_wait_fairness(self) -> float:
         """以平均等待时间为基（反转后）的 Jain 公平性指数。
-        
+
         由于更公平意味着等待时间更均匀（而非数值更相等），
         我们反转等待时间：x_i = 1/(w_i + 1)，使得更低的等待获得更高的分值。
         """
