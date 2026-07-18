@@ -142,6 +142,8 @@ class QuantumSchedulingEnv(gym.Env):
         real_submit_probability: float = REAL_SUBMIT_PROBABILITY_DEFAULT,
         use_real_machine: bool = False,
         real_machine_feedback_weight: float = 1.0,
+        max_real_submissions: int | None = None,
+        real_machine_shots: int = 512,
         tenant_manager: Any | None = None,
     ):
         """初始化量子任务调度环境（参数详见子模块文档）。"""
@@ -153,6 +155,12 @@ class QuantumSchedulingEnv(gym.Env):
         self.real_submit_probability = float(real_submit_probability)
         self.use_real_machine = bool(use_real_machine)
         self.real_machine_feedback_weight = float(real_machine_feedback_weight)
+        if max_real_submissions is not None and max_real_submissions < 0:
+            raise ValueError("max_real_submissions must be non-negative or None")
+        if real_machine_shots <= 0:
+            raise ValueError("real_machine_shots must be positive")
+        self.max_real_submissions = max_real_submissions
+        self.real_machine_shots = int(real_machine_shots)
 
         # Gymnasium 标准空间定义（保持 14 维 obs + Discrete(3) 不变，确保 PPO 模型可复用）
         self.observation_space = spaces.Box(low=0.0, high=1.0, shape=(OBS_DIM,), dtype=np.float32)
@@ -189,6 +197,8 @@ class QuantumSchedulingEnv(gym.Env):
         self._real_consecutive_failures: int = 0  # 连续失败计数（触发降级）
         self._real_success_count: int = 0
         self._real_fail_count: int = 0
+        # 跨 episode 累积，确保训练级硬上限不会被 reset 绕过。
+        self._real_submission_attempts_total: int = 0
 
         # 内部状态
         self._current_step: int = 0
@@ -260,6 +270,8 @@ class QuantumSchedulingEnv(gym.Env):
         """返回真机闭环统计信息（供 info 字典和报告使用）。"""
         return {
             "pending_count": len(self._pending_real_tasks),
+            "submission_attempts_total": self._real_submission_attempts_total,
+            "max_real_submissions": self.max_real_submissions,
             "success_count": self._real_success_count,
             "fail_count": self._real_fail_count,
             "degraded": self._real_machine_degraded,

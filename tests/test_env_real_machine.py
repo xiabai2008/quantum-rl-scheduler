@@ -10,8 +10,9 @@ if str(_PROJECT_ROOT) not in sys.path:
 
 import pytest
 
-from src.scheduler.env_real_machine import generate_qcis_circuit
-from src.scheduler.env_types import Task
+from src.scheduler.env import QuantumSchedulingEnv
+from src.scheduler.env_real_machine import generate_qcis_circuit, submit_to_real_machine
+from src.scheduler.env_types import QuantumMachine, Task
 
 
 class TestGenerateQcisCircuit:
@@ -131,6 +132,60 @@ class TestTaskQcisField:
         task = Task(task_id="0", task_type="classical", qubit_count=0)
         assert task.qcis is None
         # submit_to_real_machine 应自动生成
+
+
+class _RecordingClient:
+    def __init__(self) -> None:
+        self.calls: list[dict] = []
+
+    def submit_quantum_task(self, **kwargs):
+        self.calls.append(kwargs)
+        return f"real-{len(self.calls)}"
+
+
+class TestRealSubmissionBudget:
+    """训练级真机硬上限与低 shots 配置测试。"""
+
+    @staticmethod
+    def _make_env(max_real_submissions: int | None = 2) -> tuple:
+        env = QuantumSchedulingEnv(
+            machine_configs=[
+                {
+                    "name": "tianyan176",
+                    "total_qubits": 287,
+                    "supported_gates": ("H", "M"),
+                    "is_real": True,
+                }
+            ],
+            use_real_machine=True,
+            max_real_submissions=max_real_submissions,
+            real_machine_shots=64,
+        )
+        client = _RecordingClient()
+        env.attach_real_clients({"tianyan176": client})
+        machine = QuantumMachine(name="tianyan176", total_qubits=66, is_real=True)
+        task = Task(task_id="budget", task_type="quantum", qubit_count=1)
+        return env, client, machine, task
+
+    def test_rejects_invalid_budget_configuration(self):
+        with pytest.raises(ValueError, match="max_real_submissions"):
+            QuantumSchedulingEnv(max_real_submissions=-1)
+        with pytest.raises(ValueError, match="real_machine_shots"):
+            QuantumSchedulingEnv(real_machine_shots=0)
+
+    def test_hard_limit_survives_reset_and_uses_configured_shots(self):
+        env, client, machine, task = self._make_env()
+
+        submit_to_real_machine(env, machine, task)
+        env.reset(seed=1)
+        submit_to_real_machine(env, machine, task)
+        submit_to_real_machine(env, machine, task)
+
+        assert len(client.calls) == 2
+        assert [call["shots"] for call in client.calls] == [64, 64]
+        stats = env.get_real_machine_stats()
+        assert stats["submission_attempts_total"] == 2
+        assert stats["max_real_submissions"] == 2
 
 
 if __name__ == "__main__":
