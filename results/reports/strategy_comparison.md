@@ -1,11 +1,9 @@
 # 8 策略对比报告（多Seed验证版）
 
-> **数据来源（权威）**: `results/multiseed_evaluation/rewards_multiseed.json`（2026-07-09 多seed评估）
-> **数据来源（单次参考）**: `results/issue_experiments/20260702_215916_strategy_comparison.json`（2026-07-02 单次运行）
+> **数据来源（权威 — 10维）**: `results/multiseed_evaluation/rewards_multiseed.json`（2026-07-09 多seed评估）
+> **数据来源（权威 — 14维）**: `results/multiseed_evaluation/rewards_multiseed_14dim.json`（2026-07-18，PPO 14维新模型）
+> **注意**: 下表中 PPO 行已更新为 14 维新模型数据（2723.0），其余策略仍为 10 维环境数据（公平对比基线不变）。
 > **运行环境**: 10 维公平对比环境（14 维环境经 Obs10Wrapper 截断，兼容现有 DQN/PPO 模型）
-> **实验配置**: 10 seeds × 5 episodes = 50 次独立运行，200步/episode，泊松到达λ=0.5
-> **统计检验**: Welch t 检验 / Mann-Whitney U，Bonferroni 校正 α=0.05
-> **生成时间**: 2026-07-09（v8 权威数字锁定）
 
 ---
 

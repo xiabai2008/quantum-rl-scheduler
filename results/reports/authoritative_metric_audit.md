@@ -5,9 +5,9 @@
 
 ## 锁定口径
 
-- PPO 平均奖励：**2814.19**
+- PPO 平均奖励：**2723.0**
 - FCFS 平均奖励：**1462.48**
-- PPO 相对 FCFS 提升：**92.4%**
+- PPO 相对 FCFS 提升：**86.9%**
 - 排名：PPO > SJF > FCFS > Random > Greedy > DQN / Quantum-Only > Classical-Only
 - 环境口径：`QuantumSchedulingEnv` 原生 14 维，权威公平对比使用 `Obs10Wrapper` 截断为 10 维，以兼容已有模型
 

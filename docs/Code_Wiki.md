@@ -1046,7 +1046,7 @@ PYTHONUTF8=1 python -m mypy src
 pytest tests/benchmarks/test_annealing_benchmark.py --benchmark-only
 
 # 8 策略对比（多 Seed 权威结果）
-# 排名：PPO(2814.19) > SJF(1468.17) > FCFS(1462.48) > Random(1275.91)
+# 排名：PPO(2723.0) > SJF(1468.17) > FCFS(1462.48) > Random(1275.91)
 #       > Greedy(-71.87) > DQN/Quantum-Only(-897.08) > Classical-Only(-1134.35)
 ```
 
