@@ -94,7 +94,6 @@ jobs:
         run: |
           pip install --upgrade pip
           pip install -r requirements.txt
-          pip install pytest-flakefinder  # 随机化测试顺序，发现隐式依赖
 
       - name: Install ffmpeg (Linux)
         if: runner.os == 'Linux'
@@ -114,6 +113,7 @@ jobs:
         run: |
           python -m pytest tests/ \
             -v \
+            -n auto --dist loadscope \
             --cov=src \
             --cov-report=term-missing \
             --cov-report=xml \
