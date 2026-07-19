@@ -607,7 +607,7 @@ def print_summary(
     print("  RL 调度器真机闭环验证 - 汇总报告")
     print(f"{'=' * 60}")
 
-    print(f"\n  [真机]")
+    print("\n  [真机]")
     print(f"  提交任务数: {len(real_submitted)}")
     print(f"  成功获取结果: {len(real_completed)}")
     print(f"  失败: {len(real_submitted) - len(real_completed)}")
@@ -619,7 +619,7 @@ def print_summary(
         print(f"  平均 episode 奖励: {sum(real_rewards) / len(real_rewards):.2f}")
         print(f"  episode 数: {len(real_rewards)}")
 
-    print(f"\n  [Mock 对照]")
+    print("\n  [Mock 对照]")
     print(f"  episode 数: {len(mock_rewards)}")
     if mock_rewards:
         print(f"  平均 episode 奖励: {sum(mock_rewards) / len(mock_rewards):.2f}")
@@ -629,7 +629,7 @@ def print_summary(
         real_avg = sum(real_rewards) / len(real_rewards)
         mock_avg = sum(mock_rewards) / len(mock_rewards)
         diff = real_avg - mock_avg
-        print(f"\n  [对比]")
+        print("\n  [对比]")
         print(f"  真机平均奖励: {real_avg:.2f}")
         print(f"  Mock 平均奖励: {mock_avg:.2f}")
         print(f"  差异: {diff:+.2f} ({'真机优' if diff > 0 else 'Mock优' if diff < 0 else '相同'})")
@@ -639,7 +639,7 @@ def print_summary(
         f"\n  {'Step':<6s} {'Machine':<12s} {'Action':<10s} {'Reward':>8s} "
         f"{'Fidelity':>10s} {'ProbDiff':>10s}"
     )
-    print(f"  {'-'*6} {'-'*12} {'-'*10} {'-'*8} {'-'*10} {'-'*10}")
+    print(f"  {'-' * 6} {'-' * 12} {'-' * 10} {'-' * 8} {'-' * 10} {'-' * 10}")
     for r in real_records:
         step = r.get("step", "?")
         machine = r.get("machine", "?")[:11]

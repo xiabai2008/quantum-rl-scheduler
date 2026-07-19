@@ -256,7 +256,7 @@ class TestEnvFileOverride(unittest.TestCase, TestEnvVarsMixin):
             env = os.path.join(tmp, ".env")
             _write_env(
                 env,
-                'TIANYAN_API_KEY="quoted_key"\n' "TIANYAN_API_TOKEN='single_quoted'\n",
+                "TIANYAN_API_KEY=\"quoted_key\"\nTIANYAN_API_TOKEN='single_quoted'\n",
             )
             parsed = _parse_env_file(env)
             self.assertEqual(parsed.get("TIANYAN_API_KEY"), "quoted_key")

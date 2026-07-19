@@ -27,14 +27,14 @@ def diagnose_reward():
         obs, reward, done, truncated, info = env.step(action)
         total_reward += reward
         rewards.append(reward)
-        print(f"Step {i +1}: action={action}, reward={reward:.2f}, cumulative={total_reward:.2f}")
+        print(f"Step {i + 1}: action={action}, reward={reward:.2f}, cumulative={total_reward:.2f}")
         if done:
             break
 
     print("\n" + "=" * 60)
     print(f"Reward 范围: min={min(rewards):.2f}, max={max(rewards):.2f}")
     print(f"10步累计: {total_reward:.2f}")
-    print(f"平均每步: {total_reward /len(rewards):.2f}")
+    print(f"平均每步: {total_reward / len(rewards):.2f}")
     print("=" * 60)
 
     # 模拟100步

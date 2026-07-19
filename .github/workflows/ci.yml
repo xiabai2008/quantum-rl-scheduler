@@ -22,10 +22,16 @@ concurrency:
 jobs:
 
   # ---------------------------------------------------------------------------
-  # Job 1: 代码格式检查（Black + isort + flake8）
+  # Job 1: 代码格式检查（ruff format + ruff check + bandit）
+  # 工具栈与 .pre-commit-config.yaml / pyproject.toml 保持一致
+  # 迁移说明：从 black+isort+flake8 迁移到 ruff（2026-07-19）
+  #   - ruff format --check：严格阻断（格式基线，必须通过）
+  #   - ruff check：过渡期 --exit-zero（收集 142 个历史遗留 errors 基线，不阻断）
+  #     后续通过独立 Issue 逐步清理，清理完成后移除 --exit-zero
+  #   - bandit：严格阻断（安全扫描）
   # ---------------------------------------------------------------------------
   lint:
-    name: "Lint (black + isort + flake8)"
+    name: "Lint (ruff format + ruff check + bandit)"
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -39,23 +45,15 @@ jobs:
       - name: Install lint dependencies
         run: |
           pip install --upgrade pip
-          pip install black>=23.0.0 isort>=5.12.0 flake8>=6.0.0 bandit>=1.7.0
+          pip install "ruff>=0.15.0" "bandit>=1.7.0"
 
-      - name: Check code formatting (black)
-        run: black --check --diff src/ scripts/ tests/
+      - name: Check code formatting (ruff format)
+        run: ruff format --check src/ scripts/ tests/
 
-      - name: Check import ordering (isort)
-        run: isort --check-only --diff src/ scripts/ tests/
-
-      - name: Lint with flake8
+      - name: Lint with ruff (transitional --exit-zero)
         run: |
-          flake8 src/ scripts/ tests/ \
-            --count \
-            --select=E,W,F,N \
-            --extend-ignore=F541 \
-            --max-line-length=100 \
-            --statistics \
-            --exit-zero
+          ruff check src/ scripts/ tests/ --statistics || true
+          ruff check src/ scripts/ tests/ --exit-zero
 
       - name: Security scan (bandit)
         run: bandit -c pyproject.toml -r src/ -ll

@@ -1414,7 +1414,7 @@ class QuantumAnnealingOptimizer:
             if temperature < 1e-6:
                 break
 
-        logger.debug(f"numpy 模拟退火: 最佳能量 = {best_energy:.6f}, " f"扫描次数 = {sweep + 1}")
+        logger.debug(f"numpy 模拟退火: 最佳能量 = {best_energy:.6f}, 扫描次数 = {sweep + 1}")
 
         # 转换为比特串
         best_bitstring = "".join(str(int(b)) for b in best_solution)

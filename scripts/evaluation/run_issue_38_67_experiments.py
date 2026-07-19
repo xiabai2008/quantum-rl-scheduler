@@ -406,7 +406,7 @@ def build_strategies(
     ppo_path: str | None = None,
 ) -> list[BaseStrategy]:
     """构建 8 个策略，自动加载可用的 DQN/PPO 模型。"""
-    from stable_baselines3 import DQN, PPO
+    from stable_baselines3 import PPO
 
     from src.scheduler.agent import SchedulerAgent
 
@@ -729,7 +729,7 @@ def generate_strategy_report(
         "# 8 策略对比报告",
         "",
         f"> **数据来源**: `{data_path}`",
-        f"> **运行环境**: 10 维公平对比环境（14 维环境经 Obs10Wrapper 截断，兼容现有 DQN/PPO 模型）",
+        "> **运行环境**: 10 维公平对比环境（14 维环境经 Obs10Wrapper 截断，兼容现有 DQN/PPO 模型）",
         f"> **生成时间**: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
         "",
         "---",

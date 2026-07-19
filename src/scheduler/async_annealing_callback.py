@@ -119,8 +119,7 @@ class AsyncAnnealingCallback(BaseCallback):
             # PyTorch load_state_dict 可能因键不匹配/张量形状不一致/CPU-GPU 不匹配
             # 等多种原因抛出 RuntimeError/TypeError，无法精确收窄
             logger.error(
-                f"[AsyncAnnealingCallback] 回写退火权重失败 "
-                f"(step={step}, {type(e).__name__}: {e})"
+                f"[AsyncAnnealingCallback] 回写退火权重失败 (step={step}, {type(e).__name__}: {e})"
             )
 
     def _on_training_end(self) -> None:

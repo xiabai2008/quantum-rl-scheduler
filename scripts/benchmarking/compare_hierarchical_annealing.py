@@ -332,11 +332,11 @@ def print_report(report: ComparisonReport) -> None:
 
     modes = sorted(set(r.mode for r in report.results))
 
-    print(f"\n实验配置:")
+    print("\n实验配置:")
     for k, v in report.summary.items():
         print(f"  {k}: {v}")
 
-    print(f"\n各模式汇总:")
+    print("\n各模式汇总:")
     print(f"{'模式':<16} {'轮次':<6} {'平均改进':<12} {'接受率':<8} {'参数覆盖':<10}")
     print("-" * 56)
 
@@ -351,7 +351,7 @@ def print_report(report: ComparisonReport) -> None:
             f"{params_covered} ({blocks}块)"
         )
 
-    print(f"\n结论:")
+    print("\n结论:")
     if all(
         any(r.improvement_pct > -1e-6 for r in report.results if r.mode == "hierarchical")
         for _ in [1]

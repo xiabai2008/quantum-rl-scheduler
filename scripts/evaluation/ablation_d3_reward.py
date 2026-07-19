@@ -10,6 +10,7 @@ Ablation D3: Reward Function Component Quantification
 
 用法: python scripts/evaluation/ablation_d3_reward.py --episodes 30 --tasks 200
 """
+
 import json
 import os
 import sys
@@ -21,12 +22,16 @@ if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 os.chdir(str(_PROJECT_ROOT))
 
-import copy
-from src.scheduler.env import QuantumSchedulingEnv
+
 from scripts.evaluation.run_simulation import (
-    FCFSStrategy, RandomStrategy, GreedyStrategy,
-    SimulationEnv, SimulationTaskGenerator, run_strategy,
+    FCFSStrategy,
+    GreedyStrategy,
+    RandomStrategy,
+    SimulationEnv,
+    SimulationTaskGenerator,
+    run_strategy,
 )
+from src.scheduler.env import QuantumSchedulingEnv
 
 # 默认奖励常量（来自 src/scheduler/env.py）
 DEFAULT_REWARDS = {
@@ -44,7 +49,12 @@ ABLATION_CONFIGS = {
     "full": DEFAULT_REWARDS,
     "no_wait_penalty": {**DEFAULT_REWARDS, "wait_penalty": 0.0},
     "no_util_penalty": {**DEFAULT_REWARDS, "low_util_penalty": 0.0},
-    "equal_rewards": {**DEFAULT_REWARDS, "classical_reward": 7.0, "quantum_reward": 7.0, "hybrid_reward": 7.0},
+    "equal_rewards": {
+        **DEFAULT_REWARDS,
+        "classical_reward": 7.0,
+        "quantum_reward": 7.0,
+        "hybrid_reward": 7.0,
+    },
     "high_quantum_bias": {**DEFAULT_REWARDS, "quantum_reward": 20.0},
     "high_wait_penalty": {**DEFAULT_REWARDS, "wait_penalty": -0.5},
 }
@@ -92,9 +102,12 @@ def main(episodes: int = 30, tasks_per_episode: int = 200):
             strategy = factory()
 
             summary = run_strategy(
-                env=sim_env, strategy=strategy,
-                num_episodes=episodes, tasks_per_episode=tasks_per_episode,
-                max_steps=tasks_per_episode, verbose=False,
+                env=sim_env,
+                strategy=strategy,
+                num_episodes=episodes,
+                tasks_per_episode=tasks_per_episode,
+                max_steps=tasks_per_episode,
+                verbose=False,
             )
 
             config_results[sname] = {
@@ -104,10 +117,12 @@ def main(episodes: int = 30, tasks_per_episode: int = 200):
                 "qubit_utilization": summary["qubit_utilization"],
                 "classical_utilization": summary["classical_utilization"],
             }
-            print(f"  {sname:10s} reward={summary['avg_reward']:9.1f}  "
-                  f"wait={summary['avg_wait_time']:6.1f}  "
-                  f"completion={summary['completion_rate']:.1%}  "
-                  f"qubit_util={summary['qubit_utilization']:.1%}")
+            print(
+                f"  {sname:10s} reward={summary['avg_reward']:9.1f}  "
+                f"wait={summary['avg_wait_time']:6.1f}  "
+                f"completion={summary['completion_rate']:.1%}  "
+                f"qubit_util={summary['qubit_utilization']:.1%}"
+            )
 
         all_results[config_name] = config_results
 
@@ -153,10 +168,18 @@ def _generate_report(all_results: dict, output_dir: Path, timestamp: str):
         lines.append(header)
         lines.append("|" + "|".join([":--"] * (len(strategies) + 1)) + "|")
         for cfg in configs:
-            vals = [f"{all_results[cfg][s][metric]:.2f}" if metric == "avg_reward"
-                    else f"{all_results[cfg][s][metric]:.1f}" if "wait" in metric
-                    else f"{all_results[cfg][s][metric]:.1%}"
-                    for s in strategies]
+            vals = [
+                (
+                    f"{all_results[cfg][s][metric]:.2f}"
+                    if metric == "avg_reward"
+                    else (
+                        f"{all_results[cfg][s][metric]:.1f}"
+                        if "wait" in metric
+                        else f"{all_results[cfg][s][metric]:.1%}"
+                    )
+                )
+                for s in strategies
+            ]
             lines.append(f"| {cfg} | " + " | ".join(vals) + " |")
         lines.append("")
 
@@ -165,31 +188,39 @@ def _generate_report(all_results: dict, output_dir: Path, timestamp: str):
     no_wait = all_results.get("no_wait_penalty", {})
     no_util = all_results.get("no_util_penalty", {})
 
-    lines.extend([
-        "## 结论",
-        "",
-    ])
+    lines.extend(
+        [
+            "## 结论",
+            "",
+        ]
+    )
     if full and no_wait:
         fcf = full.get("FCFS", {}).get("avg_reward", 0)
         nw = no_wait.get("FCFS", {}).get("avg_reward", 0)
-        lines.append(f"1. **等待惩罚的作用**：移除后奖励变化 {nw - fcf:+.1f}，说明等待惩罚在约束策略行为中起重要作用")
+        lines.append(
+            f"1. **等待惩罚的作用**：移除后奖励变化 {nw - fcf:+.1f}，说明等待惩罚在约束策略行为中起重要作用"
+        )
     if full and no_util:
         fcf = full.get("FCFS", {}).get("avg_reward", 0)
         nu = no_util.get("FCFS", {}).get("avg_reward", 0)
-        lines.append(f"2. **利用率惩罚的作用**：移除后奖励变化 {nu - fcf:+.1f}，利用率惩罚鼓励资源充分利用")
-    lines.extend([
-        "3. **执行奖励权重**：量子执行奖励权重(10.0) > 经典(5.0) 的设计鼓励了量子优先策略",
-        "4. **设计合理性**：当前四层奖励（兼容性→执行收益→等待惩罚→利用率惩罚）形成有效的行为约束",
-        "",
-        "## 对比赛的启示",
-        "",
-        "- 奖励函数设计是RL调度的核心，权重选择直接影响调度行为",
-        "- 当前权重偏向资源利用率最大化（量子利用率 +48.9%），而非等待时间最小化",
-        "- 如需满足\"等待时间降低 ≥40%\"的硬指标，可增大 wait_penalty 权重重新训练",
-        "",
-        "---",
-        f"*自动生成于 ablation_d3_reward.py*",
-    ])
+        lines.append(
+            f"2. **利用率惩罚的作用**：移除后奖励变化 {nu - fcf:+.1f}，利用率惩罚鼓励资源充分利用"
+        )
+    lines.extend(
+        [
+            "3. **执行奖励权重**：量子执行奖励权重(10.0) > 经典(5.0) 的设计鼓励了量子优先策略",
+            "4. **设计合理性**：当前四层奖励（兼容性→执行收益→等待惩罚→利用率惩罚）形成有效的行为约束",
+            "",
+            "## 对比赛的启示",
+            "",
+            "- 奖励函数设计是RL调度的核心，权重选择直接影响调度行为",
+            "- 当前权重偏向资源利用率最大化（量子利用率 +48.9%），而非等待时间最小化",
+            '- 如需满足"等待时间降低 ≥40%"的硬指标，可增大 wait_penalty 权重重新训练',
+            "",
+            "---",
+            "*自动生成于 ablation_d3_reward.py*",
+        ]
+    )
 
     report_path = output_dir / f"ablation_d3_report_{timestamp}.md"
     with open(report_path, "w", encoding="utf-8") as f:
@@ -199,6 +230,7 @@ def _generate_report(all_results: dict, output_dir: Path, timestamp: str):
 
 if __name__ == "__main__":
     import argparse
+
     ap = argparse.ArgumentParser()
     ap.add_argument("--episodes", type=int, default=30)
     ap.add_argument("--tasks", type=int, default=200)

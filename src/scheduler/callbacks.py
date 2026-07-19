@@ -234,8 +234,7 @@ class RealMachineCallback(BaseCallback):
             if not real_clients:
                 if not self._warned_no_client:
                     logger.warning(
-                        f"[RealCallback] env 未绑定真机客户端，真机抽样已禁用 "
-                        f"(step={self.n_calls})"
+                        f"[RealCallback] env 未绑定真机客户端，真机抽样已禁用 (step={self.n_calls})"
                     )
                     self._warned_no_client = True
                 return True

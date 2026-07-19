@@ -25,16 +25,7 @@ if str(_PROJECT_ROOT) not in sys.path:
 
 # 复用 run_issue_38_67_experiments.py 的基础设施
 sys.path.insert(0, str(_PROJECT_ROOT / "scripts" / "evaluation"))
-from run_issue_38_67_experiments import (  # noqa: E402
-    ClassicalOnlyStrategy,
-    DQNModelStrategy,
-    FCFSStrategy,
-    GreedyStrategy,
-    Obs10Wrapper,
-    PPOStrategy,
-    QuantumOnlyStrategy,
-    RandomStrategy,
-    ShortestJobFirstStrategy,
+from run_issue_38_67_experiments import (
     SimulationEnv,
     SimulationTaskGenerator,
     build_strategies,
@@ -77,7 +68,7 @@ def run_multiseed(
     start_time = time.time()
 
     for seed_idx, seed in enumerate(seed_list):
-        print(f"\n--- Seed {seed_idx+1}/{seeds} (seed={seed}) ---")
+        print(f"\n--- Seed {seed_idx + 1}/{seeds} (seed={seed}) ---")
         seed_start = time.time()
         seed_data: dict[str, dict] = {}
 
@@ -205,8 +196,8 @@ def run_multiseed(
     improvement = (ppo_mean - fcfs_mean) / abs(fcfs_mean) * 100 if fcfs_mean != 0 else 0
 
     print(
-        f"\n  核心结论：PPO={ppo_mean:.2f}±{np.std(ppo_rewards,ddof=1)/np.sqrt(len(ppo_rewards)):.2f} "
-        f"vs FCFS={fcfs_mean:.2f}±{fcfs_std/np.sqrt(len(fcfs_rewards)):.2f}，"
+        f"\n  核心结论：PPO={ppo_mean:.2f}±{np.std(ppo_rewards, ddof=1) / np.sqrt(len(ppo_rewards)):.2f} "
+        f"vs FCFS={fcfs_mean:.2f}±{fcfs_std / np.sqrt(len(fcfs_rewards)):.2f}，"
         f"提升 {improvement:+.1f}%（N={n_total}）"
     )
 
@@ -229,7 +220,7 @@ def run_multiseed(
         "## 零、权威实验数字（多 Seed 验证）",
         "",
         f"> **实验配置**: {seeds} seeds × {episodes_per_seed} episodes = {n_total} 次独立运行",
-        f"> **环境**: 10 维公平对比环境（Obs10Wrapper 截断 14 维原生环境，兼容所有已训练模型）",
+        "> **环境**: 10 维公平对比环境（Obs10Wrapper 截断 14 维原生环境，兼容所有已训练模型）",
         f"> **任务规模**: 每 episode {tasks_per_episode} 步，泊松到达 λ=0.5，量子任务占比 70%",
         f"> **PPO 模型**: `{ppo_model}`（10维，Actor-Critic）",
         f"> **DQN 模型**: `{dqn_model}`（10维，Dueling DQN）",

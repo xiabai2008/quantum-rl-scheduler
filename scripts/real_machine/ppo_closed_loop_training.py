@@ -204,7 +204,7 @@ class TrainingMetricsCallback(BaseCallback):
     ]
 
     def __init__(
-        self, record_cb: "TrainingRecordCallback", output_dir: Path, verbose: int = 0
+        self, record_cb: TrainingRecordCallback, output_dir: Path, verbose: int = 0
     ) -> None:
         super().__init__(verbose=verbose)
         self.record_cb = record_cb
@@ -338,9 +338,9 @@ def main() -> None:
     print(f"  机器: {args.machine}")
     print(f"  真机提交概率: {args.real_submit_prob}")
     if args.mock:
-        print(f"  模式: [MOCK] 模拟环境（不使用真机）")
+        print("  模式: [MOCK] 模拟环境（不使用真机）")
     else:
-        print(f"  模式: [REAL] 真机闭环训练")
+        print("  模式: [REAL] 真机闭环训练")
     print(f"{'=' * 70}\n")
 
     # ── 步骤 1: 创建环境 ──
@@ -444,9 +444,7 @@ def main() -> None:
                         _time.sleep(1.0)  # 重试前等待 1s
             raise last_error  # type: ignore[misc]
 
-        client.platform._send_request = types.MethodType(
-            _fast_send_request, client.platform
-        )  # type: ignore[method-assign]
+        client.platform._send_request = types.MethodType(_fast_send_request, client.platform)  # type: ignore[method-assign]
 
         # ── Monkey-patch 1: 客户端 get_task_status 使用适中超时 ──
         # cqlib SDK 的 query_experiment 默认 max_wait_time=3600s，会阻塞训练。
@@ -625,7 +623,7 @@ def main() -> None:
 
     # 输出模型信息
     logger.info(f"[Agent] PPO Agent 创建完成: lr={args.learning_rate}, n_steps={args.n_steps}")
-    print(f"[Agent] PPO Agent 创建完成")
+    print("[Agent] PPO Agent 创建完成")
     print(f"  观测空间维度: {env.observation_space.shape}")
     print(f"  动作空间大小: {env.action_space.n}")
 
@@ -655,7 +653,7 @@ def main() -> None:
         metrics_cb.save()
         if agent.model:
             agent.save(str(output_dir / f"interrupt_{int(time.time())}"))
-            print(f"[INFO] 中断模型已保存", flush=True)
+            print("[INFO] 中断模型已保存", flush=True)
         sys.exit(1)
 
     training_time = time.perf_counter() - t0
@@ -676,7 +674,7 @@ def main() -> None:
     # 打印最终统计
     stats = env.get_real_machine_stats()
     print(f"\n{'=' * 70}")
-    print(f"  PPO 真机闭环训练完成")
+    print("  PPO 真机闭环训练完成")
     print(f"{'=' * 70}")
     print(f"  总训练步数: {args.timesteps}")
     print(f"  总耗时: {training_time / 60:.2f} 分钟")

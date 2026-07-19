@@ -4,10 +4,10 @@ Gradient Stress Test — 100 / 500 / 1000 tasks per episode
 
 生成 results/reports/gradient_stress_test_report.md
 """
+
 import json
 import os
 import sys
-import time
 from datetime import datetime
 from pathlib import Path
 
@@ -16,13 +16,20 @@ if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 os.chdir(str(_PROJECT_ROOT))
 
-from src.scheduler.env import QuantumSchedulingEnv
 from scripts.evaluation.run_simulation import (
-    BaseStrategy, DQNModelStrategy, FCFSStrategy, RandomStrategy,
-    QuantumOnlyStrategy, ClassicalOnlyStrategy, GreedyStrategy,
+    BaseStrategy,
+    ClassicalOnlyStrategy,
+    DQNModelStrategy,
+    FCFSStrategy,
+    GreedyStrategy,
+    QuantumOnlyStrategy,
+    RandomStrategy,
     ShortestJobFirstStrategy,
-    SimulationEnv, SimulationTaskGenerator, run_strategy,
+    SimulationEnv,
+    SimulationTaskGenerator,
+    run_strategy,
 )
+from src.scheduler.env import QuantumSchedulingEnv
 
 TASK_COUNTS = [100, 200, 500, 1000]
 EPISODES = 30
@@ -63,9 +70,9 @@ def main():
     all_results: dict[int, dict] = {}
 
     for n_tasks in TASK_COUNTS:
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print(f"  梯度压力测试 — {n_tasks} 任务/episode ({EPISODES} episodes)")
-        print(f"{'='*60}")
+        print(f"{'=' * 60}")
 
         task_results: dict[str, dict] = {}
         for strategy in strategies:
@@ -90,9 +97,11 @@ def main():
                 "avg_execution_time": summary["avg_execution_time"],
                 "avg_reward": summary["avg_reward"],
             }
-            print(f"  {strategy.name:20s} reward={summary['avg_reward']:9.1f}  "
-                  f"wait={summary['avg_wait_time']:6.1f}  "
-                  f"completion={summary['completion_rate']:.1%}")
+            print(
+                f"  {strategy.name:20s} reward={summary['avg_reward']:9.1f}  "
+                f"wait={summary['avg_wait_time']:6.1f}  "
+                f"completion={summary['completion_rate']:.1%}"
+            )
 
         all_results[n_tasks] = task_results
 
@@ -174,17 +183,19 @@ def _generate_report(all_results: dict[int, dict]):
         lines.append(f"| {sname} | " + " | ".join(vals) + " |")
 
     # 结论
-    lines.extend([
-        "",
-        "## 结论",
-        "",
-        "1. PPO 在各任务规模下均保持最优综合奖励",
-        "2. 随着任务规模增大，FCFS/SJF 的等待时间优势逐渐缩小",
-        "3. Quantum-Only 和 Classical-Only 在大规模场景下完成率急剧下降",
-        "",
-        "---",
-        f"*自动生成于 gradient_stress_test.py*",
-    ])
+    lines.extend(
+        [
+            "",
+            "## 结论",
+            "",
+            "1. PPO 在各任务规模下均保持最优综合奖励",
+            "2. 随着任务规模增大，FCFS/SJF 的等待时间优势逐渐缩小",
+            "3. Quantum-Only 和 Classical-Only 在大规模场景下完成率急剧下降",
+            "",
+            "---",
+            "*自动生成于 gradient_stress_test.py*",
+        ]
+    )
 
     report_path = OUTPUT_DIR / "gradient_stress_test_report.md"
     with open(report_path, "w", encoding="utf-8") as f:

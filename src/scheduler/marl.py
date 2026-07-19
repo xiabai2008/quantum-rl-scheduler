@@ -1096,9 +1096,7 @@ class MultiAgentPPO:
         else:
             # 兼容旧格式：配置嵌入在 .pt 文件中，需 weights_only=False
             logger.warning("模型文件使用旧格式（配置嵌入 pickle），建议重新保存以启用安全加载。")
-            state = torch.load(
-                path, map_location=self.device, weights_only=False
-            )  # nosec B614: 旧格式兼容路径，仅当缺少 _config.json 时使用
+            state = torch.load(path, map_location=self.device, weights_only=False)  # nosec B614: 旧格式兼容路径，仅当缺少 _config.json 时使用
             cfg = state.pop("config")
         # 校验配置一致性
         if cfg["num_agents"] != self.num_agents:

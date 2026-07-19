@@ -76,8 +76,7 @@ class TrainingMetricsLogger:
             self._writer = None
             os.makedirs(log_dir, exist_ok=True)
             logger.warning(
-                f"[TrainingMetricsLogger] tensorboard 未安装，"
-                f"降级到 JSONL 文件: {self._jsonl_path}"
+                f"[TrainingMetricsLogger] tensorboard 未安装，降级到 JSONL 文件: {self._jsonl_path}"
             )
 
     def log_scalar(self, tag: str, value: float, step: int) -> None:
@@ -172,7 +171,7 @@ class TrainingMetricsLogger:
                 self._writer.add_hparams(flat_params, safe_metrics)
             except Exception as exc:
                 logger.warning(
-                    f"[TrainingMetricsLogger] add_hparams 失败: " f"{type(exc).__name__}: {exc}"
+                    f"[TrainingMetricsLogger] add_hparams 失败: {type(exc).__name__}: {exc}"
                 )
         else:
             self._append_jsonl({"type": "hyperparams", **record})

@@ -31,7 +31,7 @@ import subprocess
 import sys
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 
 class BenchmarkTracker:
@@ -46,7 +46,7 @@ class BenchmarkTracker:
         self.history_path = Path(history_path)
         self.history_path.parent.mkdir(parents=True, exist_ok=True)
 
-    def load_current_results(self, json_path: str) -> List[Dict[str, Any]]:
+    def load_current_results(self, json_path: str) -> list[dict[str, Any]]:
         """加载当前 benchmark 结果
 
         Args:
@@ -70,7 +70,7 @@ class BenchmarkTracker:
             )
         return benchmarks
 
-    def get_git_info(self) -> Dict[str, str]:
+    def get_git_info(self) -> dict[str, str]:
         """获取 Git 信息
 
         Returns:
@@ -101,7 +101,7 @@ class BenchmarkTracker:
 
         return {"commit": commit, "branch": branch}
 
-    def append_to_history(self, benchmarks: List[Dict[str, Any]]) -> None:
+    def append_to_history(self, benchmarks: list[dict[str, Any]]) -> None:
         """追加结果到历史记录
 
         Args:
@@ -122,7 +122,7 @@ class BenchmarkTracker:
         print(f"   Commit: {git_info['commit']}")
         print(f"   Branch: {git_info['branch']}")
 
-    def load_previous_results(self) -> Optional[Dict[str, Any]]:
+    def load_previous_results(self) -> dict[str, Any] | None:
         """加载上一次的历史记录
 
         Returns:
@@ -142,10 +142,10 @@ class BenchmarkTracker:
 
     def detect_regressions(
         self,
-        current: List[Dict[str, Any]],
-        previous: List[Dict[str, Any]],
+        current: list[dict[str, Any]],
+        previous: list[dict[str, Any]],
         threshold: float = 10.0,
-    ) -> List[Dict[str, Any]]:
+    ) -> list[dict[str, Any]]:
         """检测性能回归
 
         Args:
@@ -183,8 +183,8 @@ class BenchmarkTracker:
 
     def generate_report(
         self,
-        current: List[Dict[str, Any]],
-        previous: Optional[Dict[str, Any]],
+        current: list[dict[str, Any]],
+        previous: dict[str, Any] | None,
         threshold: float = 10.0,
     ) -> None:
         """生成对比报告

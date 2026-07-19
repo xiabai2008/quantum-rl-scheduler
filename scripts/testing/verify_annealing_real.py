@@ -113,10 +113,7 @@ def main(real: bool = False):
         cqlib_client=cqlib_client,
     )
 
-    print(
-        f"\n[验证] simulation_mode={simulation_mode}, "
-        f"cqlib_client={type(cqlib_client).__name__}"
-    )
+    print(f"\n[验证] simulation_mode={simulation_mode}, cqlib_client={type(cqlib_client).__name__}")
     print("[验证] 调用 optimize_policy()（3 次迭代），观察退火日志...\n")
 
     # 直接调用 optimize_policy，3 次迭代足够验证日志

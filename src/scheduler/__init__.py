@@ -26,11 +26,9 @@ from src.scheduler.env import (
     QuantumMachine,
     QuantumResource,
     QuantumSchedulingEnv,
-)
-from src.scheduler.env import Task as EnvTask
-from src.scheduler.env import (
     register_env,
 )
+from src.scheduler.env import Task as EnvTask
 
 # SchedulerAgent 依赖 stable_baselines3，延迟导入
 try:
@@ -82,8 +80,7 @@ try:
     )
 except ImportError:
     logger.warning(
-        "scheduler.multi_objective_env 导入失败，"
-        "MultiObjectiveRewardWrapper / make_mo_env 不可用。"
+        "scheduler.multi_objective_env 导入失败，MultiObjectiveRewardWrapper / make_mo_env 不可用。"
     )
 
 # 向后兼容别名

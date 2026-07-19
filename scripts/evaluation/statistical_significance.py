@@ -114,8 +114,7 @@ def _generate_markdown_report(
         mean = statistics.mean(rewards)
         std = statistics.stdev(rewards) if n >= 2 else 0.0
         lines.append(
-            f"| {name} | {n} | {mean:.2f} | {std:.2f} | "
-            f"{min(rewards):.2f} | {max(rewards):.2f} |"
+            f"| {name} | {n} | {mean:.2f} | {std:.2f} | {min(rewards):.2f} | {max(rewards):.2f} |"
         )
     lines.append("")
 

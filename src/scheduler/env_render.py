@@ -46,8 +46,8 @@ def render_env(env: "QuantumSchedulingEnv") -> Any | None:
         f"  [量子资源(聚合)] 可用比率: {env._quantum.available_ratio:.2%}"
         f"  |  保真度: {env._quantum.fidelity:.4f}"
         f"  |  量子队列: {env._quantum.quantum_queue}",
-        f"  [经典资源] 负载: {env._classical.load:.2%}" f"  |  经典队列: {env._classical.queue}",
-        f"  [任务队列]  长度: {len(env._task_queue)}" f"  |  已调度: {env._total_scheduled}",
+        f"  [经典资源] 负载: {env._classical.load:.2%}  |  经典队列: {env._classical.queue}",
+        f"  [任务队列]  长度: {len(env._task_queue)}  |  已调度: {env._total_scheduled}",
         f"  [统计] 量子成功: {env._quantum_success}"
         f"  |  经典成功: {env._classical_success}"
         f"  |  混合成功: {env._hybrid_success}"

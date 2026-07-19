@@ -17,7 +17,7 @@ import sys
 import zipfile
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import yaml
 
@@ -35,8 +35,8 @@ class SubmissionValidator:
         with open(manifest_path, encoding="utf-8") as f:
             self.manifest = yaml.safe_load(f)
         self.project_root = Path(project_root)
-        self.errors: List[str] = []
-        self.warnings: List[str] = []
+        self.errors: list[str] = []
+        self.warnings: list[str] = []
 
     def validate_all(self) -> bool:
         """校验所有提交物
@@ -44,7 +44,7 @@ class SubmissionValidator:
         Returns:
             是否通过校验
         """
-        print(f"=== M5 提交物校验报告 ===")
+        print("=== M5 提交物校验报告 ===")
         print(f"时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         print(f"版本: {self.manifest['submission']['version']}")
         print(f"截止日期: {self.manifest['submission']['deadline']}")
@@ -57,7 +57,7 @@ class SubmissionValidator:
         self._report()
         return len(self.errors) == 0
 
-    def _validate_item(self, item: Dict[str, Any]) -> None:
+    def _validate_item(self, item: dict[str, Any]) -> None:
         """校验单个提交物
 
         Args:
@@ -94,7 +94,7 @@ class SubmissionValidator:
         if "depends_on" in item:
             self._check_dependency(item)
 
-    def _validate_pdf(self, item: Dict[str, Any], path: Path) -> None:
+    def _validate_pdf(self, item: dict[str, Any], path: Path) -> None:
         """校验 PDF 文件
 
         Args:
@@ -132,16 +132,16 @@ class SubmissionValidator:
                     self.warnings.append(f"[{item['id']}] PDF 缺少关键词: {', '.join(missing)}")
                     print(f"  ⚠️  缺少关键词: {', '.join(missing)}")
                 else:
-                    print(f"  ✅ 包含所有必需关键词")
+                    print("  ✅ 包含所有必需关键词")
 
         except ImportError:
             self.warnings.append(f"[{item['id']}] PyPDF2 未安装，跳过 PDF 详细校验")
-            print(f"  ⚠️  PyPDF2 未安装，跳过详细校验")
+            print("  ⚠️  PyPDF2 未安装，跳过详细校验")
         except Exception as e:
             self.errors.append(f"[{item['id']}] PDF 校验失败: {e}")
             print(f"  ❌ 校验失败: {e}")
 
-    def _validate_pptx(self, item: Dict[str, Any], path: Path) -> None:
+    def _validate_pptx(self, item: dict[str, Any], path: Path) -> None:
         """校验 PPTX 文件
 
         Args:
@@ -182,16 +182,16 @@ class SubmissionValidator:
                     self.warnings.append(f"[{item['id']}] PPT 缺少幻灯片: {', '.join(missing)}")
                     print(f"  ⚠️  缺少幻灯片: {', '.join(missing)}")
                 else:
-                    print(f"  ✅ 包含所有必需幻灯片")
+                    print("  ✅ 包含所有必需幻灯片")
 
         except ImportError:
             self.warnings.append(f"[{item['id']}] python-pptx 未安装，跳过 PPTX 详细校验")
-            print(f"  ⚠️  python-pptx 未安装，跳过详细校验")
+            print("  ⚠️  python-pptx 未安装，跳过详细校验")
         except Exception as e:
             self.errors.append(f"[{item['id']}] PPTX 校验失败: {e}")
             print(f"  ❌ 校验失败: {e}")
 
-    def _validate_mp4(self, item: Dict[str, Any], path: Path) -> None:
+    def _validate_mp4(self, item: dict[str, Any], path: Path) -> None:
         """校验 MP4 文件
 
         Args:
@@ -266,15 +266,15 @@ class SubmissionValidator:
 
         except FileNotFoundError:
             self.warnings.append(f"[{item['id']}] ffprobe 未安装，跳过 MP4 详细校验")
-            print(f"  ⚠️  ffprobe 未安装，跳过详细校验")
+            print("  ⚠️  ffprobe 未安装，跳过详细校验")
         except subprocess.CalledProcessError as e:
             self.errors.append(f"[{item['id']}] ffprobe 执行失败: {e}")
-            print(f"  ❌ ffprobe 执行失败")
+            print("  ❌ ffprobe 执行失败")
         except Exception as e:
             self.errors.append(f"[{item['id']}] MP4 校验失败: {e}")
             print(f"  ❌ 校验失败: {e}")
 
-    def _validate_zip(self, item: Dict[str, Any], path: Path) -> None:
+    def _validate_zip(self, item: dict[str, Any], path: Path) -> None:
         """校验 ZIP 文件
 
         Args:
@@ -291,7 +291,7 @@ class SubmissionValidator:
         else:
             print(f"  ✅ 文件大小: {size_mb:.1f}MB")
 
-    def _validate_git_tag(self, item: Dict[str, Any]) -> None:
+    def _validate_git_tag(self, item: dict[str, Any]) -> None:
         """校验 Git 标签
 
         Args:
@@ -318,7 +318,7 @@ class SubmissionValidator:
                 self.errors.append(f"[{item['id']}] Git 标签校验失败: {e}")
                 print(f"  ❌ 校验失败: {e}")
 
-    def _validate_markdown(self, item: Dict[str, Any], path: Path) -> None:
+    def _validate_markdown(self, item: dict[str, Any], path: Path) -> None:
         """校验 Markdown 文件
 
         Args:
@@ -326,9 +326,9 @@ class SubmissionValidator:
             path: 文件路径
         """
         if item.get("must_exist", False):
-            print(f"  ✅ 文件存在")
+            print("  ✅ 文件存在")
 
-    def _check_dependency(self, item: Dict[str, Any]) -> None:
+    def _check_dependency(self, item: dict[str, Any]) -> None:
         """检查依赖项
 
         Args:

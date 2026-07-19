@@ -135,7 +135,7 @@ def resume_training(
 
     if model is None:
         raise FileNotFoundError(
-            f"无法从 {model_path} 加载模型（尝试 PPO/DQN 均失败）。" f"错误详情: {load_errors}"
+            f"无法从 {model_path} 加载模型（尝试 PPO/DQN 均失败）。错误详情: {load_errors}"
         )
 
     # 计算还需训练的步数
