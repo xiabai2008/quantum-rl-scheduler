@@ -374,8 +374,13 @@ class CqlibTianyanClient:
                         "raw": data,
                     }
             return {"task_id": task_id, "status": "unknown", "raw": result}
-        except CqlibRequestError:
-            # 查询超时（任务仍在运行），返回 running 状态
+        except CqlibRequestError as e:
+            # SDK 同时使用 CqlibRequestError 表示“仍在运行”和服务端终态失败。
+            # 终态失败必须立即返回 error，否则 wait_for_task 会无意义轮询到超时。
+            message = str(e)
+            terminal_failure_markers = ("运行失败", "run failure", "tasks have failed")
+            if any(marker in message.lower() for marker in terminal_failure_markers):
+                return {"task_id": task_id, "status": "error", "error": message}
             return {"task_id": task_id, "status": "running", "raw": {}}
         except Exception as e:
             # cqlib 查询接口异常类型无法穷举，保留宽捕获并记录日志

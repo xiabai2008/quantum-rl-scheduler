@@ -1,0 +1,1736 @@
+{
+  "issue": 165,
+  "status": "partial_degraded",
+  "generated_at": "2026-07-19T15:30:18.620809+08:00",
+  "config": {
+    "seeds": [
+      42,
+      43,
+      44
+    ],
+    "tasks_per_seed": 200,
+    "episode_horizon": 20,
+    "mixed_real_probability": 0.05,
+    "mixed_cap_per_seed": 10,
+    "pure_cap_per_seed": 200,
+    "formal_submission_cap": 630,
+    "shots": 32,
+    "machine": "tianyan176"
+  },
+  "preflight": {
+    "authenticate": true,
+    "machine": "tianyan176",
+    "backend_type": "free",
+    "backend_status": "running",
+    "platform_quota_api_available": false,
+    "quota_evidence": "user_confirmed_dashboard_remaining_machine_minutes",
+    "confirmed_machine_minutes": 19.981,
+    "confirmed_used_seconds": 1.135,
+    "observed_task_upper_seconds": 0.109,
+    "estimated_max_machine_seconds": 68.779,
+    "prior_attempts": [
+      {
+        "task_id": "2078739778528088065",
+        "status": "failed",
+        "shots": 8,
+        "circuit_profile": "1q_h_measure",
+        "counted_as_real_success": false
+      }
+    ],
+    "estimated_formal_submission_cap": 630,
+    "estimated_total_with_smoke": 631,
+    "shots_per_task": 32,
+    "local_quota_remaining_before": {
+      "shots": 20192.0,
+      "tasks": 631.0,
+      "wall_time_hours": 0.3330166666666667
+    },
+    "smoke": {
+      "mode": "real_hardware",
+      "task_id": "2078741019522007042",
+      "status": "completed",
+      "shots": 32,
+      "qubits": 1,
+      "probability": "{\"0\":0.5721374045801527,\"1\":0.4278625954198474}",
+      "elapsed_s": 5.185
+    }
+  },
+  "quota_remaining_after": {
+    "shots": 18048.0,
+    "tasks": 564.0,
+    "wall_time_hours": 0.3330166666666667
+  },
+  "conditions": {
+    "simulation": {
+      "runs": [
+        {
+          "seed": 42,
+          "tasks": 200,
+          "episode_horizon": 20,
+          "training_elapsed_s": 0.765,
+          "curve": [
+            {
+              "timestep": 20,
+              "reward": 132.404594
+            },
+            {
+              "timestep": 40,
+              "reward": 210.938171
+            },
+            {
+              "timestep": 60,
+              "reward": 157.330853
+            },
+            {
+              "timestep": 80,
+              "reward": 229.298901
+            },
+            {
+              "timestep": 100,
+              "reward": 91.065857
+            },
+            {
+              "timestep": 120,
+              "reward": 172.758574
+            },
+            {
+              "timestep": 140,
+              "reward": 226.155793
+            },
+            {
+              "timestep": 160,
+              "reward": 344.892636
+            },
+            {
+              "timestep": 180,
+              "reward": 275.557554
+            },
+            {
+              "timestep": 200,
+              "reward": 250.573982
+            }
+          ],
+          "evaluation": {
+            "reward": 1890.2542980524,
+            "completion_rate": 1.0,
+            "tasks": 200
+          },
+          "real_probability": 0.0,
+          "real_submission_cap": 0,
+          "real_attempted": 0,
+          "real_accepted": 0,
+          "real_completed": 0,
+          "real_failed_or_rejected": 0,
+          "degraded": false,
+          "mock_calls": 0,
+          "real_records": [],
+          "model_path": "E:\\quantum-rl-scheduler\\models\\issue165\\ppo_simulation_seed_42.zip"
+        },
+        {
+          "seed": 43,
+          "tasks": 200,
+          "episode_horizon": 20,
+          "training_elapsed_s": 0.695,
+          "curve": [
+            {
+              "timestep": 20,
+              "reward": 56.0
+            },
+            {
+              "timestep": 40,
+              "reward": 61.419817
+            },
+            {
+              "timestep": 60,
+              "reward": 86.263062
+            },
+            {
+              "timestep": 80,
+              "reward": 91.407094
+            },
+            {
+              "timestep": 100,
+              "reward": 249.958777
+            },
+            {
+              "timestep": 120,
+              "reward": 32.837777
+            },
+            {
+              "timestep": 140,
+              "reward": 254.800675
+            },
+            {
+              "timestep": 160,
+              "reward": 149.059635
+            },
+            {
+              "timestep": 180,
+              "reward": 164.965232
+            },
+            {
+              "timestep": 200,
+              "reward": 187.899591
+            }
+          ],
+          "evaluation": {
+            "reward": 1347.1370243865717,
+            "completion_rate": 1.0,
+            "tasks": 200
+          },
+          "real_probability": 0.0,
+          "real_submission_cap": 0,
+          "real_attempted": 0,
+          "real_accepted": 0,
+          "real_completed": 0,
+          "real_failed_or_rejected": 0,
+          "degraded": false,
+          "mock_calls": 0,
+          "real_records": [],
+          "model_path": "E:\\quantum-rl-scheduler\\models\\issue165\\ppo_simulation_seed_43.zip"
+        },
+        {
+          "seed": 44,
+          "tasks": 200,
+          "episode_horizon": 20,
+          "training_elapsed_s": 0.846,
+          "curve": [
+            {
+              "timestep": 20,
+              "reward": 214.318465
+            },
+            {
+              "timestep": 40,
+              "reward": 289.928473
+            },
+            {
+              "timestep": 60,
+              "reward": 101.764663
+            },
+            {
+              "timestep": 80,
+              "reward": 222.568692
+            },
+            {
+              "timestep": 100,
+              "reward": 423.323306
+            },
+            {
+              "timestep": 120,
+              "reward": 45.552359
+            },
+            {
+              "timestep": 140,
+              "reward": 239.24894
+            },
+            {
+              "timestep": 160,
+              "reward": 85.098828
+            },
+            {
+              "timestep": 180,
+              "reward": 67.614189
+            },
+            {
+              "timestep": 200,
+              "reward": 280.893934
+            }
+          ],
+          "evaluation": {
+            "reward": 1318.5398987919868,
+            "completion_rate": 1.0,
+            "tasks": 200
+          },
+          "real_probability": 0.0,
+          "real_submission_cap": 0,
+          "real_attempted": 0,
+          "real_accepted": 0,
+          "real_completed": 0,
+          "real_failed_or_rejected": 0,
+          "degraded": false,
+          "mock_calls": 0,
+          "real_records": [],
+          "model_path": "E:\\quantum-rl-scheduler\\models\\issue165\\ppo_simulation_seed_44.zip"
+        }
+      ],
+      "reward_mean": 1518.6437404103197,
+      "reward_std": 263.0275699254885,
+      "completion_rate_mean": 1.0,
+      "training_elapsed_s": 2.306,
+      "real_attempted": 0,
+      "real_accepted": 0,
+      "real_completed": 0,
+      "real_failed_or_rejected": 0,
+      "real_participation_rate": 0.0,
+      "real_degradation_rate": 0.0,
+      "degraded_seed_rate": 0.0,
+      "mock_calls": 0,
+      "curve": [
+        {
+          "timestep": 20,
+          "mean_reward": 134.2410196666667,
+          "std_reward": 64.64628596916687
+        },
+        {
+          "timestep": 40,
+          "mean_reward": 187.42882033333333,
+          "std_reward": 94.75782691791326
+        },
+        {
+          "timestep": 60,
+          "mean_reward": 115.119526,
+          "std_reward": 30.511440517905157
+        },
+        {
+          "timestep": 80,
+          "mean_reward": 181.09156233333337,
+          "std_reward": 63.47598928450779
+        },
+        {
+          "timestep": 100,
+          "mean_reward": 254.78264666666666,
+          "std_reward": 135.6864163992786
+        },
+        {
+          "timestep": 120,
+          "mean_reward": 83.71623666666667,
+          "std_reward": 63.176042543546664
+        },
+        {
+          "timestep": 140,
+          "mean_reward": 240.06846933333335,
+          "std_reward": 11.708573424194388
+        },
+        {
+          "timestep": 160,
+          "mean_reward": 193.017033,
+          "std_reward": 110.52117534054433
+        },
+        {
+          "timestep": 180,
+          "mean_reward": 169.37899166666668,
+          "std_reward": 84.94987430901874
+        },
+        {
+          "timestep": 200,
+          "mean_reward": 239.789169,
+          "std_reward": 38.723129187297005
+        }
+      ],
+      "convergence_timestep": 40
+    },
+    "mixed_real": {
+      "runs": [
+        {
+          "seed": 42,
+          "tasks": 200,
+          "episode_horizon": 20,
+          "training_elapsed_s": 37.336,
+          "curve": [
+            {
+              "timestep": 20,
+              "reward": 168.884678
+            },
+            {
+              "timestep": 40,
+              "reward": 271.795498
+            },
+            {
+              "timestep": 60,
+              "reward": 236.646042
+            },
+            {
+              "timestep": 80,
+              "reward": 298.797174
+            },
+            {
+              "timestep": 100,
+              "reward": 165.585607
+            },
+            {
+              "timestep": 120,
+              "reward": 88.966363
+            },
+            {
+              "timestep": 140,
+              "reward": 221.342048
+            },
+            {
+              "timestep": 160,
+              "reward": 216.338366
+            },
+            {
+              "timestep": 180,
+              "reward": 207.947061
+            },
+            {
+              "timestep": 200,
+              "reward": 298.943889
+            }
+          ],
+          "evaluation": {
+            "reward": -1093.0652052607888,
+            "completion_rate": 1.0,
+            "tasks": 200
+          },
+          "real_probability": 0.05,
+          "real_submission_cap": 10,
+          "real_attempted": 3,
+          "real_accepted": 3,
+          "real_completed": 3,
+          "real_failed_or_rejected": 0,
+          "degraded": false,
+          "mock_calls": 0,
+          "real_records": [
+            {
+              "task_id": "2078741059808296961",
+              "task_name": "RL_T0001",
+              "shots": 32,
+              "machine": "tianyan176",
+              "circuit_profile": "1q_h_measure",
+              "status": "completed",
+              "elapsed_s": 9.391,
+              "probability": "{\"0\":0.5039803707742639,\"1\":0.49601962922573617}",
+              "condition": "mixed_real",
+              "seed": 42
+            },
+            {
+              "task_id": "2078741099360555009",
+              "task_name": "RL_T0025",
+              "shots": 32,
+              "machine": "tianyan176",
+              "circuit_profile": "1q_h_measure",
+              "status": "completed",
+              "elapsed_s": 17.995,
+              "probability": "{\"0\":0.333587786259542,\"1\":0.6664122137404581}",
+              "condition": "mixed_real",
+              "seed": 42
+            },
+            {
+              "task_id": "2078741176363782146",
+              "task_name": "RL_T0020",
+              "shots": 32,
+              "machine": "tianyan176",
+              "circuit_profile": "1q_h_measure",
+              "status": "completed",
+              "elapsed_s": 9.352,
+              "probability": "{\"0\":0.5039803707742639,\"1\":0.49601962922573617}",
+              "condition": "mixed_real",
+              "seed": 42
+            }
+          ],
+          "model_path": "E:\\quantum-rl-scheduler\\models\\issue165\\ppo_mixed_real_seed_42.zip"
+        },
+        {
+          "seed": 43,
+          "tasks": 200,
+          "episode_horizon": 20,
+          "training_elapsed_s": 60.473,
+          "curve": [
+            {
+              "timestep": 20,
+              "reward": 56.0
+            },
+            {
+              "timestep": 40,
+              "reward": 43.964596
+            },
+            {
+              "timestep": 60,
+              "reward": 157.921164
+            },
+            {
+              "timestep": 80,
+              "reward": 244.258065
+            },
+            {
+              "timestep": 100,
+              "reward": 130.001289
+            },
+            {
+              "timestep": 120,
+              "reward": 185.585355
+            },
+            {
+              "timestep": 140,
+              "reward": 101.845287
+            },
+            {
+              "timestep": 160,
+              "reward": 191.361857
+            },
+            {
+              "timestep": 180,
+              "reward": 146.078128
+            },
+            {
+              "timestep": 200,
+              "reward": 293.513563
+            }
+          ],
+          "evaluation": {
+            "reward": 1347.1370243865717,
+            "completion_rate": 1.0,
+            "tasks": 200
+          },
+          "real_probability": 0.05,
+          "real_submission_cap": 10,
+          "real_attempted": 6,
+          "real_accepted": 6,
+          "real_completed": 6,
+          "real_failed_or_rejected": 0,
+          "degraded": false,
+          "mock_calls": 0,
+          "real_records": [
+            {
+              "task_id": "2078741217614761986",
+              "task_name": "RL_T0028",
+              "shots": 32,
+              "machine": "tianyan176",
+              "circuit_profile": "1q_h_measure",
+              "status": "completed",
+              "elapsed_s": 6.439,
+              "probability": "{\"0\":0.6402944383860415,\"1\":0.35970556161395867}",
+              "condition": "mixed_real",
+              "seed": 43
+            },
+            {
+              "task_id": "2078741245070704642",
+              "task_name": "RL_T0009",
+              "shots": 32,
+              "machine": "tianyan176",
+              "circuit_profile": "1q_h_measure",
+              "status": "completed",
+              "elapsed_s": 5.29,
+              "probability": "{\"0\":0.5380588876772082,\"1\":0.46194111232279184}",
+              "condition": "mixed_real",
+              "seed": 43
+            },
+            {
+              "task_id": "2078741267640254465",
+              "task_name": "RL_T0022",
+              "shots": 32,
+              "machine": "tianyan176",
+              "circuit_profile": "1q_h_measure",
+              "status": "completed",
+              "elapsed_s": 9.756,
+              "probability": "{\"0\":0.333587786259542,\"1\":0.6664122137404581}",
+              "condition": "mixed_real",
+              "seed": 43
+            },
+            {
+              "task_id": "2078741309746872321",
+              "task_name": "RL_T0042",
+              "shots": 32,
+              "machine": "tianyan176",
+              "circuit_profile": "1q_h_measure",
+              "status": "completed",
+              "elapsed_s": 10.859,
+              "probability": "{\"0\":0.46990185387131955,\"1\":0.5300981461286806}",
+              "condition": "mixed_real",
+              "seed": 43
+            },
+            {
+              "task_id": "2078741354873360386",
+              "task_name": "RL_T0013",
+              "shots": 32,
+              "machine": "tianyan176",
+              "circuit_profile": "1q_h_measure",
+              "status": "completed",
+              "elapsed_s": 9.272,
+              "probability": "{\"0\":0.43582333696837516,\"1\":0.5641766630316251}",
+              "condition": "mixed_real",
+              "seed": 43
+            },
+            {
+              "task_id": "2078741394325012482",
+              "task_name": "RL_T0022",
+              "shots": 32,
+              "machine": "tianyan176",
+              "circuit_profile": "1q_h_measure",
+              "status": "completed",
+              "elapsed_s": 18.203,
+              "probability": "{\"0\":0.5039803707742639,\"1\":0.49601962922573617}",
+              "condition": "mixed_real",
+              "seed": 43
+            }
+          ],
+          "model_path": "E:\\quantum-rl-scheduler\\models\\issue165\\ppo_mixed_real_seed_43.zip"
+        },
+        {
+          "seed": 44,
+          "tasks": 200,
+          "episode_horizon": 20,
+          "training_elapsed_s": 30.96,
+          "curve": [
+            {
+              "timestep": 20,
+              "reward": 180.941208
+            },
+            {
+              "timestep": 40,
+              "reward": 117.330496
+            },
+            {
+              "timestep": 60,
+              "reward": 143.876698
+            },
+            {
+              "timestep": 80,
+              "reward": 113.997435
+            },
+            {
+              "timestep": 100,
+              "reward": 280.970504
+            },
+            {
+              "timestep": 120,
+              "reward": 230.048202
+            },
+            {
+              "timestep": 140,
+              "reward": -2.0
+            },
+            {
+              "timestep": 160,
+              "reward": 157.458838
+            },
+            {
+              "timestep": 180,
+              "reward": 224.251086
+            },
+            {
+              "timestep": 200,
+              "reward": 276.390729
+            }
+          ],
+          "evaluation": {
+            "reward": -1150.3899999999999,
+            "completion_rate": 0.0,
+            "tasks": 200
+          },
+          "real_probability": 0.05,
+          "real_submission_cap": 10,
+          "real_attempted": 3,
+          "real_accepted": 3,
+          "real_completed": 3,
+          "real_failed_or_rejected": 0,
+          "degraded": false,
+          "mock_calls": 0,
+          "real_records": [
+            {
+              "task_id": "2078741471856693250",
+              "task_name": "RL_T0015",
+              "shots": 32,
+              "machine": "tianyan176",
+              "circuit_profile": "1q_h_measure",
+              "status": "completed",
+              "elapsed_s": 6.181,
+              "probability": "{\"0\":0.5039803707742639,\"1\":0.49601962922573617}",
+              "condition": "mixed_real",
+              "seed": 44
+            },
+            {
+              "task_id": "2078741499002228738",
+              "task_name": "RL_T0015",
+              "shots": 32,
+              "machine": "tianyan176",
+              "circuit_profile": "1q_h_measure",
+              "status": "completed",
+              "elapsed_s": 14.791,
+              "probability": "{\"0\":0.5380588876772082,\"1\":0.46194111232279184}",
+              "condition": "mixed_real",
+              "seed": 44
+            },
+            {
+              "task_id": "2078741561677742082",
+              "task_name": "RL_T0017",
+              "shots": 32,
+              "machine": "tianyan176",
+              "circuit_profile": "1q_h_measure",
+              "status": "completed",
+              "elapsed_s": 9.366,
+              "probability": "{\"0\":0.5721374045801527,\"1\":0.4278625954198474}",
+              "condition": "mixed_real",
+              "seed": 44
+            }
+          ],
+          "model_path": "E:\\quantum-rl-scheduler\\models\\issue165\\ppo_mixed_real_seed_44.zip"
+        }
+      ],
+      "reward_mean": -298.7727269580723,
+      "reward_std": 1164.069217644585,
+      "completion_rate_mean": 0.6666666666666666,
+      "training_elapsed_s": 128.769,
+      "real_attempted": 12,
+      "real_accepted": 12,
+      "real_completed": 12,
+      "real_failed_or_rejected": 0,
+      "real_participation_rate": 0.02,
+      "real_degradation_rate": 0.0,
+      "degraded_seed_rate": 0.0,
+      "mock_calls": 0,
+      "curve": [
+        {
+          "timestep": 20,
+          "mean_reward": 135.27529533333333,
+          "std_reward": 56.27177691969952
+        },
+        {
+          "timestep": 40,
+          "mean_reward": 144.36353,
+          "std_reward": 94.95549368684001
+        },
+        {
+          "timestep": 60,
+          "mean_reward": 179.48130133333333,
+          "std_reward": 40.8261961484023
+        },
+        {
+          "timestep": 80,
+          "mean_reward": 219.017558,
+          "std_reward": 77.52654719010694
+        },
+        {
+          "timestep": 100,
+          "mean_reward": 192.1858,
+          "std_reward": 64.43913753900907
+        },
+        {
+          "timestep": 120,
+          "mean_reward": 168.19997333333333,
+          "std_reward": 58.893745823458666
+        },
+        {
+          "timestep": 140,
+          "mean_reward": 107.06244500000001,
+          "std_reward": 91.25360871186155
+        },
+        {
+          "timestep": 160,
+          "mean_reward": 188.38635366666665,
+          "std_reward": 24.129372411243313
+        },
+        {
+          "timestep": 180,
+          "mean_reward": 192.7587583333333,
+          "std_reward": 33.67260255299696
+        },
+        {
+          "timestep": 200,
+          "mean_reward": 289.61606033333334,
+          "std_reward": 9.610901857574902
+        }
+      ],
+      "convergence_timestep": 80
+    },
+    "pure_real": {
+      "runs": [
+        {
+          "seed": 42,
+          "tasks": 200,
+          "episode_horizon": 20,
+          "training_elapsed_s": 620.323,
+          "curve": [
+            {
+              "timestep": 20,
+              "reward": 190.884678
+            },
+            {
+              "timestep": 40,
+              "reward": 295.795498
+            },
+            {
+              "timestep": 60,
+              "reward": 256.646042
+            },
+            {
+              "timestep": 80,
+              "reward": 328.797174
+            },
+            {
+              "timestep": 100,
+              "reward": 173.585607
+            },
+            {
+              "timestep": 120,
+              "reward": 88.966363
+            },
+            {
+              "timestep": 140,
+              "reward": 221.342048
+            },
+            {
+              "timestep": 160,
+              "reward": 214.338366
+            },
+            {
+              "timestep": 180,
+              "reward": 158.882729
+            },
+            {
+              "timestep": 200,
+              "reward": 333.981251
+            }
+          ],
+          "evaluation": {
+            "reward": -1093.0652052607888,
+            "completion_rate": 1.0,
+            "tasks": 200
+          },
+          "real_probability": 1.0,
+          "real_submission_cap": 200,
+          "real_attempted": 57,
+          "real_accepted": 54,
+          "real_completed": 54,
+          "real_failed_or_rejected": 3,
+          "degraded": true,
+          "mock_calls": 0,
+          "real_records": [
+            {
+              "task_id": "2078741601632653313",
+              "task_name": "RL_T0005",
+              "shots": 32,
+              "machine": "tianyan176",
+              "circuit_profile": "1q_h_measure",
+              "status": "completed",
+              "elapsed_s": 9.373,
+              "probability": "{\"0\":0.36766630316248633,\"1\":0.6323336968375137}",
+              "condition": "pure_real",
+              "seed": 42
+            },
+            {
+              "task_id": "2078741640954281986",
+              "task_name": "RL_T0002",
+              "shots": 32,
+              "machine": "tianyan176",
+              "circuit_profile": "1q_h_measure",
+              "status": "completed",
+              "elapsed_s": 22.314,
+              "probability": "{\"0\":0.4017448200654308,\"1\":0.5982551799345694}",
+              "condition": "pure_real",
+              "seed": 42
+            },
+            {
+              "task_id": "2078741734810222594",
+              "task_name": "RL_T0008",
+              "shots": 32,
+              "machine": "tianyan176",
+              "circuit_profile": "1q_h_measure",
+              "status": "completed",
+              "elapsed_s": 18.108,
+              "probability": "{\"0\":0.6402944383860415,\"1\":0.35970556161395867}",
+              "condition": "pure_real",
+              "seed": 42
+            },
+            {
+              "task_id": "2078741810668404738",
+              "task_name": "RL_T0010",
+              "shots": 32,
+              "machine": "tianyan176",
+              "circuit_profile": "1q_h_measure",
+              "status": "completed",
+              "elapsed_s": 17.984,
+              "probability": "{\"0\":0.46990185387131955,\"1\":0.5300981461286806}",
+              "condition": "pure_real",
+              "seed": 42
+            },
+            {
+              "task_id": "2078741885779972098",
+              "task_name": "RL_T0012",
+              "shots": 32,
+              "machine": "tianyan176",
+              "circuit_profile": "1q_h_measure",
+              "status": "completed",
+              "elapsed_s": 9.274,
+              "probability": "{\"0\":0.6062159214830971,\"1\":0.39378407851690306}",
+              "condition": "pure_real",
+              "seed": 42
+            },
+            {
+              "task_id": "2078741924761862145",
+              "task_name": "RL_T0001",
+              "shots": 32,
+              "machine": "tianyan176",
+              "circuit_profile": "1q_h_measure",
+              "status": "completed",
+              "elapsed_s": 14.808,
+              "probability": "{\"0\":0.43582333696837516,\"1\":0.5641766630316251}",
+              "condition": "pure_real",
+              "seed": 42
+            },
+            {
+              "task_id": "2078741986942390273",
+              "task_name": "RL_T0015",
+              "shots": 32,
+              "machine": "tianyan176",
+              "circuit_profile": "1q_h_measure",
+              "status": "completed",
+              "elapsed_s": 5.032,
+              "probability": "{\"0\":0.5039803707742639,\"1\":0.49601962922573617}",
+              "condition": "pure_real",
+              "seed": 42
+            },
+            {
+              "task_id": "2078742008102682625",
+              "task_name": "RL_T0019",
+              "shots": 32,
+              "machine": "tianyan176",
+              "circuit_profile": "1q_h_measure",
+              "status": "completed",
+              "elapsed_s": 10.457,
+              "probability": "{\"0\":0.43582333696837516,\"1\":0.5641766630316251}",
+              "condition": "pure_real",
+              "seed": 42
+            },
+            {
+              "task_id": "2078742051949936642",
+              "task_name": "RL_T0022",
+              "shots": 32,
+              "machine": "tianyan176",
+              "circuit_profile": "1q_h_measure",
+              "status": "completed",
+              "elapsed_s": 17.988,
+              "probability": "{\"0\":0.5039803707742639,\"1\":0.49601962922573617}",
+              "condition": "pure_real",
+              "seed": 42
+            },
+            {
+              "task_id": "2078742127212498946",
+              "task_name": "RL_T0024",
+              "shots": 32,
+              "machine": "tianyan176",
+              "circuit_profile": "1q_h_measure",
+              "status": "completed",
+              "elapsed_s": 5.06,
+              "probability": "{\"0\":0.36766630316248633,\"1\":0.6323336968375137}",
+              "condition": "pure_real",
+              "seed": 42
+            },
+            {
+              "task_id": "2078742148653780994",
+              "task_name": "RL_T0000",
+              "shots": 32,
+              "machine": "tianyan176",
+              "circuit_profile": "1q_h_measure",
+              "status": "completed",
+              "elapsed_s": 14.837,
+              "probability": "{\"0\":0.333587786259542,\"1\":0.6664122137404581}",
+              "condition": "pure_real",
+              "seed": 42
+            },
+            {
+              "task_id": "2078742210712731649",
+              "task_name": "RL_T0025",
+              "shots": 32,
+              "machine": "tianyan176",
+              "circuit_profile": "1q_h_measure",
+              "status": "completed",
+              "elapsed_s": 9.274,
+              "probability": "{\"0\":0.46990185387131955,\"1\":0.5300981461286806}",
+              "condition": "pure_real",
+              "seed": 42
+            },
+            {
+              "task_id": "2078742250009137153",
+              "task_name": "RL_T0002",
+              "shots": 32,
+              "machine": "tianyan176",
+              "circuit_profile": "1q_h_measure",
+              "status": "completed",
+              "elapsed_s": 6.234,
+              "probability": "{\"0\":0.4017448200654308,\"1\":0.5982551799345694}",
+              "condition": "pure_real",
+              "seed": 42
+            },
+            {
+              "task_id": "2078742276018016258",
+              "task_name": "RL_T0001",
+              "shots": 32,
+              "machine": "tianyan176",
+              "circuit_profile": "1q_h_measure",
+              "status": "completed",
+              "elapsed_s": 17.922,
+              "probability": "{\"0\":0.43582333696837516,\"1\":0.5641766630316251}",
+              "condition": "pure_real",
+              "seed": 42
+            },
+            {
+              "task_id": "2078742351221886977",
+              "task_name": "RL_T0006",
+              "shots": 32,
+              "machine": "tianyan176",
+              "circuit_profile": "1q_h_measure",
+              "status": "completed",
+              "elapsed_s": 6.115,
+              "probability": "{\"0\":0.43582333696837516,\"1\":0.5641766630316251}",
+              "condition": "pure_real",
+              "seed": 42
+            },
+            {
+              "task_id": "2078742376605814785",
+              "task_name": "RL_T0009",
+              "shots": 32,
+              "machine": "tianyan176",
+              "circuit_profile": "1q_h_measure",
+              "status": "completed",
+              "elapsed_s": 17.869,
+              "probability": "{\"0\":0.5380588876772082,\"1\":0.46194111232279184}",
+              "condition": "pure_real",
+              "seed": 42
+            },
+            {
+              "task_id": "2078742452132675585",
+              "task_name": "RL_T0003",
+              "shots": 32,
+              "machine": "tianyan176",
+              "circuit_profile": "1q_h_measure",
+              "status": "completed",
+              "elapsed_s": 13.696,
+              "probability": "{\"0\":0.36766630316248633,\"1\":0.6323336968375137}",
+              "condition": "pure_real",
+              "seed": 42
+            },
+            {
+              "task_id": "2078742509426868225",
+              "task_name": "RL_T0005",
+              "shots": 32,
+              "machine": "tianyan176",
+              "circuit_profile": "1q_h_measure",
+              "status": "completed",
+              "elapsed_s": 6.27,
+              "probability": "{\"0\":0.5721374045801527,\"1\":0.4278625954198474}",
+              "condition": "pure_real",
+              "seed": 42
+            },
+            {
+              "task_id": "2078742535632879617",
+              "task_name": "RL_T0011",
+              "shots": 32,
+              "machine": "tianyan176",
+              "circuit_profile": "1q_h_measure",
+              "status": "completed",
+              "elapsed_s": 6.161,
+              "probability": "{\"0\":0.2995092693565976,\"1\":0.7004907306434026}",
+              "condition": "pure_real",
+              "seed": 42
+            },
+            {
+              "task_id": "2078742561511735298",
+              "task_name": "RL_T0012",
+              "shots": 32,
+              "machine": "tianyan176",
+              "circuit_profile": "1q_h_measure",
+              "status": "completed",
+              "elapsed_s": 5.009,
+              "probability": "{\"0\":0.4017448200654308,\"1\":0.5982551799345694}",
+              "condition": "pure_real",
+              "seed": 42
+            },
+            {
+              "task_id": "2078742582458060801",
+              "task_name": "RL_T0020",
+              "shots": 32,
+              "machine": "tianyan176",
+              "circuit_profile": "1q_h_measure",
+              "status": "completed",
+              "elapsed_s": 9.31,
+              "probability": "{\"0\":0.6062159214830971,\"1\":0.39378407851690306}",
+              "condition": "pure_real",
+              "seed": 42
+            },
+            {
+              "task_id": "2078742621754523650",
+              "task_name": "RL_T0022",
+              "shots": 32,
+              "machine": "tianyan176",
+              "circuit_profile": "1q_h_measure",
+              "status": "completed",
+              "elapsed_s": 13.658,
+              "probability": "{\"0\":0.46990185387131955,\"1\":0.5300981461286806}",
+              "condition": "pure_real",
+              "seed": 42
+            },
+            {
+              "task_id": "2078742678721531906",
+              "task_name": "RL_T0025",
+              "shots": 32,
+              "machine": "tianyan176",
+              "circuit_profile": "1q_h_measure",
+              "status": "completed",
+              "elapsed_s": 4.958,
+              "probability": "{\"0\":0.5721374045801527,\"1\":0.4278625954198474}",
+              "condition": "pure_real",
+              "seed": 42
+            },
+            {
+              "task_id": "2078742699487559681",
+              "task_name": "RL_T0021",
+              "shots": 32,
+              "machine": "tianyan176",
+              "circuit_profile": "1q_h_measure",
+              "status": "completed",
+              "elapsed_s": 13.588,
+              "probability": "{\"0\":0.43582333696837516,\"1\":0.5641766630316251}",
+              "condition": "pure_real",
+              "seed": 42
+            },
+            {
+              "task_id": "2078742756618174466",
+              "task_name": "RL_T0002",
+              "shots": 32,
+              "machine": "tianyan176",
+              "circuit_profile": "1q_h_measure",
+              "status": "completed",
+              "elapsed_s": 13.605,
+              "probability": "{\"0\":0.4017448200654308,\"1\":0.5982551799345694}",
+              "condition": "pure_real",
+              "seed": 42
+            },
+            {
+              "task_id": "2078742813639737345",
+              "task_name": "RL_T0007",
+              "shots": 32,
+              "machine": "tianyan176",
+              "circuit_profile": "1q_h_measure",
+              "status": "completed",
+              "elapsed_s": 6.154,
+              "probability": "{\"0\":0.5039803707742639,\"1\":0.49601962922573617}",
+              "condition": "pure_real",
+              "seed": 42
+            },
+            {
+              "task_id": "2078742839761862657",
+              "task_name": "RL_T0006",
+              "shots": 32,
+              "machine": "tianyan176",
+              "circuit_profile": "1q_h_measure",
+              "status": "completed",
+              "elapsed_s": 6.233,
+              "probability": "{\"0\":0.36766630316248633,\"1\":0.6323336968375137}",
+              "condition": "pure_real",
+              "seed": 42
+            },
+            {
+              "task_id": "2078742865867182082",
+              "task_name": "RL_T0009",
+              "shots": 32,
+              "machine": "tianyan176",
+              "circuit_profile": "1q_h_measure",
+              "status": "completed",
+              "elapsed_s": 14.858,
+              "probability": "{\"0\":0.43582333696837516,\"1\":0.5641766630316251}",
+              "condition": "pure_real",
+              "seed": 42
+            },
+            {
+              "task_id": "2078742928324591617",
+              "task_name": "RL_T0025",
+              "shots": 32,
+              "machine": "tianyan176",
+              "circuit_profile": "1q_h_measure",
+              "status": "completed",
+              "elapsed_s": 19.072,
+              "probability": "{\"0\":0.46990185387131955,\"1\":0.5300981461286806}",
+              "condition": "pure_real",
+              "seed": 42
+            },
+            {
+              "task_id": "2078743008242831362",
+              "task_name": "RL_T0008",
+              "shots": 32,
+              "machine": "tianyan176",
+              "circuit_profile": "1q_h_measure",
+              "status": "completed",
+              "elapsed_s": 6.264,
+              "probability": "{\"0\":0.5380588876772082,\"1\":0.46194111232279184}",
+              "condition": "pure_real",
+              "seed": 42
+            },
+            {
+              "task_id": "2078743034343985154",
+              "task_name": "RL_T0028",
+              "shots": 32,
+              "machine": "tianyan176",
+              "circuit_profile": "1q_h_measure",
+              "status": "completed",
+              "elapsed_s": 14.726,
+              "probability": "{\"0\":0.5380588876772082,\"1\":0.46194111232279184}",
+              "condition": "pure_real",
+              "seed": 42
+            },
+            {
+              "task_id": "2078743096440655874",
+              "task_name": "RL_T0032",
+              "shots": 32,
+              "machine": "tianyan176",
+              "circuit_profile": "1q_h_measure",
+              "status": "completed",
+              "elapsed_s": 6.235,
+              "probability": "{\"0\":0.5380588876772082,\"1\":0.46194111232279184}",
+              "condition": "pure_real",
+              "seed": 42
+            },
+            {
+              "task_id": "2078743122353065985",
+              "task_name": "RL_T0029",
+              "shots": 32,
+              "machine": "tianyan176",
+              "circuit_profile": "1q_h_measure",
+              "status": "completed",
+              "elapsed_s": 9.296,
+              "probability": "{\"0\":0.46990185387131955,\"1\":0.5300981461286806}",
+              "condition": "pure_real",
+              "seed": 42
+            },
+            {
+              "task_id": "2078743161360093186",
+              "task_name": "RL_T0033",
+              "shots": 32,
+              "machine": "tianyan176",
+              "circuit_profile": "1q_h_measure",
+              "status": "completed",
+              "elapsed_s": 5.076,
+              "probability": "{\"0\":0.43582333696837516,\"1\":0.5641766630316251}",
+              "condition": "pure_real",
+              "seed": 42
+            },
+            {
+              "task_id": "2078743182709129218",
+              "task_name": "RL_T0036",
+              "shots": 32,
+              "machine": "tianyan176",
+              "circuit_profile": "1q_h_measure",
+              "status": "completed",
+              "elapsed_s": 18.036,
+              "probability": "{\"0\":0.5721374045801527,\"1\":0.4278625954198474}",
+              "condition": "pure_real",
+              "seed": 42
+            },
+            {
+              "task_id": "2078743258722471937",
+              "task_name": "RL_T0000",
+              "shots": 32,
+              "machine": "tianyan176",
+              "circuit_profile": "1q_h_measure",
+              "status": "completed",
+              "elapsed_s": 9.488,
+              "probability": "{\"0\":0.5721374045801527,\"1\":0.4278625954198474}",
+              "condition": "pure_real",
+              "seed": 42
+            },
+            {
+              "task_id": "2078743298480308226",
+              "task_name": "RL_T0010",
+              "shots": 32,
+              "machine": "tianyan176",
+              "circuit_profile": "1q_h_measure",
+              "status": "completed",
+              "elapsed_s": 6.257,
+              "probability": "{\"0\":0.5380588876772082,\"1\":0.46194111232279184}",
+              "condition": "pure_real",
+              "seed": 42
+            },
+            {
+              "task_id": "2078743324988280833",
+              "task_name": "RL_T0001",
+              "shots": 32,
+              "machine": "tianyan176",
+              "circuit_profile": "1q_h_measure",
+              "status": "completed",
+              "elapsed_s": 15.174,
+              "probability": "{\"0\":0.5721374045801527,\"1\":0.4278625954198474}",
+              "condition": "pure_real",
+              "seed": 42
+            },
+            {
+              "task_id": "2078743388469071873",
+              "task_name": "RL_T0003",
+              "shots": 32,
+              "machine": "tianyan176",
+              "circuit_profile": "1q_h_measure",
+              "status": "completed",
+              "elapsed_s": 18.239,
+              "probability": "{\"0\":0.43582333696837516,\"1\":0.5641766630316251}",
+              "condition": "pure_real",
+              "seed": 42
+            },
+            {
+              "task_id": "2078743464851570689",
+              "task_name": "RL_T0006",
+              "shots": 32,
+              "machine": "tianyan176",
+              "circuit_profile": "1q_h_measure",
+              "status": "completed",
+              "elapsed_s": 18.277,
+              "probability": "{\"0\":0.5380588876772082,\"1\":0.46194111232279184}",
+              "condition": "pure_real",
+              "seed": 42
+            },
+            {
+              "task_id": "2078743541586333697",
+              "task_name": "RL_T0013",
+              "shots": 32,
+              "machine": "tianyan176",
+              "circuit_profile": "1q_h_measure",
+              "status": "completed",
+              "elapsed_s": 18.414,
+              "probability": "{\"0\":0.4017448200654308,\"1\":0.5982551799345694}",
+              "condition": "pure_real",
+              "seed": 42
+            },
+            {
+              "task_id": "2078743618673475586",
+              "task_name": "RL_T0007",
+              "shots": 32,
+              "machine": "tianyan176",
+              "circuit_profile": "1q_h_measure",
+              "status": "completed",
+              "elapsed_s": 15.037,
+              "probability": "{\"0\":0.5039803707742639,\"1\":0.49601962922573617}",
+              "condition": "pure_real",
+              "seed": 42
+            },
+            {
+              "task_id": "2078743681650950146",
+              "task_name": "RL_T0017",
+              "shots": 32,
+              "machine": "tianyan176",
+              "circuit_profile": "1q_h_measure",
+              "status": "completed",
+              "elapsed_s": 6.213,
+              "probability": "{\"0\":0.43582333696837516,\"1\":0.5641766630316251}",
+              "condition": "pure_real",
+              "seed": 42
+            },
+            {
+              "task_id": "2078743707705937922",
+              "task_name": "RL_T0015",
+              "shots": 32,
+              "machine": "tianyan176",
+              "circuit_profile": "1q_h_measure",
+              "status": "completed",
+              "elapsed_s": 6.197,
+              "probability": "{\"0\":0.43582333696837516,\"1\":0.5641766630316251}",
+              "condition": "pure_real",
+              "seed": 42
+            },
+            {
+              "task_id": "2078743733656125441",
+              "task_name": "RL_T0025",
+              "shots": 32,
+              "machine": "tianyan176",
+              "circuit_profile": "1q_h_measure",
+              "status": "completed",
+              "elapsed_s": 6.104,
+              "probability": "{\"0\":0.46990185387131955,\"1\":0.5300981461286806}",
+              "condition": "pure_real",
+              "seed": 42
+            },
+            {
+              "task_id": "2078743759438512129",
+              "task_name": "RL_T0024",
+              "shots": 32,
+              "machine": "tianyan176",
+              "circuit_profile": "1q_h_measure",
+              "status": "completed",
+              "elapsed_s": 9.336,
+              "probability": "{\"0\":0.43582333696837516,\"1\":0.5641766630316251}",
+              "condition": "pure_real",
+              "seed": 42
+            },
+            {
+              "task_id": "2078743798361653250",
+              "task_name": "RL_T0016",
+              "shots": 32,
+              "machine": "tianyan176",
+              "circuit_profile": "1q_h_measure",
+              "status": "completed",
+              "elapsed_s": 13.526,
+              "probability": "{\"0\":0.2995092693565976,\"1\":0.7004907306434026}",
+              "condition": "pure_real",
+              "seed": 42
+            },
+            {
+              "task_id": "2078743855446102017",
+              "task_name": "RL_T0033",
+              "shots": 32,
+              "machine": "tianyan176",
+              "circuit_profile": "1q_h_measure",
+              "status": "completed",
+              "elapsed_s": 9.37,
+              "probability": "{\"0\":0.2995092693565976,\"1\":0.7004907306434026}",
+              "condition": "pure_real",
+              "seed": 42
+            },
+            {
+              "task_id": "2078743894964834306",
+              "task_name": "RL_T0018",
+              "shots": 32,
+              "machine": "tianyan176",
+              "circuit_profile": "1q_h_measure",
+              "status": "completed",
+              "elapsed_s": 10.574,
+              "probability": "{\"0\":0.5039803707742639,\"1\":0.49601962922573617}",
+              "condition": "pure_real",
+              "seed": 42
+            },
+            {
+              "task_id": "2078743939000832002",
+              "task_name": "RL_T0021",
+              "shots": 32,
+              "machine": "tianyan176",
+              "circuit_profile": "1q_h_measure",
+              "status": "completed",
+              "elapsed_s": 6.185,
+              "probability": "{\"0\":0.5380588876772082,\"1\":0.46194111232279184}",
+              "condition": "pure_real",
+              "seed": 42
+            },
+            {
+              "task_id": "2078743965261398018",
+              "task_name": "RL_T0003",
+              "shots": 32,
+              "machine": "tianyan176",
+              "circuit_profile": "1q_h_measure",
+              "status": "completed",
+              "elapsed_s": 9.437,
+              "probability": "{\"0\":0.6062159214830971,\"1\":0.39378407851690306}",
+              "condition": "pure_real",
+              "seed": 42
+            },
+            {
+              "task_id": "2078744004620718082",
+              "task_name": "RL_T0000",
+              "shots": 32,
+              "machine": "tianyan176",
+              "circuit_profile": "1q_h_measure",
+              "status": "completed",
+              "elapsed_s": 17.934,
+              "probability": "{\"0\":0.6743729552889859,\"1\":0.3256270447110142}",
+              "condition": "pure_real",
+              "seed": 42
+            },
+            {
+              "task_id": "2078744080093052929",
+              "task_name": "RL_T0012",
+              "shots": 32,
+              "machine": "tianyan176",
+              "circuit_profile": "1q_h_measure",
+              "status": "completed",
+              "elapsed_s": 13.69,
+              "probability": "{\"0\":0.5039803707742639,\"1\":0.49601962922573617}",
+              "condition": "pure_real",
+              "seed": 42
+            },
+            {
+              "task_id": "2078744137655681025",
+              "task_name": "RL_T0018",
+              "shots": 32,
+              "machine": "tianyan176",
+              "circuit_profile": "1q_h_measure",
+              "status": "completed",
+              "elapsed_s": 14.833,
+              "probability": "{\"0\":0.5039803707742639,\"1\":0.49601962922573617}",
+              "condition": "pure_real",
+              "seed": 42
+            },
+            {
+              "task_id": null,
+              "task_name": "RL_T0024",
+              "shots": 32,
+              "machine": "tianyan176",
+              "circuit_profile": "1q_h_measure",
+              "status": "submit_rejected",
+              "elapsed_s": 0.158,
+              "condition": "pure_real",
+              "seed": 42
+            },
+            {
+              "task_id": null,
+              "task_name": "RL_T0013",
+              "shots": 32,
+              "machine": "tianyan176",
+              "circuit_profile": "1q_h_measure",
+              "status": "submit_rejected",
+              "elapsed_s": 0.154,
+              "condition": "pure_real",
+              "seed": 42
+            },
+            {
+              "task_id": null,
+              "task_name": "RL_T0025",
+              "shots": 32,
+              "machine": "tianyan176",
+              "circuit_profile": "1q_h_measure",
+              "status": "submit_rejected",
+              "elapsed_s": 0.155,
+              "condition": "pure_real",
+              "seed": 42
+            }
+          ],
+          "model_path": "E:\\quantum-rl-scheduler\\models\\issue165\\ppo_pure_real_seed_42.zip"
+        },
+        {
+          "seed": 43,
+          "tasks": 200,
+          "episode_horizon": 20,
+          "training_elapsed_s": 1.048,
+          "curve": [
+            {
+              "timestep": 20,
+              "reward": 56.0
+            },
+            {
+              "timestep": 40,
+              "reward": 43.964596
+            },
+            {
+              "timestep": 60,
+              "reward": 155.921164
+            },
+            {
+              "timestep": 80,
+              "reward": 242.258065
+            },
+            {
+              "timestep": 100,
+              "reward": 128.001289
+            },
+            {
+              "timestep": 120,
+              "reward": 185.585355
+            },
+            {
+              "timestep": 140,
+              "reward": 101.845287
+            },
+            {
+              "timestep": 160,
+              "reward": 191.361857
+            },
+            {
+              "timestep": 180,
+              "reward": 144.078128
+            },
+            {
+              "timestep": 200,
+              "reward": 289.513563
+            }
+          ],
+          "evaluation": {
+            "reward": 1347.1370243865717,
+            "completion_rate": 1.0,
+            "tasks": 200
+          },
+          "real_probability": 1.0,
+          "real_submission_cap": 200,
+          "real_attempted": 3,
+          "real_accepted": 0,
+          "real_completed": 0,
+          "real_failed_or_rejected": 3,
+          "degraded": true,
+          "mock_calls": 0,
+          "real_records": [
+            {
+              "task_id": null,
+              "task_name": "RL_T0008",
+              "shots": 32,
+              "machine": "tianyan176",
+              "circuit_profile": "1q_h_measure",
+              "status": "submit_rejected",
+              "elapsed_s": 0.156,
+              "condition": "pure_real",
+              "seed": 43
+            },
+            {
+              "task_id": null,
+              "task_name": "RL_T0011",
+              "shots": 32,
+              "machine": "tianyan176",
+              "circuit_profile": "1q_h_measure",
+              "status": "submit_rejected",
+              "elapsed_s": 0.139,
+              "condition": "pure_real",
+              "seed": 43
+            },
+            {
+              "task_id": null,
+              "task_name": "RL_T0009",
+              "shots": 32,
+              "machine": "tianyan176",
+              "circuit_profile": "1q_h_measure",
+              "status": "submit_rejected",
+              "elapsed_s": 0.151,
+              "condition": "pure_real",
+              "seed": 43
+            }
+          ],
+          "model_path": "E:\\quantum-rl-scheduler\\models\\issue165\\ppo_pure_real_seed_43.zip"
+        },
+        {
+          "seed": 44,
+          "tasks": 200,
+          "episode_horizon": 20,
+          "training_elapsed_s": 1.013,
+          "curve": [
+            {
+              "timestep": 20,
+              "reward": 180.941208
+            },
+            {
+              "timestep": 40,
+              "reward": 117.330496
+            },
+            {
+              "timestep": 60,
+              "reward": 141.876698
+            },
+            {
+              "timestep": 80,
+              "reward": 113.997435
+            },
+            {
+              "timestep": 100,
+              "reward": 280.970504
+            },
+            {
+              "timestep": 120,
+              "reward": 230.048202
+            },
+            {
+              "timestep": 140,
+              "reward": -2.0
+            },
+            {
+              "timestep": 160,
+              "reward": 155.458838
+            },
+            {
+              "timestep": 180,
+              "reward": 224.251086
+            },
+            {
+              "timestep": 200,
+              "reward": 274.390729
+            }
+          ],
+          "evaluation": {
+            "reward": -1150.3899999999999,
+            "completion_rate": 0.0,
+            "tasks": 200
+          },
+          "real_probability": 1.0,
+          "real_submission_cap": 200,
+          "real_attempted": 3,
+          "real_accepted": 0,
+          "real_completed": 0,
+          "real_failed_or_rejected": 3,
+          "degraded": true,
+          "mock_calls": 0,
+          "real_records": [
+            {
+              "task_id": null,
+              "task_name": "RL_T0012",
+              "shots": 32,
+              "machine": "tianyan176",
+              "circuit_profile": "1q_h_measure",
+              "status": "submit_rejected",
+              "elapsed_s": 0.15,
+              "condition": "pure_real",
+              "seed": 44
+            },
+            {
+              "task_id": null,
+              "task_name": "RL_T0004",
+              "shots": 32,
+              "machine": "tianyan176",
+              "circuit_profile": "1q_h_measure",
+              "status": "submit_rejected",
+              "elapsed_s": 0.165,
+              "condition": "pure_real",
+              "seed": 44
+            },
+            {
+              "task_id": null,
+              "task_name": "RL_T0005",
+              "shots": 32,
+              "machine": "tianyan176",
+              "circuit_profile": "1q_h_measure",
+              "status": "submit_rejected",
+              "elapsed_s": 0.147,
+              "condition": "pure_real",
+              "seed": 44
+            }
+          ],
+          "model_path": "E:\\quantum-rl-scheduler\\models\\issue165\\ppo_pure_real_seed_44.zip"
+        }
+      ],
+      "reward_mean": -298.7727269580723,
+      "reward_std": 1164.069217644585,
+      "completion_rate_mean": 0.6666666666666666,
+      "training_elapsed_s": 622.384,
+      "real_attempted": 63,
+      "real_accepted": 54,
+      "real_completed": 54,
+      "real_failed_or_rejected": 9,
+      "real_participation_rate": 0.09,
+      "real_degradation_rate": 0.14285714285714285,
+      "degraded_seed_rate": 1.0,
+      "mock_calls": 0,
+      "curve": [
+        {
+          "timestep": 20,
+          "mean_reward": 142.60862866666665,
+          "std_reward": 61.3759402836358
+        },
+        {
+          "timestep": 40,
+          "mean_reward": 152.36353,
+          "std_reward": 105.75186650509538
+        },
+        {
+          "timestep": 60,
+          "mean_reward": 184.8146346666667,
+          "std_reward": 51.115066701979565
+        },
+        {
+          "timestep": 80,
+          "mean_reward": 228.35089133333335,
+          "std_reward": 88.24129448341499
+        },
+        {
+          "timestep": 100,
+          "mean_reward": 194.1858,
+          "std_reward": 64.12576782208014
+        },
+        {
+          "timestep": 120,
+          "mean_reward": 168.19997333333333,
+          "std_reward": 58.893745823458666
+        },
+        {
+          "timestep": 140,
+          "mean_reward": 107.06244500000001,
+          "std_reward": 91.25360871186155
+        },
+        {
+          "timestep": 160,
+          "mean_reward": 187.0530203333333,
+          "std_reward": 24.229792397524513
+        },
+        {
+          "timestep": 180,
+          "mean_reward": 175.73731433333333,
+          "std_reward": 34.83277751090584
+        },
+        {
+          "timestep": 200,
+          "mean_reward": 299.29518099999996,
+          "std_reward": 25.291864516500997
+        }
+      ],
+      "convergence_timestep": 80
+    }
+  }
+}
