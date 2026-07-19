@@ -5,6 +5,7 @@ M5 最终提交物一键打包与版本校验脚本
 功能：
 1. --check 模式：校验所有提交物是否符合清单要求
 2. --pack 模式：校验 + 创建最终提交压缩包
+3. --report PATH 模式：将校验结果输出为 Markdown 格式的缺失项清单
 
 作者：量子RL调度系统团队
 日期：2026-07-02
@@ -15,11 +16,25 @@ import json
 import subprocess
 import sys
 import zipfile
+from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar
 
 import yaml
+
+
+@dataclass
+class ItemResult:
+    """单个提交物的校验结果"""
+
+    item_id: str
+    name: str
+    item_type: str
+    path: str
+    passed: bool
+    messages: list[str] = field(default_factory=list)
+    severity: str = "error"  # "error" 或 "warning"
 
 
 class SubmissionValidator:
@@ -37,6 +52,7 @@ class SubmissionValidator:
         self.project_root = Path(project_root)
         self.errors: list[str] = []
         self.warnings: list[str] = []
+        self.results: list[ItemResult] = []
 
     def validate_all(self) -> bool:
         """校验所有提交物
@@ -67,39 +83,91 @@ class SubmissionValidator:
         item_name = item["name"]
         item_type = item["type"]
         path = self.project_root / item["path"]
+        messages: list[str] = []
 
         print(f"[{item_id}] {item_name} ({item_type})")
 
         # 检查文件存在性
         if not path.exists():
+            # 对白皮书特殊处理：manifest 要求 pdf，但可能存在 docx 源文件
+            if item_type == "pdf":
+                docx_path = path.with_suffix(".docx")
+                if docx_path.exists():
+                    msg = (
+                        f"文件不存在: {path}，但发现 docx 源文件: {docx_path.name}，"
+                        f"需转换为 PDF 后再提交"
+                    )
+                    self.warnings.append(f"[{item_id}] {msg}")
+                    print(f"  ⚠️  {msg}")
+                    messages.append(msg)
+                    self.results.append(
+                        ItemResult(
+                            item_id=item_id,
+                            name=item_name,
+                            item_type=item_type,
+                            path=str(item["path"]),
+                            passed=False,
+                            messages=messages,
+                            severity="warning",
+                        )
+                    )
+                    return
             self.errors.append(f"[{item_id}] 文件不存在: {path}")
             print(f"  ❌ 文件不存在: {path}")
+            messages.append(f"文件不存在: {path}")
+            self.results.append(
+                ItemResult(
+                    item_id=item_id,
+                    name=item_name,
+                    item_type=item_type,
+                    path=str(item["path"]),
+                    passed=False,
+                    messages=messages,
+                    severity="error",
+                )
+            )
             return
 
         # 按类型校验
+        errors_before = len(self.errors)
         if item_type == "pdf":
-            self._validate_pdf(item, path)
+            self._validate_pdf(item, path, messages)
         elif item_type == "pptx":
-            self._validate_pptx(item, path)
+            self._validate_pptx(item, path, messages)
         elif item_type == "mp4":
-            self._validate_mp4(item, path)
+            self._validate_mp4(item, path, messages)
         elif item_type == "zip":
-            self._validate_zip(item, path)
+            self._validate_zip(item, path, messages)
         elif item_type == "git_tag":
-            self._validate_git_tag(item)
+            self._validate_git_tag(item, messages)
         elif item_type == "md":
-            self._validate_markdown(item, path)
+            self._validate_markdown(item, path, messages)
 
         # 检查依赖
         if "depends_on" in item:
             self._check_dependency(item)
 
-    def _validate_pdf(self, item: dict[str, Any], path: Path) -> None:
+        # 记录结果（仅当未被前面的提前 return 记录过时）
+        has_error = len(self.errors) > errors_before
+        self.results.append(
+            ItemResult(
+                item_id=item_id,
+                name=item_name,
+                item_type=item_type,
+                path=str(item["path"]),
+                passed=not has_error,
+                messages=messages,
+                severity="error" if has_error else "info",
+            )
+        )
+
+    def _validate_pdf(self, item: dict[str, Any], path: Path, messages: list[str]) -> None:
         """校验 PDF 文件
 
         Args:
             item: 提交物定义
             path: 文件路径
+            messages: 用于收集本项校验消息的列表
         """
         try:
             from PyPDF2 import PdfReader
@@ -112,12 +180,17 @@ class SubmissionValidator:
             max_pages = reqs.get("max_pages")
 
             if min_pages and num_pages < min_pages:
-                self.errors.append(f"[{item['id']}] PDF 页数不足: {num_pages} < {min_pages}")
-                print(f"  ❌ 页数不足: {num_pages} < {min_pages}")
+                msg = f"PDF 页数不足: {num_pages} < {min_pages}"
+                self.errors.append(f"[{item['id']}] {msg}")
+                messages.append(msg)
+                print(f"  ❌ {msg}")
             elif max_pages and num_pages > max_pages:
-                self.errors.append(f"[{item['id']}] PDF 页数超限: {num_pages} > {max_pages}")
-                print(f"  ❌ 页数超限: {num_pages} > {max_pages}")
+                msg = f"PDF 页数超限: {num_pages} > {max_pages}"
+                self.errors.append(f"[{item['id']}] {msg}")
+                messages.append(msg)
+                print(f"  ❌ {msg}")
             else:
+                messages.append(f"页数: {num_pages}")
                 print(f"  ✅ 页数: {num_pages}")
 
             # 检查必需内容
@@ -129,24 +202,32 @@ class SubmissionValidator:
 
                 missing = [kw for kw in must_contain if kw not in text]
                 if missing:
-                    self.warnings.append(f"[{item['id']}] PDF 缺少关键词: {', '.join(missing)}")
-                    print(f"  ⚠️  缺少关键词: {', '.join(missing)}")
+                    msg = f"PDF 缺少关键词: {', '.join(missing)}"
+                    self.warnings.append(f"[{item['id']}] {msg}")
+                    messages.append(msg)
+                    print(f"  ⚠️  {msg}")
                 else:
+                    messages.append("包含所有必需关键词")
                     print("  ✅ 包含所有必需关键词")
 
         except ImportError:
-            self.warnings.append(f"[{item['id']}] PyPDF2 未安装，跳过 PDF 详细校验")
-            print("  ⚠️  PyPDF2 未安装，跳过详细校验")
+            msg = "PyPDF2 未安装，跳过 PDF 详细校验"
+            self.warnings.append(f"[{item['id']}] {msg}")
+            messages.append(msg)
+            print(f"  ⚠️  {msg}")
         except Exception as e:
-            self.errors.append(f"[{item['id']}] PDF 校验失败: {e}")
-            print(f"  ❌ 校验失败: {e}")
+            msg = f"PDF 校验失败: {e}"
+            self.errors.append(f"[{item['id']}] {msg}")
+            messages.append(msg)
+            print(f"  ❌ {msg}")
 
-    def _validate_pptx(self, item: dict[str, Any], path: Path) -> None:
+    def _validate_pptx(self, item: dict[str, Any], path: Path, messages: list[str]) -> None:
         """校验 PPTX 文件
 
         Args:
             item: 提交物定义
             path: 文件路径
+            messages: 用于收集本项校验消息的列表
         """
         try:
             from pptx import Presentation
@@ -159,12 +240,17 @@ class SubmissionValidator:
             max_slides = reqs.get("max_slides")
 
             if min_slides and num_slides < min_slides:
-                self.errors.append(f"[{item['id']}] PPT 页数不足: {num_slides} < {min_slides}")
-                print(f"  ❌ 页数不足: {num_slides} < {min_slides}")
+                msg = f"PPT 页数不足: {num_slides} < {min_slides}"
+                self.errors.append(f"[{item['id']}] {msg}")
+                messages.append(msg)
+                print(f"  ❌ {msg}")
             elif max_slides and num_slides > max_slides:
-                self.errors.append(f"[{item['id']}] PPT 页数超限: {num_slides} > {max_slides}")
-                print(f"  ❌ 页数超限: {num_slides} > {max_slides}")
+                msg = f"PPT 页数超限: {num_slides} > {max_slides}"
+                self.errors.append(f"[{item['id']}] {msg}")
+                messages.append(msg)
+                print(f"  ❌ {msg}")
             else:
+                messages.append(f"幻灯片数: {num_slides}")
                 print(f"  ✅ 幻灯片数: {num_slides}")
 
             # 检查必需幻灯片
@@ -179,24 +265,32 @@ class SubmissionValidator:
                     title for title in must_contain if not any(title in t for t in slide_titles)
                 ]
                 if missing:
-                    self.warnings.append(f"[{item['id']}] PPT 缺少幻灯片: {', '.join(missing)}")
-                    print(f"  ⚠️  缺少幻灯片: {', '.join(missing)}")
+                    msg = f"PPT 缺少幻灯片: {', '.join(missing)}"
+                    self.warnings.append(f"[{item['id']}] {msg}")
+                    messages.append(msg)
+                    print(f"  ⚠️  {msg}")
                 else:
+                    messages.append("包含所有必需幻灯片")
                     print("  ✅ 包含所有必需幻灯片")
 
         except ImportError:
-            self.warnings.append(f"[{item['id']}] python-pptx 未安装，跳过 PPTX 详细校验")
-            print("  ⚠️  python-pptx 未安装，跳过详细校验")
+            msg = "python-pptx 未安装，跳过 PPTX 详细校验"
+            self.warnings.append(f"[{item['id']}] {msg}")
+            messages.append(msg)
+            print(f"  ⚠️  {msg}")
         except Exception as e:
-            self.errors.append(f"[{item['id']}] PPTX 校验失败: {e}")
-            print(f"  ❌ 校验失败: {e}")
+            msg = f"PPTX 校验失败: {e}"
+            self.errors.append(f"[{item['id']}] {msg}")
+            messages.append(msg)
+            print(f"  ❌ {msg}")
 
-    def _validate_mp4(self, item: dict[str, Any], path: Path) -> None:
+    def _validate_mp4(self, item: dict[str, Any], path: Path, messages: list[str]) -> None:
         """校验 MP4 文件
 
         Args:
             item: 提交物定义
             path: 文件路径
+            messages: 用于收集本项校验消息的列表
         """
         try:
             # 检查文件大小
@@ -205,9 +299,12 @@ class SubmissionValidator:
             max_size = reqs.get("max_size_mb")
 
             if max_size and size_mb > max_size:
-                self.errors.append(f"[{item['id']}] 视频文件过大: {size_mb:.1f}MB > {max_size}MB")
-                print(f"  ❌ 文件过大: {size_mb:.1f}MB > {max_size}MB")
+                msg = f"视频文件过大: {size_mb:.1f}MB > {max_size}MB"
+                self.errors.append(f"[{item['id']}] {msg}")
+                messages.append(msg)
+                print(f"  ❌ {msg}")
             else:
+                messages.append(f"文件大小: {size_mb:.1f}MB")
                 print(f"  ✅ 文件大小: {size_mb:.1f}MB")
 
             # 使用 ffprobe 检查时长和分辨率
@@ -241,61 +338,74 @@ class SubmissionValidator:
             max_duration = reqs.get("max_duration_seconds")
 
             if min_duration and duration < min_duration:
-                self.errors.append(
-                    f"[{item['id']}] 视频时长不足: {duration:.1f}s < {min_duration}s"
-                )
-                print(f"  ❌ 时长不足: {duration:.1f}s < {min_duration}s")
+                msg = f"视频时长不足: {duration:.1f}s < {min_duration}s"
+                self.errors.append(f"[{item['id']}] {msg}")
+                messages.append(msg)
+                print(f"  ❌ {msg}")
             elif max_duration and duration > max_duration:
-                self.errors.append(
-                    f"[{item['id']}] 视频时长超限: {duration:.1f}s > {max_duration}s"
-                )
-                print(f"  ❌ 时长超限: {duration:.1f}s > {max_duration}s")
+                msg = f"视频时长超限: {duration:.1f}s > {max_duration}s"
+                self.errors.append(f"[{item['id']}] {msg}")
+                messages.append(msg)
+                print(f"  ❌ {msg}")
             else:
+                messages.append(f"时长: {duration:.1f}s")
                 print(f"  ✅ 时长: {duration:.1f}s")
 
             expected_resolution = reqs.get("resolution")
             if expected_resolution:
                 exp_w, exp_h = map(int, expected_resolution.split("x"))
                 if width != exp_w or height != exp_h:
-                    self.errors.append(
-                        f"[{item['id']}] 视频分辨率不匹配: {width}x{height} != {expected_resolution}"
-                    )
-                    print(f"  ❌ 分辨率: {width}x{height} != {expected_resolution}")
+                    msg = f"视频分辨率不匹配: {width}x{height} != {expected_resolution}"
+                    self.errors.append(f"[{item['id']}] {msg}")
+                    messages.append(msg)
+                    print(f"  ❌ {msg}")
                 else:
+                    messages.append(f"分辨率: {width}x{height}")
                     print(f"  ✅ 分辨率: {width}x{height}")
 
         except FileNotFoundError:
-            self.warnings.append(f"[{item['id']}] ffprobe 未安装，跳过 MP4 详细校验")
-            print("  ⚠️  ffprobe 未安装，跳过详细校验")
+            msg = "ffprobe 未安装，跳过 MP4 详细校验"
+            self.warnings.append(f"[{item['id']}] {msg}")
+            messages.append(msg)
+            print(f"  ⚠️  {msg}")
         except subprocess.CalledProcessError as e:
-            self.errors.append(f"[{item['id']}] ffprobe 执行失败: {e}")
-            print("  ❌ ffprobe 执行失败")
+            msg = f"ffprobe 执行失败: {e}"
+            self.errors.append(f"[{item['id']}] {msg}")
+            messages.append(msg)
+            print(f"  ❌ {msg}")
         except Exception as e:
-            self.errors.append(f"[{item['id']}] MP4 校验失败: {e}")
-            print(f"  ❌ 校验失败: {e}")
+            msg = f"MP4 校验失败: {e}"
+            self.errors.append(f"[{item['id']}] {msg}")
+            messages.append(msg)
+            print(f"  ❌ {msg}")
 
-    def _validate_zip(self, item: dict[str, Any], path: Path) -> None:
+    def _validate_zip(self, item: dict[str, Any], path: Path, messages: list[str]) -> None:
         """校验 ZIP 文件
 
         Args:
             item: 提交物定义
             path: 文件路径
+            messages: 用于收集本项校验消息的列表
         """
         size_mb = path.stat().st_size / (1024 * 1024)
         reqs = item.get("requirements", {})
         max_size = reqs.get("max_size_mb")
 
         if max_size and size_mb > max_size:
-            self.errors.append(f"[{item['id']}] ZIP 文件过大: {size_mb:.1f}MB > {max_size}MB")
-            print(f"  ❌ 文件过大: {size_mb:.1f}MB > {max_size}MB")
+            msg = f"ZIP 文件过大: {size_mb:.1f}MB > {max_size}MB"
+            self.errors.append(f"[{item['id']}] {msg}")
+            messages.append(msg)
+            print(f"  ❌ {msg}")
         else:
+            messages.append(f"文件大小: {size_mb:.1f}MB")
             print(f"  ✅ 文件大小: {size_mb:.1f}MB")
 
-    def _validate_git_tag(self, item: dict[str, Any]) -> None:
+    def _validate_git_tag(self, item: dict[str, Any], messages: list[str]) -> None:
         """校验 Git 标签
 
         Args:
             item: 提交物定义
+            messages: 用于收集本项校验消息的列表
         """
         reqs = item.get("requirements", {})
         tag = reqs.get("tag")
@@ -310,22 +420,29 @@ class SubmissionValidator:
                     cwd=self.project_root,
                 )
                 if tag in result.stdout:
+                    messages.append(f"标签存在: {tag}")
                     print(f"  ✅ 标签存在: {tag}")
                 else:
-                    self.errors.append(f"[{item['id']}] Git 标签不存在: {tag}")
-                    print(f"  ❌ 标签不存在: {tag}")
+                    msg = f"Git 标签不存在: {tag}"
+                    self.errors.append(f"[{item['id']}] {msg}")
+                    messages.append(msg)
+                    print(f"  ❌ {msg}")
             except Exception as e:
-                self.errors.append(f"[{item['id']}] Git 标签校验失败: {e}")
-                print(f"  ❌ 校验失败: {e}")
+                msg = f"Git 标签校验失败: {e}"
+                self.errors.append(f"[{item['id']}] {msg}")
+                messages.append(msg)
+                print(f"  ❌ {msg}")
 
-    def _validate_markdown(self, item: dict[str, Any], path: Path) -> None:
+    def _validate_markdown(self, item: dict[str, Any], path: Path, messages: list[str]) -> None:
         """校验 Markdown 文件
 
         Args:
             item: 提交物定义
             path: 文件路径
+            messages: 用于收集本项校验消息的列表
         """
         if item.get("must_exist", False):
+            messages.append("文件存在")
             print("  ✅ 文件存在")
 
     def _check_dependency(self, item: dict[str, Any]) -> None:
@@ -364,6 +481,109 @@ class SubmissionValidator:
             print("\n❌ 校验失败，存在错误需要修复")
         else:
             print("\n✅ 校验通过，所有提交物符合要求")
+
+    # 缺失项与建议处理方式的映射，用于生成跟踪报告
+    MISSING_ITEM_GUIDANCE: ClassVar[dict[str, str]] = {
+        "CODE_REPO": "在代码冻结日（2026-08-15）后由管理员执行 `git tag v8.0-submission` 并推送标签",
+        "CODE_ARCHIVE": "代码冻结后执行 `python scripts/ci/validate_submission.py --pack` 生成压缩包",
+        "WHITEPAPER": "将 `技术白皮书_量子RL调度系统_v3.docx` 导出为 PDF（20-50 页，需含摘要/目录/参考文献）",
+        "PRESENTATION": "根据 `答辩PPT大纲.md` 制作 .pptx 文件（15-20 页，需含封面/问题定义/架构图/实验结果/团队介绍）",
+        "DEMO_VIDEO": "录制 4-5 分钟 1080p 演示视频（关联 Issue #169）",
+    }
+
+    def generate_report(self, output_path: str) -> None:
+        """生成 Markdown 格式的缺失项清单报告
+
+        Args:
+            output_path: 报告输出路径
+        """
+        passed_items = [r for r in self.results if r.passed]
+        failed_items = [r for r in self.results if not r.passed]
+        warning_items = [r for r in self.results if r.severity == "warning"]
+
+        version = self.manifest["submission"]["version"]
+        deadline = self.manifest["submission"]["deadline"]
+
+        lines: list[str] = []
+        lines.append("# 提交物校验报告 — Issue #168")
+        lines.append("")
+        lines.append(f"- **版本**: {version}")
+        lines.append(f"- **截止日期**: {deadline}")
+        lines.append(f"- **生成时间**: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        lines.append(
+            f"- **总数**: {len(self.results)} 项  |  ✅ 通过: {len(passed_items)}  |  ❌ 缺失: {len(failed_items)}"
+        )
+        lines.append("")
+        lines.append("---")
+        lines.append("")
+
+        # 缺失项清单
+        lines.append("## ❌ 缺失项清单（需处理）")
+        lines.append("")
+        if not failed_items:
+            lines.append("无缺失项，所有交付物已就位。")
+            lines.append("")
+        else:
+            lines.append("| 编号 | 名称 | 类型 | 期望路径 | 严重度 | 说明 | 建议处理方式 |")
+            lines.append("|:--:|:--|:--:|:--|:--:|:--|:--|")
+            for r in failed_items:
+                guidance = self.MISSING_ITEM_GUIDANCE.get(r.item_id, "—")
+                msg_text = "; ".join(r.messages) if r.messages else "—"
+                lines.append(
+                    f"| {r.item_id} | {r.name} | {r.item_type} | `{r.path}` | {r.severity} | {msg_text} | {guidance} |"
+                )
+            lines.append("")
+
+        # 警告项清单
+        if warning_items:
+            lines.append("## ⚠️ 警告项清单（建议关注）")
+            lines.append("")
+            lines.append("| 编号 | 名称 | 说明 |")
+            lines.append("|:--:|:--|:--|")
+            for r in warning_items:
+                msg_text = "; ".join(r.messages) if r.messages else "—"
+                lines.append(f"| {r.item_id} | {r.name} | {msg_text} |")
+            lines.append("")
+
+        # 已通过项清单
+        lines.append("## ✅ 已通过项清单")
+        lines.append("")
+        if not passed_items:
+            lines.append("无已通过项。")
+            lines.append("")
+        else:
+            lines.append("| 编号 | 名称 | 类型 | 路径 | 说明 |")
+            lines.append("|:--:|:--|:--:|:--|:--|")
+            for r in passed_items:
+                msg_text = "; ".join(r.messages) if r.messages else "—"
+                lines.append(
+                    f"| {r.item_id} | {r.name} | {r.item_type} | `{r.path}` | {msg_text} |"
+                )
+            lines.append("")
+
+        # 下一步行动
+        lines.append("## 📋 下一步行动")
+        lines.append("")
+        if not failed_items:
+            lines.append("所有交付物已就位，可以执行 `--pack` 打包提交。")
+        else:
+            lines.append("按以下顺序处理缺失项：")
+            lines.append("")
+            # 按优先级排序：error 优先于 warning
+            ordered = sorted(failed_items, key=lambda x: 0 if x.severity == "error" else 1)
+            for idx, r in enumerate(ordered, 1):
+                guidance = self.MISSING_ITEM_GUIDANCE.get(r.item_id, "—")
+                lines.append(f"{idx}. **[{r.item_id}] {r.name}** — {guidance}")
+            lines.append("")
+            lines.append(
+                "> 处理完成后重新运行 `python scripts/ci/validate_submission.py --check` 验证。"
+            )
+        lines.append("")
+
+        output = Path(output_path)
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text("\n".join(lines), encoding="utf-8")
+        print(f"\n📝 缺失项清单已生成: {output}")
 
 
 def package_submission(manifest_path: str, project_root: str = ".") -> None:
@@ -422,6 +642,9 @@ def main() -> None:
   # 校验并打包
   python scripts/ci/validate_submission.py --pack
 
+  # 校验并生成缺失项清单报告（Issue #168）
+  python scripts/ci/validate_submission.py --check --report results/reports/submission_validation_report.md
+
   # 自定义路径
   python scripts/ci/validate_submission.py --check --manifest config/submission_manifest.yaml --project-root .
         """,
@@ -429,6 +652,12 @@ def main() -> None:
 
     parser.add_argument("--check", action="store_true", help="仅校验提交物")
     parser.add_argument("--pack", action="store_true", help="校验并打包提交物")
+    parser.add_argument(
+        "--report",
+        type=str,
+        default=None,
+        help="将校验结果输出为 Markdown 格式的缺失项清单报告（推荐: results/reports/submission_validation_report.md）",
+    )
     parser.add_argument(
         "--manifest",
         type=str,
@@ -452,6 +681,8 @@ def main() -> None:
     else:
         validator = SubmissionValidator(args.manifest, args.project_root)
         success = validator.validate_all()
+        if args.report:
+            validator.generate_report(args.report)
         sys.exit(0 if success else 1)
 
 
