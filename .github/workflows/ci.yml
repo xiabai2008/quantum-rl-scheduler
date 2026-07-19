@@ -64,7 +64,9 @@ jobs:
   test:
     name: "Test (${{ matrix.os }}, Python ${{ matrix.python-version }})"
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 30
+    # 60 分钟：Linux/macOS 上 neal/dimod 模拟退火测试比 Windows 慢 5x，
+    # 500+ 测试用例在共享 runner 上需 ~40 分钟。30 分钟会触发 timeout。
+    timeout-minutes: 60
     needs: lint
     strategy:
       fail-fast: false
