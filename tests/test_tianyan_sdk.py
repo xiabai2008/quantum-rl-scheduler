@@ -248,6 +248,13 @@ def test_task_status_result_shapes_and_request_timeout(
     cast(Any, client)._platform.query_experiment.side_effect = request_error("still running")
     assert client.get_task_status("timeout")["status"] == "running"
 
+    cast(Any, client)._platform.query_experiment.side_effect = request_error(
+        "Run failure: tasks have failed"
+    )
+    failed = client.get_task_status("failed")
+    assert failed["status"] == "error"
+    assert "Run failure" in failed["error"]
+
 
 def test_task_status_generic_error(client: CqlibTianyanClient) -> None:
     """非超时查询异常应返回 error，不能中断调度循环。"""

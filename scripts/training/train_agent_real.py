@@ -23,6 +23,8 @@ from dotenv import load_dotenv
 from stable_baselines3 import PPO
 from stable_baselines3.common.callbacks import BaseCallback
 
+plt.switch_backend("Agg")
+
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
