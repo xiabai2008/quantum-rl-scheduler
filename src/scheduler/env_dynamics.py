@@ -30,7 +30,11 @@ if TYPE_CHECKING:
     from src.scheduler.env import QuantumSchedulingEnv
 
 
-def generate_random_task(rng: np.random.Generator, task_id: int) -> Task:
+def generate_random_task(
+    rng: np.random.Generator,
+    task_id: int,
+    quantum_ratio: float | None = None,
+) -> Task:
     """
     生成具有真实差异性的随机任务（异质化版本）。
 
@@ -41,8 +45,10 @@ def generate_random_task(rng: np.random.Generator, task_id: int) -> Task:
         - task_type: 混合分布，量子任务居多
 
     Args:
-        rng     : NumPy 随机数生成器
-        task_id : 任务编号
+        rng           : NumPy 随机数生成器
+        task_id       : 任务编号
+        quantum_ratio : 可选的量子任务占比。None 保留历史异质分布；
+                        指定后仅生成 quantum/classical 两类任务
 
     Returns:
         Task: 生成的随机任务对象
@@ -58,9 +64,12 @@ def generate_random_task(rng: np.random.Generator, task_id: int) -> Task:
     base_time = int(qubits**0.6)
     execution_time = max(1, base_time + int(rng.choice([-1, 0, 0, 0, 1, 2])))
 
-    task_type_options = ["quantum", "quantum", "classical", "classical", "universal"]
-    task_type_probs = [0.35, 0.35, 0.10, 0.10, 0.10]
-    task_type = str(rng.choice(task_type_options, p=task_type_probs))
+    if quantum_ratio is None:
+        task_type_options = ["quantum", "quantum", "classical", "classical", "universal"]
+        task_type_probs = [0.35, 0.35, 0.10, 0.10, 0.10]
+        task_type = str(rng.choice(task_type_options, p=task_type_probs))
+    else:
+        task_type = "quantum" if rng.random() < quantum_ratio else "classical"
 
     qubit_count = 0 if task_type == "classical" else qubits
 
@@ -155,8 +164,8 @@ def advance_time(env: "QuantumSchedulingEnv", rng: np.random.Generator) -> None:
     for task in env._task_queue:
         task.wait_steps += 1
 
-    # 随机生成新任务（泊松分布，均值 1.2）
-    new_task_count = int(rng.poisson(1.2))
+    # 随机生成新任务。默认泊松均值 1.2；评估脚本可注入固定或周期到达率。
+    new_task_count = int(rng.poisson(env._get_arrival_lambda()))
     for _ in range(new_task_count):
         if len(env._task_queue) < MAX_QUEUE_SIZE:
             new_id = env._total_scheduled + len(env._task_queue)

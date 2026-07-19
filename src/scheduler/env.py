@@ -5,6 +5,7 @@
 观测构建→env_observation.py。本文件保留核心类与薄包装，重新导出全部符号以保持向后兼容。
 """
 
+from collections.abc import Callable
 from typing import Any
 
 import gymnasium as gym
@@ -145,6 +146,8 @@ class QuantumSchedulingEnv(gym.Env):
         max_real_submissions: int | None = None,
         real_machine_shots: int = 512,
         tenant_manager: Any | None = None,
+        arrival_lambda: float | Callable[[int, int], float] | None = None,
+        quantum_task_ratio: float | None = None,
     ):
         """初始化量子任务调度环境（参数详见子模块文档）。"""
         super().__init__()
@@ -161,6 +164,16 @@ class QuantumSchedulingEnv(gym.Env):
             raise ValueError("real_machine_shots must be positive")
         self.max_real_submissions = max_real_submissions
         self.real_machine_shots = int(real_machine_shots)
+        if arrival_lambda is not None and not callable(arrival_lambda):
+            if float(arrival_lambda) < 0.0:
+                raise ValueError("arrival_lambda must be non-negative")
+            arrival_lambda = float(arrival_lambda)
+        if quantum_task_ratio is not None and not 0.0 <= float(quantum_task_ratio) <= 1.0:
+            raise ValueError("quantum_task_ratio must be between 0 and 1")
+        self.arrival_lambda = arrival_lambda
+        self.quantum_task_ratio = (
+            float(quantum_task_ratio) if quantum_task_ratio is not None else None
+        )
 
         # Gymnasium 标准空间定义（保持 14 维 obs + Discrete(3) 不变，确保 PPO 模型可复用）
         self.observation_space = spaces.Box(low=0.0, high=1.0, shape=(OBS_DIM,), dtype=np.float32)
@@ -466,7 +479,18 @@ class QuantumSchedulingEnv(gym.Env):
         close_env(self)
 
     def _generate_random_task(self, rng: np.random.Generator, task_id: int) -> Task:
-        return generate_random_task(rng, task_id)
+        return generate_random_task(rng, task_id, self.quantum_task_ratio)
+
+    def _get_arrival_lambda(self) -> float:
+        """返回当前步的泊松到达率，供多负载评估使用。"""
+        if self.arrival_lambda is None:
+            return 1.2
+        if callable(self.arrival_lambda):
+            value = float(self.arrival_lambda(self._current_step, self.max_steps))
+            if value < 0.0:
+                raise ValueError("arrival_lambda schedule returned a negative value")
+            return value
+        return float(self.arrival_lambda)
 
     def _check_compatibility(self, task: Task, action: int) -> bool:
         return check_compatibility(task, action)
