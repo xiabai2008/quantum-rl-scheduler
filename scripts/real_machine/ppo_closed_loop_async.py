@@ -39,9 +39,10 @@ import os
 import sys
 import threading
 import time
+from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Callable, Optional
+from typing import Any
 
 # ---------------------------------------------------------------------------
 # 环境变量设置（必须在 import 项目模块之前）
@@ -134,7 +135,7 @@ class AsyncResultPoller:
         self._pending_lock = threading.Lock()
         self._pending: list[dict[str, Any]] = []
         self._running = False
-        self._thread: Optional[threading.Thread] = None
+        self._thread: threading.Thread | None = None
         self._degraded = False
 
         logger.info(
@@ -248,7 +249,6 @@ class AsyncResultPoller:
                 - status="failed": 任务运行失败，result 是错误消息
                 - status=False: 任务仍在运行，需要继续轮询
             """
-            from cqlib.exceptions import CqlibRequestError
 
             try:
                 raw = self._client.platform._send_request(
@@ -464,9 +464,9 @@ def main() -> None:
     if args.max_real_tasks > 0:
         print(f"  真机任务上限: {args.max_real_tasks}（到达后自动切换仿真）")
     if args.mock:
-        print(f"  模式: [MOCK] 模拟环境（不使用真机）")
+        print("  模式: [MOCK] 模拟环境（不使用真机）")
     else:
-        print(f"  模式: [REAL] 异步真机闭环训练（后台轮询）")
+        print("  模式: [REAL] 异步真机闭环训练（后台轮询）")
     print(f"{'=' * 70}\n")
 
     # ── 步骤 1: 创建环境 ──
@@ -501,7 +501,7 @@ def main() -> None:
 
     # ── 步骤 2: 绑定真机客户端 ──
     print("\n--- [2/5] 绑定真机客户端 ---")
-    async_poller: Optional[AsyncResultPoller] = None
+    async_poller: AsyncResultPoller | None = None
 
     if not args.mock:
         api_key = os.environ.get("TIANYAN_API_KEY", "")
@@ -577,9 +577,7 @@ def main() -> None:
                         _time.sleep(1.0)
             raise last_error  # type: ignore[misc]
 
-        client.platform._send_request = types.MethodType(
-            _fast_send_request, client.platform
-        )  # type: ignore[method-assign]
+        client.platform._send_request = types.MethodType(_fast_send_request, client.platform)  # type: ignore[method-assign]
 
         # ── Monkey-patch 1: 覆盖 env._poll_pending_real_tasks 集成异步轮询 ──
         # 同步版是每步轮询所有 pending，会阻塞训练。异步版只做：
@@ -593,10 +591,6 @@ def main() -> None:
 
             实际轮询发生在后台线程，本方法只收集已完成结果。
             """
-            from src.scheduler.env_types import (
-                REAL_MACHINE_FAIL_PENALTY,
-                REAL_MACHINE_SUCCESS_BONUS,
-            )
 
             # 降级处理：清空所有 pending，停止后台轮询
             if self._real_machine_degraded:
@@ -618,14 +612,10 @@ def main() -> None:
             # 异步轮询：后台处理一切，这里只返回 0（反馈由回调累加）
             return 0.0
 
-        env._poll_pending_real_tasks = types.MethodType(
-            _async_patched_poll, env
-        )  # type: ignore[method-assign]
+        env._poll_pending_real_tasks = types.MethodType(_async_patched_poll, env)  # type: ignore[method-assign]
 
         # ── 步骤 2a: 创建并启动异步轮询器 ──
         from src.scheduler.env_real_machine import (
-            REAL_MACHINE_FAIL_PENALTY,
-            REAL_MACHINE_SUCCESS_BONUS,
             _update_task_duration,
             record_real_failure,
         )
@@ -669,8 +659,7 @@ def main() -> None:
             if env._real_consecutive_failures >= args.degrade_threshold:
                 env._real_machine_degraded = True
                 logger.warning(
-                    f"[异步回调] 连续失败 {env._real_consecutive_failures} 次，"
-                    f"自动降级为仿真模式"
+                    f"[异步回调] 连续失败 {env._real_consecutive_failures} 次，自动降级为仿真模式"
                 )
                 print(
                     f"  [降级] 连续失败 {env._real_consecutive_failures} 次，已降级为仿真模式",
@@ -751,7 +740,7 @@ def main() -> None:
 
     # 输出模型信息
     logger.info(f"[Agent] PPO Agent 创建完成: lr={args.learning_rate}, n_steps={args.n_steps}")
-    print(f"[Agent] PPO Agent 创建完成")
+    print("[Agent] PPO Agent 创建完成")
     print(f"  观测空间维度: {env.observation_space.shape}")
     print(f"  动作空间大小: {env.action_space.n}")
 
@@ -775,7 +764,7 @@ def main() -> None:
         record_cb.save()
         if agent.model:
             agent.save(str(output_dir / f"interrupt_{int(time.time())}"))
-            print(f"[INFO] 中断模型已保存", flush=True)
+            print("[INFO] 中断模型已保存", flush=True)
         if async_poller:
             async_poller.stop()
         sys.exit(1)
@@ -801,7 +790,7 @@ def main() -> None:
     # 打印最终统计
     stats = env.get_real_machine_stats()
     print(f"\n{'=' * 70}")
-    print(f"  PPO 真机闭环训练（异步版）完成")
+    print("  PPO 真机闭环训练（异步版）完成")
     print(f"{'=' * 70}")
     print(f"  总训练步数: {args.timesteps}")
     print(f"  总耗时: {training_time / 60:.2f} 分钟")

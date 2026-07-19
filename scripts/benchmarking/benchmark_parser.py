@@ -103,8 +103,7 @@ def run_case(
         raise RuntimeError(f"{case.name} 解析失败：parser 返回 None")
     if last_features.qubit_count != case.qubits:
         raise RuntimeError(
-            f"{case.name} 解析结果错误：期望 {case.qubits} qubits，"
-            f"实际 {last_features.qubit_count}"
+            f"{case.name} 解析结果错误：期望 {case.qubits} qubits，实际 {last_features.qubit_count}"
         )
 
     return BenchmarkResult(

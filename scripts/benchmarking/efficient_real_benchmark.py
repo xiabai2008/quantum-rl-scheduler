@@ -96,10 +96,10 @@ def run_strategy_bench(args):
     total_tasks = len(machines) * len(strategy_names()) * args.samples
     done = 0
 
-    print(f"\n{'=' *60}")
+    print(f"\n{'=' * 60}")
     print(f"  策略对比 — {len(machines)} 台 × {len(strategy_names())} 策略 × {args.samples} 次")
     print(f"  总任务数: {total_tasks}, 预计耗时: ~{total_tasks * 1.5:.0f}min")
-    print(f"{'=' *60}")
+    print(f"{'=' * 60}")
 
     for machine_name in machines:
         print(f"\n🖥️ {machine_name}")
@@ -124,9 +124,9 @@ def run_strategy_bench(args):
 
 def run_annealing_test():
     """测试量子退火 QUBO 求解"""
-    print(f"\n{'=' *60}")
+    print(f"\n{'=' * 60}")
     print("  量子退火验证")
-    print(f"{'=' *60}")
+    print(f"{'=' * 60}")
 
     try:
         from src.quantum.annealing import QuantumAnnealingOptimizer
@@ -144,9 +144,9 @@ def run_annealing_test():
 
 def run_fault_test(args):
     """测试故障切换：故意提交到不存在的机器"""
-    print(f"\n{'=' *60}")
+    print(f"\n{'=' * 60}")
     print("  故障容错测试")
-    print(f"{'=' *60}")
+    print(f"{'=' * 60}")
 
     circuit = build_test_circuit()
     try:
@@ -224,9 +224,9 @@ def analyze(results, annealing, fault):
 
 
 def print_report(summary):
-    print(f"\n{'=' *60}")
+    print(f"\n{'=' * 60}")
     print("  📊 验证报告")
-    print(f"{'=' *60}")
+    print(f"{'=' * 60}")
     print(f"  总任务: {summary['total_tasks_submitted']}")
     print(f"  成功: {summary['total_success']} ({summary['overall_success_rate']:.0%})")
     print("\n  策略排名（按成功率）:")

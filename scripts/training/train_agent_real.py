@@ -23,6 +23,8 @@ from dotenv import load_dotenv
 from stable_baselines3 import PPO
 from stable_baselines3.common.callbacks import BaseCallback
 
+plt.switch_backend("Agg")
+
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
@@ -138,8 +140,7 @@ def run_preflight(
     """执行不泄密预检和一个 1-qubit 真机冒烟任务。"""
     if machine not in PHYSICAL_HARDWARE_MACHINES:
         raise RuntimeError(
-            f"{machine} 不是本实验允许的物理真机；"
-            "tianyan_s/sw/tn/tnn/sa 等均为模拟器，禁止计作真机"
+            f"{machine} 不是本实验允许的物理真机；tianyan_s/sw/tn/tnn/sa 等均为模拟器，禁止计作真机"
         )
     load_dotenv(_PROJECT_ROOT / ".env")
     api_key = os.getenv("TIANYAN_API_KEY", "")

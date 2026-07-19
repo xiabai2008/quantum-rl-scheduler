@@ -95,8 +95,7 @@ class PPOAgent:
             )
             sim_tag = "仿真" if self.annealing_optimizer.simulation_mode else "真机"
             logger.info(
-                f"[PPOAgent] 量子退火器已启用（{sim_tag}模式），"
-                f"退火间隔={self.anneal_interval}步"
+                f"[PPOAgent] 量子退火器已启用（{sim_tag}模式），退火间隔={self.anneal_interval}步"
             )
 
     def _build_model(self) -> PPO:

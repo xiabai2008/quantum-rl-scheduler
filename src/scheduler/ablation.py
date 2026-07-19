@@ -410,7 +410,7 @@ class AblationRunner:
         lines.append("# 消融实验报告")
         lines.append("")
         lines.append(
-            f"> 生成时间: {datetime.now(timezone.utc).isoformat()}  " f"| 配置数: {len(results)}"
+            f"> 生成时间: {datetime.now(timezone.utc).isoformat()}  | 配置数: {len(results)}"
         )
         lines.append("")
         lines.append("---")
@@ -420,7 +420,7 @@ class AblationRunner:
         lines.append("## 结果汇总")
         lines.append("")
         lines.append(
-            "| 配置名 | 描述 | 平均奖励 | 标准差 | 完成率 | " "平均等待(步) | 资源利用率 | 回合数 |"
+            "| 配置名 | 描述 | 平均奖励 | 标准差 | 完成率 | 平均等待(步) | 资源利用率 | 回合数 |"
         )
         lines.append("|:--|:--|--:|--:|--:|--:|--:|--:|")
         for r in results:

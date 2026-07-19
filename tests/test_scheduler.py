@@ -27,7 +27,7 @@ from scripts.evaluation.run_simulation import (
     RandomStrategy,
     ShortestJobFirstStrategy,
 )
-from src.quantum.annealing import QuantumAnnealingOptimizer
+from src.quantum.annealing import QuantumAnnealingOptimizer, _DWAVE_AVAILABLE
 from src.scheduler.agent import DuelingQNetwork, SchedulerAgent
 from src.scheduler.env import (
     DEFAULT_MACHINE_CONFIGS,
@@ -38,13 +38,11 @@ from src.scheduler.env import (
 )
 from src.scheduler.parser import (
     LegacyTaskParser,
-)
-from src.scheduler.parser import Task as ParserTask
-from src.scheduler.parser import (
     TaskBuilder,
     TaskFeatures,
     TaskParser,
 )
+from src.scheduler.parser import Task as ParserTask
 
 
 class TestQuantumSchedulingEnv(unittest.TestCase):
@@ -807,7 +805,9 @@ class TestQuantumAnnealing(unittest.TestCase):
         """测试优化器初始化"""
         self.assertEqual(self.optimizer.num_qubits, 8)
         self.assertEqual(self.optimizer.shots, 100)
-        self.assertFalse(self.optimizer.use_dw)
+        # use_dw 取决于 dwave-neal 是否安装（requirements.txt 含 dwave-neal，
+        # CI 环境下 _DWAVE_AVAILABLE=True；纯 numpy 环境下为 False）
+        self.assertEqual(self.optimizer.use_dw, _DWAVE_AVAILABLE)
 
     def test_network_to_qubo(self):
         """测试权重到 QUBO 的映射"""

@@ -27,13 +27,11 @@ from src.scheduler.parser import (
     PRIORITY_MAP,
     PRIORITY_REVERSE,
     LegacyTaskParser,
-)
-from src.scheduler.parser import Task as ParserTask
-from src.scheduler.parser import (
     TaskBuilder,
     TaskFeatures,
     TaskParser,
 )
+from src.scheduler.parser import Task as ParserTask
 
 # ============================================================
 # Task 数据类

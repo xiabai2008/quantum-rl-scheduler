@@ -110,11 +110,11 @@ def generate_qcis_circuit(
         for _ in range(depth_factor):
             for q in range(0, n_qubits - 1, 2):
                 gate = rng.choice(_TWO_QUBIT_GATES)
-                lines.append(f"{gate} Q{q} Q{q+1}")
+                lines.append(f"{gate} Q{q} Q{q + 1}")
             # 交错对：覆盖奇数起始的比特对
             for q in range(1, n_qubits - 1, 2):
                 gate = rng.choice(_TWO_QUBIT_GATES)
-                lines.append(f"{gate} Q{q} Q{q+1}")
+                lines.append(f"{gate} Q{q} Q{q + 1}")
 
     # ── 第 3 层：测量 ──
     for q in range(n_qubits):
@@ -312,7 +312,7 @@ def poll_pending_real_tasks(env: "QuantumSchedulingEnv") -> float:
             total_feedback += REAL_MACHINE_FAIL_PENALTY * env.real_machine_feedback_weight
             record_real_failure(env, machine_name, "轮询超时")
             logger.debug(
-                f"[真机闭环] 任务 {task_id_str} 轮询超时 " f"(poll_count={pending['poll_count']})"
+                f"[真机闭环] 任务 {task_id_str} 轮询超时 (poll_count={pending['poll_count']})"
             )
         else:
             # 仍在运行，保留到下一步轮询
@@ -353,8 +353,7 @@ def _update_task_duration(
     if env._current_task is not None and str(env._current_task.task_id) == task_id_str:
         env._current_task.execution_time = 0
         logger.debug(
-            f"[真机闭环] 回写当前任务 {task_id_str} "
-            f"实际执行 {actual_execution_s:.2f}s → 标记完成"
+            f"[真机闭环] 回写当前任务 {task_id_str} 实际执行 {actual_execution_s:.2f}s → 标记完成"
         )
         return
 

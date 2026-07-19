@@ -317,10 +317,8 @@ def main():
             deterministic=True,
         )
         eval_duration = time.time() - eval_start
-        print(f"评估结果 ({eval_result['num_episodes']} episodes, " f"耗时 {eval_duration:.1f}s):")
-        print(
-            f"  平均奖励 : {eval_result['mean_reward']:.2f} " f"± {eval_result['std_reward']:.2f}"
-        )
+        print(f"评估结果 ({eval_result['num_episodes']} episodes, 耗时 {eval_duration:.1f}s):")
+        print(f"  平均奖励 : {eval_result['mean_reward']:.2f} ± {eval_result['std_reward']:.2f}")
         print(f"  成功率   : {eval_result['success_rate'] * 100:.1f}%")
 
         # 保存评估结果

@@ -11,7 +11,9 @@ Multi-Seed Strategy Comparison with Statistical Significance Testing
     python scripts/evaluation/run_multiseed_evaluation.py --seeds 10 --episodes 5
 """
 
+import contextlib
 import json
+import math
 import sys
 import time
 from datetime import datetime
@@ -25,29 +27,23 @@ if str(_PROJECT_ROOT) not in sys.path:
 
 # 复用 run_issue_38_67_experiments.py 的基础设施
 sys.path.insert(0, str(_PROJECT_ROOT / "scripts" / "evaluation"))
-from run_issue_38_67_experiments import (  # noqa: E402
-    ClassicalOnlyStrategy,
-    DQNModelStrategy,
-    FCFSStrategy,
-    GreedyStrategy,
-    Obs10Wrapper,
-    PPOStrategy,
-    QuantumOnlyStrategy,
-    RandomStrategy,
-    ShortestJobFirstStrategy,
+from run_issue_38_67_experiments import (
     SimulationEnv,
     SimulationTaskGenerator,
     build_strategies,
     make_env,
 )
 
+from src.utils.stats_significance import bootstrap_improvement_ci
+
 
 def run_multiseed(
     seeds: int = 10,
     episodes_per_seed: int = 5,
     tasks_per_episode: int = 200,
-    ppo_model: str = "models/ppo_seed_42_v4/best_model.zip",
-    dqn_model: str = "models/dqn_fair_v2/seed_42/best_model.zip",
+    ppo_model: str = "deliverable_models/ppo_best_model_14dim.zip",
+    dqn_model: str = "deliverable_models/dqn_best_model_10dim.zip",
+    obs_dim: int = 14,
     alpha: float = 0.05,
 ) -> dict:
     """运行多seed评估并生成统计显著性报告。"""
@@ -57,13 +53,16 @@ def run_multiseed(
     print(f"  Seeds:           {seeds}")
     print(f"  Episodes/Seed:   {episodes_per_seed}")
     print(f"  Max Steps/Ep:    {tasks_per_episode}")
+    print(f"  Obs Dim:         {obs_dim}")
     print(f"  PPO Model:       {ppo_model}")
     print(f"  DQN Model:       {dqn_model}")
     print(f"  Alpha:           {alpha}")
     print("=" * 70)
 
     # 构建策略列表（加载模型）
-    strategies = build_strategies(dqn_path=dqn_model, ppo_path=ppo_model)
+    # 14 维环境下 DQN 模型为 10 维，观测空间不匹配，退化为随机策略
+    dqn_path = dqn_model if obs_dim == 10 else None
+    strategies = build_strategies(dqn_path=dqn_path, ppo_path=ppo_model)
     strategy_names = [s.name for s in strategies]
     print(f"\n已加载 {len(strategies)} 个策略: {strategy_names}")
 
@@ -77,13 +76,13 @@ def run_multiseed(
     start_time = time.time()
 
     for seed_idx, seed in enumerate(seed_list):
-        print(f"\n--- Seed {seed_idx+1}/{seeds} (seed={seed}) ---")
+        print(f"\n--- Seed {seed_idx + 1}/{seeds} (seed={seed}) ---")
         seed_start = time.time()
         seed_data: dict[str, dict] = {}
 
         for strategy in strategies:
             # 为每个策略创建独立环境（用相同seed保证任务序列一致，公平对比）
-            env = make_env(tasks_per_episode, seed=seed)
+            env = make_env(tasks_per_episode, seed=seed, obs_dim=obs_dim)
             sim_env = SimulationEnv(
                 env=env,
                 task_generator=SimulationTaskGenerator(seed=seed),
@@ -113,10 +112,8 @@ def run_multiseed(
             }
 
             # 关闭环境
-            try:
+            with contextlib.suppress(Exception):
                 env.close()
-            except Exception:
-                pass
 
         seed_elapsed = time.time() - seed_start
         seed_details[str(seed)] = seed_data
@@ -124,10 +121,7 @@ def run_multiseed(
         # 打印当前seed摘要
         ppo_mean = seed_data.get("PPO", {}).get("mean_reward", 0)
         fcfs_mean = seed_data.get("FCFS", {}).get("mean_reward", 0)
-        if fcfs_mean != 0:
-            imp = (ppo_mean - fcfs_mean) / abs(fcfs_mean) * 100
-        else:
-            imp = 0
+        imp = (ppo_mean - fcfs_mean) / abs(fcfs_mean) * 100 if fcfs_mean != 0 else 0
         print(
             f"  完成 ({seed_elapsed:.1f}s) | PPO={ppo_mean:.1f}, FCFS={fcfs_mean:.1f}, "
             f"Δ={imp:+.1f}%"
@@ -152,8 +146,8 @@ def run_multiseed(
             "total_episodes": n_total,
             "ppo_model": ppo_model,
             "dqn_model": dqn_model,
-            "observation_dim": 10,
-            "wrapper": "Obs10Wrapper (14→10，公平对比)",
+            "observation_dim": obs_dim,
+            "wrapper": "原生 14 维环境" if obs_dim == 14 else "Obs10Wrapper (14→10，公平对比)",
             "arrival_lambda": 0.5,
             "quantum_ratio": 0.7,
             "timestamp": timestamp,
@@ -205,8 +199,8 @@ def run_multiseed(
     improvement = (ppo_mean - fcfs_mean) / abs(fcfs_mean) * 100 if fcfs_mean != 0 else 0
 
     print(
-        f"\n  核心结论：PPO={ppo_mean:.2f}±{np.std(ppo_rewards,ddof=1)/np.sqrt(len(ppo_rewards)):.2f} "
-        f"vs FCFS={fcfs_mean:.2f}±{fcfs_std/np.sqrt(len(fcfs_rewards)):.2f}，"
+        f"\n  核心结论：PPO={ppo_mean:.2f}±{np.std(ppo_rewards, ddof=1) / np.sqrt(len(ppo_rewards)):.2f} "
+        f"vs FCFS={fcfs_mean:.2f}±{fcfs_std / np.sqrt(len(fcfs_rewards)):.2f}，"
         f"提升 {improvement:+.1f}%（N={n_total}）"
     )
 
@@ -223,20 +217,23 @@ def run_multiseed(
 
     base_report = _generate_markdown_report(all_episode_rewards, sig_results, alpha, canonical_path)
 
+    # 计算 PPO vs FCFS 的提升% 95% CI（以 FCFS 为 baseline）
+    _, ppo_fcfs_imp_ci_lo, ppo_fcfs_imp_ci_hi = bootstrap_improvement_ci(ppo_rewards, fcfs_rewards)
+
     # 构建权威数字摘要头部
     header_lines = [
         "",
         "## 零、权威实验数字（多 Seed 验证）",
         "",
         f"> **实验配置**: {seeds} seeds × {episodes_per_seed} episodes = {n_total} 次独立运行",
-        f"> **环境**: 10 维公平对比环境（Obs10Wrapper 截断 14 维原生环境，兼容所有已训练模型）",
+        f"> **环境**: {obs_dim} 维观测空间（{'原生 14 维环境' if obs_dim == 14 else '10 维公平对比环境，Obs10Wrapper 截断 14 维原生环境，兼容所有已训练模型'}）",
         f"> **任务规模**: 每 episode {tasks_per_episode} 步，泊松到达 λ=0.5，量子任务占比 70%",
-        f"> **PPO 模型**: `{ppo_model}`（10维，Actor-Critic）",
-        f"> **DQN 模型**: `{dqn_model}`（10维，Dueling DQN）",
+        f"> **PPO 模型**: `{ppo_model}`（{obs_dim}维，Actor-Critic）",
+        f"> **DQN 模型**: `{dqn_model}`（{'10维，Dueling DQN，观测空间不匹配时退化为随机动作' if obs_dim == 14 else '10维，Dueling DQN'}）",
         f"> **显著性水平**: α = {alpha}（Bonferroni 校正）",
         "",
-        "| 排名 | 策略 | 平均奖励 | 标准差 | 标准误 | 提升 vs FCFS |",
-        "|:--:|:--|:--:|:--:|:--:|:--:|",
+        "| 排名 | 策略 | 平均奖励 | 标准差 | 标准误 | 提升 vs FCFS | 提升% 95% CI |",
+        "|:--:|:--|:--:|:--:|:--:|:--:|:--:|",
     ]
     for rank, sname in enumerate(sorted_strategies, 1):
         rewards = all_episode_rewards[sname]
@@ -247,14 +244,26 @@ def run_multiseed(
         if sname != "FCFS" and fcfs_mean != 0:
             imp = (m - fcfs_mean) / abs(fcfs_mean) * 100
             imp_str = f"{imp:+.1f}%"
+            _, ci_lo, ci_hi = bootstrap_improvement_ci(rewards, fcfs_rewards)
+            if not (math.isnan(ci_lo) or math.isnan(ci_hi)):
+                imp_ci_str = f"[{ci_lo:+.1f}%, {ci_hi:+.1f}%]"
+            else:
+                imp_ci_str = "N/A"
         else:
             imp_str = "基线"
-        header_lines.append(f"| {rank} | {sname} | {m:.2f} | {s:.2f} | {se:.2f} | {imp_str} |")
+            imp_ci_str = "—"
+        header_lines.append(
+            f"| {rank} | {sname} | {m:.2f} | {s:.2f} | {se:.2f} | {imp_str} | {imp_ci_str} |"
+        )
+
+    ppo_fcfs_ci_str = ""
+    if not (math.isnan(ppo_fcfs_imp_ci_lo) or math.isnan(ppo_fcfs_imp_ci_hi)):
+        ppo_fcfs_ci_str = f"，95% CI: [{ppo_fcfs_imp_ci_lo:+.1f}%, {ppo_fcfs_imp_ci_hi:+.1f}%]"
 
     header_lines.extend(
         [
             "",
-            f"**核心结论：PPO 平均奖励 {ppo_mean:.2f} vs FCFS {fcfs_mean:.2f}，提升 {improvement:+.1f}%**",
+            f"**核心结论：PPO 平均奖励 {ppo_mean:.2f} vs FCFS {fcfs_mean:.2f}，提升 {improvement:+.1f}%{ppo_fcfs_ci_str}**",
             f"（N={n_total} 次独立episode，α={alpha}，Bonferroni多重比较校正）",
             "",
             "---",
@@ -332,9 +341,14 @@ def main():
     parser.add_argument(
         "--tasks-per-episode", type=int, default=200, help="每episode最大步数（默认200）"
     )
-    parser.add_argument("--ppo-model", type=str, default="models/ppo_seed_42_v4/best_model.zip")
     parser.add_argument(
-        "--dqn-model", type=str, default="models/dqn_fair_v2/seed_42/best_model.zip"
+        "--ppo-model", type=str, default="deliverable_models/ppo_best_model_14dim.zip"
+    )
+    parser.add_argument(
+        "--dqn-model", type=str, default="deliverable_models/dqn_best_model_10dim.zip"
+    )
+    parser.add_argument(
+        "--obs-dim", type=int, default=14, choices=[10, 14], help="观测空间维度：10 或 14（默认14）"
     )
     parser.add_argument("--alpha", type=float, default=0.05, help="显著性水平")
     args = parser.parse_args()
@@ -345,6 +359,7 @@ def main():
         tasks_per_episode=args.tasks_per_episode,
         ppo_model=args.ppo_model,
         dqn_model=args.dqn_model,
+        obs_dim=args.obs_dim,
         alpha=args.alpha,
     )
 

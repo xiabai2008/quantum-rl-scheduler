@@ -58,10 +58,8 @@ from loguru import logger
 from run_simulation import (  # type: ignore[import-not-found]
     BaseStrategy,
     ClassicalOnlyStrategy,
-    DQNModelStrategy,
     FCFSStrategy,
     GreedyStrategy,
-    PPOStrategy,
     QuantumOnlyStrategy,
     RandomStrategy,
     ShortestJobFirstStrategy,
@@ -447,7 +445,7 @@ def print_summary(all_results: list[dict[str, Any]]) -> None:
         f"\n  {'策略':<16s} {'总奖励':>10s} {'步数':>6s} "
         f"{'真机数':>6s} {'成功':>4s} {'平均保真度':>12s} {'平均差异':>10s}"
     )
-    print(f"  {'-'*16} {'-'*10} {'-'*6} {'-'*6} {'-'*4} {'-'*12} {'-'*10}")
+    print(f"  {'-' * 16} {'-' * 10} {'-' * 6} {'-' * 6} {'-' * 4} {'-' * 12} {'-' * 10}")
 
     for result in all_results:
         name = result["strategy_name"]
@@ -461,8 +459,8 @@ def print_summary(all_results: list[dict[str, Any]]) -> None:
             r["probability_diff"] for r in real_records if r.get("probability_diff") is not None
         ]
 
-        avg_fid = f"{sum(fidelities)/len(fidelities):.4f}" if fidelities else "N/A"
-        avg_diff = f"{sum(diffs)/len(diffs):.4f}" if diffs else "N/A"
+        avg_fid = f"{sum(fidelities) / len(fidelities):.4f}" if fidelities else "N/A"
+        avg_diff = f"{sum(diffs) / len(diffs):.4f}" if diffs else "N/A"
 
         print(
             f"  {name:<16s} {reward:>10.2f} {steps:>6d} "
@@ -471,7 +469,7 @@ def print_summary(all_results: list[dict[str, Any]]) -> None:
 
     # 动作分布
     print(f"\n  {'策略':<16s} {'classical':>10s} {'quantum':>10s} {'hybrid':>10s}")
-    print(f"  {'-'*16} {'-'*10} {'-'*10} {'-'*10}")
+    print(f"  {'-' * 16} {'-' * 10} {'-' * 10} {'-' * 10}")
     for result in all_results:
         name = result["strategy_name"]
         dist = result["action_distribution"]
@@ -521,14 +519,14 @@ def main() -> None:
 
     # 创建策略
     strategies = create_strategies()
-    print(f"\n[Setup] 已创建 {len(strategies)} 个策略: " f"{', '.join(s.name for s in strategies)}")
+    print(f"\n[Setup] 已创建 {len(strategies)} 个策略: {', '.join(s.name for s in strategies)}")
 
     # 运行所有策略
     all_results: list[dict[str, Any]] = []
     total_real = 0
 
     print(f"\n{'=' * 60}")
-    print(f"  8 策略真机对比实验")
+    print("  8 策略真机对比实验")
     print(f"  任务数: {NUM_TASKS} | 真机间隔: {REAL_INTERVAL} | shots: {REAL_SHOTS}")
     print(
         f"  预计真机任务: {len(strategies)} x {MAX_STEPS // REAL_INTERVAL} = "
@@ -537,7 +535,7 @@ def main() -> None:
     print(f"{'=' * 60}")
 
     for i, strategy in enumerate(strategies):
-        print(f"\n--- [{i+1}/{len(strategies)}] {strategy.name} ---")
+        print(f"\n--- [{i + 1}/{len(strategies)}] {strategy.name} ---")
         t0 = time.time()
         result = run_single_strategy(
             strategy=strategy,

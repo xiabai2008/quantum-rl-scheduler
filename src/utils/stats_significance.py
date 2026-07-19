@@ -153,6 +153,76 @@ def _mean_diff_ci(
     return mean_diff, mean_diff - margin, mean_diff + margin
 
 
+def bootstrap_improvement_ci(
+    target: list[float],
+    baseline: list[float],
+    confidence: float = 0.95,
+    n_bootstrap: int = 10000,
+    seed: int | None = 42,
+) -> tuple[float, float, float]:
+    """计算策略相对于基线的提升百分比的 Bootstrap 95% 置信区间。
+
+    提升百分比定义：(mean(target) - mean(baseline)) / |mean(baseline)| * 100
+
+    使用百分位 Bootstrap 法：有放回地从两组独立抽样，计算每次的提升百分比，
+    然后取对应置信水平的百分位数作为 CI 上下界。
+
+    Args:
+        target: 目标策略奖励列表
+        baseline: 基线策略奖励列表
+        confidence: 置信水平（默认 0.95）
+        n_bootstrap: Bootstrap 重抽样次数（默认 10000）
+        seed: 随机种子（默认 42，保证可复现）
+
+    Returns:
+        (improvement_pct, ci_lower, ci_upper) 元组；基线均值为 0 或样本不足时 CI 为 nan
+    """
+    arr_target = np.asarray(target, dtype=float)
+    arr_baseline = np.asarray(baseline, dtype=float)
+    n1, n2 = len(arr_target), len(arr_baseline)
+
+    baseline_mean = float(np.mean(arr_baseline))
+    target_mean = float(np.mean(arr_target))
+    if n1 < 2 or n2 < 2 or baseline_mean == 0:
+        if baseline_mean == 0:
+            improvement = (
+                float("inf") if target_mean > 0 else (float("-inf") if target_mean < 0 else 0.0)
+            )
+        else:
+            improvement = (
+                (target_mean - baseline_mean) / abs(baseline_mean) * 100
+                if baseline_mean != 0
+                else 0.0
+            )
+        return improvement, float("nan"), float("nan")
+
+    improvement = (target_mean - baseline_mean) / abs(baseline_mean) * 100
+
+    rng = np.random.default_rng(seed)
+    boot_improvements = np.empty(n_bootstrap, dtype=np.float64)
+
+    for i in range(n_bootstrap):
+        idx1 = rng.integers(0, n1, size=n1)
+        idx2 = rng.integers(0, n2, size=n2)
+        boot_target_mean = float(np.mean(arr_target[idx1]))
+        boot_baseline_mean = float(np.mean(arr_baseline[idx2]))
+        if boot_baseline_mean == 0:
+            boot_improvements[i] = float("nan")
+        else:
+            boot_improvements[i] = (
+                (boot_target_mean - boot_baseline_mean) / abs(boot_baseline_mean) * 100
+            )
+
+    valid = boot_improvements[~np.isnan(boot_improvements)]
+    if len(valid) < 10:
+        return improvement, float("nan"), float("nan")
+
+    alpha_ci = 1.0 - confidence
+    ci_lower = float(np.percentile(valid, alpha_ci / 2.0 * 100))
+    ci_upper = float(np.percentile(valid, (1.0 - alpha_ci / 2.0) * 100))
+    return improvement, ci_lower, ci_upper
+
+
 def _effect_level(effect: float, effect_type: str) -> str:
     """根据效应量类型与大小判定等级中文描述
 
@@ -344,6 +414,10 @@ def compare_strategies(
         statistic = float(res.statistic)
         significant = bool(p_value < adjusted_alpha)
 
+        imp_pct, imp_ci_lo, imp_ci_hi = bootstrap_improvement_ci(
+            samples_a, samples_b, confidence=0.95
+        )
+
         interpretation = _build_interpretation(
             name_a=name_a,
             name_b=name_b,
@@ -370,6 +444,9 @@ def compare_strategies(
             "mean_diff": mean_diff,
             "ci_lower": ci_lo,
             "ci_upper": ci_hi,
+            "improvement_pct": imp_pct,
+            "improvement_pct_ci_lower": imp_ci_lo,
+            "improvement_pct_ci_upper": imp_ci_hi,
             "bonferroni_alpha": adjusted_alpha,
             "n_comparisons": n_comparisons,
             "normality_a": {"is_normal": normal_a, "p_value": p_norm_a, "test": test_norm_a},

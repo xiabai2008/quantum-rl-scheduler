@@ -44,9 +44,9 @@ class TestGenerateQcisCircuit:
         qcis_low = generate_qcis_circuit(task_low, seed=42)
         qcis_high = generate_qcis_circuit(task_high, seed=42)
         # 高优先级应包含更多门（深度因子更大）
-        assert len(qcis_high) >= len(
-            qcis_low
-        ), f"高优先级电路应更深: {len(qcis_high)} vs {len(qcis_low)}"
+        assert len(qcis_high) >= len(qcis_low), (
+            f"高优先级电路应更深: {len(qcis_high)} vs {len(qcis_low)}"
+        )
 
     def test_deterministic_with_seed(self):
         """相同 seed 生成相同电路"""

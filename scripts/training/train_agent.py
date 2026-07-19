@@ -586,9 +586,9 @@ def train_single_seed(
                 logger.info(
                     f"[Step {self.num_timesteps}/{self.total_timesteps}] "
                     f"Eval Reward: {eval_result['mean_reward']:.2f}±{eval_result['std_reward']:.2f} | "
-                    f"Success: {eval_result['success_rate'] *100:.1f}% | "
+                    f"Success: {eval_result['success_rate'] * 100:.1f}% | "
                     f"Wait: {eval_result['avg_wait_time']:.1f}s | "
-                    f"Qubits: {eval_result['qubit_utilization'] *100:.1f}% | "
+                    f"Qubits: {eval_result['qubit_utilization'] * 100:.1f}% | "
                     f"Speed: {steps_per_sec:.0f} steps/s" + (" [BEST]" if is_best else "")
                 )
 

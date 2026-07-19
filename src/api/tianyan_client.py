@@ -669,7 +669,7 @@ class TianyanClient:
                     time.sleep(self.retry_delay)
                 else:
                     logger.debug(
-                        f"API 调用重试耗尽（共 {total_attempts} 次）: " f"{type(e).__name__}: {e}"
+                        f"API 调用重试耗尽（共 {total_attempts} 次）: {type(e).__name__}: {e}"
                     )
         assert last_exc is not None
         raise last_exc

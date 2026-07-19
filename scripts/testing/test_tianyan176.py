@@ -92,7 +92,7 @@ def test_tianyan176():
             mid, mtype, status, name = t176_info
             print(f"  [PASS] 找到 {name}: ID={mid}, type={mtype}, status={status}")
             if status == "running":
-                print(f"  [INFO] 机器状态正常，可以提交任务")
+                print("  [INFO] 机器状态正常，可以提交任务")
             else:
                 print(f"  [WARN] 机器当前状态为 '{status}'，可能无法提交任务")
         else:
@@ -126,7 +126,7 @@ def test_tianyan176():
 
     # ==================== 步骤 6: 查询任务结果 ====================
     if task_id:
-        print(f"\n[Step 6] 等待任务完成并获取结果 (最多等待 120 秒)...")
+        print("\n[Step 6] 等待任务完成并获取结果 (最多等待 120 秒)...")
         max_wait = 120
         poll_interval = 5
         waited = 0
@@ -147,7 +147,7 @@ def test_tianyan176():
                 # 检查是否完成
                 status_lower = str(task_status).lower()
                 if any(kw in status_lower for kw in ["completed", "finished", "done", "success"]):
-                    print(f"  [PASS] 任务执行完成!")
+                    print("  [PASS] 任务执行完成!")
                     print(f"  详细结果: {status_result}")
                     break
                 elif any(kw in status_lower for kw in ["failed", "error", "cancelled"]):

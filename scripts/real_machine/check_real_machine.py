@@ -2,7 +2,7 @@
 检查 Trae 生成的真机数据收集脚本是否确实走真机
 
 用法：
-    D:\tools\Python 3.12.9\python.exe scripts/check_real_machine.py
+    D:\tools\\Python 3.12.9\\python.exe scripts/check_real_machine.py
 
 检查点：
 1. 环境变量 TIANYAN_MOCK_MODE 是否为 false
@@ -61,8 +61,6 @@ def main():
     # 3. 实际提交一个真机任务验证
     print("\n[3/5] 实际提交真机任务验证（H Q0 + M Q0，shots=128）")
     try:
-        import cqlib
-
         from src.api.tianyan_cqlib import CqlibTianyanClient
 
         client = CqlibTianyanClient(
@@ -94,7 +92,7 @@ def main():
 
         result = client.wait_for_task(task_id, timeout=300, poll_interval=5)
         if result.get("status") == "completed":
-            print(f"  [PASS] 真机任务完成！")
+            print("  [PASS] 真机任务完成！")
             print(f"  [INFO] 结果: {result.get('result')}")
             return 0
         else:

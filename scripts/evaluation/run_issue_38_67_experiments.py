@@ -348,14 +348,25 @@ class ShortestJobFirstStrategy(BaseStrategy):
 # ---------------------------------------------------------------------------
 
 
-def make_env(tasks_per_episode: int, seed: int | None = None) -> Any:
-    """创建带 10 维包装器的仿真环境。"""
+def make_env(tasks_per_episode: int, seed: int | None = None, obs_dim: int = 10) -> Any:
+    """创建仿真环境。
+
+    Args:
+        tasks_per_episode: 每 episode 最大步数
+        seed: 随机种子
+        obs_dim: 观测空间维度（10 或 14）。10 维使用 Obs10Wrapper 截断，
+            14 维使用原生环境。
+    """
     base = QuantumSchedulingEnv(
         max_steps=tasks_per_episode,
         max_qubits=287,
         seed=seed,
     )
-    return Obs10Wrapper(base)
+    if obs_dim == 10:
+        return Obs10Wrapper(base)
+    if obs_dim == 14:
+        return base
+    raise ValueError(f"obs_dim 必须为 10 或 14，当前值: {obs_dim}")
 
 
 def run_strategy(
@@ -406,7 +417,7 @@ def build_strategies(
     ppo_path: str | None = None,
 ) -> list[BaseStrategy]:
     """构建 8 个策略，自动加载可用的 DQN/PPO 模型。"""
-    from stable_baselines3 import DQN, PPO
+    from stable_baselines3 import PPO
 
     from src.scheduler.agent import SchedulerAgent
 
@@ -729,7 +740,7 @@ def generate_strategy_report(
         "# 8 策略对比报告",
         "",
         f"> **数据来源**: `{data_path}`",
-        f"> **运行环境**: 10 维公平对比环境（14 维环境经 Obs10Wrapper 截断，兼容现有 DQN/PPO 模型）",
+        "> **运行环境**: 10 维公平对比环境（14 维环境经 Obs10Wrapper 截断，兼容现有 DQN/PPO 模型）",
         f"> **生成时间**: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
         "",
         "---",

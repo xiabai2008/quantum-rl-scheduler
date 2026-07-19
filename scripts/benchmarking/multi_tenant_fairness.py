@@ -50,7 +50,7 @@ def gen_tasks(n, weights, seed=42):
 def simulate(tasks, mode, budget=8, qos=None, seed=99):
     tr = MultiTenantFairnessTracker(TENANTS)
     q = []
-    done = {t: 0 for t in TENANTS}
+    done = dict.fromkeys(TENANTS, 0)
     it = iter(tasks)
     sched = 0
     rng = np.random.default_rng(seed)

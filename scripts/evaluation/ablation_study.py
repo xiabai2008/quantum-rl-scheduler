@@ -655,7 +655,7 @@ def _compute_contributions(results: dict) -> None:
     results["summary"]["marginal_contributions"] = {}
     for i in range(len(configs) - 1):
         delta = configs[i]["mean_reward"] - configs[i + 1]["mean_reward"]
-        label = f"{configs[i]['name']} - {configs[i +1]['name']}"
+        label = f"{configs[i]['name']} - {configs[i + 1]['name']}"
         results["summary"]["marginal_contributions"][label] = float(delta)
 
     # 总体统计
@@ -734,9 +734,9 @@ def main():
 
     for dim in dims_to_run:
         dim_name, handler = dim_handlers[dim]
-        print(f"\n{'#' *60}")
+        print(f"\n{'#' * 60}")
         print(f"# 维度: {dim_name}")
-        print(f"{'#' *60}")
+        print(f"{'#' * 60}")
 
         try:
             t0 = time.time()
@@ -779,10 +779,10 @@ def main():
     with open(output_path, "w", encoding="utf-8") as f:
         json.dump(report, f, indent=2, ensure_ascii=False, default=str)
 
-    print(f"\n{'=' *60}")
+    print(f"\n{'=' * 60}")
     print("  消融实验完成！")
     print(f"  结果: {output_path}")
-    print(f"{'=' *60}")
+    print(f"{'=' * 60}")
 
     # 生成关联报告
     try:

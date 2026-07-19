@@ -129,10 +129,10 @@ def run_multi_episode(
         label         : 场景标签
         real_clients  : 真机客户端映射（可选，注入到多机器 env）
     """
-    print(f"\n{'=' *60}")
+    print(f"\n{'=' * 60}")
     print(f"  场景: {label}")
     print(f"  episodes={episodes} 机器数={len(env_configs[0].get('machine_configs') or [])}")
-    print(f"{'=' *60}")
+    print(f"{'=' * 60}")
 
     # 用第一个 env 构造策略（PPO 需要绑定 env）
     first_env = QuantumSchedulingEnv(**env_configs[0])
@@ -150,7 +150,7 @@ def run_multi_episode(
         res = run_episode(env, ppo_policy, seed=base_seed + ep, use_ppo=use_ppo)
         results.append(res)
         if (ep + 1) % max(1, episodes // 5) == 0:
-            print(f"  episode {ep +1}/{episodes} reward={res['reward']:.1f}")
+            print(f"  episode {ep + 1}/{episodes} reward={res['reward']:.1f}")
 
     # 聚合
     rewards = [r["reward"] for r in results]
@@ -177,7 +177,7 @@ def run_multi_episode(
         "machine_real_submits_total": agg_real,
         "policy": "PPO" if use_ppo else "heuristic",
     }
-    print(f"\n  结果: mean_reward={summary['mean_reward']:.2f}" f" ± {summary['std_reward']:.2f}")
+    print(f"\n  结果: mean_reward={summary['mean_reward']:.2f} ± {summary['std_reward']:.2f}")
     print(
         f"  量子成功={summary['mean_quantum_success']:.1f}"
         f" 混合={summary['mean_hybrid_success']:.1f}"
@@ -291,8 +291,7 @@ def generate_report(
     reward_delta = multi_summary["mean_reward"] - single_summary["mean_reward"]
     if reward_delta > 0:
         lines.append(
-            f"- 多机器调度平均奖励 **提升 {reward_delta:.2f}**，"
-            f"证实多机器纳管能提升整体调度吞吐"
+            f"- 多机器调度平均奖励 **提升 {reward_delta:.2f}**，证实多机器纳管能提升整体调度吞吐"
         )
     else:
         lines.append(
@@ -413,9 +412,9 @@ def main():
     with open(args.output, "w", encoding="utf-8") as f:
         f.write(report)
 
-    print(f"\n{'=' *60}")
+    print(f"\n{'=' * 60}")
     print(f"✅ 报告已保存: {args.output}")
-    print(f"{'=' *60}")
+    print(f"{'=' * 60}")
     print("\n报告预览:")
     print(report[:800])
 

@@ -369,7 +369,7 @@ def submit_real_machine_tasks(
             "machine": machine_name,
             "qcis": QCIS_CIRCUIT,
             "shots": shots,
-            "task_name": f"AnnealVerify_{i+1}",
+            "task_name": f"AnnealVerify_{i + 1}",
             "real_task_id": None,
             "submit_status": "pending",
             "submit_time": datetime.now().astimezone().isoformat(),
@@ -385,7 +385,7 @@ def submit_real_machine_tasks(
             real_tid = client.submit_quantum_task(
                 qcis=QCIS_CIRCUIT,
                 shots=shots,
-                task_name=f"AnnealVerify_{i+1}",
+                task_name=f"AnnealVerify_{i + 1}",
             )
             submit_latency = time.perf_counter() - t0
 
@@ -394,12 +394,12 @@ def submit_real_machine_tasks(
             record["submit_latency_s"] = round(submit_latency, 3)
 
             logger.info(
-                f"[AnnealVerify] 任务 {i+1}/{count} 已提交: "
+                f"[AnnealVerify] 任务 {i + 1}/{count} 已提交: "
                 f"tid={real_tid}, 延迟={submit_latency:.3f}s"
             )
         except Exception as e:
             record["submit_status"] = f"error: {str(e)[:80]}"
-            logger.error(f"[AnnealVerify] 任务 {i+1} 提交失败: {e}")
+            logger.error(f"[AnnealVerify] 任务 {i + 1} 提交失败: {e}")
 
         records.append(record)
 
@@ -429,10 +429,10 @@ def poll_real_results(
     for i, record in enumerate(records):
         task_id = record.get("real_task_id")
         if not task_id:
-            print(f"  [{i+1}/{total}] {record['task_name']} ... [SKIP] 无 task_id")
+            print(f"  [{i + 1}/{total}] {record['task_name']} ... [SKIP] 无 task_id")
             continue
 
-        print(f"  [{i+1}/{total}] {record['task_name']} {task_id} ...", end=" ", flush=True)
+        print(f"  [{i + 1}/{total}] {record['task_name']} {task_id} ...", end=" ", flush=True)
 
         result = poll_task_result(
             client=client,
@@ -586,7 +586,7 @@ def print_summary(
         f"\n  {'方法':<28s} {'最优能量':>12s} {'耗时(s)':>10s} "
         f"{'与最优差距':>12s} {'找到最优':>10s}"
     )
-    print(f"  {'-'*28} {'-'*12} {'-'*10} {'-'*12} {'-'*10}")
+    print(f"  {'-' * 28} {'-' * 12} {'-' * 10} {'-' * 12} {'-' * 10}")
 
     brute_e = brute_result["energy"]
     print(
@@ -611,7 +611,7 @@ def print_summary(
             f"{'Y' if dw_gap < 1e-6 else 'N':>10s}"
         )
     else:
-        print(f"  {'D-Wave neal':<28s} {'N/A':>12s} {'N/A':>10s} " f"{'N/A':>12s} {'N/A':>10s}")
+        print(f"  {'D-Wave neal':<28s} {'N/A':>12s} {'N/A':>10s} {'N/A':>12s} {'N/A':>10s}")
 
     # 真机验证
     total_real = len([r for r in real_records if r.get("real_task_id")])
@@ -619,13 +619,13 @@ def print_summary(
     fidelities = [r["fidelity"] for r in real_records if r.get("fidelity") is not None]
     avg_fid = sum(fidelities) / len(fidelities) if fidelities else 0.0
 
-    print(f"\n  真机量子电路验证:")
+    print("\n  真机量子电路验证:")
     print(f"    提交任务: {total_real}")
     print(f"    成功完成: {completed}")
     print(f"    平均保真度: {avg_fid:.4f}" if fidelities else "    平均保真度: N/A")
 
-    print(f"\n  注: 天衍-176 为门控量子计算机，不支持直接 QUBO 退火提交。")
-    print(f"  真机任务用于验证量子后端连通性，退火求解在本地完成。")
+    print("\n  注: 天衍-176 为门控量子计算机，不支持直接 QUBO 退火提交。")
+    print("  真机任务用于验证量子后端连通性，退火求解在本地完成。")
 
     print(f"{'=' * 80}")
 

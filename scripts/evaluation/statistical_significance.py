@@ -21,6 +21,7 @@ Statistical Significance Testing CLI
 """
 
 import json
+import math
 import statistics
 import sys
 from pathlib import Path
@@ -114,24 +115,32 @@ def _generate_markdown_report(
         mean = statistics.mean(rewards)
         std = statistics.stdev(rewards) if n >= 2 else 0.0
         lines.append(
-            f"| {name} | {n} | {mean:.2f} | {std:.2f} | "
-            f"{min(rewards):.2f} | {max(rewards):.2f} |"
+            f"| {name} | {n} | {mean:.2f} | {std:.2f} | {min(rewards):.2f} | {max(rewards):.2f} |"
         )
     lines.append("")
 
     # 二、两两比较结果
     lines.append("## 二、两两比较结果")
     lines.append("")
-    lines.append("| 对比 | 检验方法 | 统计量 | p 值 | 显著? | 效应量 | 均值差 | 95% CI |")
-    lines.append("|:--|:--|:--:|:--:|:--:|:--:|:--:|:--:|")
+    lines.append(
+        "| 对比 | 检验方法 | 统计量 | p 值 | 显著? | 效应量 | 均值差 | 95% CI | 提升% 95% CI |"
+    )
+    lines.append("|:--|:--|:--:|:--:|:--:|:--:|:--:|:--:|:--:|")
     for pair, info in results.items():
         ci = f"[{info['ci_lower']:.2f}, {info['ci_upper']:.2f}]"
+        imp_pct = info.get("improvement_pct", float("nan"))
+        imp_lo = info.get("improvement_pct_ci_lower", float("nan"))
+        imp_hi = info.get("improvement_pct_ci_upper", float("nan"))
+        if math.isnan(imp_lo) or math.isnan(imp_hi):
+            imp_ci_str = "N/A"
+        else:
+            imp_ci_str = f"[{imp_lo:+.1f}%, {imp_hi:+.1f}%]"
         sig = "✅ 是" if info["significant"] else "❌ 否"
         lines.append(
             f"| {pair} | {info['test']} | {info['statistic']:.4f} | "
             f"{info['p_value']:.4g} | {sig} | "
             f"{info['effect_size_type']}={info['effect_size']:.4f} | "
-            f"{info['mean_diff']:.2f} | {ci} |"
+            f"{info['mean_diff']:.2f} | {ci} | {imp_ci_str} |"
         )
     lines.append("")
 

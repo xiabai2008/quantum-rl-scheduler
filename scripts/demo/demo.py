@@ -88,7 +88,6 @@ def demo_report(args):
     step("3/4 生成策略对比报告")
 
     try:
-
         report_dir = os.path.join(PROJECT_ROOT, "results")
         json_files = sorted(
             [
@@ -123,7 +122,7 @@ def demo_report(args):
             if ppo_item and random_item:
                 vs_random = ppo_item["avg_reward"] - random_item.get("avg_reward", 0)
                 print(
-                    f"\n  🏆 PPO vs Random: {vs_random:+.1f} ({vs_random /abs(random_item.get('avg_reward', 1)) *100:.1f}%)"
+                    f"\n  🏆 PPO vs Random: {vs_random:+.1f} ({vs_random / abs(random_item.get('avg_reward', 1)) * 100:.1f}%)"
                 )
 
             print("  ✅ 报告生成完成")

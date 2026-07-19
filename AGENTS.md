@@ -3,7 +3,7 @@
 > 此文件供所有 AI Agent（CodeBuddy / TRAE / Claude / Cursor 等）读取，以快速理解项目全貌。
 > 每次重要变更后请更新本文档的"最后更新"日期和对应章节。
 
-**最后更新**：2026-07-17（v8 可信度修复；补充天衍 cqlib 无 SDK 覆盖测试）
+**最后更新**：2026-07-19（#165 天衍-176 真机消融完整实测）
 
 ***
 
@@ -206,8 +206,11 @@ quantum-rl-scheduler/
 
 ### 代码质量强化
 - mypy：8项严格配置（disallow_untyped_defs + disallow_incomplete_defs + warn_return_any + strict_equality 等），当前6模块豁免（agent/ppo_agent/networks/training/annealing/scripts.*）
-- ruff：完全替代 flake8，10类规则集（E/W/F/I/N/B/SIM/C4/UP/RUF）
-- bandit：安全扫描集成到 CI lint job
+- ruff：完全替代 flake8 + black + isort，10类规则集（E/W/F/I/N/B/SIM/C4/UP/RUF）
+- CI 工具栈对齐：2026-07-19 将 CI lint job 从 black+isort+flake8 迁移到 ruff format + ruff check + bandit，与 .pre-commit-config.yaml 完全一致
+  - ruff format --check：严格阻断（格式基线）
+  - ruff check：过渡期 --exit-zero（142 个历史遗留 errors 待独立 Issue 清理）
+  - bandit：严格阻断（安全扫描）
 
 ### 工程韧性
 - 统一异常体系：8类异常（QuantumSchedulerError → 5子类），code + retryable 语义
@@ -265,20 +268,20 @@ quantum-rl-scheduler/
 ## 8. 当前进度
 
 ```
-v1 技术提升   ███████████████████  90%（mypy豁免6→2 + pre-commit ruff迁移待完成）
+v1 技术提升   ███████████████████░ 95%（CI ruff 迁移完成 2026-07-19；mypy豁免6→2 待完成）
 Track A       ████████████████████ 100%
 Track B       ████████████████████ 100%（PPT/白皮书/视频脚本/实验数据）
 P0 可信度修复  ████████████████████ 100%（依赖/统计/数字锁定 2026-07-09）
 Track C       ██████████░░░░░░░░░░  50%（mypy豁免清理+覆盖率提升待完成）
-真机闭环       ████░░░░░░░░░░░░░░░░  20%（cqlib已接入，PPO真机闭环训练待开发）
+真机闭环       ███████████████░░░░░  75%（#165 三条件 × 3 seeds 完成；284 次正式真机调用全部成功）
 ```
 
 ## 9. 下一步
 
 - **P1**：mypy 豁免 6→2（marl/multi_objective_env/app/scripts 补类型标注）
-- **P1**：pre-commit 工具链对齐（确认 ruff+bandit）
+- **P1**：清理 142 个 ruff check 历史遗留 errors（RUF059/N806/B905 等），移除 CI 的 --exit-zero
 - **P1**：更新PPT/白皮书中的实验数字为+86.9%
-- **P2**：PPO 真机闭环训练（cqlib 注入调度循环）
+- **P2**：扩展 PPO 真机闭环验证（#165 三条件 × 3 seeds 已完成，后续可增加 seed 数）
 - **P2**：演示视频录制（4-5分钟，1080p）
 - **P2**：白皮书v3 / PPT终稿
 - **P3**：8/15代码冻结，9/15前打v8.0-submission标签

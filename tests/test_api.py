@@ -1538,8 +1538,10 @@ class TestTokenBucketRateLimiter(unittest.TestCase):
         """令牌应随时间按速率补充。"""
         limiter = TokenBucketRateLimiter(capacity=1.0, rate=10.0)
         limiter.acquire(1.0)  # 耗尽
-        # 模拟时间流逝 0.1s → 补充 1 个令牌
-        with patch("src.api.tianyan_client.monotonic", return_value=limiter._last_refill + 0.1):
+        # 模拟时间流逝 0.15s → 补充 1.5 个令牌（被 capacity 截断为 1.0）。
+        # 用 0.15 而非 0.1 避免 0.1*10.0 的浮点精度边界
+        # （0.1*10.0 在 IEEE 754 中可能为 0.9999999999...，导致 try_acquire 失败）。
+        with patch("src.api.tianyan_client.monotonic", return_value=limiter._last_refill + 0.15):
             self.assertTrue(limiter.try_acquire(1.0))
 
     def test_refill_capped_at_capacity(self):

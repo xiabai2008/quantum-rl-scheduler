@@ -12,7 +12,24 @@ from xml.etree import ElementTree
 
 TEXT_SUFFIXES = {".md", ".py", ".txt", ".rst", ".yaml", ".yml", ".json"}
 OFFICE_SUFFIXES = {".docx", ".pptx"}
-SKIP_DIRS = {".git", ".pytest_cache", ".mypy_cache", "__pycache__", "venv"}
+SKIP_DIRS = {
+    ".git",
+    ".pytest_cache",
+    ".mypy_cache",
+    "__pycache__",
+    "venv",
+    ".venv",
+    ".venv-mutmut",
+    "node_modules",
+    # 实验数据目录：带时间戳的历史快照，记录当时真实数据，
+    # 不应被强制更新为当前权威数字，不参与口径审计
+    "fair_comparison",
+    "issue_experiments",
+    "multiseed_evaluation",
+    "real_machine",
+    "gradient_stress",
+    "models",
+}
 SELF_EXCLUDES = {
     Path("scripts/ci/audit_authoritative_metrics.py"),
     Path("tests/test_metric_audit.py"),
@@ -29,9 +46,9 @@ CANONICAL_RANKING = (
     "PPO",
     "SJF",
     "FCFS",
+    "DQN",
     "Random",
     "Greedy",
-    "DQN",
     "Quantum-Only",
     "Classical-Only",
 )
@@ -48,16 +65,26 @@ def find_forbidden(text: str) -> list[tuple[int, str, str]]:
 
 
 def validate_canonical_report(text: str) -> list[str]:
-    """验证权威报告包含锁定数字、排名和 14→10 维说明。"""
+    """验证权威报告包含锁定数字、排名和 14→10 维说明。
+
+    权威数字（2026-07-19 更新，50 seed × 5 episodes = N=250 验证）：
+        - PPO 平均奖励 2746.94
+        - FCFS 平均奖励 1458.77
+        - PPO vs FCFS 提升 +88.3%
+        - Obs10Wrapper（14→10 维兼容）
+        - 14 维说明
+    """
     errors: list[str] = []
-    for expected in ("2814.19", "1462.48", "+92.4%", "Obs10Wrapper", "14 维"):
+    for expected in ("2746.94", "1458.77", "+88.3%", "Obs10Wrapper", "14 维"):
         if expected not in text:
             errors.append(f"权威报告缺少：{expected}")
 
     positions = []
     for rank, strategy in enumerate(CANONICAL_RANKING, 1):
+        # 允许策略名后带括号注释，如 "PPO (14维)"
         row = re.search(
-            rf"\|\s*{rank}\s*\|\s*(?:\*\*)?{re.escape(strategy)}(?:\*\*)?\s*\|",
+            rf"\|\s*{rank}\s*\|\s*(?:\*\*)?{re.escape(strategy)}"
+            rf"(?:\s*\([^)]*\))?(?:\*\*)?\s*\|",
             text,
         )
         positions.append(row.start() if row else -1)
@@ -85,15 +112,31 @@ def extract_office_text(path: Path) -> str:
 
 
 def iter_audited_files(root: Path):
-    """遍历参与数字审计的文本和 Office 文件。"""
-    for path in root.rglob("*"):
-        if not path.is_file() or any(part in SKIP_DIRS for part in path.parts):
-            continue
-        relative = path.relative_to(root)
-        if relative in SELF_EXCLUDES:
-            continue
-        if path.suffix.lower() in TEXT_SUFFIXES | OFFICE_SUFFIXES:
-            yield path
+    """遍历参与数字审计的文本和 Office 文件。
+
+    使用 os.walk 而非 Path.rglob，以便在遍历时直接跳过 SKIP_DIRS，
+    避免进入损坏的符号链接目录（如 Windows 上的 .venv-mutmut/lib64）。
+    同时跳过所有以 .venv 开头的目录（各种虚拟环境）和 site-packages。
+    """
+    import os
+
+    for dirpath, dirnames, filenames in os.walk(root):
+        # 原地修改 dirnames 以跳过 SKIP_DIRS（os.walk 约定）
+        # 额外跳过所有 .venv* 开头的目录和 site-packages
+        dirnames[:] = [
+            d
+            for d in dirnames
+            if d not in SKIP_DIRS
+            and not d.startswith(".venv")
+            and d not in ("site-packages", "lib", "lib64")
+        ]
+        for filename in filenames:
+            path = Path(dirpath) / filename
+            relative = path.relative_to(root)
+            if relative in SELF_EXCLUDES:
+                continue
+            if path.suffix.lower() in TEXT_SUFFIXES | OFFICE_SUFFIXES:
+                yield path
 
 
 def audit_repository(root: Path) -> list[str]:

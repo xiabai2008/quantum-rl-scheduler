@@ -469,8 +469,7 @@ def poll_task_result(
         if status is None:
             # SDK 卡在内部重试，任务大概率已失败
             logger.warning(
-                f"[Poll] get_task_status 超时 ({per_poll_timeout}s)，"
-                f"SDK 可能卡在内部重试，视为失败"
+                f"[Poll] get_task_status 超时 ({per_poll_timeout}s)，SDK 可能卡在内部重试，视为失败"
             )
             return {
                 "task_id": task_id,
@@ -759,12 +758,12 @@ def print_summary(records: list[dict[str, Any]]) -> None:
     print("  冒烟测试汇总报告")
     print(f"{'=' * 60}")
     print(f"  总任务数: {total}")
-    print(f"  成功: {completed} | 失败: {failed} | 成功率: {completed/max(total,1):.1%}")
+    print(f"  成功: {completed} | 失败: {failed} | 成功率: {completed / max(total, 1):.1%}")
     print(f"  平均耗时: {avg_dur:.1f}s | 平均保真度: {avg_fid:.4f}")
 
     # 按实验类型分组
     print(f"\n  {'实验':<25s} {'次数':>4s} {'平均耗时':>8s} {'平均保真度':>10s}")
-    print(f"  {'-'*25} {'-'*4} {'-'*8} {'-'*10}")
+    print(f"  {'-' * 25} {'-' * 4} {'-' * 8} {'-' * 10}")
     exp_types: dict[str, list[dict[str, Any]]] = {}
     for r in records:
         exp_types.setdefault(r["experiment_type"], []).append(r)

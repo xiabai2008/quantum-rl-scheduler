@@ -170,7 +170,7 @@ class TaskBuilder:
         task_type = task_type.lower().strip()
         if task_type not in VALID_TASK_TYPES:
             raise ValueError(
-                f"Invalid task_type '{task_type}'. " f"Must be one of {sorted(VALID_TASK_TYPES)}"
+                f"Invalid task_type '{task_type}'. Must be one of {sorted(VALID_TASK_TYPES)}"
             )
         self._data["task_type"] = task_type
         return self
@@ -200,7 +200,7 @@ class TaskBuilder:
             priority = priority.lower().strip()
             if priority not in PRIORITY_MAP:
                 raise ValueError(
-                    f"Invalid priority '{priority}'. " f"Must be one of {list(PRIORITY_MAP.keys())}"
+                    f"Invalid priority '{priority}'. Must be one of {list(PRIORITY_MAP.keys())}"
                 )
             self._data["priority"] = PRIORITY_MAP[priority]
         else:
@@ -221,9 +221,7 @@ class TaskBuilder:
     def set_status(self, status: str) -> "TaskBuilder":
         status = status.lower().strip()
         if status not in VALID_STATUSES:
-            raise ValueError(
-                f"Invalid status '{status}'. " f"Must be one of {sorted(VALID_STATUSES)}"
-            )
+            raise ValueError(f"Invalid status '{status}'. Must be one of {sorted(VALID_STATUSES)}")
         self._data["status"] = status
         return self
 
@@ -430,7 +428,7 @@ class TaskParser:
         # status
         if task.status not in VALID_STATUSES:
             errors.append(
-                f"status '{task.status}' is invalid. " f"Expected one of {sorted(VALID_STATUSES)}."
+                f"status '{task.status}' is invalid. Expected one of {sorted(VALID_STATUSES)}."
             )
 
         # deadline
