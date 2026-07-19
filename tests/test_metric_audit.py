@@ -23,7 +23,7 @@ def test_find_forbidden_reports_line_and_value() -> None:
 
 def test_canonical_report_requires_complete_ranking() -> None:
     """只写核心数字但缺少排名时不应通过。"""
-    errors = validate_canonical_report("2723.0 1457.0 +86.9% Obs10Wrapper 14 维")
+    errors = validate_canonical_report("2746.94 1458.77 +88.3% Obs10Wrapper 14 维")
 
     assert "权威报告缺少完整的八策略排名" in errors
 

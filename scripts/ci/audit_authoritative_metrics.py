@@ -46,9 +46,9 @@ CANONICAL_RANKING = (
     "PPO",
     "SJF",
     "FCFS",
+    "DQN",
     "Random",
     "Greedy",
-    "DQN",
     "Quantum-Only",
     "Classical-Only",
 )
@@ -67,15 +67,15 @@ def find_forbidden(text: str) -> list[tuple[int, str, str]]:
 def validate_canonical_report(text: str) -> list[str]:
     """验证权威报告包含锁定数字、排名和 14→10 维说明。
 
-    权威数字（2026-07-18 更新，14维 PPO 模型）：
-        - PPO 平均奖励 2723.0
-        - FCFS 平均奖励 1457.0
-        - PPO vs FCFS 提升 +86.9%
+    权威数字（2026-07-19 更新，50 seed × 5 episodes = N=250 验证）：
+        - PPO 平均奖励 2746.94
+        - FCFS 平均奖励 1458.77
+        - PPO vs FCFS 提升 +88.3%
         - Obs10Wrapper（14→10 维兼容）
         - 14 维说明
     """
     errors: list[str] = []
-    for expected in ("2723.0", "1457.0", "+86.9%", "Obs10Wrapper", "14 维"):
+    for expected in ("2746.94", "1458.77", "+88.3%", "Obs10Wrapper", "14 维"):
         if expected not in text:
             errors.append(f"权威报告缺少：{expected}")
 

@@ -348,14 +348,25 @@ class ShortestJobFirstStrategy(BaseStrategy):
 # ---------------------------------------------------------------------------
 
 
-def make_env(tasks_per_episode: int, seed: int | None = None) -> Any:
-    """创建带 10 维包装器的仿真环境。"""
+def make_env(tasks_per_episode: int, seed: int | None = None, obs_dim: int = 10) -> Any:
+    """创建仿真环境。
+
+    Args:
+        tasks_per_episode: 每 episode 最大步数
+        seed: 随机种子
+        obs_dim: 观测空间维度（10 或 14）。10 维使用 Obs10Wrapper 截断，
+            14 维使用原生环境。
+    """
     base = QuantumSchedulingEnv(
         max_steps=tasks_per_episode,
         max_qubits=287,
         seed=seed,
     )
-    return Obs10Wrapper(base)
+    if obs_dim == 10:
+        return Obs10Wrapper(base)
+    if obs_dim == 14:
+        return base
+    raise ValueError(f"obs_dim 必须为 10 或 14，当前值: {obs_dim}")
 
 
 def run_strategy(
