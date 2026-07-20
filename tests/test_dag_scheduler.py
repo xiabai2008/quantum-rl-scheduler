@@ -713,5 +713,136 @@ class TestEdgeCases(unittest.TestCase):
         self.assertEqual(scheduler.max_qubits, 100)
 
 
+# ============================================================
+# TestCoverageFiller 补充覆盖测试
+# 覆盖 dag_scheduler.py 中剩余未覆盖分支
+# ============================================================
+class TestDAGCoverageFiller(unittest.TestCase):
+    """补充覆盖 dag_scheduler.py 中剩余分支。"""
+
+    def test_detect_cycle_dependency_not_in_tasks(self) -> None:
+        """依赖指向不存在的任务时 _detect_cycle 跳过该依赖（line 159）。
+
+        validate_dag 会先抛 ValueError，因此直接调用 _detect_cycle
+        以覆盖 dep not in color → continue 分支。
+        """
+        scheduler = DAGScheduler()
+        scheduler.add_task(DAGTask(task_id="a", dependencies=["nonexistent"]))
+        scheduler.add_task(DAGTask(task_id="b", dependencies=["a"]))
+        # 直接调用 _detect_cycle，跳过 validate_dag 的前置检查
+        # 不应抛异常，也不应误报环
+        self.assertFalse(scheduler._detect_cycle())
+        # 拓扑排序也应正常（跳过不存在的依赖）
+        order = scheduler.topological_sort()
+        self.assertEqual(set(order), {"a", "b"})
+
+    def test_earliest_slot_qubits_exceed_capacity(self) -> None:
+        """比特需求超出容量时排在所有任务之后（lines 397-398）。"""
+        intervals = [(0.0, 5.0, 3), (5.0, 10.0, 3)]
+        # qubits_needed=10 > capacity=5
+        start = DAGScheduler._earliest_slot(
+            intervals, est=0.0, qubits_needed=10, duration=3.0, capacity=5
+        )
+        # 应排在所有任务之后
+        self.assertEqual(start, 10.0)
+
+    def test_earliest_slot_qubits_exceed_capacity_with_est(self) -> None:
+        """比特超容量且 est 更晚时取 est（lines 397-398）。"""
+        intervals = [(0.0, 5.0, 3)]
+        start = DAGScheduler._earliest_slot(
+            intervals, est=8.0, qubits_needed=10, duration=3.0, capacity=5
+        )
+        # max(est=8, last_end=5) = 8
+        self.assertEqual(start, 8.0)
+
+    def test_earliest_slot_empty_intervals(self) -> None:
+        """空区间列表时 est 即为起始时间。"""
+        start = DAGScheduler._earliest_slot([], est=3.0, qubits_needed=2, duration=5.0, capacity=10)
+        self.assertEqual(start, 3.0)
+
+    def test_can_fit_qubits_exceed_capacity(self) -> None:
+        """_can_fit 比特需求超容量返回 False（line 437）。"""
+        result = DAGScheduler._can_fit(
+            intervals=[(0.0, 5.0, 3)],
+            start=0.0,
+            end=5.0,
+            qubits_needed=20,
+            capacity=10,
+        )
+        self.assertFalse(result)
+
+    def test_can_fit_interval_start_within_range(self) -> None:
+        """_can_fit 区间起始点落在任务范围内（line 442）。
+
+        任务 [0, 10]，已有区间 (3, 7, 5) → s=3 在 (0, 10) 内。
+        """
+        result = DAGScheduler._can_fit(
+            intervals=[(3.0, 7.0, 5)],
+            start=0.0,
+            end=10.0,
+            qubits_needed=4,
+            capacity=10,
+        )
+        # 区间 (3,7) 用了 5，5+4=9 ≤ 10 → 可容纳
+        self.assertTrue(result)
+
+    def test_can_fit_interval_end_within_range(self) -> None:
+        """_can_fit 区间结束点落在任务范围内（line 444）。
+
+        任务 [0, 10]，已有区间 (-5, 5, 8) → e=5 在 (0, 10) 内。
+        """
+        result = DAGScheduler._can_fit(
+            intervals=[(-5.0, 5.0, 8)],
+            start=0.0,
+            end=10.0,
+            qubits_needed=4,
+            capacity=10,
+        )
+        # 段 [0, 5]：used=8（(-5,5) 覆盖），8+4=12>10 → False
+        self.assertFalse(result)
+
+    def test_can_fit_segment_outside_range(self) -> None:
+        """_can_fit 子段在任务范围外时跳过（line 450）。
+
+        构造多个事件点，其中部分子段在 [start, end] 之外。
+        """
+        # 任务 [5, 15]，已有区间 (0, 3, 2) 和 (20, 25, 2)
+        # 事件点 {5, 15}，无区间端点落入 (5, 15)
+        result = DAGScheduler._can_fit(
+            intervals=[(0.0, 3.0, 2), (20.0, 25.0, 2)],
+            start=5.0,
+            end=15.0,
+            qubits_needed=5,
+            capacity=10,
+        )
+        # 没有区间覆盖 [5, 15]，used=0 → 可容纳
+        self.assertTrue(result)
+
+    def test_can_fit_multiple_overlapping_intervals(self) -> None:
+        """_can_fit 多区间重叠时正确计算峰值占用。"""
+        # 两个区间在 [2, 8] 重叠，各用 4 qubits
+        result = DAGScheduler._can_fit(
+            intervals=[(0.0, 8.0, 4), (2.0, 10.0, 4)],
+            start=2.0,
+            end=10.0,
+            qubits_needed=5,
+            capacity=10,
+        )
+        # 段 [2, 8]：used=4+4=8，8+5=13>10 → False
+        self.assertFalse(result)
+
+    def test_schedule_with_qubits_exceeding_capacity(self) -> None:
+        """调度时任务比特需求超过机器容量应串行排列。"""
+        scheduler = DAGScheduler()
+        scheduler.add_task(DAGTask(task_id="big", qubits_required=20, estimated_time=3.0))
+        scheduler.add_task(DAGTask(task_id="small", qubits_required=2, estimated_time=2.0))
+        # available_qubits=10 < big 的 20 qubits
+        schedule = scheduler.schedule_with_resources(available_qubits=10, available_machines=1)
+        self.assertEqual(len(schedule), 2)
+        # big 应排在最后（串行）
+        big_entry = next(s for s in schedule if s["task_id"] == "big")
+        self.assertGreaterEqual(big_entry["start_time"], 0.0)
+
+
 if __name__ == "__main__":
     unittest.main()

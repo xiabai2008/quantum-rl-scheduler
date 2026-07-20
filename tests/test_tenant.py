@@ -407,5 +407,126 @@ class TestEnvIntegration(unittest.TestCase):
         self.assertIsNone(env._last_selected_machine)
 
 
+# ============================================================
+# TestCoverageFiller 补充覆盖测试
+# 覆盖 tenant.py 中剩余未覆盖分支
+# ============================================================
+class TestTenantCoverageFiller(unittest.TestCase):
+    """补充覆盖 tenant.py 中剩余分支。"""
+
+    def test_from_config_non_dict_content(self):
+        """配置文件内容为非字典（列表）时回退默认（lines 119-121）。"""
+        # YAML 内容为列表，非字典
+        path = _write_temp_yaml("- item1\n- item2\n")
+        try:
+            mgr = TenantQuotaManager.from_config(path)
+            # 应回退到默认租户
+            self.assertIn("default", mgr.tenant_ids)
+        finally:
+            os.unlink(path)
+
+    def test_from_config_string_content(self):
+        """配置文件内容为纯字符串时回退默认（lines 119-121）。"""
+        path = _write_temp_yaml("just a string\n")
+        try:
+            mgr = TenantQuotaManager.from_config(path)
+            self.assertIn("default", mgr.tenant_ids)
+        finally:
+            os.unlink(path)
+
+    def test_from_config_tenant_entry_not_dict(self):
+        """租户列表含非字典条目时跳过该条目（line 129）。"""
+        # tenants 列表中混入字符串和数字，应被跳过
+        yaml_content = (
+            "default_tenant: default\n"
+            "tenants:\n"
+            '  - "invalid_string"\n'  # 非字典，跳过
+            "  - 123\n"  # 非字典，跳过
+            "  - tenant_id: valid\n"  # 有效
+            "    max_qubits: 66\n"
+            "    max_concurrent_tasks: 5\n"
+        )
+        path = _write_temp_yaml(yaml_content)
+        try:
+            mgr = TenantQuotaManager.from_config(path)
+            # valid 租户应被加载，invalid 条目被跳过
+            self.assertIn("valid", mgr.tenant_ids)
+            valid_info = mgr.get_tenant_info("valid")
+            self.assertEqual(valid_info["max_qubits"], 66)
+        finally:
+            os.unlink(path)
+
+    def test_get_tenant_last_fallback(self):
+        """租户与默认租户都不存在时回退到任意租户（line 166）。"""
+        # 构造：tenants 含 "a"，default_tenant_id="nonexistent"
+        mgr = TenantQuotaManager(
+            tenants={"a": TenantQuota(tenant_id="a", max_qubits=50)},
+            default_tenant_id="nonexistent",
+        )
+        # 请求 "ghost" → 不在 tenants；default="nonexistent" 也不在 → 回退到 "a"
+        quota = mgr._get_tenant("ghost")
+        self.assertEqual(quota.tenant_id, "a")
+
+    def test_daily_reset_clears_counter(self):
+        """跨日时 daily_used 应被重置为 0（lines 175-177）。"""
+        from datetime import date, timedelta
+
+        yesterday = (date.today() - timedelta(days=1)).isoformat()
+        quota = TenantQuota(
+            tenant_id="reset_test",
+            daily_used=10,
+            daily_date=yesterday,
+        )
+        mgr = TenantQuotaManager(tenants={"reset_test": quota})
+        # can_schedule 内部会调用 _check_daily_reset
+        mgr.can_schedule("reset_test", qubits=1, tasks=1)
+        self.assertEqual(quota.daily_used, 0)
+        self.assertEqual(quota.daily_date, date.today().isoformat())
+
+    def test_daily_reset_via_get_tenant_info(self):
+        """get_tenant_info 也应触发跨日重置（lines 175-177）。"""
+        from datetime import date, timedelta
+
+        yesterday = (date.today() - timedelta(days=1)).isoformat()
+        quota = TenantQuota(
+            tenant_id="info_reset",
+            daily_used=5,
+            daily_date=yesterday,
+        )
+        mgr = TenantQuotaManager(tenants={"info_reset": quota})
+        info = mgr.get_tenant_info("info_reset")
+        self.assertEqual(info["daily_used"], 0)
+
+    def test_no_daily_reset_same_day(self):
+        """同日不应重置 daily_used。"""
+        from datetime import date
+
+        today = date.today().isoformat()
+        quota = TenantQuota(
+            tenant_id="same_day",
+            daily_used=3,
+            daily_date=today,
+        )
+        mgr = TenantQuotaManager(tenants={"same_day": quota})
+        mgr.can_schedule("same_day", qubits=1, tasks=1)
+        self.assertEqual(quota.daily_used, 3)
+
+    def test_consume_after_daily_reset(self):
+        """跨日重置后 consume 应从 0 开始计数。"""
+        from datetime import date, timedelta
+
+        yesterday = (date.today() - timedelta(days=1)).isoformat()
+        quota = TenantQuota(
+            tenant_id="consume_reset",
+            daily_limit=5,
+            daily_used=5,  # 昨天已用满
+            daily_date=yesterday,
+        )
+        mgr = TenantQuotaManager(tenants={"consume_reset": quota})
+        # 跨日重置后应有配额
+        self.assertTrue(mgr.consume("consume_reset", qubits=1, tasks=1))
+        self.assertEqual(quota.daily_used, 1)
+
+
 if __name__ == "__main__":
     unittest.main()
