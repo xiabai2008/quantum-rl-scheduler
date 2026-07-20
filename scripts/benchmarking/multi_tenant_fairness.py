@@ -183,7 +183,7 @@ def main():
     # Calculate avg Jain for each strategy
     fcfs_jains = []
     pf_jains = []
-    for name, w, qos, b in scenarios:
+    for _name, w, qos, b in scenarios:
         tasks = gen_tasks(N, w)
         t = simulate(list(tasks), "fcfs", b, qos)
         fcfs_jains.append(t.jain_completion_fairness())

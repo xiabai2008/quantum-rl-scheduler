@@ -193,7 +193,7 @@ def main():
         scenario_data = {}
 
         # DQN
-        for steps, path, fname in dqn_models:
+        for steps, path, _fname in dqn_models:
             print(f"  DQN@{steps} ...", end=" ", flush=True)
             env = factory()
             try:
@@ -282,7 +282,7 @@ def main():
                 bar_colors.append(color_ppo)
 
         bars = ax.barh(names, rewards, color=bar_colors)
-        for b, v in zip(bars, rewards):
+        for b, v in zip(bars, rewards, strict=False):
             x = b.get_width()
             ax.text(
                 x + max(x * 0.02, 20),
@@ -325,7 +325,7 @@ def main():
         sd = all_data[key]["data"]
         ppo_r = sd.get("PPO", {}).get("total_reward", 0)
         dqn_rs = []
-        for s, _, f in sorted(dqn_models):
+        for s, _, _f in sorted(dqn_models):
             dqn_r = sd.get(f"DQN@{s}", {}).get("total_reward", 0)
             dqn_rs.append(f"{dqn_r:.0f}")
         report_lines.append(f"| {label} | {ppo_r:.0f} | " + " | ".join(dqn_rs) + " |")

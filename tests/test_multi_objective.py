@@ -99,7 +99,7 @@ class TestMultiObjectiveWrapper(unittest.TestCase):
 
     def test_reset_returns_objectives(self):
         """测试 reset() 返回 info["objectives"]"""
-        obs, info = self.mo_env.reset(seed=42)
+        _obs, info = self.mo_env.reset(seed=42)
         self.assertIn("objectives", info)
         self.assertEqual(info["objectives"]["throughput"], 0.0)
         self.assertEqual(info["objectives"]["balance"], 0.0)
@@ -109,7 +109,7 @@ class TestMultiObjectiveWrapper(unittest.TestCase):
 
     def test_reset_returns_obs_dim(self):
         """测试 reset() 返回正确维度的观测"""
-        obs, info = self.mo_env.reset(seed=42)
+        obs, _info = self.mo_env.reset(seed=42)
         self.assertEqual(obs.shape, (OBS_DIM,))
         self.assertTrue(np.all(obs >= 0.0))
         self.assertTrue(np.all(obs <= 1.0))
@@ -117,7 +117,7 @@ class TestMultiObjectiveWrapper(unittest.TestCase):
     def test_step_returns_objectives(self):
         """测试 step() 返回 info["objectives"]"""
         self.mo_env.reset(seed=42)
-        obs, reward, terminated, truncated, info = self.mo_env.step(0)
+        _obs, _reward, _terminated, _truncated, info = self.mo_env.step(0)
         self.assertIn("objectives", info)
         self.assertIn("throughput", info["objectives"])
         self.assertIn("balance", info["objectives"])
@@ -145,7 +145,7 @@ class TestMultiObjectiveWrapper(unittest.TestCase):
         self.mo_env.reset(seed=42)
         for _ in range(50):
             action = np.random.randint(0, 3)
-            obs, reward, terminated, truncated, info = self.mo_env.step(action)
+            _obs, _reward, terminated, _truncated, info = self.mo_env.step(action)
             t = info["objectives"]["throughput"]
             self.assertGreaterEqual(t, 0.0, f"throughput {t} < 0")
             self.assertLessEqual(t, 1.0, f"throughput {t} > 1")
@@ -157,7 +157,7 @@ class TestMultiObjectiveWrapper(unittest.TestCase):
         self.mo_env.reset(seed=42)
         for _ in range(50):
             action = np.random.randint(0, 3)
-            obs, reward, terminated, truncated, info = self.mo_env.step(action)
+            _obs, _reward, terminated, _truncated, info = self.mo_env.step(action)
             b = info["objectives"]["balance"]
             self.assertGreaterEqual(b, -1.0, f"balance {b} < -1")
             self.assertLessEqual(b, 0.0, f"balance {b} > 0")
@@ -169,7 +169,7 @@ class TestMultiObjectiveWrapper(unittest.TestCase):
         self.mo_env.reset(seed=42)
         for _ in range(50):
             action = np.random.randint(0, 3)
-            obs, reward, terminated, truncated, info = self.mo_env.step(action)
+            _obs, _reward, terminated, _truncated, info = self.mo_env.step(action)
             q = info["objectives"]["quality"]
             self.assertGreaterEqual(q, -1.0, f"quality {q} < -1")
             self.assertLessEqual(q, 0.0, f"quality {q} > 0")
@@ -257,7 +257,7 @@ class TestMultiObjectiveWrapper(unittest.TestCase):
         expected_reward = w[0] * t + w[1] * b + w[2] * q
 
         # 执行一步
-        obs, reward, terminated, truncated, info = self.mo_env.step(1)
+        _obs, _reward, _terminated, _truncated, info = self.mo_env.step(1)
 
         self.assertIn("mo_reward", info)
         self.assertAlmostEqual(info["mo_reward"], expected_reward, delta=0.5)
@@ -269,7 +269,7 @@ class TestMultiObjectiveWrapper(unittest.TestCase):
         self.assertEqual(self.mo_env.weights, [0.0, 1.0, 0.0])
 
         # 执行一步，确认权重已生效
-        obs, reward, terminated, truncated, info = self.mo_env.step(0)
+        _obs, _reward, _terminated, _truncated, info = self.mo_env.step(0)
         self.assertEqual(info["mo_weights"], [0.0, 1.0, 0.0])
 
     def test_set_weight_preset(self):
@@ -295,7 +295,7 @@ class TestMultiObjectiveWrapper(unittest.TestCase):
         self.mo_env.reset(seed=42)
         for _ in range(20):
             action = np.random.randint(0, 3)
-            obs, reward, terminated, truncated, info = self.mo_env.step(action)
+            _obs, _reward, terminated, _truncated, _info = self.mo_env.step(action)
             if terminated:
                 break
 
@@ -312,7 +312,7 @@ class TestMultiObjectiveWrapper(unittest.TestCase):
         self.mo_env.reset(seed=42)
         for _ in range(5):
             action = np.random.randint(0, 3)
-            obs, reward, terminated, truncated, info = self.mo_env.step(action)
+            _obs, _reward, terminated, _truncated, info = self.mo_env.step(action)
             if terminated:
                 break
 
@@ -327,7 +327,7 @@ class TestMultiObjectiveWrapper(unittest.TestCase):
         self.mo_env.reset(seed=42)
         for _ in range(10):
             action = np.random.randint(0, 3)
-            obs, reward, terminated, truncated, info = self.mo_env.step(action)
+            _obs, _reward, terminated, _truncated, _info = self.mo_env.step(action)
             if terminated:
                 break
 
@@ -436,7 +436,7 @@ class TestMultiObjectiveWrapper(unittest.TestCase):
         mo_env = MultiObjectiveRewardWrapper(env, weights=[1.0, 0.5, 0.5])
         # 先 reset
         mo_env.reset(seed=42)
-        obs, reward, terminated, truncated, info = mo_env.step(0)
+        _obs, _reward, _terminated, _truncated, info = mo_env.step(0)
         self.assertIn("objectives", info)
 
     def test_empty_weights_list(self):
@@ -457,7 +457,7 @@ class TestMultiObjectiveWrapper(unittest.TestCase):
     def test_original_reward_in_info(self):
         """测试 info 中包含原始环境奖励"""
         self.mo_env.reset(seed=42)
-        obs, reward, terminated, truncated, info = self.mo_env.step(0)
+        _obs, _reward, _terminated, _truncated, info = self.mo_env.step(0)
         self.assertIn("original_reward", info)
         self.assertIsInstance(info["original_reward"], float)
 

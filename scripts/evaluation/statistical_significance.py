@@ -128,7 +128,7 @@ def _generate_markdown_report(
     lines.append("|:--|:--|:--:|:--:|:--:|:--:|:--:|:--:|:--:|")
     for pair, info in results.items():
         ci = f"[{info['ci_lower']:.2f}, {info['ci_upper']:.2f}]"
-        imp_pct = info.get("improvement_pct", float("nan"))
+        info.get("improvement_pct", float("nan"))
         imp_lo = info.get("improvement_pct_ci_lower", float("nan"))
         imp_hi = info.get("improvement_pct_ci_upper", float("nan"))
         if math.isnan(imp_lo) or math.isnan(imp_hi):

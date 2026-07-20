@@ -17,14 +17,14 @@ def diagnose_reward():
     print("=" * 60)
 
     env = QuantumSchedulingEnv(max_qubits=20, max_steps=100)
-    obs, _ = env.reset()
+    _obs, _ = env.reset()
 
     total_reward = 0.0
     rewards = []
 
     for i in range(10):
         action = np.random.randint(0, 3)
-        obs, reward, done, truncated, info = env.step(action)
+        _obs, reward, done, _truncated, _info = env.step(action)
         total_reward += reward
         rewards.append(reward)
         print(f"Step {i + 1}: action={action}, reward={reward:.2f}, cumulative={total_reward:.2f}")
@@ -39,9 +39,9 @@ def diagnose_reward():
 
     # 模拟100步
     env2 = QuantumSchedulingEnv(max_qubits=20, max_steps=100)
-    obs, _ = env2.reset()
+    _obs, _ = env2.reset()
     total = 0.0
-    for i in range(100):
+    for _ in range(100):
         action = np.random.randint(0, 3)
         _obs, reward, done, _truncated, _info = env2.step(action)
         total += reward

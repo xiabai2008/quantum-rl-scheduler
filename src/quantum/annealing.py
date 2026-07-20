@@ -868,7 +868,7 @@ class QuantumAnnealingOptimizer:
 
         for iteration in range(num_iterations):
             # 保存本轮开始前的全量权重（用于可能的回滚）
-            old_all_weights, old_all_shapes = self._extract_weights(policy_net)
+            old_all_weights, _old_all_shapes = self._extract_weights(policy_net)
 
             # 逐块处理
             total_accepted_blocks = 0

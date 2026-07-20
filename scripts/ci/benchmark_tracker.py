@@ -12,12 +12,12 @@ Benchmark 结果跨版本追踪与性能回归检测工具
 使用示例：
     # 基本用法：追踪 benchmark 结果
     python scripts/ci/benchmark_tracker.py benchmark_results.json
-    
+
     # 自定义历史记录路径和回归阈值
     python scripts/ci/benchmark_tracker.py benchmark_results.json \
         --history-path results/benchmark_history.jsonl \
         --threshold 15.0
-    
+
     # 生成对比报告
     python scripts/ci/benchmark_tracker.py benchmark_results.json --report
 

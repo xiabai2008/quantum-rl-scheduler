@@ -320,7 +320,7 @@ def plot_radar(
 
     # 归一化到 [0, 1]（对 balance 和 quality 做平移）
     max_vals = {"throughput": 0, "balance": 1e-6, "quality": 1e-6}
-    for preset, vals in aggregated.items():
+    for _preset, vals in aggregated.items():
         for k in ["throughput", "balance", "quality"]:
             raw = np.mean(vals[k])
             # balance 和 quality 是负数，平移使其为正

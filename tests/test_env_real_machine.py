@@ -58,8 +58,8 @@ class TestGenerateQcisCircuit:
     def test_different_seed_produces_different_circuit(self):
         """不同 seed 可能生成不同电路"""
         task = Task(task_id="0", task_type="quantum", qubit_count=5, priority=3)
-        q1 = generate_qcis_circuit(task, seed=42)
-        q2 = generate_qcis_circuit(task, seed=123)
+        generate_qcis_circuit(task, seed=42)
+        generate_qcis_circuit(task, seed=123)
         # 注意：小规模电路可能恰好相同，所以只是"可能"不同
         # 用多比特任务确保大概率不同
         task_big = Task(task_id="0", task_type="quantum", qubit_count=20, priority=5)

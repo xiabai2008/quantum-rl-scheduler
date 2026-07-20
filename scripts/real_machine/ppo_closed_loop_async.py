@@ -751,7 +751,7 @@ def main() -> None:
     t0 = time.perf_counter()
 
     try:
-        model = agent.train(
+        agent.train(
             total_timesteps=args.timesteps,
             eval_freq=max(1, args.save_interval // 2),
             n_eval_episodes=5,
