@@ -113,14 +113,10 @@ jobs:
       - name: Run tests with coverage
         shell: bash
         run: |
-          # Linux/macOS 共享 runner 只有 2 核 + 7GB RAM，退火测试
-          # （tests/test_annealing.py）会耗尽资源导致 runner 失联。
-          # Windows runner 资源充足，完整跑所有测试。
-          # 退火逻辑在 Windows 矩阵（3 个 Python 版本）已完整验证。
-          PYTEST_OPTS=()
-          if [[ "${{ runner.os }}" != "Windows" ]]; then
-            PYTEST_OPTS+=(--ignore=tests/test_annealing.py)
-          fi
+          # Issue #189: test_annealing.py 资源耗尽问题已修复
+          # （慢测试最慢 1.13s，总耗时 65s），不再需要 --ignore。
+          # CI test job 已简化为只跑 Windows（2026-07-19），
+          # 退火逻辑在 Windows 矩阵（3 个 Python 版本）完整验证。
           python -m pytest tests/ \
             -v \
             -n auto --dist loadscope \
@@ -129,8 +125,7 @@ jobs:
             --cov-report=xml \
             --cov-fail-under=70 \
             --timeout=120 \
-            -W ignore::DeprecationWarning \
-            "${PYTEST_OPTS[@]}"
+            -W ignore::DeprecationWarning
 
       - name: Upload coverage to Codecov
         if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.11'

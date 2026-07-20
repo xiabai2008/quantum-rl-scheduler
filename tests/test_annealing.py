@@ -884,5 +884,273 @@ class TestHierarchicalAnnealing(unittest.TestCase):
         self.assertIs(result, self.agent)
 
 
+# ============================================================
+# Issue #189: 模块级 QUBO 构建函数测试
+# ============================================================
+class TestQuboMatrixConstruction(unittest.TestCase):
+    """测试 build_qubo_matrix / build_qubo_matrix_optimized 模块级函数。"""
+
+    def setUp(self):
+        np.random.seed(42)
+        self.priorities = np.array([1.0, 2.0, 3.0])
+        self.times = np.array([5.0, 3.0, 2.0])
+
+    def test_build_qubo_shape(self):
+        """build_qubo_matrix 应返回 (n, n) 矩阵。"""
+        Q = annealing_mod.build_qubo_matrix(self.priorities, self.times)
+        self.assertEqual(Q.shape, (3, 3))
+
+    def test_build_qubo_symmetric(self):
+        """build_qubo_matrix 应返回对称矩阵。"""
+        Q = annealing_mod.build_qubo_matrix(self.priorities, self.times)
+        np.testing.assert_array_almost_equal(Q, Q.T)
+
+    def test_build_qubo_diagonal(self):
+        """对角元应等于 priority[i] * time[i]。"""
+        Q = annealing_mod.build_qubo_matrix(self.priorities, self.times)
+        for i in range(3):
+            self.assertAlmostEqual(Q[i, i], self.priorities[i] * self.times[i])
+
+    def test_build_qubo_custom_penalty(self):
+        """自定义 penalty 应影响非对角元。"""
+        # 默认 penalty=10.0，用 penalty=20.0 对比（应为 2 倍非对角元）
+        Q_default = annealing_mod.build_qubo_matrix(self.priorities, self.times, penalty=10.0)
+        Q_custom = annealing_mod.build_qubo_matrix(self.priorities, self.times, penalty=20.0)
+        # 对角元应相同（不受 penalty 影响）
+        np.testing.assert_array_almost_equal(np.diag(Q_default), np.diag(Q_custom))
+        # 非对角元应为 2 倍关系
+        off_default = Q_default - np.diag(np.diag(Q_default))
+        off_custom = Q_custom - np.diag(np.diag(Q_custom))
+        np.testing.assert_array_almost_equal(off_custom, 2.0 * off_default)
+
+    def test_build_qubo_shape_mismatch_raises(self):
+        """priorities 和 times 形状不一致应抛出 ValueError。"""
+        with self.assertRaises(ValueError):
+            annealing_mod.build_qubo_matrix(np.array([1.0, 2.0]), np.array([1.0]))
+
+    def test_build_qubo_non_1d_raises(self):
+        """非一维数组应抛出 ValueError。"""
+        with self.assertRaises(ValueError):
+            annealing_mod.build_qubo_matrix(
+                np.array([[1.0, 2.0], [3.0, 4.0]]), np.array([1.0, 2.0])
+            )
+
+    def test_build_qubo_optimized_matches_original(self):
+        """优化版应与原版结果一致。"""
+        Q_orig = annealing_mod.build_qubo_matrix(self.priorities, self.times, penalty=5.0)
+        Q_opt = annealing_mod.build_qubo_matrix_optimized(self.priorities, self.times, penalty=5.0)
+        np.testing.assert_array_almost_equal(Q_orig, Q_opt)
+
+    def test_build_qubo_optimized_shape_mismatch_raises(self):
+        """优化版也应校验形状。"""
+        with self.assertRaises(ValueError):
+            annealing_mod.build_qubo_matrix_optimized(np.array([1.0]), np.array([1.0, 2.0]))
+
+    def test_build_qubo_optimized_non_1d_raises(self):
+        """优化版也应校验维度。"""
+        with self.assertRaises(ValueError):
+            annealing_mod.build_qubo_matrix_optimized(np.array([[1.0]]), np.array([1.0]))
+
+    def test_build_qubo_zero_penalty(self):
+        """penalty=0 时非对角元应全为 0。"""
+        Q = annealing_mod.build_qubo_matrix(self.priorities, self.times, penalty=0.0)
+        off_diag = Q - np.diag(np.diag(Q))
+        np.testing.assert_array_almost_equal(off_diag, np.zeros((3, 3)))
+
+
+class TestQuboProfiling(unittest.TestCase):
+    """测试 profile_qubo_construction / benchmark_qubo_versions 性能剖析函数。"""
+
+    def test_profile_returns_valid_dict(self):
+        """profile_qubo_construction 应返回包含统计量的字典。"""
+        result = annealing_mod.profile_qubo_construction(n_tasks=5, n_iterations=3)
+        self.assertIn("mean_time_ms", result)
+        self.assertIn("std_time_ms", result)
+        self.assertIn("min_time_ms", result)
+        self.assertIn("max_time_ms", result)
+        self.assertIn("matrix_size", result)
+        self.assertIn("n_tasks", result)
+        self.assertEqual(result["n_tasks"], 5)
+        self.assertEqual(result["matrix_size"], 5)
+        self.assertGreaterEqual(result["mean_time_ms"], 0.0)
+
+    def test_profile_negative_n_tasks_raises(self):
+        """负 n_tasks 应抛出 ValueError。"""
+        with self.assertRaises(ValueError):
+            annealing_mod.profile_qubo_construction(n_tasks=-1)
+
+    def test_profile_zero_iterations_raises(self):
+        """n_iterations < 1 应抛出 ValueError。"""
+        with self.assertRaises(ValueError):
+            annealing_mod.profile_qubo_construction(n_iterations=0)
+
+    def test_profile_zero_tasks(self):
+        """n_tasks=0 应正常处理（空矩阵）。"""
+        result = annealing_mod.profile_qubo_construction(n_tasks=0, n_iterations=1)
+        self.assertEqual(result["matrix_size"], 0)
+
+    def test_benchmark_returns_valid_dict(self):
+        """benchmark_qubo_versions 应返回对比结果。"""
+        result = annealing_mod.benchmark_qubo_versions(n_tasks=5, n_iterations=3)
+        self.assertIn("original_mean_ms", result)
+        self.assertIn("optimized_mean_ms", result)
+        self.assertIn("speedup", result)
+        self.assertIn("results_match", result)
+        self.assertTrue(result["results_match"])
+
+    def test_benchmark_negative_n_tasks_raises(self):
+        """负 n_tasks 应抛出 ValueError。"""
+        with self.assertRaises(ValueError):
+            annealing_mod.benchmark_qubo_versions(n_tasks=-1)
+
+    def test_benchmark_zero_iterations_raises(self):
+        """n_iterations < 1 应抛出 ValueError。"""
+        with self.assertRaises(ValueError):
+            annealing_mod.benchmark_qubo_versions(n_iterations=0)
+
+
+class TestFindOptimalQuboParams(unittest.TestCase):
+    """测试 find_optimal_qubo_params 网格搜索函数。"""
+
+    def setUp(self):
+        self.priorities = np.array([1.0, 2.0, 3.0])
+        self.times = np.array([5.0, 3.0, 2.0])
+
+    def test_returns_valid_dict(self):
+        """应返回包含 best_penalty/best_energy/all_results 的字典。"""
+        result = annealing_mod.find_optimal_qubo_params(self.priorities, self.times)
+        self.assertIn("best_penalty", result)
+        self.assertIn("best_energy", result)
+        self.assertIn("all_results", result)
+
+    def test_default_grid_has_5_penalties(self):
+        """默认网格应有 5 个 penalty 值。"""
+        result = annealing_mod.find_optimal_qubo_params(self.priorities, self.times)
+        self.assertEqual(len(result["all_results"]), 5)
+
+    def test_custom_grid(self):
+        """自定义网格应被正确使用。"""
+        custom_grid = {"penalty": [1.0, 10.0]}
+        result = annealing_mod.find_optimal_qubo_params(
+            self.priorities, self.times, param_grid=custom_grid
+        )
+        self.assertEqual(len(result["all_results"]), 2)
+
+    def test_best_penalty_in_grid(self):
+        """best_penalty 应属于网格中的某个值。"""
+        grid = {"penalty": [2.0, 4.0, 8.0]}
+        result = annealing_mod.find_optimal_qubo_params(
+            self.priorities, self.times, param_grid=grid
+        )
+        self.assertIn(result["best_penalty"], [2.0, 4.0, 8.0])
+
+    def test_best_energy_is_minimum(self):
+        """best_energy 应等于 all_results 中的最小能量。"""
+        result = annealing_mod.find_optimal_qubo_params(self.priorities, self.times)
+        min_energy = min(r["energy"] for r in result["all_results"])
+        self.assertAlmostEqual(result["best_energy"], min_energy)
+
+    def test_empty_grid_falls_back(self):
+        """空网格应回退到默认 penalty=10.0。"""
+        result = annealing_mod.find_optimal_qubo_params(
+            self.priorities, self.times, param_grid={"penalty": []}
+        )
+        self.assertEqual(result["best_penalty"], 10.0)
+
+
+# ============================================================
+# Issue #189: _get_full_policy / _set_params_from_weights 测试
+# ============================================================
+class TestGetFullPolicy(unittest.TestCase):
+    """测试 _get_full_policy 静态方法。"""
+
+    def test_with_sb3_ppo_style_policy(self):
+        """SB3 PPO 风格 agent（policy 是 nn.Module）应返回完整 policy。"""
+        net = nn.Linear(4, 2)
+        agent = MagicMock()
+        agent.policy = net
+        result = QuantumAnnealingOptimizer._get_full_policy(agent)
+        self.assertIs(result, net)
+
+    def test_falls_back_to_get_policy_net(self):
+        """非 PPO 风格应回退到 _get_policy_net。"""
+        net = nn.Linear(4, 2)
+        agent = MagicMock()
+        agent.policy_net = net
+        # policy 属性不存在 → 走回退路径
+        del agent.policy
+        result = QuantumAnnealingOptimizer._get_full_policy(agent)
+        self.assertIs(result, net)
+
+
+class TestSetParamsFromWeights(unittest.TestCase):
+    """测试 _set_params_from_weights 静态方法。"""
+
+    def test_updates_params_in_place(self):
+        """应原地更新参数子集。"""
+        params = [nn.Parameter(torch.zeros(3)), nn.Parameter(torch.zeros(2))]
+        weights = [
+            np.array([1.0, 2.0, 3.0], dtype=np.float32),
+            np.array([4.0, 5.0], dtype=np.float32),
+        ]
+        QuantumAnnealingOptimizer._set_params_from_weights(params, weights)
+        np.testing.assert_array_almost_equal(params[0].detach().numpy(), [1.0, 2.0, 3.0])
+        np.testing.assert_array_almost_equal(params[1].detach().numpy(), [4.0, 5.0])
+
+    def test_partial_param_subset(self):
+        """应能更新参数子集（不覆盖全部参数）。"""
+        all_params = [nn.Parameter(torch.ones(2)), nn.Parameter(torch.ones(3))]
+        subset = [all_params[1]]  # 只更新第二个
+        weights = [np.array([10.0, 20.0, 30.0], dtype=np.float32)]
+        QuantumAnnealingOptimizer._set_params_from_weights(subset, weights)
+        # 第一个参数应保持不变
+        np.testing.assert_array_almost_equal(all_params[0].detach().numpy(), [1.0, 1.0])
+        # 第二个参数应被更新
+        np.testing.assert_array_almost_equal(all_params[1].detach().numpy(), [10.0, 20.0, 30.0])
+
+
+# ============================================================
+# Issue #189: _compute_gradients 测试（通过 mock replay buffer）
+# ============================================================
+class TestComputeGradients(unittest.TestCase):
+    """测试 _compute_gradients 内部方法。"""
+
+    def setUp(self):
+        self.opt = QuantumAnnealingOptimizer(num_qubits=16, shots=10)
+        self.opt._sim_num_sweeps = 5
+        self.net = nn.Sequential(nn.Linear(4, 2))
+
+    def test_replay_buffer_sample_exception_raises_valueerror(self):
+        """replay buffer sample 抛异常时应转为 ValueError。"""
+        bad_buffer = MagicMock()
+        bad_buffer.sample = MagicMock(side_effect=RuntimeError("buffer empty"))
+        with self.assertRaises(ValueError):
+            self.opt._compute_gradients(self.net, bad_buffer, agent=None)
+
+    def test_replay_buffer_without_sample_raises_valueerror(self):
+        """replay buffer 无 sample 方法时应抛出 ValueError。"""
+        bad_buffer = MagicMock(spec=[])  # 空接口
+        with self.assertRaises(ValueError):
+            self.opt._compute_gradients(self.net, bad_buffer, agent=None)
+
+    def test_compute_gradients_with_tuple_batch(self):
+        """tuple 格式 batch（SB3 ReplayBuffer）应能正常处理。"""
+        # 构造 SB3 风格的 batch: (obs, actions, rewards, next_obs, dones, ...)
+        # actions 必须是 2D (batch, 1)，因为 gather(1, actions) 要求同维度
+        batch = (
+            np.random.randn(8, 4).astype(np.float32),  # obs
+            np.array([[0], [1], [0], [1], [0], [1], [0], [1]], dtype=np.int64),  # actions 2D
+            np.array([1.0, 0.5, -0.5, 1.0, 0.0, 0.3, -0.2, 0.8]),  # rewards
+            np.random.randn(8, 4).astype(np.float32),  # next_obs
+            np.array([0, 0, 0, 0, 0, 0, 0, 1]),  # dones
+            np.empty(8),  # infos placeholder
+        )
+        buffer = MagicMock()
+        buffer.sample = MagicMock(return_value=batch)
+        _gradients, _td_errors, loss = self.opt._compute_gradients(self.net, buffer, agent=None)
+        # 应返回有限值
+        self.assertTrue(np.isfinite(loss))
+
+
 if __name__ == "__main__":
     unittest.main()
