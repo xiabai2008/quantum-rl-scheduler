@@ -167,11 +167,19 @@ def generate_validation_report(results: dict[str, Any], report_path: Path, plot_
             rows.append(f"| {label} | N/A（未运行） | - | - | - | - |")
             continue
         stats = conditions[key]
-        ci = stats_section["ci"].get(key, {})
+        ci = stats_section["ci"].get(key)
+        if ci is not None:
+            ci_str = f"[{ci['ci_low']:.2f}, {ci['ci_high']:.2f}]"
+            ci_width_str = f"{ci['ci_width']:.2f}"
+        else:
+            # pure_real 复用 #165 数据，未计算 CI，显示 N/A 而非误导性的 [0.00, 0.00]
+            ci_n = len(stats.get("runs", []))
+            ci_str = f"N/A (N={ci_n})"
+            ci_width_str = "-"
         rows.append(
             f"| {label} | {stats['reward_mean']:.2f} ± {stats['reward_std']:.2f} | "
-            f"[{ci.get('ci_low', 0):.2f}, {ci.get('ci_high', 0):.2f}] | "
-            f"{ci.get('ci_width', 0):.2f} | "
+            f"{ci_str} | "
+            f"{ci_width_str} | "
             f"{stats['real_attempted']}/{stats['real_accepted']}/{stats['real_completed']} | "
             f"{stats['real_participation_rate']:.2%} |"
         )
@@ -366,6 +374,13 @@ def main() -> None:
                 refreshed.append(old_run)
                 continue
             if aborted:
+                continue
+            # --skip-real 模式下，mixed_real 缺失的 seed 不以 simulation 填充（避免数据污染）
+            if args.skip_real and condition == "mixed_real":
+                print(
+                    f"[警告] --skip-real 模式：{condition} seed={seed} 在 checkpoint 中缺失，"
+                    f"跳过而非以 simulation 填充（避免 mixed_real 数据污染）"
+                )
                 continue
             print(f"[{datetime.now():%H:%M:%S}] {condition} seed={seed} 开始训练...")
             run = train_seed(

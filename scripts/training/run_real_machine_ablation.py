@@ -362,6 +362,9 @@ def save_plot(conditions: dict[str, dict[str, Any]], path: Path) -> None:
         ),
     }
     colors = {"simulation": "#4C78A8", "mixed_real": "#F58518", "pure_real": "#54A24B"}
+    # 动态计算 seed 数量用于标题（#165=3, #192=10），避免硬编码
+    sim_runs = conditions.get("simulation", {}).get("runs", [])
+    num_seeds = len(sim_runs) if sim_runs else 3
     path.parent.mkdir(parents=True, exist_ok=True)
     fig, axes = plt.subplots(1, 2, figsize=(13, 5))
     for key, stats in conditions.items():
@@ -371,7 +374,7 @@ def save_plot(conditions: dict[str, dict[str, Any]], path: Path) -> None:
         std = np.asarray([point["std_reward"] for point in curve])
         axes[0].plot(x, mean, marker="o", label=labels[key], color=colors[key])
         axes[0].fill_between(x, mean - std, mean + std, alpha=0.15, color=colors[key])
-    axes[0].set_title("PPO convergence across 3 seeds")
+    axes[0].set_title(f"PPO convergence across {num_seeds} seeds")
     axes[0].set_xlabel("Training tasks")
     axes[0].set_ylabel("Episode reward (20-task window)")
     axes[0].grid(alpha=0.25)
