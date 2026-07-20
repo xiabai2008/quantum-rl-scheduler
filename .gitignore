@@ -89,6 +89,8 @@ tensorboard_logs/
 !results/reports/**
 # 2) 重新忽略 results/ 下的大体积数据（JSON 实验数据等），避免仓库膨胀
 results/**/*.json
+# 3) 但 results/reports/ 下的 JSON 报告文件允许入库（覆盖上方 results/**/*.json）
+!results/reports/**/*.json
 results/raw/
 results/fair_comparison/
 results/issue_experiments/
@@ -97,5 +99,6 @@ results/real_machine/
 
 # ── 变异测试 / 临时虚拟环境（切勿提交）──
 mutants/
+.venv-mutmut/
 .venv-mutmut-wsl/
 .venv-mutmut-win/
