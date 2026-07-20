@@ -1,6 +1,6 @@
 # 权威模型检查点归档（MODELS.md）
 
-> 本文件说明本项目**可提交的训练好的模型检查点**，用于保证评审在克隆仓库后能复现论文中的实验结果（PPO vs FCFS +86.9% 等）。
+> 本文件说明本项目**可提交的训练好的模型检查点**，用于保证评审在克隆仓库后能复现论文中的实验结果（PPO vs FCFS +88.3% 等）。
 > 最后更新：2026-07-10
 
 ## 为什么需要本目录
@@ -13,7 +13,7 @@
 
 | 策略 | 提交路径（可复现） | 来源（训练产物，不入库） | 体积 | 复现指标 |
 |------|-------------------|--------------------------|------|----------|
-| **PPO** | `deliverable_models/ppo_best_model_10dim.zip` | `models/ppo_seed_42_v4/best_model.zip` | ~261 KB | PPO 奖励 **2723.0**（10 seed × 5 ep，+86.9% vs FCFS） |
+| **PPO** | `deliverable_models/ppo_best_model_10dim.zip` | `models/ppo_seed_42_v4/best_model.zip` | ~261 KB | PPO 奖励 **2746.94**（50 seed × 5 ep，+88.3% vs FCFS） |
 | **DQN** | `deliverable_models/dqn_best_model_10dim.zip` | `models/dqn_fair_v2/seed_42/best_model.zip` | ~216 KB | DQN 奖励 **-897.08**（排名第 6/8） |
 
 ## 训练配置（复现前提）
@@ -27,10 +27,10 @@
 ## 复现命令
 
 ```bash
-# 1) 8 策略对比（加载 PPO/DQN 权威模型，复现 +86.9%）
+# 1) 8 策略对比（加载 PPO/DQN 权威模型，复现 +88.3%）
 python scripts/real_machine/strategy_comparison.py
 
-# 2) 多 seed 评估 + 统计显著性（10 seed × 5 ep）
+# 2) 多 seed 评估 + 统计显著性（50 seed × 5 ep）
 python scripts/evaluation/run_multiseed_evaluation.py --seeds 10 --episodes 5
 python scripts/evaluation/statistical_significance.py \
     --input results/multiseed_evaluation/rewards_multiseed.json
