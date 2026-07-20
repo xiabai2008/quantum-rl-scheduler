@@ -435,5 +435,84 @@ class TestHybridScheduler(unittest.TestCase):
         self.assertIn("reason", result)
 
 
+# ============================================================
+# TestCoverageFiller 补充覆盖测试
+# 覆盖 hybrid_scheduler.py 中剩余未覆盖分支
+# ============================================================
+class TestHybridCoverageFiller(unittest.TestCase):
+    """补充覆盖 hybrid_scheduler.py 中剩余分支。"""
+
+    def test_rl_generic_exception_falls_back(self):
+        """RL predict 抛非 RuntimeError 异常时走兜底（lines 289-291）。"""
+        rl_agent = Mock()
+        rl_agent.predict = Mock(side_effect=ValueError("维度不匹配"))
+        scheduler = HybridScheduler(rl_agent=rl_agent)
+
+        task = _make_task(task_type="universal", urgency=0.3, qubit_count=5)
+        ctx = {"available_qubits": 100, "queue_length": 5}
+        state = np.zeros(14, dtype=np.float32)
+        result = scheduler.decide(task, state=state, context=ctx)
+
+        # 应走兜底（source=fallback），而非崩溃
+        self.assertEqual(result["source"], "fallback")
+
+    def test_rl_type_error_falls_back(self):
+        """RL predict 抛 TypeError 时走兜底（lines 289-291）。"""
+        rl_agent = Mock()
+        rl_agent.predict = Mock(side_effect=TypeError("参数类型错误"))
+        scheduler = HybridScheduler(rl_agent=rl_agent)
+
+        task = _make_task(task_type="universal", urgency=0.3, qubit_count=5)
+        ctx = {"available_qubits": 100, "queue_length": 5}
+        state = np.zeros(14, dtype=np.float32)
+        result = scheduler.decide(task, state=state, context=ctx)
+        self.assertEqual(result["source"], "fallback")
+
+    def test_fallback_rule_classical(self):
+        """_fallback_rule 对 classical 任务返回 ACTION_CLASSICAL（line 328）。"""
+        scheduler = HybridScheduler()
+        task = _make_task(task_type="classical")
+        action = scheduler._fallback_rule(task, {})
+        self.assertEqual(action, ACTION_CLASSICAL)
+
+    def test_fallback_rule_quantum(self):
+        """_fallback_rule 对 quantum 任务返回 ACTION_QUANTUM。"""
+        scheduler = HybridScheduler()
+        task = _make_task(task_type="quantum")
+        action = scheduler._fallback_rule(task, {})
+        self.assertEqual(action, ACTION_QUANTUM)
+
+    def test_fallback_rule_universal(self):
+        """_fallback_rule 对 universal 任务返回 ACTION_HYBRID。"""
+        scheduler = HybridScheduler()
+        task = _make_task(task_type="universal")
+        action = scheduler._fallback_rule(task, {})
+        self.assertEqual(action, ACTION_HYBRID)
+
+    def test_fallback_rule_unknown_type(self):
+        """_fallback_rule 对未知任务类型返回 ACTION_HYBRID。"""
+        scheduler = HybridScheduler()
+        task = _make_task(task_type="unknown_type")
+        action = scheduler._fallback_rule(task, {})
+        self.assertEqual(action, ACTION_HYBRID)
+
+    def test_fallback_triggered_for_classical_when_rl_fails(self):
+        """RL 失败且规则未命中时，classical 任务走 fallback → ACTION_CLASSICAL。"""
+        # 清空规则引擎的默认规则，确保规则不命中
+        rule_engine = RuleEngine()
+        rule_engine._rules = []
+
+        rl_agent = Mock()
+        rl_agent.predict = Mock(side_effect=RuntimeError("未训练"))
+        scheduler = HybridScheduler(rl_agent=rl_agent, rule_engine=rule_engine)
+
+        task = _make_task(task_type="classical", urgency=0.3, qubit_count=5)
+        ctx = {"available_qubits": 100, "queue_length": 5}
+        state = np.zeros(14, dtype=np.float32)
+        result = scheduler.decide(task, state=state, context=ctx)
+        self.assertEqual(result["source"], "fallback")
+        self.assertEqual(result["action"], ACTION_CLASSICAL)
+
+
 if __name__ == "__main__":
     unittest.main()

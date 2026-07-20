@@ -734,5 +734,111 @@ class TestEdgeCases(unittest.TestCase):
         self.assertAlmostEqual(total, 1.0, places=6)
 
 
+# ============================================================
+# TestCoverageFiller 补充覆盖测试
+# 覆盖 explainability.py 中剩余未覆盖分支
+# ============================================================
+class TestCoverageFiller(unittest.TestCase):
+    """补充覆盖 explainability.py 中剩余分支。"""
+
+    def test_explain_empty_state(self):
+        """空状态向量（n=0）应返回空贡献度（line 238）。"""
+        explainer = DecisionExplainer(feature_names=["a", "b"])
+        rec = explainer.explain(np.array([]), action=0, step=0)
+        # n=0 时 contributions 为空数组
+        self.assertEqual(len(rec.feature_contributions), 0)
+
+    def test_feature_names_fewer_than_state(self):
+        """特征名少于状态维度时应自动补齐（line 243）。"""
+        explainer = DecisionExplainer(feature_names=["only_one"])
+        rec = explainer.explain(np.array([1.0, 2.0, 3.0]), action=0, step=0)
+        # 应补齐到 3 个特征名
+        self.assertEqual(len(rec.feature_contributions), 3)
+        self.assertIn("only_one", rec.feature_contributions)
+        # 补齐的特征名格式为 "特征{i}"
+        self.assertIn("特征1", rec.feature_contributions)
+        self.assertIn("特征2", rec.feature_contributions)
+        # 贡献度应归一化
+        total = sum(rec.feature_contributions.values())
+        self.assertAlmostEqual(total, 1.0, places=6)
+
+    def test_format_explanation_english(self):
+        """英文格式化应返回英文文本。"""
+        explainer = DecisionExplainer(feature_names=["a", "b"])
+        rec = explainer.explain(np.array([1.0, 2.0]), action=1, step=5)
+        text_en = explainer.format_explanation(rec, top_k=2, lang="en")
+        self.assertIn("Step 5", text_en)
+        self.assertIn("action 1", text_en)
+        self.assertIn("Key factors", text_en)
+
+    def test_format_explanation_top_k_zero(self):
+        """top_k=0 时应返回空因素列表。"""
+        explainer = DecisionExplainer(feature_names=["a", "b"])
+        rec = explainer.explain(np.array([1.0, 2.0]), action=0, step=0)
+        text = explainer.format_explanation(rec, top_k=0)
+        # 因素部分应为空
+        self.assertIn("主要影响因素：", text)
+
+    def test_state_value_by_name_not_found(self):
+        """_state_value_by_name 找不到特征名时返回 0.0（lines 339-340）。"""
+        explainer = DecisionExplainer(feature_names=["a", "b"])
+        rec = explainer.explain(np.array([1.0, 2.0]), action=0, step=0)
+        # 调用一个不存在于 feature_contributions 中的特征名
+        val = explainer._state_value_by_name(rec, "nonexistent_feature")
+        self.assertEqual(val, 0.0)
+
+    def test_state_value_by_name_idx_out_of_range(self):
+        """_state_value_by_name 索引超出状态范围时返回 0.0（line 344）。
+
+        构造一个 feature_contributions 键数多于 state 元素的记录，
+        使 idx >= len(state_arr) 触发越界返回。
+        """
+        rec = DecisionRecord(
+            step=0,
+            state=np.array([1.0]),  # 仅 1 个元素
+            action=0,
+            action_prob=1.0,
+            q_values=None,
+            feature_contributions={"a": 0.5, "b": 0.5},  # 2 个键
+            timestamp="t",
+        )
+        explainer = DecisionExplainer(feature_names=["a", "b"])
+        # "b" 的 idx=1 但 state 仅 1 个元素 → 越界 → 返回 0.0
+        val = explainer._state_value_by_name(rec, "b")
+        self.assertEqual(val, 0.0)
+        # "a" 的 idx=0 在范围内 → 返回 state[0]
+        val_a = explainer._state_value_by_name(rec, "a")
+        self.assertAlmostEqual(val_a, 1.0)
+
+    def test_load_skips_empty_lines(self):
+        """load() 应跳过空行（line 499）。"""
+        with tempfile.TemporaryDirectory() as tmp:
+            logger_obj = DecisionLogger(log_dir=tmp)
+            explainer = DecisionExplainer()
+            rec = explainer.explain(np.zeros(14), action=0, step=0)
+            logger_obj.log(rec)
+            # 追加空行和空白行
+            with open(logger_obj.log_path, "a", encoding="utf-8") as f:
+                f.write("\n\n   \n")
+            loaded = logger_obj.load()
+            # 应只加载 1 条记录，跳过空行
+            self.assertEqual(len(loaded), 1)
+
+    def test_contribution_level_high(self):
+        """_contribution_level 在 contrib >= 2*uniform 时返回 '高'。"""
+        level = DecisionExplainer._contribution_level(0.6, 0.2)
+        self.assertEqual(level, "高")
+
+    def test_contribution_level_medium(self):
+        """_contribution_level 在 uniform <= contrib < 2*uniform 时返回 '中'。"""
+        level = DecisionExplainer._contribution_level(0.25, 0.2)
+        self.assertEqual(level, "中")
+
+    def test_contribution_level_low(self):
+        """_contribution_level 在 contrib < uniform 时返回 '低'。"""
+        level = DecisionExplainer._contribution_level(0.1, 0.2)
+        self.assertEqual(level, "低")
+
+
 if __name__ == "__main__":
     unittest.main()

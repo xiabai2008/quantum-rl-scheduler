@@ -23,6 +23,7 @@ import os
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
@@ -794,6 +795,93 @@ class TestEdgeCases(unittest.TestCase):
             self.assertFalse(os.path.exists(checkpoint_dir))
             CheckpointManager(checkpoint_dir=checkpoint_dir, meta_file=meta_file)
             self.assertTrue(os.path.isdir(checkpoint_dir))
+
+
+# ============================================================
+# TestCoverageFiller 补充覆盖测试
+# 覆盖 checkpoint_manager.py 中剩余未覆盖分支
+# ============================================================
+class TestCheckpointCoverageFiller(unittest.TestCase):
+    """补充覆盖 checkpoint_manager.py 中剩余分支。"""
+
+    def _make_manager(self) -> tuple[CheckpointManager, str, str]:
+        tmpdir = tempfile.mkdtemp()
+        cp_dir = os.path.join(tmpdir, "checkpoints")
+        meta_file = os.path.join(tmpdir, "meta.json")
+        return CheckpointManager(checkpoint_dir=cp_dir, meta_file=meta_file), cp_dir, meta_file
+
+    def test_register_version_collision_retry(self):
+        """生成版本号与已有版本冲突时应重试（line 248）。"""
+        manager, _, _ = self._make_manager()
+        manager.register(
+            algorithm="ppo",
+            timesteps=1000,
+            mean_reward=100.0,
+            path="/tmp/m1.zip",
+        )
+        existing_version = manager.list_checkpoints()[0].version
+
+        # mock _generate_version：第一次返回已存在的版本，第二次返回新版本
+        call_count = {"n": 0}
+        original_generate = manager._generate_version
+
+        def mock_generate():
+            call_count["n"] += 1
+            if call_count["n"] == 1:
+                return existing_version  # 冲突
+            return original_generate()  # 正常生成
+
+        with patch.object(manager, "_generate_version", side_effect=mock_generate):
+            cp = manager.register(
+                algorithm="ppo",
+                timesteps=2000,
+                mean_reward=200.0,
+                path="/tmp/m2.zip",
+            )
+        self.assertNotEqual(cp.version, existing_version)
+        self.assertEqual(len(manager.list_checkpoints()), 2)
+
+    def test_compare_zero_baseline_negative_diff(self):
+        """baseline=0 且 reward_diff<0 时 improvement_pct=-inf（line 356）。"""
+        manager, _, _ = self._make_manager()
+        manager.register(algorithm="ppo", timesteps=100, mean_reward=-50.0, path="/tmp/a.zip")
+        manager.register(algorithm="ppo", timesteps=100, mean_reward=0.0, path="/tmp/b.zip")
+        # list_checkpoints 默认按 created_at 降序，需按 mean_reward 精确查找
+        cps = manager.list_checkpoints()
+        v_neg = next(cp.version for cp in cps if cp.mean_reward == -50.0)
+        v_zero = next(cp.version for cp in cps if cp.mean_reward == 0.0)
+        # compare(version_a=-50, version_b=0): baseline=0, reward_diff=-50<0 → -inf
+        result = manager.compare(v_neg, v_zero)
+        self.assertEqual(result["improvement_pct"], float("-inf"))
+
+    def test_compare_zero_baseline_zero_diff(self):
+        """baseline=0 且 reward_diff=0 时 improvement_pct=0.0（lines 358-359）。"""
+        manager, _, _ = self._make_manager()
+        manager.register(algorithm="ppo", timesteps=100, mean_reward=0.0, path="/tmp/a.zip")
+        manager.register(algorithm="ppo", timesteps=200, mean_reward=0.0, path="/tmp/b.zip")
+        versions = [cp.version for cp in manager.list_checkpoints()]
+        result = manager.compare(versions[0], versions[1])
+        self.assertEqual(result["improvement_pct"], 0.0)
+
+    def test_delete_os_error_suppressed(self):
+        """删除文件遇到 OSError 时应被捕获（lines 393-394）。
+
+        需要文件真实存在以通过 os.path.exists 检查，再 mock os.remove 抛异常。
+        """
+        manager, _, _ = self._make_manager()
+        # 创建真实临时文件作为检查点路径
+        fd, real_path = tempfile.mkstemp(suffix=".zip")
+        os.close(fd)
+        try:
+            cp = manager.register(algorithm="ppo", timesteps=100, mean_reward=50.0, path=real_path)
+            # mock os.remove 抛 OSError，应被 except 捕获而非崩溃
+            with patch("os.remove", side_effect=OSError("权限拒绝")):
+                manager.delete(cp.version)
+            # 元数据条目应被移除
+            self.assertEqual(len(manager.list_checkpoints()), 0)
+        finally:
+            if os.path.exists(real_path):
+                os.unlink(real_path)
 
 
 if __name__ == "__main__":
