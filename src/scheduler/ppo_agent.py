@@ -9,11 +9,13 @@ PPO (Proximal Policy Optimization) Agent for Quantum-Classical Scheduling
 import os
 from typing import Any
 
+import gymnasium as gym
 import numpy as np
 from loguru import logger
 from sb3_contrib import RecurrentPPO
 from stable_baselines3 import PPO
 from stable_baselines3.common.callbacks import (
+    BaseCallback,
     CallbackList,
     EvalCallback,
 )
@@ -53,7 +55,8 @@ class PPOAgent:
             **kwargs: PPO 超参数
         """
         self.env = env
-        self.model: PPO | None = None
+        # 模型类型可能为 PPO 或 RecurrentPPO（启用 LSTM 时），用联合类型声明
+        self.model: PPO | RecurrentPPO | None = None
 
         self.learning_rate = kwargs.get("learning_rate", 3e-4)
         self.n_steps = kwargs.get("n_steps", 2048)
@@ -98,12 +101,12 @@ class PPOAgent:
                 f"[PPOAgent] 量子退火器已启用（{sim_tag}模式），退火间隔={self.anneal_interval}步"
             )
 
-    def _build_model(self) -> PPO:
+    def _build_model(self) -> PPO | RecurrentPPO:
         """
         构建 PPO 模型。
 
         Returns:
-            构建好的 PPO 模型实例
+            构建好的 PPO / RecurrentPPO 模型实例
         """
         # 根据 use_lstm 选择策略类型
         if self.use_lstm:
@@ -117,7 +120,7 @@ class PPOAgent:
                 f"[PPOAgent] 使用 LSTM 策略: layers={self.n_lstm_layers}, "
                 f"hidden_size={self.lstm_hidden_size}"
             )
-            model = RecurrentPPO(
+            model: PPO | RecurrentPPO = RecurrentPPO(
                 "MlpLstmPolicy",
                 self.env,
                 learning_rate=self.learning_rate,
@@ -166,7 +169,7 @@ class PPOAgent:
         resume_from: str | None = None,
         extra_callbacks: list[Any] | None = None,
         **kwargs: Any,
-    ) -> PPO:
+    ) -> PPO | RecurrentPPO:
         """
         训练 PPO 调度智能体。
 
@@ -185,9 +188,12 @@ class PPOAgent:
         Returns:
             训练好的 PPO 模型
         """
-        is_resume = bool(resume_from) and os.path.exists(resume_from)
+        # 用 `is not None` 让 mypy 在 os.path.exists 调用处收窄 resume_from 为 str
+        is_resume = resume_from is not None and os.path.exists(resume_from)
         if self.model is None:
             if is_resume:
+                # is_resume=True 蕴含 resume_from 为非空字符串，用 assert 收窄类型
+                assert resume_from is not None
                 logger.info(f"[PPOAgent] 从检查点续训: {resume_from}")
                 self.load(resume_from)
             else:
@@ -200,7 +206,7 @@ class PPOAgent:
         real_cb_save_path = kwargs.pop("real_callback_save_path", "results/real_times.json")
         real_cb_shots = int(kwargs.pop("real_callback_shots", 512))
 
-        eval_env = Monitor(self.env)
+        eval_env: gym.Env = Monitor(self.env)
         eval_callback = EvalCallback(
             eval_env=eval_env,
             best_model_save_path=os.path.join(self.log_dir, "best_model"),
@@ -210,8 +216,9 @@ class PPOAgent:
             deterministic=True,
         )
 
-        # 构建回调列表
-        callbacks = [eval_callback]
+        # 构建回调列表（使用 BaseCallback 基类类型以容纳 EvalCallback /
+        # AnnealingCallback / RealMachineCallback 等不同子类）
+        callbacks: list[BaseCallback] = [eval_callback]
 
         # 如果启用了量子退火，添加退火回调
         if self.use_annealing and self.annealing_optimizer:

@@ -162,15 +162,14 @@ jobs:
           pip install --upgrade pip
           pip install mypy>=1.5.0
 
-      - name: Run mypy (baseline - gradually enable strict mode)
+      - name: Run mypy (strict mode)
         run: |
           mypy src/ \
             --ignore-missing-imports \
             --follow-imports=skip \
             --no-warn-unused-ignores \
             --show-error-codes \
-            --pretty \
-            || echo "[INFO] mypy found type issues — review and fix incrementally"
+            --pretty
 
   # ---------------------------------------------------------------------------
   # Job 4: 依赖安全审计（pip-audit）

@@ -9,6 +9,8 @@ Dueling 架构将 Q 值拆分为状态价值函数和优势函数，提升策略
     - DuelingQNetwork: Dueling DQN 策略网络（兼容 Stable-Baselines3 2.0+）
 """
 
+from typing import cast
+
 import torch as th
 from gymnasium import spaces
 from stable_baselines3.common.torch_layers import (
@@ -99,12 +101,13 @@ class DuelingQNetwork(QNetwork):
             nn.Linear(shared_output_dim // 2, action_dim),
         )
 
-    def forward(self, obs: th.Tensor) -> th.Tensor:
+    def forward(self, obs: th.Tensor | dict[str, th.Tensor]) -> th.Tensor:
         """
         前向传播：计算 Dueling Q 值
 
         Args:
-            obs: 观测状态张量，形状为 (batch_size, obs_dim)
+            obs: 观测状态张量，形状为 (batch_size, obs_dim)；
+                 也接受 dict[str, Tensor] 以兼容父类 QNetwork.forward 签名
 
         Returns:
             Q 值张量，形状为 (batch_size, action_dim)
@@ -118,7 +121,8 @@ class DuelingQNetwork(QNetwork):
         advantage = self.advantage_stream(shared)  # (batch, action_dim)
         # Q(s,a) = V(s) + A(s,a) - mean(A(s,a))
         q_values = value + advantage - advantage.mean(dim=-1, keepdim=True)
-        return q_values
+        # nn.Sequential 调用返回 Any，cast 为 Tensor 以满足返回类型
+        return cast(th.Tensor, q_values)
 
 
 __all__ = ["DuelingQNetwork"]

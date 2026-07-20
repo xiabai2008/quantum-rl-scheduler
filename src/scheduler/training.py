@@ -12,11 +12,12 @@ Training Checkpoint Auto-Resume Module
 """
 
 import os
-from typing import Any
+from typing import Any, cast
 
 import gymnasium as gym
 from loguru import logger
 from stable_baselines3 import DQN, PPO
+from stable_baselines3.common.base_class import BaseAlgorithm
 from stable_baselines3.common.callbacks import (
     BaseCallback,
     CheckpointCallback,
@@ -127,7 +128,9 @@ def resume_training(
         # 文件名无明确算法标识，依次尝试 PPO / DQN
         for algo_name, algo_cls in [("PPO", PPO), ("DQN", DQN)]:
             try:
-                model = algo_cls.load(normalized_path, env=env)
+                # algo_cls 经 mypy 推断为 ABCMeta，无 .load 属性；
+                # cast 为 type[BaseAlgorithm] 以访问 .load 类方法
+                model = cast(type[BaseAlgorithm], algo_cls).load(normalized_path, env=env)
                 logger.info(f"[ResumeTraining] 已加载 {algo_name} 模型")
                 break
             except Exception as e:
@@ -229,7 +232,7 @@ def auto_resume_train(
         # 无检查点，从头训练
         logger.info(f"[AutoResume] 检查点目录 {checkpoint_dir} 无检查点，从头开始训练")
         if algorithm == "ppo":
-            model = PPO(
+            model: PPO | DQN = PPO(
                 "MlpPolicy",
                 env,
                 verbose=0,

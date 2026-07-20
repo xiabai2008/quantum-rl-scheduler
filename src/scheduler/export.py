@@ -18,7 +18,7 @@ onnx 包（不可用时优雅降级，不中断流程）。
 from __future__ import annotations
 
 import os
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 import torch as th
@@ -76,11 +76,12 @@ class _PolicyWrapper(nn.Module):
         if self.algorithm == "dqn":
             # DQNPolicy.forward 返回动作（argmax），需调用 q_net 获取 Q 值。
             # q_net 是 QNetwork（或 DuelingQNetwork），其 forward 返回 Q 值。
-            return self.policy.q_net(obs)
+            # policy 为 Any 类型（SB3 策略），调用结果需 cast 为 Tensor
+            return cast(th.Tensor, self.policy.q_net(obs))
         # PPO ActorCriticPolicy：提取特征 → 共享 MLP（actor 分支）→ 动作网络
         features = self.policy.extract_features(obs, self.policy.features_extractor)
         latent_pi = self.policy.mlp_extractor.forward_actor(features)
-        return self.policy.action_net(latent_pi)
+        return cast(th.Tensor, self.policy.action_net(latent_pi))
 
 
 class ModelExporter:
@@ -140,6 +141,7 @@ class ModelExporter:
 
         try:
             from stable_baselines3 import DQN, PPO
+            from stable_baselines3.common.base_class import BaseAlgorithm
         except ImportError as e:
             raise ImportError(
                 "stable_baselines3 未安装，无法加载模型。 请执行: pip install stable-baselines3"
@@ -148,7 +150,9 @@ class ModelExporter:
         errors: list[str] = []
         for algo_cls, name in [(PPO, "ppo"), (DQN, "dqn")]:
             try:
-                model = algo_cls.load(self.model_path, device="cpu")
+                # algo_cls 经 mypy 推断为 ABCMeta（抽象基类的元类），无 .load 属性；
+                # 实际 PPO/DQN 均为 BaseAlgorithm 子类，cast 为 type[BaseAlgorithm] 以访问 .load
+                model = cast(type[BaseAlgorithm], algo_cls).load(self.model_path, device="cpu")
                 self.model = model
                 self.algorithm = name
                 logger.info(f"成功以 {name.upper()} 格式加载模型: {self.model_path}")
@@ -250,7 +254,8 @@ class ModelExporter:
         """
         wrapper = self._get_wrapper()
         with th.no_grad():
-            return wrapper(obs_tensor).detach().cpu()
+            # wrapper(...) 调用 nn.Module.__call__，返回 Any，需 cast 为 Tensor
+            return cast(th.Tensor, wrapper(obs_tensor).detach().cpu())
 
     # ------------------------------------------------------------------
     # 公开导出方法
@@ -296,7 +301,7 @@ class ModelExporter:
         try:
             th.onnx.export(
                 wrapper,
-                dummy_input,
+                (dummy_input,),  # args 参数期望 tuple[Tensor, ...]，包装为单元素元组
                 onnx_path,
                 export_params=True,
                 opset_version=opset_version,
