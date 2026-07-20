@@ -30,7 +30,7 @@
 
 | 需求 ID | 需求描述（原文） | 类别 | 对应代码模块 | 实现状态 | 验证方式 | 答辩话术 | 证据文件 |
 |---------|----------------|------|-------------|---------|---------|---------|---------|
-| R-F-01 | 实现量子任务的智能调度决策 | 功能 | `src/scheduler/env.py`<br>`src/scheduler/agent.py` | **已实现** | 单元测试 + 8策略对比 | "PPO 强化学习调度策略比 FCFS 提升 86.9%" | `results/reports/strategy_comparison.md` |
+| R-F-01 | 实现量子任务的智能调度决策 | 功能 | `src/scheduler/env.py`<br>`src/scheduler/agent.py` | **已实现** | 单元测试 + 8策略对比 | "PPO 强化学习调度策略比 FCFS 提升 88.3%" | `results/reports/strategy_comparison.md` |
 | R-F-02 | 支持量子/经典/混合三种执行模式 | 功能 | `src/scheduler/env.py`<br>`src/scheduler/parser.py` | **已实现** | 单元测试 + 消融实验 | "系统支持任务智能分流到量子、经典或混合执行通道" | `src/scheduler/env.py` L46-200 |
 | R-F-03 | 接入天衍云真机 API | 功能 | `src/api/tianyan_client.py`<br>`src/api/tianyan_cqlib.py` | **已实现** | 真机提交验证 | "已成功提交 32 个量子任务到天衍云 3 台超导量子计算机" | `results/reports/real_machine_validation.md` |
 | R-F-04 | 实现量子退火加速 RL 训练 | 功能 | `src/quantum/annealing.py`<br>`src/scheduler/async_annealing_callback.py` | **已实现** | 5 Seed 消融实验 | "量子退火将策略网络权重映射为 QUBO 问题，训练奖励提升 6.4%" | `results/reports/ablation_report.md` |
@@ -44,7 +44,7 @@
 | 需求 ID | 需求描述（原文） | 类别 | 对应代码模块 | 实现状态 | 验证方式 | 答辩话术 | 证据文件 |
 |---------|----------------|------|-------------|---------|---------|---------|---------|
 | R-P-01 | 资源利用率提升 ≥30% | 性能 | `src/scheduler/env.py`<br>`src/scheduler/agent.py` | **已达成** | 8策略对比 | "PPO 经典利用率 48.96%，综合资源利用率 45.47%，较基线提升显著" | `results/reports/strategy_comparison.md` |
-| R-P-02 | 平均等待时间降低 ≥40% | 性能 | `src/scheduler/env.py`<br>`src/scheduler/agent.py` | **部分达成** | 8策略对比 | "PPO 等待时间 55.85 步，略高于 FCFS 39.85 步，但综合奖励提升 86.9%；PPO 通过更精准的资源匹配获得更高收益" | `results/reports/strategy_comparison.md` |
+| R-P-02 | 平均等待时间降低 ≥40% | 性能 | `src/scheduler/env.py`<br>`src/scheduler/agent.py` | **部分达成** | 8策略对比 | "PPO 等待时间 55.85 步，略高于 FCFS 39.85 步，但综合奖励提升 88.3%；PPO 通过更精准的资源匹配获得更高收益" | `results/reports/strategy_comparison.md` |
 | R-P-03 | 调度决策延迟 < 100ms | 性能 | `src/scheduler/agent.py` | **已达成** | 性能测试 | "PPO 单次前向推理 < 10ms，满足实时调度需求" | `src/scheduler/agent.py` L200-400 |
 | R-P-04 | 支持 287 量子比特规模 | 性能 | `src/scheduler/env.py` | **已达成** | 真机验证 | "系统已适配天衍-287 超导量子计算机，成功提交 32 个真机任务" | `results/reports/real_machine_validation.md` |
 | R-P-05 | 压力测试：4 种极端场景稳定性 | 性能 | `scripts/benchmarking/stress_test.py` | **已达成** | 压力测试 | "PPO 在 4 种压力场景下综合稳定性最强，量子波动场景比第二名提升 91.4%" | `results/reports/stress_test_report.md` |
@@ -108,7 +108,7 @@
 
 | 需求 ID | 答辩话术 | 对应 PPT 页码 | 同步状态 |
 |---------|---------|-------------|---------|
-| R-F-01 | "PPO 强化学习调度策略比 FCFS 提升 86.9%" | 第 5 页 | ✅ 已同步 |
+| R-F-01 | "PPO 强化学习调度策略比 FCFS 提升 88.3%" | 第 5 页 | ✅ 已同步 |
 | R-F-03 | "已成功提交 32 个量子任务到天衍云 3 台超导量子计算机" | 第 8 页 | ✅ 已同步 |
 | R-F-04 | "量子退火将策略网络权重映射为 QUBO 问题，训练奖励提升 6.4%" | 第 7 页 | ✅ 已同步 |
 | R-F-05 | "MAPPO 多智能体协同调度，3 台真机负载均衡 CV=0.246，奖励提升 86.3%" | 第 7 页 | ✅ 已同步 |
@@ -121,7 +121,7 @@
 
 | 需求 ID | 答辩话术 | 对应视频段落 | 同步状态 |
 |---------|---------|-------------|---------|
-| R-F-01 | "PPO 强化学习调度策略比 FCFS 提升 86.9%" | 段落 3：核心技术展示 | ✅ 已同步 |
+| R-F-01 | "PPO 强化学习调度策略比 FCFS 提升 88.3%" | 段落 3：核心技术展示 | ✅ 已同步 |
 | R-F-03 | "已成功提交 32 个量子任务到天衍云" | 段落 4：真机验证 | ✅ 已同步 |
 | R-F-05 | "MAPPO 多智能体协同调度，奖励提升 86.3%" | 段落 3：核心技术展示 | ✅ 已同步 |
 | R-P-05 | "量子波动场景比第二名提升 91.4%" | 段落 5：性能对比 | ✅ 已同步 |
@@ -180,7 +180,7 @@
 
 | 风险点 | 可能追问 | 应对策略 |
 |-------|---------|---------|
-| 等待时间指标未达 40% | "为什么等待时间没有降低？" | 解释"全局优化 vs 局部优化"：PPO 等待时间略增但综合奖励提升 86.9%，说明 RL 在做更长远的资源匹配 |
+| 等待时间指标未达 40% | "为什么等待时间没有降低？" | 解释"全局优化 vs 局部优化"：PPO 等待时间略增但综合奖励提升 88.3%，说明 RL 在做更长远的资源匹配 |
 | head_only 退火有效性 | "head_only 退火真的有效吗？" | 引用 Issue #104 的验证报告（待完成） |
 | 奖励函数消融缺失 | "奖励函数各组件的贡献度？" | 说明"奖励函数设计已验证，消融实验待后续工作"，强调当前奖励函数在 8 策略对比中表现优异 |
 
