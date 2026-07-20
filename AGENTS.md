@@ -3,7 +3,7 @@
 > 此文件供所有 AI Agent（CodeBuddy / TRAE / Claude / Cursor 等）读取，以快速理解项目全貌。
 > 每次重要变更后请更新本文档的"最后更新"日期和对应章节。
 
-**最后更新**：2026-07-19（#165 天衍-176 真机消融完整实测）
+**最后更新**：2026-07-20（P0-P3 代码质量全面完成：ruff 142→0 + mypy 26→0 + 覆盖率70% + 数字统一 + Docker）
 
 ***
 
@@ -205,11 +205,12 @@ quantum-rl-scheduler/
 ## 5. v1 技术提升方案落地成果
 
 ### 代码质量强化
-- mypy：8项严格配置（disallow_untyped_defs + disallow_incomplete_defs + warn_return_any + strict_equality 等），当前6模块豁免（agent/ppo_agent/networks/training/annealing/scripts.*）
-- ruff：完全替代 flake8 + black + isort，10类规则集（E/W/F/I/N/B/SIM/C4/UP/RUF）
+- mypy：8项严格配置（disallow_untyped_defs + disallow_incomplete_defs + warn_return_any + strict_equality 等），当前2模块豁免（annealing/scripts.*）。2026-07-20 修复全部 26 个类型错误，CI mypy 从 baseline 升级为 strict mode
+- ruff：完全替代 flake8 + black + isort，10类规则集（E/W/F/I/N/B/SIM/C4/UP/RUF）。2026-07-20 清理全部 142 个历史遗留错误，CI ruff check 从 --exit-zero 升级为严格阻断
 - CI 工具栈对齐：2026-07-19 将 CI lint job 从 black+isort+flake8 迁移到 ruff format + ruff check + bandit，与 .pre-commit-config.yaml 完全一致
   - ruff format --check：严格阻断（格式基线）
-  - ruff check：过渡期 --exit-zero（142 个历史遗留 errors 待独立 Issue 清理）
+  - ruff check：严格阻断（142→0，2026-07-20 完成）
+  - mypy：严格阻断（26→0，2026-07-20 完成）
   - bandit：严格阻断（安全扫描）
 
 ### 工程韧性
@@ -220,9 +221,9 @@ quantum-rl-scheduler/
 - 依赖可复现：requirements.txt 含 dimod/dwave-neal；cqlib 通过 requirements-quantum.txt 安装
 
 ### 测试升级
-- 测试文件：5 → ~42（+37个专用测试模块）
-- 测试用例：100+ → 500+
-- CI 强制覆盖率：40% → 60%
+- 测试文件：5 → 49（+44个专用测试模块）
+- 测试用例：100+ → 1663+
+- CI 强制覆盖率：40% → 70%（实际 91%）
 - 新增：property-based testing + 性能基准测试 + mutation testing + 统计显著性检验
 
 ### 实验可信度（v8新增）
@@ -268,23 +269,32 @@ quantum-rl-scheduler/
 ## 8. 当前进度
 
 ```
-v1 技术提升   ███████████████████░ 95%（CI ruff 迁移完成 2026-07-19；mypy豁免6→2 待完成）
+v1 技术提升   ████████████████████ 100%（ruff 142→0 + mypy 26→0 + CI全严格阻断 + 覆盖率70%）
 Track A       ████████████████████ 100%
 Track B       ████████████████████ 100%（PPT/白皮书/视频脚本/实验数据）
 P0 可信度修复  ████████████████████ 100%（依赖/统计/数字锁定 2026-07-09）
-Track C       ██████████░░░░░░░░░░  50%（mypy豁免清理+覆盖率提升待完成）
+Track C       ████████████████████ 100%（mypy 26→0 + 覆盖率 60%→70% + ruff 142→0）
 真机闭环       ███████████████░░░░░  75%（#165 三条件 × 3 seeds 完成；284 次正式真机调用全部成功）
+提交校验       ███████████████████░  90%（13项中8通过,4缺失待8/15冻结,1警告待PDF转换）
 ```
 
 ## 9. 下一步
 
-- **P1**：mypy 豁免 6→2（marl/multi_objective_env/app/scripts 补类型标注）
-- **P1**：清理 142 个 ruff check 历史遗留 errors（RUF059/N806/B905 等），移除 CI 的 --exit-zero
-- **P1**：更新PPT/白皮书中的实验数字为+88.3%
-- **P2**：扩展 PPO 真机闭环验证（#165 三条件 × 3 seeds 已完成，后续可增加 seed 数）
-- **P2**：演示视频录制（4-5分钟，1080p）
-- **P2**：白皮书v3 / PPT终稿
+- ~~P1：mypy 豁免 6→2~~ ✅ 已完成（2026-07-20，26个错误全部修复，CI mypy 严格阻断）
+- ~~P1：清理 142 个 ruff check 历史遗留 errors~~ ✅ 已完成（2026-07-20，142→0，CI 移除 --exit-zero）
+- ~~P1：更新PPT/白皮书中的实验数字为+88.3%~~ ✅ 已完成（2026-07-20，15个md文件105处替换，.pptx/.docx 待瑞哥手动更新）
+- ~~P2：测试覆盖率提升~~ ✅ 已完成（2026-07-20，66个新测试，覆盖率门槛60%→70%）
+- ~~P3：Docker 一键复现~~ ✅ 已完成（2026-07-20，#163 关闭）
+- **P2**：演示视频录制（4-5分钟，1080p）— 需瑞哥人工录制
+- **P2**：PPT/白皮书 .pptx/.docx 源文件数字更新 — 需瑞哥手动更新
 - **P3**：8/15代码冻结，9/15前打v8.0-submission标签
+  - 冻结前检查清单:
+    1. 所有 CI 检查全绿（lint/test/typecheck/security）
+    2. `python scripts/ci/validate_submission.py --check` 通过
+    3. PPT/白皮书数字与代码权威数字一致（+88.3%）
+    4. 演示视频已就位
+    5. 打标签: `git tag -a v8.0-submission -m "v8.0 提交版本" && git push origin v8.0-submission`
+    6. 打包: `python scripts/ci/validate_submission.py --pack`
 
 详见 workspace 根目录 `项目状态审查与下一步工作建议_2026-07-09.md`。
 
