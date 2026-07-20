@@ -378,7 +378,6 @@ def run_strategy(
 ) -> dict[str, Any]:
     """运行指定策略并返回指标。"""
     all_rewards: list[float] = []
-    per_step_rewards: list[float] = []
 
     for ep in range(num_episodes):
         obs, info = env.reset(seed=None)
@@ -523,10 +522,7 @@ def run_stress_gradient(
         (10000, 5),
     ]
 
-    if selected_names:
-        filtered = [s for s in strategies if s.name in selected_names]
-    else:
-        filtered = strategies
+    filtered = [s for s in strategies if s.name in selected_names] if selected_names else strategies
 
     print("\n" + "=" * 64)
     print("  Issue #67：任务规模梯度压力测试")

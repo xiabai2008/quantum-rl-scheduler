@@ -324,7 +324,7 @@ class TestEnvIntegration(unittest.TestCase):
         env = QuantumSchedulingEnv(max_steps=10)
         self.assertEqual(env.get_tenant_stats(), [])
         # 正常调度不受影响
-        obs, info = env.reset()
+        obs, _info = env.reset()
         self.assertIsNotNone(obs)
 
     def test_env_with_tenant_manager(self):

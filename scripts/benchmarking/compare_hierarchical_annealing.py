@@ -330,7 +330,7 @@ def print_report(report: ComparisonReport) -> None:
     print(report.title)
     print("=" * 60)
 
-    modes = sorted(set(r.mode for r in report.results))
+    modes = sorted({r.mode for r in report.results})
 
     print("\n实验配置:")
     for k, v in report.summary.items():

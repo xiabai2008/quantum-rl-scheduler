@@ -222,7 +222,7 @@ def run_single_strategy(
         action_counts[action] = action_counts.get(action, 0) + 1
 
         # 环境步进
-        obs, reward, terminated, truncated, info = env.step(action)
+        obs, reward, terminated, truncated, _info = env.step(action)
         total_reward += float(reward)
         step += 1
 

@@ -397,7 +397,7 @@ class TestActionAggregation(unittest.TestCase):
         """局部观测维度应为 OBS_DIM（全局）+ 3（本机）。"""
         local_obs = self.wrapper.get_local_observations()
         self.assertEqual(len(local_obs), self.wrapper.num_agents)
-        for name, obs in local_obs.items():
+        for _name, obs in local_obs.items():
             self.assertEqual(obs.shape, (OBS_DIM + 3,))
             self.assertTrue(np.all(obs >= 0.0))
             self.assertTrue(np.all(obs <= 1.0))

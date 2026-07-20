@@ -27,7 +27,7 @@ from scripts.evaluation.run_simulation import (
     RandomStrategy,
     ShortestJobFirstStrategy,
 )
-from src.quantum.annealing import QuantumAnnealingOptimizer, _DWAVE_AVAILABLE
+from src.quantum.annealing import _DWAVE_AVAILABLE, QuantumAnnealingOptimizer
 from src.scheduler.agent import DuelingQNetwork, SchedulerAgent
 from src.scheduler.env import (
     DEFAULT_MACHINE_CONFIGS,

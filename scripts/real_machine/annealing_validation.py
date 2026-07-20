@@ -110,7 +110,7 @@ def generate_qubo_problem(size: int, seed: int = 42) -> np.ndarray:
     off_diag = np.triu(off_diag, k=1)  # 上三角
 
     # 组合成对称矩阵
-    Q = np.diag(diagonal) + off_diag + off_diag.T  # noqa: N806
+    Q = np.diag(diagonal) + off_diag + off_diag.T
 
     logger.info(
         f"[QUBO] 生成 {size}x{size} QUBO 矩阵, "
@@ -283,7 +283,7 @@ def dwave_neal_solve(
         求解结果字典，或 None（SDK 不可用时）
     """
     try:
-        import dimod  # type: ignore[import-untyped]
+        import dimod  # noqa: F401  # type: ignore[import-untyped]
         import neal  # type: ignore[import-untyped]
     except ImportError:
         logger.info("[DWave] neal SDK 不可用，跳过 D-Wave neal 求解")

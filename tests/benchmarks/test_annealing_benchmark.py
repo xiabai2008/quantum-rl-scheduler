@@ -120,7 +120,7 @@ class TestAnnealingBenchmark:
 
         result = benchmark(decode)
         assert len(result) == len(shapes)
-        for decoded, shape in zip(result, shapes):
+        for decoded, shape in zip(result, shapes, strict=False):
             assert decoded.shape == shape
 
 
@@ -135,7 +135,7 @@ class TestEnvBenchmark:
 
         def step_once():
             action = int(env.action_space.sample())
-            obs, reward, terminated, truncated, info = env.step(action)
+            obs, _reward, terminated, truncated, _info = env.step(action)
             if terminated or truncated:
                 env.reset(seed=42)
             return obs
@@ -148,7 +148,7 @@ class TestEnvBenchmark:
         env = QuantumSchedulingEnv(max_steps=100, seed=42)
 
         def reset_once():
-            obs, info = env.reset(seed=42)
+            obs, _info = env.reset(seed=42)
             return obs
 
         result = benchmark(reset_once)

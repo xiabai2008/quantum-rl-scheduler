@@ -48,7 +48,7 @@ class TestExtendedStateSpace(unittest.TestCase):
 
     def test_observation_shape(self):
         """测试观测向量形状"""
-        obs, info = self.env.reset(seed=42)
+        obs, _info = self.env.reset(seed=42)
         self.assertEqual(obs.shape, (14,), "观测向量形状应为 (14,)")
         self.assertEqual(obs.dtype, np.float32, "观测向量类型应为 float32")
 

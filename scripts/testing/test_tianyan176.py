@@ -116,10 +116,7 @@ def test_tianyan176():
             num_shots=1024,
             is_verify=False,
         )
-        if isinstance(result, list) and len(result) > 0:
-            task_id = str(result[0])
-        else:
-            task_id = str(result)
+        task_id = str(result[0]) if isinstance(result, list) and len(result) > 0 else str(result)
         print(f"  [PASS] 任务已提交! task_id = {task_id}")
     except Exception as e:
         print(f"  [FAIL] 任务提交失败: {e}")

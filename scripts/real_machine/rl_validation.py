@@ -49,6 +49,8 @@ if str(_PROJECT_ROOT) not in sys.path:
 if str(_SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPT_DIR))
 
+import contextlib
+
 from loguru import logger
 
 # 复用 smoke_test.py 中的工具函数
@@ -198,10 +200,8 @@ class EnhancedRealCallback(BaseCallback):
             pass
 
         # 从环境获取量子加速比
-        try:
+        with contextlib.suppress(Exception):
             quantum_speedup = float(getattr(self.env, "_last_quantum_speedup", 0.0))
-        except Exception:
-            pass
 
         # 提交真机任务（非阻塞）
         t0 = time.time()

@@ -395,10 +395,7 @@ def _is_task_failed(status_result: dict[str, Any]) -> bool:
             return True
 
     # 检查 error 字段
-    if status_result.get("error"):
-        return True
-
-    return False
+    return bool(status_result.get("error"))
 
 
 def _get_status_with_timeout(client: Any, task_id: str, timeout: int = 15) -> dict[str, Any] | None:
@@ -605,9 +602,13 @@ def run_single_experiment(
                     logger.debug(f"[Smoke] 从 resultStatus 统计概率: {probability}")
 
             # 尝试4: result["raw"] 本身就是概率 dict
-            if not probability and isinstance(raw_data, dict):
-                if "probability" not in raw_data and "resultStatus" not in raw_data:
-                    probability = parse_probability(raw_data)
+            if (
+                not probability
+                and isinstance(raw_data, dict)
+                and "probability" not in raw_data
+                and "resultStatus" not in raw_data
+            ):
+                probability = parse_probability(raw_data)
 
             record["probability"] = probability
             record["raw_result"] = str(raw_data)[:500]

@@ -236,7 +236,7 @@ def collect_mo_metrics(
     all_rewards = []
 
     for ep in range(num_episodes):
-        obs, info = mo_env.reset(seed=seed + ep if seed is not None else None)
+        obs, _info = mo_env.reset(seed=seed + ep if seed is not None else None)
         done = False
         ep_reward = 0.0
 

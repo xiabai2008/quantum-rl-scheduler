@@ -50,10 +50,8 @@ jobs:
       - name: Check code formatting (ruff format)
         run: ruff format --check src/ scripts/ tests/
 
-      - name: Lint with ruff (transitional --exit-zero)
-        run: |
-          ruff check src/ scripts/ tests/ --statistics || true
-          ruff check src/ scripts/ tests/ --exit-zero
+      - name: Lint with ruff
+        run: ruff check src/ scripts/ tests/
 
       - name: Security scan (bandit)
         run: bandit -c pyproject.toml -r src/ -ll

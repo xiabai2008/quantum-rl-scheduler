@@ -212,7 +212,7 @@ class TestBitstringToWeights(unittest.TestCase):
         weights = self.opt.bitstring_to_weights(bitstring, self.shapes)
         self.assertIsInstance(weights, list)
         self.assertEqual(len(weights), len(self.shapes))
-        for w, s in zip(weights, self.shapes):
+        for w, s in zip(weights, self.shapes, strict=False):
             self.assertEqual(w.shape, s)
 
     def test_all_zeros_bitstring_yields_zero_delta(self):
@@ -231,7 +231,7 @@ class TestBitstringToWeights(unittest.TestCase):
         ]
         bitstring = "0" * self.bitstring_len
         weights = self.opt.bitstring_to_weights(bitstring, self.shapes, current_weights=current)
-        for w, c in zip(weights, current):
+        for w, c in zip(weights, current, strict=False):
             np.testing.assert_array_almost_equal(w, c)
 
     def test_sign_bit_one_yields_nonpositive_delta(self):
@@ -260,7 +260,7 @@ class TestBitstringToWeights(unittest.TestCase):
         ]
         bitstring = "0" * self.bitstring_len
         weights = self.opt.bitstring_to_weights(bitstring, self.shapes, current_weights=current)
-        for w, c in zip(weights, current):
+        for w, c in zip(weights, current, strict=False):
             np.testing.assert_array_almost_equal(w, c)
 
     def test_short_bitstring_padded_with_zeros(self):
@@ -482,7 +482,7 @@ class TestWeightExtraction(unittest.TestCase):
     def test_extract_shapes_match_module(self):
         """提取的形状应与 nn.Module 参数形状一致。"""
         weights, shapes = self.opt._extract_weights(self.net)
-        for w, s, p in zip(weights, shapes, self.net.parameters()):
+        for w, s, p in zip(weights, shapes, self.net.parameters(), strict=False):
             self.assertEqual(w.shape, p.shape)
             self.assertEqual(s, p.shape)
 
@@ -492,7 +492,7 @@ class TestWeightExtraction(unittest.TestCase):
         new_net = nn.Linear(4, 2)
         self.opt._set_weights(new_net, original_w)
         round_trip, _ = self.opt._extract_weights(new_net)
-        for a, b in zip(original_w, round_trip):
+        for a, b in zip(original_w, round_trip, strict=False):
             np.testing.assert_array_almost_equal(a, b)
 
     def test_set_weights_modifies_parameters(self):
@@ -550,7 +550,9 @@ class TestOptimizePolicyAndHelpers(unittest.TestCase):
             )
         self.assertIs(result, agent)
         # target_net 应被同步为 policy_net
-        for p1, p2 in zip(agent.policy_net.parameters(), agent.target_net.parameters()):
+        for p1, p2 in zip(
+            agent.policy_net.parameters(), agent.target_net.parameters(), strict=False
+        ):
             self.assertTrue(torch.equal(p1, p2))
 
     @unittest.skip("v5 重构后 head_only 行为已变更，需重新设计测试")
@@ -787,7 +789,7 @@ class TestHierarchicalAnnealing(unittest.TestCase):
             def __init__(self, net):
                 self.policy_net = net
 
-        agent = BigAgent(big_net)
+        BigAgent(big_net)
         total_tensors = len(list(big_net.parameters()))
         self.assertGreater(total_tensors, 4, f"测试网络应有 >4 张量, 实际 {total_tensors}")
 

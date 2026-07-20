@@ -38,7 +38,9 @@ import sys
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar
+
+import numpy as np
 
 # ---------------------------------------------------------------------------
 # 环境变量设置（必须在 import 项目模块之前）
@@ -189,7 +191,7 @@ class TrainingMetricsCallback(BaseCallback):
     指标用于监控训练健康度、判断策略是否崩溃，以及断点续训后对比趋势。
     """
 
-    _FIELDS = [
+    _FIELDS: ClassVar[list[str]] = [
         "timestep",
         "ep_rew_mean",
         "ep_len_mean",
@@ -635,7 +637,7 @@ def main() -> None:
     t0 = time.perf_counter()
 
     try:
-        model = agent.train(
+        agent.train(
             total_timesteps=args.timesteps,
             eval_freq=max(1, args.save_interval // 2),
             n_eval_episodes=5,
