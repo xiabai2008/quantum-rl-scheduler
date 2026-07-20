@@ -248,9 +248,10 @@ def run_dim2_state_space_ablation(
             original_obs = env._get_observation
             dim = cfg["dim"]
 
-            def _make_limited_obs(dim_size):
+            # 将循环变量 original_obs 绑定为默认参数，避免 B023 闭包陷阱
+            def _make_limited_obs(dim_size, _obs_fn=original_obs):
                 def _limited():
-                    raw = original_obs()
+                    raw = _obs_fn()
                     if dim_size == 10:
                         return raw
                     indices = list(range(dim_size))
@@ -330,13 +331,14 @@ def run_dim3_reward_ablation(
             # 通过 Monkey-patch 实现不同奖励函数
             _original_step = env.step
 
-            def _make_reward_wrapper(mode):
+            # 将循环变量 _original_step / env 绑定为默认参数，避免 B023 闭包陷阱
+            def _make_reward_wrapper(mode, _step=_original_step, _env=env):
                 def _wrapped_step(action):
-                    obs, _, terminated, truncated, info = _original_step(action)
+                    obs, _, terminated, truncated, info = _step(action)
                     # 重新计算本步奖励
-                    new_reward = _compute_alternative_reward(env, action, mode)
-                    env._episode_reward = (
-                        env._episode_reward - info.get("last_reward", 0) + new_reward
+                    new_reward = _compute_alternative_reward(_env, action, mode)
+                    _env._episode_reward = (
+                        _env._episode_reward - info.get("last_reward", 0) + new_reward
                     )
                     info["last_reward"] = new_reward
                     return obs, new_reward, terminated, truncated, info
