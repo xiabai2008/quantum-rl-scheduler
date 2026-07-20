@@ -36,9 +36,10 @@ Reinforcement Learning Agent for Quantum-Classical Hybrid Task Scheduling
 """
 
 import os
-from typing import Any
+from typing import Any, cast
 
 import gymnasium as gym
+import gymnasium.spaces as spaces
 import numpy as np
 from loguru import logger
 from stable_baselines3 import DQN
@@ -236,6 +237,11 @@ class SchedulerAgent:
         """
         device = get_device(model.device)
 
+        # 类型收窄：DuelingQNetwork 仅支持 Discrete 动作空间
+        assert isinstance(self.action_space, spaces.Discrete), (
+            f"DuelingQNetwork 仅支持 Discrete 动作空间，实际类型: {type(self.action_space)}"
+        )
+
         # 复用现有策略的 features_extractor 和维度信息
         old_q_net = model.policy.q_net
         features_extractor = old_q_net.features_extractor
@@ -296,7 +302,7 @@ class SchedulerAgent:
             self.model = self._build_model()
 
         # 创建评估环境
-        eval_env = Monitor(self.env)
+        eval_env: gym.Env = Monitor(self.env)
 
         # 构建 Epsilon 探索回调
         epsilon_callback = EpsilonExplorationCallback(
@@ -400,7 +406,7 @@ class SchedulerAgent:
             while not done:
                 action = self.predict(obs, deterministic=deterministic)
                 obs, reward, terminated, truncated, info = self.env.step(action)
-                total_reward += reward
+                total_reward += float(reward)
                 done = terminated or truncated
 
             episode_rewards.append(total_reward)
@@ -458,7 +464,9 @@ class SchedulerAgent:
         )
 
         if "policy" in params:
-            policy_state = params["policy"]
+            # params["policy"] 实际是 OrderedDict[str, Tensor]（SB3 策略状态字典），
+            # 但 load_from_zip_file 的返回类型标注为 Tensor，需 cast 为 dict 以便 .items() 迭代
+            policy_state = cast(dict[str, Any], params["policy"])
             dueling_keys = [
                 k for k in policy_state if "value_stream" in k or "advantage_stream" in k
             ]
@@ -486,6 +494,13 @@ class SchedulerAgent:
         Returns:
             包含所有超参数和空间维度的字典
         """
+        # 类型收窄：观测空间必须有 shape；动作空间必须为 Discrete 才有 .n 属性
+        assert self.observation_space.shape is not None, (
+            f"观测空间必须有 shape 属性，实际: {type(self.observation_space)}"
+        )
+        assert isinstance(self.action_space, spaces.Discrete), (
+            f"动作空间必须为 Discrete 才有 .n 属性，实际: {type(self.action_space)}"
+        )
         return {
             "observation_dim": self.observation_space.shape[0],
             "action_dim": self.action_space.n,
