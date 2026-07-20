@@ -25,6 +25,8 @@ build/
 venv/
 env/
 .venv/
+.venv-*/
+.venv-mutmut*/
 ENV/
 
 # --- IDE / 编辑器 ---
@@ -40,17 +42,22 @@ ENV/
 # --- CI / DevContainer / GitHub（容器内不需要） ---
 .github/
 .devcontainer/
+.pre-commit-config.yaml
 
 # --- 测试 ---
 .coverage
+coverage.xml
 htmlcov/
 .pytest_cache/
+.mypy_cache/
+mutants/
 tests/
 
-# --- 文档（容器内不需要 .md / .rst） ---
+# --- 文档（容器内不需要 .md / .rst，保留 README.md） ---
 docs/
 *.md
 *.rst
+!README.md
 !requirements.txt
 
 # --- 日志（可能数百 MB） ---
