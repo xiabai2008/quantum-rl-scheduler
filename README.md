@@ -92,6 +92,31 @@ cp .env.example .env            # Mock 模式默认开启
 
 安装 [Dev Containers](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers) 扩展后，打开项目文件夹，点击右下角 "Reopen in Container"。
 
+### 方式四：Docker 一键部署
+
+```bash
+# 构建并启动 Web 服务
+docker-compose up -d
+
+# 访问 Web 监控面板
+# http://localhost:8000
+
+# 查看日志
+docker-compose logs -f
+
+# 停止
+docker-compose down
+
+# 启动训练（可选）
+docker-compose run --rm web python scripts/cli.py train --timesteps 50000 --algorithm ppo
+
+# 启动仿真（可选）
+docker-compose run --rm web python scripts/cli.py simulate --num-tasks 200 --strategies all
+
+# 启动 TensorBoard（可选）
+docker-compose --profile monitoring up -d
+```
+
 ### 验证环境
 
 ```bash
