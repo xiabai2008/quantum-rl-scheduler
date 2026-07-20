@@ -74,7 +74,7 @@ def compute_execution_reward(
         # 保真度过低时打折，避免智能体盲目偏向低质量量子资源。
         if quantum_fidelity < 0.9:
             reward *= 0.6
-        return reward + REWARD_SUCCESS_BONUS
+        return float(reward + REWARD_SUCCESS_BONUS)
 
     else:  # ACTION_HYBRID
         # 混合执行奖励介于经典和量子之间，并随量子可用率动态调整。
