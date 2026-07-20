@@ -14,6 +14,7 @@ Benchmark 性能趋势可视化工具
 """
 
 import argparse
+import contextlib
 import json
 import sys
 from pathlib import Path
@@ -60,10 +61,12 @@ def generate_trend_chart(
     """
     try:
         import matplotlib
+
         matplotlib.use("Agg")
-        import matplotlib.pyplot as plt
-        import matplotlib.dates as mdates
         from datetime import datetime
+
+        import matplotlib.dates as mdates
+        import matplotlib.pyplot as plt
     except ImportError:
         print("⚠️  matplotlib 未安装，跳过图片生成。尝试生成 ASCII 报告...")
         return _generate_ascii_report(records, output_path)
@@ -122,13 +125,13 @@ def generate_trend_chart(
         x = timestamps
 
         # 过滤 NaN
-        valid = [(t, v) for t, v in zip(x, y) if v == v]
+        valid = [(t, v) for t, v in zip(x, y, strict=False) if v == v]
         if not valid:
             ax.set_title(name, fontsize=9)
             ax.text(0.5, 0.5, "无数据", ha="center", va="center", transform=ax.transAxes)
             continue
 
-        tx, ty = zip(*valid)
+        tx, ty = zip(*valid, strict=False)
         ax.plot(tx, ty, "o-", linewidth=1.5, markersize=4, color="#2c7fb8")
 
         # 标注增长率
@@ -149,10 +152,8 @@ def generate_trend_chart(
 
         # X axis formatting (keep English to avoid CJK font issues on CI)
         ax.set_xlabel("Timestamp")
-        try:
+        with contextlib.suppress(Exception):
             ax.xaxis.set_major_formatter(mdates.DateFormatter("%m-%d %H:%M"))
-        except Exception:
-            pass
 
     # 隐藏多余子图
     for j in range(n, rows * cols):
@@ -166,9 +167,12 @@ def generate_trend_chart(
     first_ts = timestamps[0].strftime("%Y-%m-%d") if timestamps else "?"
     last_ts = timestamps[-1].strftime("%Y-%m-%d") if timestamps else "?"
     fig.text(
-        0.5, 0.01,
+        0.5,
+        0.01,
         f"{len(records)} runs · {total_commits} commits · {first_ts} ~ {last_ts}",
-        ha="center", fontsize=8, color="#888888",
+        ha="center",
+        fontsize=8,
+        color="#888888",
     )
 
     out = Path(output_path)
