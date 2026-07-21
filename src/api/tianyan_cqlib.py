@@ -34,6 +34,7 @@ class CqlibTianyanClient:
 
     # 已知可用的超导真机
     REAL_MACHINES = [  # noqa: RUF012
+        "tianyan-287",  # 天衍-287 (105 qubit 超导, paid)
         "tianyan_sw",  # 超导 free
         "tianyan_s",  # 超导 free
         "tianyan_tn",  # 超导 free
