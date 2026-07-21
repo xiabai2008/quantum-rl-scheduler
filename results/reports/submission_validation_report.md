@@ -32,7 +32,7 @@
 | EXP_STRESS | 压力测试报告 | md | `results/reports/stress_test_report.md` | 文件存在 |
 | EXP_REAL | 真机验证报告 | md | `results/reports/real_machine_validation.md` | 文件存在 |
 | EXP_STAT | 统计显著性报告 | md | `results/reports/statistical_validation.md` | 文件存在 |
-| MODEL_PPO | PPO 权威模型（10维观测） | zip | `deliverable_models/ppo_best_model_10dim.zip` | 文件大小: 0.3MB |
+| MODEL_PPO | PPO 权威模型（14维观测） | zip | `deliverable_models/ppo_best_model_14dim.zip` | 文件大小: 0.3MB |
 | MODEL_DQN | DQN 权威模型（10维观测） | zip | `deliverable_models/dqn_best_model_10dim.zip` | 文件大小: 0.2MB |
 | REQUIREMENTS_MATRIX | 需求追溯矩阵 | md | `docs/requirements_traceability.md` | 文件存在 |
 

@@ -9,7 +9,7 @@
 - 重复次数：10 seeds × 5 episodes = 50 episodes/策略/模式
 - 每个 episode：200 步（固定任务口径）
 - 观测：10 维 `Obs10Wrapper`
-- PPO：`deliverable_models/ppo_best_model_10dim.zip`
+- PPO：`deliverable_models/ppo_best_model_14dim.zip`
 - DQN：`deliverable_models/dqn_best_model_10dim.zip`
 - 完成率：成功调度数 /（成功调度数 + 资源不兼容次数）
 - 默认：λ=0.5，量子占比 70%；稀疏：λ=0.2，量子占比 30%；

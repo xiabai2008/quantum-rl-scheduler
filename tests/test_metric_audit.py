@@ -13,11 +13,11 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 def test_find_forbidden_reports_line_and_value() -> None:
     """旧版比例和奖励应被精确定位。"""
-    findings = find_forbidden("当前 +92.4%\n旧版 +95.4% 和 2864.26")
+    findings = find_forbidden("当前 +86.9%\n旧版 +95.4% 和 2723.0")
 
     assert findings == [
         (2, "旧提升比例", "+95.4%"),
-        (2, "旧 PPO 奖励", "2864.26"),
+        (2, "旧 PPO 奖励", "2723.0"),
     ]
 
 

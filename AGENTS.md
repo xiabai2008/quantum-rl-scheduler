@@ -351,7 +351,7 @@ docker-compose up -d
 
 | 用途 | 路径 |
 |------|------|
-| 权威PPO模型（10维） | `deliverable_models/ppo_best_model_10dim.zip` |
+| 权威PPO模型（14维） | `deliverable_models/ppo_best_model_14dim.zip` |
 | 权威DQN模型（10维） | `deliverable_models/dqn_best_model_10dim.zip` |
 | 归档模型目录 | `deliverable_models/`（已入库，详见 MODELS.md） |
 | 多seed评估数据 | `results/multiseed_evaluation/rewards_multiseed.json` |

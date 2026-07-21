@@ -92,7 +92,7 @@ REAL_SHOTS = 1024  # 真机 shots 数
 QCIS_CIRCUIT = "H Q0\nM Q0"  # H 门（阶段 0 验证高保真度）
 
 # 预训练模型路径
-PPO_MODEL_PATH = str(_PROJECT_ROOT / "deliverable_models" / "ppo_best_model_10dim.zip")
+PPO_MODEL_PATH = str(_PROJECT_ROOT / "deliverable_models" / "ppo_best_model_14dim.zip")
 DQN_MODEL_PATH = str(_PROJECT_ROOT / "deliverable_models" / "dqn_best_model_10dim.zip")
 
 # 动作含义

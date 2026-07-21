@@ -190,7 +190,7 @@ check_file() {
 check_file "README.md" "required"
 check_file "requirements.txt" "required"
 check_file "config/submission_manifest.yaml" "required"
-check_file "deliverable_models/ppo_best_model_10dim.zip" "required"
+check_file "deliverable_models/ppo_best_model_14dim.zip" "required"
 check_file "deliverable_models/dqn_best_model_10dim.zip" "required"
 check_file "results/reports/strategy_comparison.md" "required"
 check_file "results/reports/ablation_report.md" "required"

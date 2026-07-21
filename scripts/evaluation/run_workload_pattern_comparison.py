@@ -114,7 +114,7 @@ def run_comparison(
     seeds: int = 10,
     episodes_per_seed: int = 5,
     max_steps: int = 200,
-    ppo_model: str = "deliverable_models/ppo_best_model_10dim.zip",
+    ppo_model: str = "deliverable_models/ppo_best_model_14dim.zip",
     dqn_model: str = "deliverable_models/dqn_best_model_10dim.zip",
     patterns: Sequence[WorkloadPattern] = WORKLOAD_PATTERNS,
 ) -> dict[str, Any]:
@@ -257,7 +257,7 @@ def main() -> None:
     parser.add_argument("--seeds", type=int, default=10)
     parser.add_argument("--episodes", type=int, default=5)
     parser.add_argument("--max-steps", type=int, default=200)
-    parser.add_argument("--ppo-model", default="deliverable_models/ppo_best_model_10dim.zip")
+    parser.add_argument("--ppo-model", default="deliverable_models/ppo_best_model_14dim.zip")
     parser.add_argument("--dqn-model", default="deliverable_models/dqn_best_model_10dim.zip")
     parser.add_argument(
         "--output-data",

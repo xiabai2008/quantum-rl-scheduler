@@ -13,7 +13,7 @@ Statistical Significance Testing Module
 
 典型用法：
     from src.utils.stats_significance import compare_strategies
-    results = compare_strategies({"PPO": [2814, 2850, ...], "FCFS": [1462, ...]})
+    results = compare_strategies({"PPO": [2723, 2850, ...], "FCFS": [1462, ...]})
 """
 
 import math
@@ -325,7 +325,7 @@ def compare_strategies(
 
     Args:
         data: ``{策略名: [多次运行的奖励列表]}``，例如
-            ``{"PPO": [2814, 2850, ...], "FCFS": [1462, ...]}``
+            ``{"PPO": [2723, 2850, ...], "FCFS": [1462, ...]}``
         alpha: 显著性水平（默认 0.05）
 
     Returns:

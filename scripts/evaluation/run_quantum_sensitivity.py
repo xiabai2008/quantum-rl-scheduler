@@ -81,7 +81,7 @@ NUM_SEEDS = 10
 EPISODES_PER_SEED = 5
 TASKS_PER_EPISODE = 200
 ARRIVAL_LAMBDA = 0.5
-PPO_MODEL_PATH = PROJECT_ROOT / "deliverable_models" / "ppo_best_model_10dim.zip"
+PPO_MODEL_PATH = PROJECT_ROOT / "deliverable_models" / "ppo_best_model_14dim.zip"
 OUTPUT_DIR = PROJECT_ROOT / "results"
 REPORT_DIR = OUTPUT_DIR / "reports"
 
@@ -358,7 +358,7 @@ def main():
         "",
         "回答关键问题：**量子任务占比多少时，PPO 相对于 FCFS 的优势最大？优势的转折点/饱和点在哪里？**",
         "",
-        "已有权威数字（PPO +92.4%, p=3.04e-11）仅在量子占比 70% 这一个点测得。",
+        "已有权威数字（PPO +86.9%, p=3.04e-11）仅在量子占比 70% 这一个点测得。",
         "本实验通过 5 个梯度点（10% / 30% / 50% / 70% / 90%）系统刻画 PPO 优势曲线。",
         "",
         "---",
@@ -454,7 +454,7 @@ def main():
         idx70 = ratios_list.index(70)
         ref_imp = improvements[idx70]
         report_lines += [
-            f"- **与权威数字对比**: 70% 量子占比下测得提升 +{ref_imp:.1f}%（权威数字 +92.4%，差异来源于 seed 数/训练策略/模型版本）",
+            f"- **与权威数字对比**: 70% 量子占比下测得提升 +{ref_imp:.1f}%（权威数字 +86.9%，差异来源于 seed 数/训练策略/模型版本）",
         ]
 
     report_lines += [

@@ -2,8 +2,8 @@
 
 > **历史快照（v4，已被取代）**：本报告仅用于追溯 2026-06-27 的单次实验，
 > 当前答辩、README 和对外材料必须引用
-> `results/reports/strategy_comparison.md` 的多 Seed 权威结果（PPO 2814.19、
-> FCFS 1462.48、提升 92.4%）。
+> `results/reports/strategy_comparison.md` 的多 Seed 权威结果（PPO 2723.0、
+> FCFS 1462.48、提升 86.9%）。
 
 **生成时间**: 2026-06-27 18:30:40
 

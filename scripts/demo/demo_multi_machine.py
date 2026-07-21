@@ -14,7 +14,7 @@
     python scripts/demo_multi_machine.py --episodes 20
 
     # 加载训练好的 PPO 模型做多机器调度
-    python scripts/demo_multi_machine.py --ppo-model deliverable_models/ppo_best_model_10dim.zip
+    python scripts/demo_multi_machine.py --ppo-model deliverable_models/ppo_best_model_14dim.zip
 
     # 真机验证模式（5% 量子任务上真机）
     python scripts/demo_multi_machine.py --real --real-prob 0.05 --episodes 5
@@ -327,7 +327,7 @@ def main():
     parser.add_argument(
         "--ppo-model",
         type=str,
-        default="deliverable_models/ppo_best_model_10dim.zip",
+        default="deliverable_models/ppo_best_model_14dim.zip",
         help="PPO 模型路径（不存在则用启发式策略）",
     )
     parser.add_argument(

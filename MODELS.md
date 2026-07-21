@@ -1,7 +1,7 @@
 # 权威模型检查点归档（MODELS.md）
 
-> 本文件说明本项目**可提交的训练好的模型检查点**，用于保证评审在克隆仓库后能复现论文中的实验结果（PPO vs FCFS +88.3% 等）。
-> 最后更新：2026-07-10
+> 本文件说明本项目**可提交的训练好的模型检查点**，用于保证评审在克隆仓库后能复现论文中的实验结果（PPO vs FCFS +86.9% 等）。
+> 最后更新：2026-07-21
 
 ## 为什么需要本目录
 
@@ -11,39 +11,51 @@
 
 ## 权威模型清单
 
-| 策略 | 提交路径（可复现） | 来源（训练产物，不入库） | 体积 | 复现指标 |
-|------|-------------------|--------------------------|------|----------|
-| **PPO** | `deliverable_models/ppo_best_model_10dim.zip` | `models/ppo_seed_42_v4/best_model.zip` | ~261 KB | PPO 奖励 **2746.94**（50 seed × 5 ep，+88.3% vs FCFS） |
-| **DQN** | `deliverable_models/dqn_best_model_10dim.zip` | `models/dqn_fair_v2/seed_42/best_model.zip` | ~216 KB | DQN 奖励 **-897.08**（排名第 6/8） |
+| 策略 | 提交路径（可复现） | 训练说明 | 体积 | 复现指标 |
+|------|-------------------|----------|------|----------|
+| **PPO（14维）** | `deliverable_models/ppo_best_model_14dim.zip` | 14维原生环境，50000 steps，seed=42 | ~267 KB | PPO 奖励 **2723.0**（10 seed × 5 ep，+86.9% vs FCFS，d=4.09） |
+| **DQN（10维）** | `deliverable_models/dqn_best_model_10dim.zip` | 10维环境（Obs10Wrapper），50000 steps | ~216 KB | DQN 奖励 **-897.08**（排名 6/8，在14维环境退化为近Quantum-Only） |
 
 ## 训练配置（复现前提）
 
-- **观测空间**：10 维（`Obs10Wrapper`，将 14 维环境观测截断为 10 维供旧模型使用）
+- **PPO 观测空间**：14 维（原生 `QuantumSchedulingEnv`，含队列长度、量子保真度、等待时间、拓扑连接度等）
+- **DQN 观测空间**：10 维（`Obs10Wrapper` 截断，仅用于基线对比，不作权威提交）
 - **随机种子**：42
-- **评测规模**：200 步/episode、泊松到达 λ=0.5、多 seed 平均
-- **PPO 训练量**：约 50,000 steps（`models/ppo_seed_42_v4/` 下含完整 checkpoint 序列）
-- **DQN 训练量**：约 50,000 steps（`models/dqn_fair_v2/seed_42/` 下含完整 checkpoint 序列）
+- **评测规模**：200 步/episode、泊松到达 λ=0.5、10 seeds × 5 episodes
+- **PPO 训练量**：50,000 timesteps
+- **DQN 训练量**：50,000 timesteps
 
 ## 复现命令
 
 ```bash
-# 1) 8 策略对比（加载 PPO/DQN 权威模型，复现 +88.3%）
-python scripts/real_machine/strategy_comparison.py
+# 1) 多 seed 评估 + 统计显著性（14维 PPO，10 seed × 5 ep）
+python scripts/evaluation/run_multiseed_evaluation.py --seeds 10 --episodes 5 \
+    --ppo-model deliverable_models/ppo_best_model_14dim.zip
 
-# 2) 多 seed 评估 + 统计显著性（50 seed × 5 ep）
-python scripts/evaluation/run_multiseed_evaluation.py --seeds 10 --episodes 5
+# 2) 统计显著性检验
 python scripts/evaluation/statistical_significance.py \
-    --input results/multiseed_evaluation/rewards_multiseed.json
+    --input results/multiseed_evaluation/rewards_multiseed_14dim.json
 
-# 3) 压力测试（自动优先加载 deliverable_models/ 下的 PPO 模型）
+# 3) 压力测试（自动加载 deliverable_models/ 下的 PPO 14维模型）
 python scripts/benchmarking/stress_test.py
 
-# 4) 多机器演示（加载 PPO 权威模型）
-python scripts/demo/demo_multi_machine.py --ppo-model deliverable_models/ppo_best_model_10dim.zip
+# 4) 多机器演示（加载 PPO 14维模型）
+python scripts/demo/demo_multi_machine.py --ppo-model deliverable_models/ppo_best_model_14dim.zip
 ```
+
+## 最终权威指标（答辩统一口径）
+
+| 指标 | 数值 | 统计检验 |
+|:--|:--|:--|
+| PPO vs FCFS 提升 | **+86.9%** | t=9.14, p=3.5×10⁻⁸, d=4.09 |
+| PPO 平均奖励 | 2723.0 ± 437（SE=138，N=10 seeds） | — |
+| FCFS 平均奖励 | 1457.0 ± 30（SE=10） | 基线 |
+| 多机器 MAPPO | +86.3% vs 单机 PPO | — |
+| 真机验证 | 32 任务 100% 成功率 | 可用性验证 |
 
 ## 注意事项
 
-- 评估脚本（`strategy_comparison.py`、`stress_test.py`、`demo_multi_machine.py`）的模型路径常量已指向本目录；本地开发若使用 `models/` 下的其他实验检查点，可临时改回，但**提交前请确保 `deliverable_models/` 中的两个权威副本存在**。
-- 若需重新训练并替换权威模型：训练完成后将 `best_model.zip` 复制至 `deliverable_models/` 并同步更新本文件与 `submission_manifest.yaml` 中的路径/体积。
-- `models/`、`results/` 下的其余实验产物（消融、真机闭环、多 seed 原始数据等）仍按 `.gitignore` 规则不入库，仅作本地研发留档。
+- PPO 权威模型已从 10 维升级到 14 维（v8→v9），旧 `ppo_best_model_10dim.zip` 保留作为历史参考但不再作为主要口径
+- DQN 暂无 14 维版本，继续使用 `dqn_best_model_10dim.zip`；在 14 维评估环境中 DQN 退化为近 Quantum-Only 行为（已知限制）
+- 如需重新训练并替换权威模型：训练完成后将 `best_model.zip` 复制至 `deliverable_models/` 并同步更新本文件
+- `models/` 目录已删除（旧版训练 artifacts），所有交付模型统一在 `deliverable_models/`
