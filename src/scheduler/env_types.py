@@ -73,7 +73,7 @@ INITIAL_QUEUE_RANGE = (5, 20)  # reset 时初始任务队列大小范围
 # ---------------------------------------------------------------------------
 # 真机提交抽样概率（控制真机机时消耗：每个量子任务以此概率真正上真机）
 REAL_SUBMIT_PROBABILITY_DEFAULT = 0.0
-# 真机任务成功完成时的奖励加成（叠加到 step reward）
+# 真机任务成功完成时的奖励加成（叠加到 step reward，status_only 模式使用）
 REAL_MACHINE_SUCCESS_BONUS = 2.0
 # 真机任务失败时的惩罚（叠加到 step reward）
 REAL_MACHINE_FAIL_PENALTY = -1.0
@@ -81,6 +81,26 @@ REAL_MACHINE_FAIL_PENALTY = -1.0
 REAL_MACHINE_DEGRADE_FAIL_THRESHOLD = 3
 # 单个真机任务结果轮询的最大次数（超过则视为超时失败）
 REAL_MACHINE_MAX_POLL_STEPS = 20
+
+# ---------------------------------------------------------------------------
+# 真机结果反馈模式（Issue #235）
+# ---------------------------------------------------------------------------
+# status_only   : 仅使用 completed 状态给固定 bonus（旧行为，向后兼容）
+# result_aware  : 解析真机测量分布，按解质量计算 reward（语义闭环）
+# shuffled      : 打乱真机测量结果（消融对照组，检验是否只是噪声注入）
+REAL_FEEDBACK_STATUS_ONLY = "status_only"
+REAL_FEEDBACK_RESULT_AWARE = "result_aware"
+REAL_FEEDBACK_SHUFFLED = "shuffled"
+REAL_FEEDBACK_MODES = (
+    REAL_FEEDBACK_STATUS_ONLY,
+    REAL_FEEDBACK_RESULT_AWARE,
+    REAL_FEEDBACK_SHUFFLED,
+)
+
+# result_aware 模式下的最大奖励上限（防止高保真度任务奖励爆炸）
+REAL_RESULT_REWARD_MAX = 5.0
+# result_aware 模式下的最小奖励下限（即使质量为 0 也给少量完成奖励）
+REAL_RESULT_REWARD_MIN = 0.5
 
 
 # ---------------------------------------------------------------------------

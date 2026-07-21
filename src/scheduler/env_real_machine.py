@@ -21,10 +21,14 @@ from typing import TYPE_CHECKING, Any
 from loguru import logger
 
 from src.scheduler.env_types import (
+    REAL_FEEDBACK_SHUFFLED,
+    REAL_FEEDBACK_STATUS_ONLY,
     REAL_MACHINE_DEGRADE_FAIL_THRESHOLD,
     REAL_MACHINE_FAIL_PENALTY,
     REAL_MACHINE_MAX_POLL_STEPS,
     REAL_MACHINE_SUCCESS_BONUS,
+    REAL_RESULT_REWARD_MAX,
+    REAL_RESULT_REWARD_MIN,
     QuantumMachine,
     Task,
 )
@@ -124,6 +128,229 @@ def generate_qcis_circuit(
 
 
 # =============================================================================
+# 真机测量结果解析与 reward 计算（Issue #235）
+# =============================================================================
+
+
+def parse_measurement_result(status: dict[str, Any]) -> dict[str, float]:
+    """从真机任务状态中解析测量概率分布。
+
+    天衍云 cqlib 返回的 status 字典可能包含：
+    - ``probability``: 直接的概率分布字典 {"0": 0.5, "1": 0.5}
+    - ``resultStatus``: 原始 shots 计数，需转换为概率
+    - ``result``: 某些版本返回的嵌套结果
+
+    Args:
+        status: get_task_status() 返回的状态字典
+
+    Returns:
+        归一化的概率分布字典 {"bitstring": probability}，空字典表示解析失败
+    """
+    probability: dict[str, float] = {}
+
+    # 路径 1: 直接的 probability 字段
+    raw_prob = status.get("probability")
+    if raw_prob and isinstance(raw_prob, dict):
+        for key, val in raw_prob.items():
+            try:
+                probability[str(key)] = float(val)
+            except (ValueError, TypeError):
+                continue
+        if probability:
+            total = sum(probability.values())
+            if total > 0:
+                probability = {k: v / total for k, v in probability.items()}
+            return probability
+
+    # 路径 2: resultStatus 原始 shots 计数
+    result_status = status.get("resultStatus")
+    if result_status and isinstance(result_status, str):
+        try:
+            import json
+
+            counts = json.loads(result_status)
+            if isinstance(counts, dict):
+                total_shots = sum(counts.values())
+                if total_shots > 0:
+                    probability = {str(k): float(v) / total_shots for k, v in counts.items()}
+                    return probability
+        except (json.JSONDecodeError, ValueError, TypeError):
+            pass
+
+    # 路径 3: result 字段（嵌套 probability）
+    result = status.get("result")
+    if result and isinstance(result, dict):
+        inner_prob = result.get("probability")
+        if inner_prob and isinstance(inner_prob, dict):
+            for key, val in inner_prob.items():
+                try:
+                    probability[str(key)] = float(val)
+                except (ValueError, TypeError):
+                    continue
+            if probability:
+                total = sum(probability.values())
+                if total > 0:
+                    probability = {k: v / total for k, v in probability.items()}
+                return probability
+
+    return {}
+
+
+def compute_theoretical_distribution(qcis: str) -> dict[str, float]:
+    """根据 QCIS 电路计算理论概率分布（用于保真度对比）。
+
+    对于简单电路（仅 H 门 + 测量），理论分布为均匀分布。
+    对于无 H 门的电路（如 X 门），理论分布为确定态。
+
+    当前支持的电路模式：
+    - 仅 H 门：均匀分布 {"0": 0.5, "1": 0.5}
+    - 含 X 门：确定态 {"1": 1.0}
+    - 其他/复杂电路：均匀分布（保守估计）
+
+    Args:
+        qcis: QCIS 格式电路字符串
+
+    Returns:
+        理论概率分布字典
+    """
+    lines = [line.strip() for line in qcis.strip().split("\n") if line.strip()]
+    gates = [line for line in lines if not line.startswith("M")]
+
+    has_h = any(g.startswith("H ") for g in gates)
+    has_x = any(g.startswith("X ") for g in gates)
+
+    # 统计测量的量子比特数
+    measure_lines = [line for line in lines if line.startswith("M")]
+    if not measure_lines:
+        return {"0": 1.0}
+
+    # 提取测量的比特数
+    measure_qubits: list[str] = []
+    for line in measure_lines:
+        parts = line.replace("M", "").strip().split()
+        measure_qubits.extend(parts)
+    n_qubits = max(1, len(measure_qubits))
+
+    if has_h and not has_x:
+        # H 门产生均匀分布
+        n_outcomes = 2**n_qubits
+        prob = 1.0 / n_outcomes
+        return {format(k, f"0{n_qubits}b"): prob for k in range(n_outcomes)}
+    elif has_x and not has_h:
+        # X 门翻转，全 1 态
+        all_ones = "1" * n_qubits
+        return {all_ones: 1.0}
+    else:
+        # 混合或复杂电路，使用均匀分布作为保守估计
+        n_outcomes = 2**n_qubits
+        prob = 1.0 / n_outcomes
+        return {format(k, f"0{n_qubits}b"): prob for k in range(n_outcomes)}
+
+
+def compute_result_fidelity(
+    measured: dict[str, float],
+    theoretical: dict[str, float],
+) -> float:
+    """计算测量分布与理论分布之间的保真度（classical fidelity）。
+
+    F(p, q) = (sum_i sqrt(p_i * q_i))^2
+
+    保真度范围 [0, 1]，1 表示完美匹配。
+
+    Args:
+        measured: 真机测量得到的概率分布
+        theoretical: 理论计算的概率分布
+
+    Returns:
+        保真度 [0, 1]，0 表示解析失败
+    """
+    if not measured or not theoretical:
+        return 0.0
+
+    # 对齐两个分布的键空间
+    all_keys = set(measured.keys()) | set(theoretical.keys())
+    fidelity_sum = 0.0
+    for key in all_keys:
+        p = measured.get(key, 0.0)
+        q = theoretical.get(key, 0.0)
+        fidelity_sum += (p * q) ** 0.5
+
+    fidelity = fidelity_sum**2
+    return float(max(0.0, min(1.0, fidelity)))
+
+
+def compute_real_result_reward(
+    measured: dict[str, float],
+    theoretical: dict[str, float],
+) -> tuple[float, float, str]:
+    """根据真机测量结果计算质量感知 reward（Issue #235）。
+
+    reward 公式：
+        quality = fidelity(measured, theoretical)
+        reward = REAL_RESULT_REWARD_MIN + quality * (REAL_RESULT_REWARD_MAX - REAL_RESULT_REWARD_MIN)
+
+    线性映射：quality=0 → reward=0.5，quality=1 → reward=5.0。
+    这使得真机测量结果的质量直接影响力学习，而非仅靠 completed 状态。
+
+    Args:
+        measured: 真机测量得到的概率分布
+        theoretical: 理论计算的概率分布
+
+    Returns:
+        (reward, fidelity, formula_str) 三元组：
+        - reward: 计算得到的奖励值
+        - fidelity: 保真度 [0, 1]
+        - formula_str: 可追溯的计算公式描述
+    """
+    if not measured:
+        # 测量结果解析失败，给最小奖励（仅证明平台可用）
+        fidelity = 0.0
+        reward = REAL_RESULT_REWARD_MIN
+        formula = f"reward={REAL_RESULT_REWARD_MIN:.1f} (measurement_parse_failed, fidelity=0)"
+    else:
+        fidelity = compute_result_fidelity(measured, theoretical)
+        quality_range = REAL_RESULT_REWARD_MAX - REAL_RESULT_REWARD_MIN
+        reward = REAL_RESULT_REWARD_MIN + fidelity * quality_range
+        formula = (
+            f"reward={reward:.4f} = {REAL_RESULT_REWARD_MIN:.1f} + "
+            f"fidelity({fidelity:.4f}) * {quality_range:.1f}"
+        )
+
+    return float(reward), fidelity, formula
+
+
+def shuffle_measurement(measured: dict[str, float]) -> dict[str, float]:
+    """打乱测量结果的概率分布（消融对照组，Issue #235）。
+
+    保留概率值但随机分配到不同的 bitstring 键上，
+    破坏测量结果与任务目标之间的语义关联。
+    如果打乱后的分布恰好和原始分布相同（极低概率），重新打乱。
+
+    Args:
+        measured: 原始测量概率分布
+
+    Returns:
+        打乱后的概率分布（值不变，键重新分配）
+    """
+    if not measured or len(measured) <= 1:
+        return dict(measured)
+
+    keys = list(measured.keys())
+    values = list(measured.values())
+    shuffled = dict(measured)
+
+    # 尝试打乱，确保结果与原始不同（最多重试 10 次）
+    for _ in range(10):
+        random.shuffle(values)
+        shuffled = dict(zip(keys, values, strict=True))
+        # 检查是否确实发生了变化
+        if any(shuffled[k] != measured[k] for k in keys):
+            break
+
+    return shuffled
+
+
+# =============================================================================
 # 真机提交与轮询
 # =============================================================================
 
@@ -193,6 +420,7 @@ def submit_to_real_machine(
                     "submit_step": env._current_step,
                     "poll_count": 0,
                     "task_id_str": str(task.task_id),
+                    "qcis_circuit": qcis,
                 }
             )
             if env.use_real_machine:
@@ -290,10 +518,14 @@ def poll_pending_real_tasks(env: "QuantumSchedulingEnv") -> float:
         status_str = str(status.get("status", "unknown"))
 
         if status_str == "completed":
-            # 真机成功：正向反馈
-            total_feedback += REAL_MACHINE_SUCCESS_BONUS * env.real_machine_feedback_weight
+            # 真机成功：根据反馈模式计算 reward（Issue #235）
+            reward_delta, fidelity, formula = _compute_real_feedback(env, pending, status)
+            total_feedback += reward_delta * env.real_machine_feedback_weight
             env._real_success_count += 1
             env._real_consecutive_failures = 0  # 成功重置连续失败计数
+
+            # 记录详细结果元数据（Issue #235 可追溯性）
+            _record_real_result(env, pending, status, reward_delta, fidelity, formula)
 
             # 真机执行时间回写队列（Issue #64 增强）
             actual_duration = status.get("execution_time_s", None)
@@ -301,7 +533,8 @@ def poll_pending_real_tasks(env: "QuantumSchedulingEnv") -> float:
 
             logger.debug(
                 f"[真机闭环] 任务 {task_id_str} 真机执行成功 "
-                f"(machine={machine_name}, real_task_id={real_task_id})"
+                f"(machine={machine_name}, real_task_id={real_task_id}, "
+                f"fidelity={fidelity:.4f}, reward={reward_delta:.4f})"
             )
         elif status_str == "error":
             # 真机失败：负向反馈 + 降级判断
@@ -320,6 +553,105 @@ def poll_pending_real_tasks(env: "QuantumSchedulingEnv") -> float:
 
     env._pending_real_tasks = still_pending
     return total_feedback
+
+
+# =============================================================================
+# 真机反馈计算与结果记录（Issue #235）
+# =============================================================================
+
+
+def _compute_real_feedback(
+    env: "QuantumSchedulingEnv",
+    pending: dict[str, Any],
+    status: dict[str, Any],
+) -> tuple[float, float, str]:
+    """根据真机反馈模式计算 reward（Issue #235）。
+
+    三种模式：
+    - status_only  : 固定 bonus（旧行为）
+    - result_aware : 解析测量分布，按保真度计算 reward
+    - shuffled     : 打乱测量结果后按保真度计算（消融对照）
+
+    Args:
+        env     : 调度环境实例
+        pending : pending 任务记录（含 qcis_circuit）
+        status  : get_task_status() 返回的状态
+
+    Returns:
+        (reward, fidelity, formula_str) 三元组
+    """
+    mode = getattr(env, "real_feedback_mode", REAL_FEEDBACK_STATUS_ONLY)
+
+    if mode == REAL_FEEDBACK_STATUS_ONLY:
+        # 旧行为：固定 bonus，不解析测量结果
+        return (
+            REAL_MACHINE_SUCCESS_BONUS,
+            -1.0,  # -1 表示未计算保真度
+            f"reward={REAL_MACHINE_SUCCESS_BONUS:.1f} (status_only, fixed bonus)",
+        )
+
+    # result_aware 或 shuffled 模式：解析测量结果
+    measured = parse_measurement_result(status)
+    qcis = pending.get("qcis_circuit", "H Q0\nM Q0")
+    theoretical = compute_theoretical_distribution(qcis)
+
+    if mode == REAL_FEEDBACK_SHUFFLED:
+        # 打乱测量结果（消融对照）
+        measured = shuffle_measurement(measured)
+
+    reward, fidelity, formula = compute_real_result_reward(measured, theoretical)
+
+    if mode == REAL_FEEDBACK_SHUFFLED:
+        formula += " [SHUFFLED]"
+
+    return reward, fidelity, formula
+
+
+def _record_real_result(
+    env: "QuantumSchedulingEnv",
+    pending: dict[str, Any],
+    status: dict[str, Any],
+    reward_delta: float,
+    fidelity: float,
+    formula: str,
+) -> None:
+    """记录真机结果的详细元数据（Issue #235 可追溯性）。
+
+    每条记录包含 task_id、circuit_hash、backend、shots、counts/probability、
+    objective_value、result_valid、fallback_mode、reward_delta 及计算公式。
+
+    Args:
+        env          : 调度环境实例
+        pending      : pending 任务记录
+        status       : 真机返回的状态字典
+        reward_delta : 实际 reward 增量
+        fidelity     : 保真度（-1 表示未计算）
+        formula      : 计算公式描述
+    """
+    if not hasattr(env, "_real_result_records"):
+        env._real_result_records = []
+
+    measured = parse_measurement_result(status) if fidelity >= 0 else {}
+    mode = getattr(env, "real_feedback_mode", REAL_FEEDBACK_STATUS_ONLY)
+
+    record: dict[str, Any] = {
+        "task_id": pending.get("task_id_str", ""),
+        "real_task_id": pending.get("task_id", ""),
+        "machine": pending.get("machine_name", ""),
+        "submit_step": pending.get("submit_step", 0),
+        "complete_step": env._current_step,
+        "shots": env.real_machine_shots,
+        "backend": pending.get("machine_name", ""),
+        "feedback_mode": mode,
+        "probability": measured,
+        "fidelity": round(fidelity, 6) if fidelity >= 0 else None,
+        "reward_delta": round(reward_delta, 6),
+        "formula": formula,
+        "result_valid": len(measured) > 0,
+        "fallback_mode": mode == REAL_FEEDBACK_STATUS_ONLY and len(measured) == 0,
+    }
+
+    env._real_result_records.append(record)
 
 
 # =============================================================================

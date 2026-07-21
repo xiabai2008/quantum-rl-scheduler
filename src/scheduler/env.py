@@ -145,6 +145,7 @@ class QuantumSchedulingEnv(gym.Env):
         real_machine_feedback_weight: float = 1.0,
         max_real_submissions: int | None = None,
         real_machine_shots: int = 512,
+        real_feedback_mode: str = "status_only",
         tenant_manager: Any | None = None,
         arrival_lambda: float | Callable[[int, int], float] | None = None,
         quantum_task_ratio: float | None = None,
@@ -164,6 +165,15 @@ class QuantumSchedulingEnv(gym.Env):
             raise ValueError("real_machine_shots must be positive")
         self.max_real_submissions = max_real_submissions
         self.real_machine_shots = int(real_machine_shots)
+        # 真机结果反馈模式（Issue #235）：status_only / result_aware / shuffled
+        from src.scheduler.env_types import REAL_FEEDBACK_MODES
+
+        if real_feedback_mode not in REAL_FEEDBACK_MODES:
+            raise ValueError(
+                f"real_feedback_mode must be one of {REAL_FEEDBACK_MODES}, "
+                f"got {real_feedback_mode!r}"
+            )
+        self.real_feedback_mode = real_feedback_mode
         if arrival_lambda is not None and not callable(arrival_lambda):
             if float(arrival_lambda) < 0.0:
                 raise ValueError("arrival_lambda must be non-negative")
@@ -206,6 +216,8 @@ class QuantumSchedulingEnv(gym.Env):
         # 真机闭环状态（Issue #64）
         # _pending_real_tasks: 已提交但未拿到结果的真机任务列表
         self._pending_real_tasks: list[dict[str, Any]] = []
+        # _real_result_records: 真机结果详细记录（Issue #235 可追溯性）
+        self._real_result_records: list[dict[str, Any]] = []
         self._real_machine_degraded: bool = False  # 降级标志：True 时跳过真机提交
         self._real_consecutive_failures: int = 0  # 连续失败计数（触发降级）
         self._real_success_count: int = 0
@@ -327,6 +339,7 @@ class QuantumSchedulingEnv(gym.Env):
         # 注意：success/fail/consecutive_failures 计数器跨 episode 累积，
         # 仅在 __init__ 中初始化，reset 不清零，确保训练汇总统计准确
         self._pending_real_tasks = []
+        self._real_result_records = []
 
         # 随机初始化任务队列（5-20 个任务）
         self._task_queue = []
