@@ -24,6 +24,7 @@ from __future__ import annotations
 import logging
 import logging.config
 import os
+import types
 from dataclasses import dataclass, fields
 from typing import Any, cast
 
@@ -427,7 +428,8 @@ class _InterceptHandler(logging.Handler):
             except AttributeError:
                 level = record.levelno
 
-            frame, depth = logging.currentframe(), 2
+            frame: types.FrameType | None = logging.currentframe()
+            depth = 2
             while frame and frame.f_code.co_filename == logging.__file__:
                 frame = frame.f_back
                 depth += 1
