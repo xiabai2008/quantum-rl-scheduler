@@ -3,7 +3,7 @@
 > 此文件供所有 AI Agent（CodeBuddy / TRAE / Claude / Cursor 等）读取，以快速理解项目全貌。
 > 每次重要变更后请更新本文档的"最后更新"日期和对应章节。
 
-**最后更新**：2026-07-21（M9冲奖冲刺：PPT/白皮书v5新增落地价值章节 + 真机统计显著性报告 + 价值量化文档）
+**最后更新**：2026-07-22（多seed真机实验完成：5 seeds × 3策略，PPO d=5.64 vs FCFS, p<0.001，Bonferroni校正后显著）
 
 ***
 
@@ -146,20 +146,22 @@ quantum-rl-scheduler/
 │   ├── cli.py                    # Click 统一入口（train/simulate/serve/demo）
 │   ├── training/                 # train_agent.py, quick_train.py
 │   ├── evaluation/               # run_simulation.py, run_multiseed_evaluation.py,
-│   │                             # run_issue_38_67_experiments.py, statistical_significance.py
+│   │                             # run_issue_38_67_experiments.py, statistical_significance.py,
+│   │                             # preregistered_real_machine_analysis.py, multiseed_real_machine_analysis.py
 │   ├── demo/                     # demo.py, demo_cqlib.py, demo_multi_machine.py
 │   ├── testing/                  # e2e_test.py, calibrate_mock.py
 │   ├── benchmarking/             # mock_vs_real.py, stress_test.py
+│   ├── real_machine/             # tianyan287_experiment.py, tianyan287_multiseed.py
 │   └── reporting/                # generate_report.py
 
 ├── models/                       # 训练模型（PPO/DQN 检查点）
 ├── results/
-│   ├── reports/                  # 实验报告（9份，含statistical_validation.md）
+│   ├── reports/                  # 实验报告（10份，含statistical_validation.md, multiseed_real_machine_report.md）
 │   ├── models/                   # 归档的权威模型（ppo_best_10dim.zip等）
 │   ├── multiseed_evaluation/     # 多seed评估数据
 │   ├── fair_comparison/          # 公平对比数据
 │   ├── issue_experiments/        # Issue实验数据
-│   └── real_machine/             # 真机实验数据
+│   └── real_machine/             # 真机实验数据（tianyan287/ + tianyan287_multiseed/）
 
 ├── docs/
 │   ├── 新人上手指南.md            # 团队 onboarding
@@ -253,8 +255,29 @@ quantum-rl-scheduler/
 | 五维消融 | D4多机+86.3% > D1算法+88.3% > D5退火+6.4% > D2状态+2.1% |
 | 压力测试 | 4场景PPO综合稳定性最强；量子波动场景PPO +91.4% |
 | 真机验证 | 32任务100%成功率；Mock校准后偏差<5% |
+| **多seed真机** | **5 seeds × 3策略，PPO d=5.64(大效应) vs FCFS, p=6.83e-04, Bonferroni校正后显著** |
 
-详见 `results/reports/` 目录（共9份报告，含统计显著性检验报告）。
+### 多seed真机实验（2026-07-22新增，N=5 per group）
+
+> **实验配置**：5 seeds [42,123,456,789,1024] × 3策略 [PPO,FCFS,SJF] × 1真机任务/run = 15次运行
+> **真机平台**：天衍-287（实际回退至 tianyan176），96步/episode，泊松到达λ=0.5
+> **统计方法**：Cohen's d + 95% CI（效应量决策范式），Bonferroni校正α=0.0167
+
+| 策略 | N | 均值 | 标准差 | min | max |
+|:--:|:--:|:--:|:--:|:--:|:--:|
+| **PPO** | 5 | **1665.22** | 324.51 | 1224.13 | 2097.05 |
+| SJF | 5 | 567.20 | 206.33 | 383.93 | 854.43 |
+| FCFS | 5 | 353.22 | 53.33 | 288.77 | 410.23 |
+
+| 比较 | Cohen's d | 效应等级 | 95% CI | p值 | Bonferroni | 判定 |
+|:--:|:--:|:--:|:--:|:--:|:--:|:--:|
+| PPO vs FCFS | 5.64 | 大效应 | [911.78, 1712.22] | 6.83e-04 | 显著 | **支持** |
+| PPO vs SJF | 4.04 | 大效应 | [688.67, 1507.37] | 4.25e-04 | 显著 | **支持** |
+| SJF vs FCFS | 1.42 | 大效应 | [-38.82, 466.78] | 0.080 | 不显著 | 不支持 |
+
+详见 `results/reports/multiseed_real_machine_report.md`。
+
+详见 `results/reports/` 目录（共10份报告，含统计显著性检验报告和多seed真机实验报告）。
 
 ## 7. 比赛材料
 
