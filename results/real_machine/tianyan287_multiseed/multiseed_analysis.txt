@@ -1,0 +1,16 @@
+天衍-287 多seed真机实验统计分析
+数据文件: C:\Users\HZR\Desktop\揭榜挂帅擂台赛\quantum-rl-scheduler\results\real_machine\tianyan287_multiseed\multiseed_data_20260721_215516.json
+
+PPO: N=5, mean=1665.22, std=324.51
+SJF: N=5, mean=567.20, std=206.33
+FCFS: N=5, mean=353.22, std=53.33
+
+PPO vs FCFS:
+  使用 独立样本 t 检验 比较 PPO 与 FCFS：PPO 平均奖励高于FCFS 1312.00（95% CI: [972.86, 1651.15]）；统计量=8.9209，p=1.977e-05。经 Bonferroni 校正（3 次比较，校正 α=0.0167），差异显著。效应量 Cohen's d=5.6421（大效应）。
+
+PPO vs SJF:
+  使用 独立样本 t 检验 比较 PPO 与 SJF：PPO 平均奖励高于SJF 1098.02（95% CI: [701.45, 1494.60]）；统计量=6.3848，p=0.0002126。经 Bonferroni 校正（3 次比较，校正 α=0.0167），差异显著。效应量 Cohen's d=4.0381（大效应）。
+
+FCFS vs SJF:
+  使用 独立样本 t 检验 比较 FCFS 与 SJF：FCFS 平均奖励低于SJF 213.98（95% CI: [-433.76, 5.80]）；统计量=-2.2452，p=0.05498。经 Bonferroni 校正（3 次比较，校正 α=0.0167），差异不显著。效应量 Cohen's d=-1.4200（大效应）。
+

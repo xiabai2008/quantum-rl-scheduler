@@ -99,6 +99,8 @@ results/multiseed_evaluation/
 !results/real_machine/
 !results/real_machine/tianyan287/
 !results/real_machine/tianyan287/**
+!results/real_machine/tianyan287_multiseed/
+!results/real_machine/tianyan287_multiseed/**
 
 # ── 变异测试 / 临时虚拟环境（切勿提交）──
 mutants/

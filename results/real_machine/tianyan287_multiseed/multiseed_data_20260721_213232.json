@@ -1,0 +1,159 @@
+{
+  "experiment": "tianyan287_multiseed",
+  "timestamp": "2026-07-21T21:32:32.439620",
+  "config": {
+    "seeds": [
+      42,
+      123,
+      456,
+      789,
+      1024
+    ],
+    "strategies": [
+      "ppo",
+      "fcfs",
+      "sjf"
+    ],
+    "num_tasks": 32,
+    "max_real_tasks_per_run": 2,
+    "shots": 1024
+  },
+  "total_elapsed_seconds": 7.75,
+  "results": [
+    {
+      "strategy": "FCFS",
+      "seed": 42,
+      "machine": "tianyan287",
+      "timestamp": "2026-07-21T21:32:32.318566",
+      "metrics": {},
+      "real_records": [],
+      "error": "'FCFSStrategy' object has no attribute 'act'"
+    },
+    {
+      "strategy": "FCFS",
+      "seed": 42,
+      "machine": "tianyan287",
+      "timestamp": "2026-07-21T21:32:32.329494",
+      "metrics": {},
+      "real_records": [],
+      "error": "'FCFSStrategy' object has no attribute 'act'"
+    },
+    {
+      "strategy": "SJF",
+      "seed": 42,
+      "machine": "tianyan287",
+      "timestamp": "2026-07-21T21:32:32.330997",
+      "metrics": {},
+      "real_records": [],
+      "error": "'ShortestJobFirstStrategy' object has no attribute 'act'"
+    },
+    {
+      "strategy": "FCFS",
+      "seed": 123,
+      "machine": "tianyan287",
+      "timestamp": "2026-07-21T21:32:32.350189",
+      "metrics": {},
+      "real_records": [],
+      "error": "'FCFSStrategy' object has no attribute 'act'"
+    },
+    {
+      "strategy": "FCFS",
+      "seed": 123,
+      "machine": "tianyan287",
+      "timestamp": "2026-07-21T21:32:32.353209",
+      "metrics": {},
+      "real_records": [],
+      "error": "'FCFSStrategy' object has no attribute 'act'"
+    },
+    {
+      "strategy": "SJF",
+      "seed": 123,
+      "machine": "tianyan287",
+      "timestamp": "2026-07-21T21:32:32.354228",
+      "metrics": {},
+      "real_records": [],
+      "error": "'ShortestJobFirstStrategy' object has no attribute 'act'"
+    },
+    {
+      "strategy": "FCFS",
+      "seed": 456,
+      "machine": "tianyan287",
+      "timestamp": "2026-07-21T21:32:32.375715",
+      "metrics": {},
+      "real_records": [],
+      "error": "'FCFSStrategy' object has no attribute 'act'"
+    },
+    {
+      "strategy": "FCFS",
+      "seed": 456,
+      "machine": "tianyan287",
+      "timestamp": "2026-07-21T21:32:32.378219",
+      "metrics": {},
+      "real_records": [],
+      "error": "'FCFSStrategy' object has no attribute 'act'"
+    },
+    {
+      "strategy": "SJF",
+      "seed": 456,
+      "machine": "tianyan287",
+      "timestamp": "2026-07-21T21:32:32.380222",
+      "metrics": {},
+      "real_records": [],
+      "error": "'ShortestJobFirstStrategy' object has no attribute 'act'"
+    },
+    {
+      "strategy": "FCFS",
+      "seed": 789,
+      "machine": "tianyan287",
+      "timestamp": "2026-07-21T21:32:32.400342",
+      "metrics": {},
+      "real_records": [],
+      "error": "'FCFSStrategy' object has no attribute 'act'"
+    },
+    {
+      "strategy": "FCFS",
+      "seed": 789,
+      "machine": "tianyan287",
+      "timestamp": "2026-07-21T21:32:32.402341",
+      "metrics": {},
+      "real_records": [],
+      "error": "'FCFSStrategy' object has no attribute 'act'"
+    },
+    {
+      "strategy": "SJF",
+      "seed": 789,
+      "machine": "tianyan287",
+      "timestamp": "2026-07-21T21:32:32.404854",
+      "metrics": {},
+      "real_records": [],
+      "error": "'ShortestJobFirstStrategy' object has no attribute 'act'"
+    },
+    {
+      "strategy": "FCFS",
+      "seed": 1024,
+      "machine": "tianyan287",
+      "timestamp": "2026-07-21T21:32:32.426896",
+      "metrics": {},
+      "real_records": [],
+      "error": "'FCFSStrategy' object has no attribute 'act'"
+    },
+    {
+      "strategy": "FCFS",
+      "seed": 1024,
+      "machine": "tianyan287",
+      "timestamp": "2026-07-21T21:32:32.429706",
+      "metrics": {},
+      "real_records": [],
+      "error": "'FCFSStrategy' object has no attribute 'act'"
+    },
+    {
+      "strategy": "SJF",
+      "seed": 1024,
+      "machine": "tianyan287",
+      "timestamp": "2026-07-21T21:32:32.432212",
+      "metrics": {},
+      "real_records": [],
+      "error": "'ShortestJobFirstStrategy' object has no attribute 'act'"
+    }
+  ]
+}
