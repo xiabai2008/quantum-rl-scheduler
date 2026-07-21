@@ -39,8 +39,13 @@ FORBIDDEN_PATTERNS = (
     ("旧提升比例", re.compile(r"(?<![\d.])\+?95\.4%(?!\d)")),
     ("旧提升比例", re.compile(r"(?<![\d.])\+?75\.3%(?!\d)")),
     ("旧 PPO 奖励", re.compile(r"(?<![\d.])2864(?:\.\d+)?(?![\d.])")),
+    ("旧 PPO 奖励", re.compile(r"(?<![\d.])2723(?:\.\d+)?(?![\d.])")),
     ("旧实验奖励", re.compile(r"(?<![\d.])2555(?:\.\d+)?(?![\d.])")),
 )
+
+# 行级豁免标记：包含此标记的行视为明确标注的历史数据，跳过该行禁止模式检查。
+# 豁免仅对当前行生效，不影响其他行或其他文件，不会全局跳过任何文件。
+AUDIT_EXEMPT_MARKER = "<!-- audit-exempt:"
 
 CANONICAL_RANKING = (
     "PPO",
@@ -55,9 +60,16 @@ CANONICAL_RANKING = (
 
 
 def find_forbidden(text: str) -> list[tuple[int, str, str]]:
-    """返回文本中的旧数字及其行号。"""
+    """返回文本中的旧数字及其行号。
+
+    带有 ``<!-- audit-exempt: ... -->`` 标记的行被视为明确豁免的历史数据行，
+    跳过该行的禁止模式检查。豁免仅对当前行生效，不影响其他行或文件，
+    不会降低当前权威指标审计的严格性。
+    """
     findings: list[tuple[int, str, str]] = []
     for line_number, line in enumerate(text.splitlines(), start=1):
+        if AUDIT_EXEMPT_MARKER in line:
+            continue
         for label, pattern in FORBIDDEN_PATTERNS:
             if match := pattern.search(line):
                 findings.append((line_number, label, match.group(0)))
