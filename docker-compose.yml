@@ -1,32 +1,6 @@
-# =============================================================================
-# 量子RL调度系统 - Docker Compose 编排配置
-# Quantum RL Scheduler - Docker Compose Orchestration
-#
-# 包含以下服务：
-#   - web: FastAPI Web 服务（主应用）
-#   - tensorboard: TensorBoard 训练可视化（可选）
-#
-# 使用方法：
-#   # 启动所有服务
-#   docker-compose up -d
-#
-#   # 仅启动 Web 服务
-#   docker-compose up -d web
-#
-#   # 查看日志
-#   docker-compose logs -f
-#
-#   # 停止所有服务
-#   docker-compose down
-#
-#   # 重新构建镜像
-#   docker-compose up -d --build
-# =============================================================================
+version: '3.8'
 
 services:
-  # ---------------------------------------------------------------------------
-  # Web 服务 - FastAPI 主应用
-  # ---------------------------------------------------------------------------
   web:
     build:
       context: .
@@ -34,79 +8,33 @@ services:
     container_name: quantum-rl-web
     restart: unless-stopped
     ports:
-      - "8000:8000"  # FastAPI 服务
+      - "8000:8000"  # FastAPI Web 监控面板
+      - "6006:6006"  # TensorBoard（可选，需 --profile monitoring）
     environment:
       - PYTHONUNBUFFERED=1
       - LOG_LEVEL=INFO
+      - TIANYAN_MOCK_MODE=true
     volumes:
       # 持久化日志
       - ./logs:/app/logs
       # 持久化模型
       - ./models:/app/models
+      # 持久化仿真结果（一键复现输出）
+      - ./results:/app/results
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/api/status"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 10s
-    networks:
-      - quantum-rl-network
-    # 资源限制（可选）
-    deploy:
-      resources:
-        limits:
-          cpus: '2'
-          memory: 4G
-        reservations:
-          cpus: '0.5'
-          memory: 1G
+      start_period: 15s
 
-  # ---------------------------------------------------------------------------
-  # TensorBoard - 训练可视化（可选）
-  # ---------------------------------------------------------------------------
   tensorboard:
-    image: tensorboard/tensorboard:latest
+    image: tensorflow/tensorflow:latest
     container_name: quantum-rl-tensorboard
-    restart: unless-stopped
+    command: tensorboard --logdir /app/logs --host 0.0.0.0 --port 6006
     ports:
-      - "6006:6006"  # TensorBoard 服务
+      - "6006:6006"
     volumes:
-      - ./logs:/var/log/tensorboard
-    command: --logdir=/var/log/tensorboard --port=6006 --host=0.0.0.0
-    networks:
-      - quantum-rl-network
-    # 仅在需要时启动
+      - ./logs:/app/logs
     profiles:
       - monitoring
-
-  # ---------------------------------------------------------------------------
-  # Redis - 缓存和会话存储（可选，用于生产环境）
-  # ---------------------------------------------------------------------------
-  redis:
-    image: redis:7-alpine
-    container_name: quantum-rl-redis
-    restart: unless-stopped
-    ports:
-      - "6379:6379"  # Redis 服务
-    volumes:
-      - redis-data:/data
-    command: redis-server --appendonly yes
-    networks:
-      - quantum-rl-network
-    # 仅在需要时启动
-    profiles:
-      - production
-
-# =============================================================================
-# 网络配置
-# =============================================================================
-networks:
-  quantum-rl-network:
-    driver: bridge
-
-# =============================================================================
-# 卷配置
-# =============================================================================
-volumes:
-  redis-data:
-    driver: local
