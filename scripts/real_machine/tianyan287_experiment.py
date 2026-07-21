@@ -39,6 +39,12 @@ import numpy as np
 # ---------------------------------------------------------------------------
 # 环境变量设置（必须在 import 项目模块之前）
 # ---------------------------------------------------------------------------
+from dotenv import load_dotenv
+
+_SCRIPT_DIR_ENV = Path(__file__).resolve().parent
+_PROJECT_ROOT_ENV = _SCRIPT_DIR_ENV.parent.parent
+load_dotenv(_PROJECT_ROOT_ENV / ".env")
+
 os.environ.setdefault("TIANYAN_API_KEY", "")
 os.environ.setdefault("TIANYAN_MOCK_MODE", "false")
 os.environ.setdefault("TIANYAN_MACHINE", "tianyan287")

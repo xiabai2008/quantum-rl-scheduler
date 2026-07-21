@@ -46,9 +46,9 @@
 | R-P-01 | 资源利用率提升 ≥30% | 性能 | `src/scheduler/env.py`<br>`src/scheduler/agent.py` | **已达成** | 8策略对比 | "PPO 经典利用率 48.96%，综合资源利用率 45.47%，较基线提升显著" | `results/reports/strategy_comparison.md` |
 | R-P-02 | 平均等待时间降低 ≥40% | 性能 | `src/scheduler/env.py`<br>`src/scheduler/agent.py` | **权衡边界** | D3奖励消融实验 | "PPO 等待时间 57.73 步高于 FCFS 38.22 步；D3消融证明推理时调整reward weight不改变已训练PPO的等待时间（policy固定），等待时间是多目标优化的权衡维度" | `results/reports/reward_ablation_d3.md` |
 | R-P-03 | 调度决策延迟 < 100ms | 性能 | `src/scheduler/agent.py` | **已达成** | 性能测试 | "PPO 单次前向推理 < 10ms，满足实时调度需求" | `src/scheduler/agent.py` L200-400 |
-| R-P-04 | 支持 287 量子比特规模 | 性能 | `src/scheduler/env.py` | **已达成** | 真机验证 | "系统已适配天衍-287 超导量子计算机，成功提交 32 个真机任务" | `results/reports/real_machine_validation.md` |
+| R-P-04 | 适配 287 量子比特平台接口 | 性能 | `src/scheduler/env.py` | **已达成** | 真机可用性验证 | "系统已适配天衍-287 平台接口（MAX_QUBITS=287），284 次真机调用 100% 成功；真机任务规模受机时限制为 1-3 qubit" | `results/reports/real_machine_boundary_statement.md` |
 | R-P-05 | 压力测试：4 种极端场景稳定性 | 性能 | `scripts/benchmarking/stress_test.py` | **已达成** | 压力测试 | "PPO 在 4 种压力场景下综合稳定性最强，量子波动场景比第二名提升 91.4%" | `results/reports/stress_test_report.md` |
-| R-P-06 | 多机器负载均衡（CV < 0.3） | 性能 | `src/scheduler/marl.py` | **已达成** | 多机调度实验 | "3 台真机负载变异系数 CV=0.246，调度策略实现良好均衡" | `results/reports/ablation_report.md` |
+| R-P-06 | 多机器负载均衡（CV < 0.3） | 性能 | `src/scheduler/marl.py` | **已达成** | 多机调度实验 | "3 台机器负载变异系数 CV=0.246（仿真验证），调度策略实现良好均衡" | `results/reports/ablation_report.md` |
 
 ### 2.3 工程性需求
 
@@ -84,6 +84,7 @@
 | R-P-02 | 平均等待时间降低 ≥40% | **权衡边界**：PPO 等待时间高于 FCFS，D3 消融证明无法通过推理时调整 reward weight 改变 | **否** | 中 | D3 消融实验（6配置×2策略×25ep）证明：推理时调整 reward weight 不改变已训练 PPO 的 policy；等待时间是多目标优化的权衡维度，非独立可优化指标。详见 `results/reports/reward_ablation_d3.md` |
 | - | 任务规模梯度测试（100/500/1000/5000/10000） | **未实现** | **建议补齐** | 中 | 压力测试报告建议补充，可证明系统线性扩展能力 |
 | - | 奖励函数消融实验（D3） | **已完成** | — | — | Issue #201 已完成：6 种 reward 配置 × 2 策略 × 25 episodes，输出 6 项指标，证明奖励函数各组件有明确语义贡献。详见 `results/reports/reward_ablation_d3.md` |
+| - | 真机闭环预注册验证 | **已完成** | — | — | Issue #221 已完成：预注册方案（`results/reports/real_machine_preregistration.md`）+ 分析脚本（`scripts/evaluation/preregistered_real_machine_analysis.py`）+ 41 个测试。以效应量/CI 为主，禁止追 p 值，8 类 p-hacking 行为明确禁止 |
 | - | head_only 退火策略有效性验证 | **未实现** | **建议补齐** | 高 | Issue #104 已规划，需对比 head_only=True vs False 的退火效果 |
 
 ### 3.2 有实现但无验证证据的需求
