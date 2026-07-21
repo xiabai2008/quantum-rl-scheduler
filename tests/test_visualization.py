@@ -1209,6 +1209,67 @@ class TestMetricsEndpoints:
             assert "python_info" in body or "process_" in body or "scheduler_" in body
 
 
+class TestHealthEndpoints:
+    """/health 与 /ready 健康检查端点测试（Issue #214）。"""
+
+    @pytest.mark.asyncio
+    async def test_health_returns_alive(self, async_client):
+        """/health 应返回 status=alive，且不依赖任何外部资源。"""
+        resp = await async_client.get("/health")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["status"] == "alive"
+
+    @pytest.mark.asyncio
+    async def test_ready_returns_checks_dict(self, async_client):
+        """/ready 应返回包含 checks 字段的就绪状态字典。"""
+        resp = await async_client.get("/ready")
+        assert resp.status_code == 200
+        data = resp.json()
+        # 必需字段
+        assert "ready" in data
+        assert "checks" in data
+        assert "timestamp" in data
+        # checks 字典应包含核心组件检查
+        checks = data["checks"]
+        assert "app" in checks
+        assert "metrics" in checks
+        # app 检查应为 ok=True（FastAPI 实例总是存在）
+        assert checks["app"]["ok"] is True
+
+    @pytest.mark.asyncio
+    async def test_ready_required_components_ok(self, async_client):
+        """所有 required=True 的组件就绪时，ready 应为 true。"""
+        resp = await async_client.get("/ready")
+        data = resp.json()
+        # app 与 metrics 是 required=True（默认）
+        # 测试环境下 app 与 metrics 总是 ok，故 ready 应为 True
+        assert data["checks"]["app"]["ok"] is True
+        assert data["checks"]["metrics"]["ok"] is True
+        assert data["ready"] is True
+        assert data["required_ok"] is True
+
+    @pytest.mark.asyncio
+    async def test_ready_optional_components_marked_not_required(self, async_client):
+        """PPO 模型与配额追踪器是可选依赖，required 应为 False。"""
+        resp = await async_client.get("/ready")
+        checks = resp.json()["checks"]
+        # PPO 模型与配额追踪器应为 required=False
+        assert checks["ppo_model"].get("required") is False
+        assert checks["quota_tracker"].get("required") is False
+
+    @pytest.mark.asyncio
+    async def test_ready_includes_timestamp_iso_format(self, async_client):
+        """/ready 返回的 timestamp 应为 ISO 8601 格式。"""
+        resp = await async_client.get("/ready")
+        ts = resp.json()["timestamp"]
+        # 应可被 fromisoformat 解析
+        from datetime import datetime
+
+        parsed = datetime.fromisoformat(ts)
+        assert isinstance(parsed, datetime)
+
+
 class TestStrategyEndpoint:
     """POST /api/strategy 端点测试。"""
 

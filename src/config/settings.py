@@ -284,7 +284,7 @@ def _get_nested(data: dict[str, Any], path: str) -> Any:
 
 
 def load_settings(
-    config_path: str = "config/config.yaml",
+    config_path: str | None = None,
     env_path: str = ".env",
 ) -> Settings:
     """加载统一配置，按三层优先级合并。
@@ -296,12 +296,20 @@ def load_settings(
         3. config.yaml 默认值
 
     Args:
-        config_path: config.yaml 路径；文件不存在时回退到字段默认值
+        config_path: config.yaml 路径；``None`` 时按 ``APP_ENV`` 环境变量
+            自动选择 ``config/config.{env}.yaml``（dev/prod/staging），
+            未设置 ``APP_ENV`` 时回退到 ``config/config.yaml``。
+            文件不存在时回退到字段默认值。
         env_path: .env 文件路径；文件不存在时跳过
 
     Returns:
         Settings 实例
     """
+    # ── 第 0 层：按 APP_ENV 自动选择配置文件 ──
+    if config_path is None:
+        app_env = os.environ.get("APP_ENV", "").strip().lower()
+        config_path = f"config/config.{app_env}.yaml" if app_env else "config/config.yaml"
+
     # ── 第 1 层：config.yaml 基础值 ──
     yaml_data: dict[str, Any] = {}
     if os.path.isfile(config_path):

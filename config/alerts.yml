@@ -1,0 +1,157 @@
+# Prometheus 告警规则示例（Issue #214）
+#
+# 部署方式：
+#   在 prometheus.yml 中通过 rule_files 加载本文件：
+#     rule_files:
+#       - alerts.yml
+#
+# 告警分级：
+#   - critical: 系统不可用 / 数据丢失风险，立即处理（PAGE）
+#   - warning: 潜在问题，需关注但不立即处理（TICKET）
+
+groups:
+  - name: qrls-scheduler-alerts
+    interval: 30s
+    rules:
+      # ============================================================
+      # 1. 任务队列积压（核心业务指标）
+      # ============================================================
+      - alert: SchedulerQueueBacklog
+        expr: scheduler_queue_length > 50
+        for: 2m
+        labels:
+          severity: warning
+          category: scheduler
+        annotations:
+          summary: "任务队列积压 (instance={{ $labels.instance }})"
+          description: "任务队列长度 {{ $value }} 已超过 50 持续 2 分钟，可能调度器处理不过来。"
+
+      - alert: SchedulerQueueCriticalBacklog
+        expr: scheduler_queue_length > 200
+        for: 5m
+        labels:
+          severity: critical
+          category: scheduler
+        annotations:
+          summary: "任务队列严重积压 (instance={{ $labels.instance }})"
+          description: "任务队列长度 {{ $value }} 已超过 200 持续 5 分钟，调度器可能已停止处理。"
+
+      # ============================================================
+      # 2. API 错误率激增
+      # ============================================================
+      - alert: TianyanApiErrorRateHigh
+        expr: |
+          sum(rate(tianyan_api_errors_total[5m])) by (method, endpoint)
+          /
+          clamp_min(sum(rate(tianyan_api_requests_total[5m])) by (method, endpoint), 1)
+          > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          category: api
+        annotations:
+          summary: "天衍云 API 错误率 > 10% ({{ $labels.method }}/{{ $labels.endpoint }})"
+          description: "5 分钟内 API 错误率 {{ $value | humanizePercentage }}，超过 10% 阈值。"
+
+      - alert: TianyanApiErrorRateCritical
+        expr: |
+          sum(rate(tianyan_api_errors_total[5m])) by (method, endpoint)
+          /
+          clamp_min(sum(rate(tianyan_api_requests_total[5m])) by (method, endpoint), 1)
+          > 0.5
+        for: 2m
+        labels:
+          severity: critical
+          category: api
+        annotations:
+          summary: "天衍云 API 错误率 > 50% ({{ $labels.method }}/{{ $labels.endpoint }})"
+          description: "2 分钟内 API 错误率 {{ $value | humanizePercentage }}，超过 50% 阈值，可能天衍云不可达。"
+
+      # ============================================================
+      # 3. 熔断器打开（系统韧性指标）
+      # ============================================================
+      - alert: CircuitBreakerOpen
+        expr: circuit_breaker_state == 1
+        for: 1m
+        labels:
+          severity: critical
+          category: resilience
+        annotations:
+          summary: "调度器熔断器已打开 (instance={{ $labels.instance }})"
+          description: "熔断器处于 OPEN 状态已 1 分钟，下游服务可能不可用，需立即排查。"
+
+      - alert: TianyanCircuitBreakerOpen
+        expr: tianyan_circuit_breaker_state == 1
+        for: 1m
+        labels:
+          severity: critical
+          category: resilience
+        annotations:
+          summary: "天衍云客户端熔断器已打开 (instance={{ $labels.instance }})"
+          description: "天衍云 API 熔断器 OPEN 状态 1 分钟，真机调用被熔断。"
+
+      # ============================================================
+      # 4. 任务等待时间过长
+      # ============================================================
+      - alert: TaskWaitTimeHigh
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(scheduler_wait_seconds_bucket[5m])) by (le)
+          ) > 120
+        for: 5m
+        labels:
+          severity: warning
+          category: scheduler
+        annotations:
+          summary: "任务 P95 等待时间 > 120 秒"
+          description: "5 分钟内任务 P95 等待时间 {{ $value }}s，超过 2 分钟阈值。"
+
+      # ============================================================
+      # 5. 量子比特利用率过低
+      # ============================================================
+      - alert: QubitUtilizationLow
+        expr: avg_over_time(scheduler_qubit_utilization[10m]) < 0.2
+        for: 10m
+        labels:
+          severity: warning
+          category: resource
+        annotations:
+          summary: "量子比特利用率持续 < 20%"
+          description: "过去 10 分钟平均利用率 {{ $value | humanizePercentage }}，资源严重闲置。"
+
+      - alert: QubitUtilizationSaturated
+        expr: avg_over_time(scheduler_qubit_utilization[5m]) > 0.95
+        for: 5m
+        labels:
+          severity: warning
+          category: resource
+        annotations:
+          summary: "量子比特利用率饱和 > 95%"
+          description: "过去 5 分钟平均利用率 {{ $value | humanizePercentage }}，资源即将耗尽。"
+
+      # ============================================================
+      # 6. 服务不可达（基于 up 指标）
+      # ============================================================
+      - alert: ServiceDown
+        expr: up{job=~"qrls-.*"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          category: availability
+        annotations:
+          summary: "服务不可达 ({{ $labels.job }} / {{ $labels.instance }})"
+          description: "Prometheus 抓取失败已 2 分钟，服务可能已宕机。"
+
+      # ============================================================
+      # 7. 告警风暴抑制
+      # ============================================================
+      - alert: ManyAlertsFiring
+        expr: |
+          count(ALERTS{alertstate="firing"}) > 20
+        for: 10m
+        labels:
+          severity: warning
+          category: ops
+        annotations:
+          summary: "告警风暴：{{ $value }} 条告警同时 firing"
+          description: "超过 20 条告警同时触发，可能存在系统性问题或告警规则过敏感。"
