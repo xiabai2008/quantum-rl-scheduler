@@ -84,6 +84,7 @@
 | R-P-02 | 平均等待时间降低 ≥40% | **权衡边界**：PPO 等待时间高于 FCFS，D3 消融证明无法通过推理时调整 reward weight 改变 | **否** | 中 | D3 消融实验（6配置×2策略×25ep）证明：推理时调整 reward weight 不改变已训练 PPO 的 policy；等待时间是多目标优化的权衡维度，非独立可优化指标。详见 `results/reports/reward_ablation_d3.md` |
 | - | 任务规模梯度测试（100/500/1000/5000/10000） | **未实现** | **建议补齐** | 中 | 压力测试报告建议补充，可证明系统线性扩展能力 |
 | - | 奖励函数消融实验（D3） | **已完成** | — | — | Issue #201 已完成：6 种 reward 配置 × 2 策略 × 25 episodes，输出 6 项指标，证明奖励函数各组件有明确语义贡献。详见 `results/reports/reward_ablation_d3.md` |
+| - | 真机闭环预注册验证 | **已完成** | — | — | Issue #221 已完成：预注册方案（`results/reports/real_machine_preregistration.md`）+ 分析脚本（`scripts/evaluation/preregistered_real_machine_analysis.py`）+ 41 个测试。以效应量/CI 为主，禁止追 p 值，8 类 p-hacking 行为明确禁止 |
 | - | head_only 退火策略有效性验证 | **未实现** | **建议补齐** | 高 | Issue #104 已规划，需对比 head_only=True vs False 的退火效果 |
 
 ### 3.2 有实现但无验证证据的需求
