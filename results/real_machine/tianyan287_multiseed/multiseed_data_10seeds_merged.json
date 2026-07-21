@@ -1,0 +1,481 @@
+{
+  "experiment": "tianyan287_multiseed_10seeds",
+  "timestamp": "2026-07-22T03:06:25",
+  "config": {
+    "seeds": [
+      42,
+      123,
+      456,
+      789,
+      1024,
+      2025,
+      3141,
+      5678,
+      8765,
+      9999
+    ],
+    "strategies": [
+      "ppo",
+      "fcfs",
+      "sjf"
+    ],
+    "num_tasks": 32,
+    "max_real_tasks_per_run": 1,
+    "shots": "32 (new5) / 1024 (old5)",
+    "machine": "tianyan176",
+    "note": "merged old5 (20260721, shots=1024, fid=None) + new5 (20260722, shots=32, fid=None)"
+  },
+  "total_elapsed_seconds": 795.78,
+  "results": [
+    {
+      "strategy": "PPO",
+      "seed": 42,
+      "machine": "tianyan287",
+      "timestamp": "2026-07-21T21:46:28.425162",
+      "metrics": {
+        "total_reward": 1560.8571,
+        "total_steps": 96,
+        "elapsed_seconds": 35.68,
+        "real_tasks_submitted": 1,
+        "real_tasks_completed": 0,
+        "avg_fidelity": null
+      },
+      "real_records": []
+    },
+    {
+      "strategy": "FCFS",
+      "seed": 42,
+      "machine": "tianyan287",
+      "timestamp": "2026-07-21T21:47:04.100421",
+      "metrics": {
+        "total_reward": 410.2267,
+        "total_steps": 96,
+        "elapsed_seconds": 35.37,
+        "real_tasks_submitted": 1,
+        "real_tasks_completed": 0,
+        "avg_fidelity": null
+      },
+      "real_records": []
+    },
+    {
+      "strategy": "SJF",
+      "seed": 42,
+      "machine": "tianyan287",
+      "timestamp": "2026-07-21T21:47:39.473801",
+      "metrics": {
+        "total_reward": 704.3188,
+        "total_steps": 96,
+        "elapsed_seconds": 35.31,
+        "real_tasks_submitted": 1,
+        "real_tasks_completed": 0,
+        "avg_fidelity": null
+      },
+      "real_records": []
+    },
+    {
+      "strategy": "PPO",
+      "seed": 123,
+      "machine": "tianyan287",
+      "timestamp": "2026-07-21T21:48:14.810192",
+      "metrics": {
+        "total_reward": 1224.1265,
+        "total_steps": 96,
+        "elapsed_seconds": 35.51,
+        "real_tasks_submitted": 1,
+        "real_tasks_completed": 0,
+        "avg_fidelity": null
+      },
+      "real_records": []
+    },
+    {
+      "strategy": "FCFS",
+      "seed": 123,
+      "machine": "tianyan287",
+      "timestamp": "2026-07-21T21:48:50.316204",
+      "metrics": {
+        "total_reward": 288.7705,
+        "total_steps": 96,
+        "elapsed_seconds": 35.4,
+        "real_tasks_submitted": 1,
+        "real_tasks_completed": 0,
+        "avg_fidelity": null
+      },
+      "real_records": []
+    },
+    {
+      "strategy": "SJF",
+      "seed": 123,
+      "machine": "tianyan287",
+      "timestamp": "2026-07-21T21:49:25.718783",
+      "metrics": {
+        "total_reward": 502.9088,
+        "total_steps": 96,
+        "elapsed_seconds": 35.61,
+        "real_tasks_submitted": 1,
+        "real_tasks_completed": 0,
+        "avg_fidelity": null
+      },
+      "real_records": []
+    },
+    {
+      "strategy": "PPO",
+      "seed": 456,
+      "machine": "tianyan287",
+      "timestamp": "2026-07-21T21:50:01.346117",
+      "metrics": {
+        "total_reward": 1615.1685,
+        "total_steps": 96,
+        "elapsed_seconds": 35.69,
+        "real_tasks_submitted": 1,
+        "real_tasks_completed": 0,
+        "avg_fidelity": null
+      },
+      "real_records": []
+    },
+    {
+      "strategy": "FCFS",
+      "seed": 456,
+      "machine": "tianyan287",
+      "timestamp": "2026-07-21T21:50:37.032259",
+      "metrics": {
+        "total_reward": 317.6605,
+        "total_steps": 96,
+        "elapsed_seconds": 35.98,
+        "real_tasks_submitted": 1,
+        "real_tasks_completed": 0,
+        "avg_fidelity": null
+      },
+      "real_records": []
+    },
+    {
+      "strategy": "SJF",
+      "seed": 456,
+      "machine": "tianyan287",
+      "timestamp": "2026-07-21T21:51:13.013406",
+      "metrics": {
+        "total_reward": 854.4344,
+        "total_steps": 96,
+        "elapsed_seconds": 36.1,
+        "real_tasks_submitted": 1,
+        "real_tasks_completed": 0,
+        "avg_fidelity": null
+      },
+      "real_records": []
+    },
+    {
+      "strategy": "PPO",
+      "seed": 789,
+      "machine": "tianyan287",
+      "timestamp": "2026-07-21T21:51:49.138778",
+      "metrics": {
+        "total_reward": 2097.0455,
+        "total_steps": 96,
+        "elapsed_seconds": 35.47,
+        "real_tasks_submitted": 1,
+        "real_tasks_completed": 0,
+        "avg_fidelity": null
+      },
+      "real_records": []
+    },
+    {
+      "strategy": "FCFS",
+      "seed": 789,
+      "machine": "tianyan287",
+      "timestamp": "2026-07-21T21:52:24.610425",
+      "metrics": {
+        "total_reward": 404.5717,
+        "total_steps": 96,
+        "elapsed_seconds": 35.46,
+        "real_tasks_submitted": 1,
+        "real_tasks_completed": 0,
+        "avg_fidelity": null
+      },
+      "real_records": []
+    },
+    {
+      "strategy": "SJF",
+      "seed": 789,
+      "machine": "tianyan287",
+      "timestamp": "2026-07-21T21:53:00.074604",
+      "metrics": {
+        "total_reward": 390.3885,
+        "total_steps": 96,
+        "elapsed_seconds": 35.38,
+        "real_tasks_submitted": 1,
+        "real_tasks_completed": 0,
+        "avg_fidelity": null
+      },
+      "real_records": []
+    },
+    {
+      "strategy": "PPO",
+      "seed": 1024,
+      "machine": "tianyan287",
+      "timestamp": "2026-07-21T21:53:35.481191",
+      "metrics": {
+        "total_reward": 1828.8962,
+        "total_steps": 96,
+        "elapsed_seconds": 36.59,
+        "real_tasks_submitted": 1,
+        "real_tasks_completed": 0,
+        "avg_fidelity": null
+      },
+      "real_records": []
+    },
+    {
+      "strategy": "FCFS",
+      "seed": 1024,
+      "machine": "tianyan287",
+      "timestamp": "2026-07-21T21:54:12.070296",
+      "metrics": {
+        "total_reward": 344.8527,
+        "total_steps": 96,
+        "elapsed_seconds": 31.81,
+        "real_tasks_submitted": 1,
+        "real_tasks_completed": 0,
+        "avg_fidelity": null
+      },
+      "real_records": []
+    },
+    {
+      "strategy": "SJF",
+      "seed": 1024,
+      "machine": "tianyan287",
+      "timestamp": "2026-07-21T21:54:43.883023",
+      "metrics": {
+        "total_reward": 383.9274,
+        "total_steps": 96,
+        "elapsed_seconds": 32.76,
+        "real_tasks_submitted": 1,
+        "real_tasks_completed": 0,
+        "avg_fidelity": null
+      },
+      "real_records": []
+    },
+    {
+      "strategy": "PPO",
+      "seed": 2025,
+      "machine": "tianyan176",
+      "timestamp": "2026-07-22T03:02:07.310313",
+      "metrics": {
+        "total_reward": 2015.3183,
+        "total_steps": 96,
+        "elapsed_seconds": 15.72,
+        "real_tasks_submitted": 1,
+        "real_tasks_completed": 0,
+        "avg_fidelity": null
+      },
+      "real_records": []
+    },
+    {
+      "strategy": "FCFS",
+      "seed": 2025,
+      "machine": "tianyan176",
+      "timestamp": "2026-07-22T03:02:23.026637",
+      "metrics": {
+        "total_reward": 408.7104,
+        "total_steps": 96,
+        "elapsed_seconds": 15.49,
+        "real_tasks_submitted": 1,
+        "real_tasks_completed": 0,
+        "avg_fidelity": null
+      },
+      "real_records": []
+    },
+    {
+      "strategy": "SJF",
+      "seed": 2025,
+      "machine": "tianyan176",
+      "timestamp": "2026-07-22T03:02:38.516706",
+      "metrics": {
+        "total_reward": 786.3701,
+        "total_steps": 96,
+        "elapsed_seconds": 21.22,
+        "real_tasks_submitted": 1,
+        "real_tasks_completed": 0,
+        "avg_fidelity": null
+      },
+      "real_records": []
+    },
+    {
+      "strategy": "PPO",
+      "seed": 3141,
+      "machine": "tianyan176",
+      "timestamp": "2026-07-22T03:02:59.745552",
+      "metrics": {
+        "total_reward": 2293.1819,
+        "total_steps": 96,
+        "elapsed_seconds": 8.19,
+        "real_tasks_submitted": 1,
+        "real_tasks_completed": 0,
+        "avg_fidelity": null
+      },
+      "real_records": []
+    },
+    {
+      "strategy": "FCFS",
+      "seed": 3141,
+      "machine": "tianyan176",
+      "timestamp": "2026-07-22T03:03:07.939674",
+      "metrics": {
+        "total_reward": 432.9603,
+        "total_steps": 96,
+        "elapsed_seconds": 16.62,
+        "real_tasks_submitted": 1,
+        "real_tasks_completed": 0,
+        "avg_fidelity": null
+      },
+      "real_records": []
+    },
+    {
+      "strategy": "SJF",
+      "seed": 3141,
+      "machine": "tianyan176",
+      "timestamp": "2026-07-22T03:03:24.562283",
+      "metrics": {
+        "total_reward": 334.1511,
+        "total_steps": 96,
+        "elapsed_seconds": 8.06,
+        "real_tasks_submitted": 1,
+        "real_tasks_completed": 0,
+        "avg_fidelity": null
+      },
+      "real_records": []
+    },
+    {
+      "strategy": "PPO",
+      "seed": 5678,
+      "machine": "tianyan176",
+      "timestamp": "2026-07-22T03:03:32.634573",
+      "metrics": {
+        "total_reward": 1259.8213,
+        "total_steps": 96,
+        "elapsed_seconds": 15.45,
+        "real_tasks_submitted": 1,
+        "real_tasks_completed": 0,
+        "avg_fidelity": null
+      },
+      "real_records": []
+    },
+    {
+      "strategy": "FCFS",
+      "seed": 5678,
+      "machine": "tianyan176",
+      "timestamp": "2026-07-22T03:03:48.081760",
+      "metrics": {
+        "total_reward": 382.0238,
+        "total_steps": 96,
+        "elapsed_seconds": 42.06,
+        "real_tasks_submitted": 1,
+        "real_tasks_completed": 0,
+        "avg_fidelity": null
+      },
+      "real_records": []
+    },
+    {
+      "strategy": "SJF",
+      "seed": 5678,
+      "machine": "tianyan176",
+      "timestamp": "2026-07-22T03:04:30.143519",
+      "metrics": {
+        "total_reward": 260.9098,
+        "total_steps": 96,
+        "elapsed_seconds": 15.53,
+        "real_tasks_submitted": 1,
+        "real_tasks_completed": 0,
+        "avg_fidelity": null
+      },
+      "real_records": []
+    },
+    {
+      "strategy": "PPO",
+      "seed": 8765,
+      "machine": "tianyan176",
+      "timestamp": "2026-07-22T03:04:45.685274",
+      "metrics": {
+        "total_reward": 1931.543,
+        "total_steps": 96,
+        "elapsed_seconds": 15.41,
+        "real_tasks_submitted": 1,
+        "real_tasks_completed": 0,
+        "avg_fidelity": null
+      },
+      "real_records": []
+    },
+    {
+      "strategy": "FCFS",
+      "seed": 8765,
+      "machine": "tianyan176",
+      "timestamp": "2026-07-22T03:05:01.100153",
+      "metrics": {
+        "total_reward": 418.2779,
+        "total_steps": 96,
+        "elapsed_seconds": 22.8,
+        "real_tasks_submitted": 1,
+        "real_tasks_completed": 0,
+        "avg_fidelity": null
+      },
+      "real_records": []
+    },
+    {
+      "strategy": "SJF",
+      "seed": 8765,
+      "machine": "tianyan176",
+      "timestamp": "2026-07-22T03:05:23.897591",
+      "metrics": {
+        "total_reward": 944.1546,
+        "total_steps": 96,
+        "elapsed_seconds": 15.45,
+        "real_tasks_submitted": 1,
+        "real_tasks_completed": 0,
+        "avg_fidelity": null
+      },
+      "real_records": []
+    },
+    {
+      "strategy": "PPO",
+      "seed": 9999,
+      "machine": "tianyan176",
+      "timestamp": "2026-07-22T03:05:39.360787",
+      "metrics": {
+        "total_reward": 1537.233,
+        "total_steps": 96,
+        "elapsed_seconds": 15.48,
+        "real_tasks_submitted": 1,
+        "real_tasks_completed": 0,
+        "avg_fidelity": null
+      },
+      "real_records": []
+    },
+    {
+      "strategy": "FCFS",
+      "seed": 9999,
+      "machine": "tianyan176",
+      "timestamp": "2026-07-22T03:05:54.844253",
+      "metrics": {
+        "total_reward": 421.9159,
+        "total_steps": 96,
+        "elapsed_seconds": 8.12,
+        "real_tasks_submitted": 1,
+        "real_tasks_completed": 0,
+        "avg_fidelity": null
+      },
+      "real_records": []
+    },
+    {
+      "strategy": "SJF",
+      "seed": 9999,
+      "machine": "tianyan176",
+      "timestamp": "2026-07-22T03:06:02.961797",
+      "metrics": {
+        "total_reward": 591.714,
+        "total_steps": 96,
+        "elapsed_seconds": 22.84,
+        "real_tasks_submitted": 1,
+        "real_tasks_completed": 0,
+        "avg_fidelity": null
+      },
+      "real_records": []
+    }
+  ]
+}

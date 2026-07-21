@@ -101,6 +101,7 @@ def run_single_seed(
     seed: int,
     client: CqlibTianyanClient,
     machine_name: str,
+    shots: int = SHOTS,
 ) -> dict:
     """运行单个 seed 的单策略实验
 
@@ -109,6 +110,7 @@ def run_single_seed(
         seed: 随机种子
         client: 真机客户端
         machine_name: 机器名称
+        shots: 真机测量次数
 
     Returns:
         实验结果字典
@@ -155,10 +157,10 @@ def run_single_seed(
                 try:
                     task_id = client.submit_quantum_task(
                         qcis=qcis,
-                        shots=SHOTS,
+                        shots=shots,
                         task_name=f"seed{seed}_{strategy_name}_{real_task_count}",
                     )
-                    poll_result = client.wait_for_task(task_id, timeout=30, poll_interval=3)
+                    poll_result = client.wait_for_task(task_id, timeout=120, poll_interval=5)
                     prob = poll_result.get("probability", {}) if poll_result else {}
 
                     if prob:
@@ -219,12 +221,42 @@ def run_single_seed(
 
 def main() -> None:
     """主函数"""
+    import argparse
+
+    parser = argparse.ArgumentParser(description="天衍-287 多seed真机实验")
+    parser.add_argument(
+        "--seeds",
+        type=int,
+        nargs="+",
+        default=SEEDS,
+        help=f"随机种子列表（默认: {SEEDS}）",
+    )
+    parser.add_argument(
+        "--machine",
+        type=str,
+        default="tianyan-287",
+        help="目标真机名称（默认: tianyan-287）",
+    )
+    parser.add_argument(
+        "--shots",
+        type=int,
+        default=SHOTS,
+        help=f"真机测量次数（默认: {SHOTS}）",
+    )
+    args = parser.parse_args()
+
+    seeds = args.seeds
+    machine = args.machine
+    shots = args.shots
+
     logger.info("=" * 60)
     logger.info("天衍-287 多seed真机实验")
     logger.info(
-        f"配置: {len(SEEDS)} seeds × {len(STRATEGIES)} 策略 × {MAX_REAL_TASKS_PER_RUN} 真机任务"
+        f"配置: {len(seeds)} seeds × {len(STRATEGIES)} 策略 × {MAX_REAL_TASKS_PER_RUN} 真机任务"
     )
-    logger.info(f"预计真机任务总数: {len(SEEDS) * len(STRATEGIES) * MAX_REAL_TASKS_PER_RUN}")
+    logger.info(f"预计真机任务总数: {len(seeds) * len(STRATEGIES) * MAX_REAL_TASKS_PER_RUN}")
+    logger.info(f"目标机器: {machine}")
+    logger.info(f"shots: {shots}")
     logger.info("=" * 60)
 
     api_key = os.environ.get("TIANYAN_API_KEY", "")
@@ -232,22 +264,22 @@ def main() -> None:
         logger.error("未设置 TIANYAN_API_KEY")
         sys.exit(1)
 
-    # 创建真机客户端
+    # 创建真机客户端（关闭自动切换，避免切到 tianyan-287 浪费配额）
     client = CqlibTianyanClient(
         login_key=api_key,
-        machine_name="tianyan287",
-        auto_retry_machine=True,
+        machine_name=machine,
+        auto_retry_machine=False,
     )
-    actual_machine = getattr(client, "machine_name", "tianyan287")
+    actual_machine = getattr(client, "machine_name", machine)
     logger.info(f"真机客户端已创建: {actual_machine}")
 
     # 运行实验
     all_results = []
     total_start = time.time()
 
-    for seed in SEEDS:
+    for seed in seeds:
         for strategy_name in STRATEGIES:
-            result = run_single_seed(strategy_name, seed, client, actual_machine)
+            result = run_single_seed(strategy_name, seed, client, actual_machine, shots)
             all_results.append(result)
 
     total_elapsed = time.time() - total_start
@@ -262,11 +294,12 @@ def main() -> None:
                 "experiment": "tianyan287_multiseed",
                 "timestamp": datetime.now().isoformat(),
                 "config": {
-                    "seeds": SEEDS,
+                    "seeds": seeds,
                     "strategies": STRATEGIES,
                     "num_tasks": NUM_TASKS,
                     "max_real_tasks_per_run": MAX_REAL_TASKS_PER_RUN,
-                    "shots": SHOTS,
+                    "shots": shots,
+                    "machine": actual_machine,
                 },
                 "total_elapsed_seconds": round(total_elapsed, 2),
                 "results": all_results,
@@ -285,11 +318,14 @@ def main() -> None:
     logger.info("-" * 50)
     for r in all_results:
         m = r.get("metrics", {})
+        reward = m.get("total_reward")
+        fid = m.get("avg_fidelity")
+        elapsed = m.get("elapsed_seconds")
         logger.info(
             f"{r['strategy']:<10} {r['seed']:<6} "
-            f"{m.get('total_reward', 'N/A'):<12} "
-            f"{m.get('avg_fidelity', 'N/A'):<10} "
-            f"{m.get('elapsed_seconds', 'N/A'):<8}"
+            f"{(reward if reward is not None else 'N/A')!s:<12} "
+            f"{(fid if fid is not None else 'N/A')!s:<10} "
+            f"{(elapsed if elapsed is not None else 'N/A')!s:<8}"
         )
 
     # 按策略聚合
