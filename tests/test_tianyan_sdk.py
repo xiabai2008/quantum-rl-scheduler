@@ -271,6 +271,21 @@ def test_wait_returns_terminal_status(client: CqlibTianyanClient, terminal: str)
         assert client.wait_for_task("task", timeout=1, poll_interval=0)["status"] == terminal
 
 
+def test_wait_polls_then_completes(client: CqlibTianyanClient) -> None:
+    """轮询应先等待再重试，最终在终态返回。"""
+    statuses = [
+        {"status": "running"},
+        {"status": "completed", "result": {"0": 1.0}},
+    ]
+    with (
+        patch.object(client, "get_task_status", side_effect=statuses),
+        patch("src.api.tianyan_cqlib.time.sleep") as sleep_mock,
+    ):
+        result = client.wait_for_task("task", timeout=10, poll_interval=3)
+    assert result["status"] == "completed"
+    sleep_mock.assert_called_once_with(3)
+
+
 def test_wait_timeout_queue_and_alias(client: CqlibTianyanClient) -> None:
     """轮询超时、队列汇总和非阻塞提交别名应保持稳定。"""
     with patch.object(client, "get_task_status", return_value={"status": "running"}):
