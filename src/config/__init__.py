@@ -19,8 +19,10 @@ from src.config.schema import (
     validate_and_print,
     validate_config,
 )
+from src.config.settings import LOGGING_CONFIG, install_intercept_handler
 
 __all__ = [
+    "LOGGING_CONFIG",
     "AnnealingConfig",
     "AppConfig",
     "CacheConfig",
@@ -31,6 +33,7 @@ __all__ = [
     "SystemConfig",
     "TianyanConfig",
     "WebConfig",
+    "install_intercept_handler",
     "validate_and_print",
     "validate_config",
 ]

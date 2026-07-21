@@ -708,6 +708,13 @@ def merge_args_with_config(args: argparse.Namespace, config: dict[str, Any]) -> 
 def main():
     args = parse_args()
 
+    # 初始化统一日志配置（Issue #193）
+    from src.config.settings import install_intercept_handler
+    from src.utils.helpers import setup_logging
+
+    setup_logging(log_level="DEBUG" if args.verbose >= 2 else "INFO")
+    install_intercept_handler()
+
     # 加载配置文件（如有）
     if args.config:
         config = load_config_file(args.config)

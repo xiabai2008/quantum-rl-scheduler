@@ -25,6 +25,14 @@ if str(PROJECT_ROOT) not in sys.path:
 
 import click
 
+# 在 CLI 启动时初始化统一日志配置（Issue #193）
+# 必须在 import click 之后、子命令加载之前调用
+from src.config.settings import install_intercept_handler
+from src.utils.helpers import setup_logging
+
+setup_logging()
+install_intercept_handler()
+
 
 @click.group(name="qs")
 @click.version_option(version="1.0.0", prog_name="Quantum RL Scheduler")
