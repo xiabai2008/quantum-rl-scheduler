@@ -1,0 +1,60 @@
+# 生产环境配置 (Issue #214)
+# 通过 APP_ENV=prod 加载（见 src/config/settings.py）
+# 特点：关闭 mock_mode、关闭 debug，日志级别 INFO，更严格的超时与更高的并发处理
+# 部署时务必通过环境变量注入 TIANYAN_API_KEY / TIANYAN_API_SECRET
+
+tianyan:
+  api_key: ${TIANYAN_API_KEY}
+  api_secret: ${TIANYAN_API_SECRET}
+  base_url: https://api.tianyanyun.cn/v1
+  mock_mode: false
+  timeout: 60
+  # 生产环境不设置 mock_delay / mock_failure_rate / mock_machine_delays
+
+quantum:
+  backend: tianyan-287
+  max_qubits: 287
+  shots: 2048  # 生产环境增加 shots 降低统计波动
+  simulator: qiskit-aer
+
+scheduler:
+  algorithm: PPO
+  batch_size: 128  # 生产环境增大 batch 提升吞吐
+  epsilon_decay: 0.995
+  epsilon_end: 0.01
+  epsilon_start: 1.0
+  gamma: 0.99
+  learning_rate: 3e-4
+  replay_buffer_size: 50000
+
+annealing:
+  enabled: true
+  annealing_time: 2.0
+  num_qubits: 10
+  num_reads: 200
+  simulation_mode: false
+
+system:
+  log_level: INFO
+  max_queue_size: 500
+  max_steps: 2000
+  max_wait_time: 1800
+
+classical:
+  max_cpu_utilization: 0.85
+  memory_limit: 32768
+
+database:
+  type: sqlite
+  path: data/scheduler.db
+
+cache:
+  type: redis
+  host: localhost
+  port: 6379
+  db: 1  # 生产环境使用独立 DB
+
+web:
+  debug: false
+  host: 0.0.0.0
+  port: 8000

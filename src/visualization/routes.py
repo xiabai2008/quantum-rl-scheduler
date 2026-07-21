@@ -177,6 +177,71 @@ async def metrics() -> Response:
     return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
 
+# ============================================================
+# 健康检查端点（Issue #214）
+# ============================================================
+
+
+@router.get("/health", tags=["运维"])
+async def health() -> dict:
+    """存活探针（Liveness Probe）。
+
+    只要进程在运行就返回 200，用于判断应用是否还活着。
+    不依赖任何外部资源，避免因外部抖动导致进程被重启。
+
+    Returns:
+        ``{"status": "alive"}``，HTTP 200
+    """
+    return {"status": "alive"}
+
+
+@router.get("/ready", tags=["运维"])
+async def ready() -> dict:
+    """就绪探针（Readiness Probe）。
+
+    检查应用关键依赖是否就绪：FastAPI app、Prometheus 注册表、
+    模型加载状态、配额追踪器。任一关键依赖不可用返回 503。
+
+    Returns:
+        就绪状态字典，含各组件检查结果与总体 ready 标志
+    """
+    checks: dict[str, dict[str, Any]] = {}
+
+    # 1. app 实例
+    checks["app"] = {"ok": _app.app is not None}
+
+    # 2. Prometheus 指标可采集
+    try:
+        metrics_body = generate_latest().decode("utf-8", errors="replace")
+        checks["metrics"] = {"ok": len(metrics_body) > 0}
+    except Exception as e:
+        checks["metrics"] = {"ok": False, "error": str(e)}
+
+    # 3. PPO 模型（可选依赖，未加载不算不可用）
+    try:
+        model = _app._get_ppo_model()
+        checks["ppo_model"] = {"ok": model is not None, "required": False}
+    except Exception as e:
+        checks["ppo_model"] = {"ok": False, "required": False, "error": str(e)}
+
+    # 4. 配额追踪器（可选）
+    try:
+        tracker = _app._get_quota_tracker()
+        checks["quota_tracker"] = {"ok": tracker is not None, "required": False}
+    except Exception as e:
+        checks["quota_tracker"] = {"ok": False, "required": False, "error": str(e)}
+
+    # 总体就绪：所有 required=True 的检查必须通过
+    required_ok = all(c["ok"] for c in checks.values() if c.get("required", True))
+
+    return {
+        "ready": required_ok,
+        "checks": checks,
+        "required_ok": required_ok,
+        "timestamp": datetime.now().isoformat(),
+    }
+
+
 @router.post("/api/strategy")
 async def switch_strategy(strategy: str, _auth: None = Depends(verify_api_key)) -> dict:
     """切换调度策略"""

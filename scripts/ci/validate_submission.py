@@ -6,6 +6,7 @@ M5 最终提交物一键打包与版本校验脚本
 1. --check 模式：校验所有提交物是否符合清单要求
 2. --pack 模式：校验 + 创建最终提交压缩包
 3. --report PATH 模式：将校验结果输出为 Markdown 格式的缺失项清单
+4. --prepare 模式：准备可自动生成的提交物（dist 目录、缺失项报告、检查清单）
 
 作者：量子RL调度系统团队
 日期：2026-07-02
@@ -586,6 +587,67 @@ class SubmissionValidator:
         print(f"\n📝 缺失项清单已生成: {output}")
 
 
+def prepare_submission(manifest_path: str, project_root: str = ".") -> None:
+    """准备可自动生成的提交物
+
+    创建 dist/ 目录、生成缺失项报告、输出人工交付物检查清单。
+
+    Args:
+        manifest_path: 清单文件路径
+        project_root: 项目根目录
+    """
+    root = Path(project_root)
+
+    # 1. 创建 dist/ 目录
+    dist_dir = root / "dist"
+    dist_dir.mkdir(exist_ok=True)
+    print(f"✅ 确保目录存在: {dist_dir}")
+
+    # 2. 运行校验
+    validator = SubmissionValidator(manifest_path, project_root)
+    validator.validate_all()
+
+    # 3. 生成缺失项报告
+    report_path = root / "results" / "reports" / "submission_validation_report.md"
+    validator.generate_report(str(report_path))
+
+    # 4. 输出人工交付物检查清单
+    print("\n" + "=" * 60)
+    print("📋 人工交付物检查清单")
+    print("=" * 60)
+
+    manual_items: list[dict[str, str]] = []
+    for r in validator.results:
+        if not r.passed and r.item_id in (
+            "WHITEPAPER",
+            "PRESENTATION",
+            "DEMO_VIDEO",
+            "CODE_REPO",
+            "CODE_ARCHIVE",
+        ):
+            guidance = SubmissionValidator.MISSING_ITEM_GUIDANCE.get(r.item_id, "—")
+            manual_items.append({"id": r.item_id, "name": r.name, "guidance": guidance})
+
+    if manual_items:
+        for item in manual_items:
+            print(f"\n  [{item['id']}] {item['name']}")
+            print(f"    → {item['guidance']}")
+    else:
+        print("\n  所有交付物已就位！可以执行 --pack 打包。")
+
+    print("\n" + "=" * 60)
+    print("📦 自动准备完成：")
+    print("  - dist/ 目录已创建")
+    print(f"  - 缺失项报告已生成: {report_path}")
+    print("  - 人工交付物检查清单已输出（见上方）")
+    print()
+    print("下一步：")
+    print("  1. 完成上方人工交付物")
+    print("  2. 运行 --check 验证所有项通过")
+    print("  3. 运行 --pack 生成最终压缩包")
+    print("=" * 60)
+
+
 def package_submission(manifest_path: str, project_root: str = ".") -> None:
     """打包提交物
 
@@ -653,6 +715,11 @@ def main() -> None:
     parser.add_argument("--check", action="store_true", help="仅校验提交物")
     parser.add_argument("--pack", action="store_true", help="校验并打包提交物")
     parser.add_argument(
+        "--prepare",
+        action="store_true",
+        help="准备可自动生成的提交物（dist 目录、缺失项报告、检查清单）",
+    )
+    parser.add_argument(
         "--report",
         type=str,
         default=None,
@@ -673,10 +740,12 @@ def main() -> None:
 
     args = parser.parse_args()
 
-    if not args.check and not args.pack:
-        parser.error("必须指定 --check 或 --pack 之一")
+    if not args.check and not args.pack and not args.prepare:
+        parser.error("必须指定 --check、--pack 或 --prepare 之一")
 
-    if args.pack:
+    if args.prepare:
+        prepare_submission(args.manifest, args.project_root)
+    elif args.pack:
         package_submission(args.manifest, args.project_root)
     else:
         validator = SubmissionValidator(args.manifest, args.project_root)

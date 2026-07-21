@@ -1,0 +1,66 @@
+# 开发环境配置 (Issue #214)
+# 通过 APP_ENV=dev 加载（见 src/config/settings.py）
+# 特点：开启 mock_mode、debug 模式，日志级别 DEBUG，宽松的超时与重试
+
+tianyan:
+  api_key: ${TIANYAN_API_KEY}
+  api_secret: ${TIANYAN_API_SECRET}
+  base_url: https://api.tianyanyun.cn/v1
+  mock_mode: true
+  mock_delay: 90.0
+  mock_delay_note: 2026-06-30 真机实测：s=124s, sw=48s, tn=89s
+  mock_failure_rate: 0.0
+  mock_machine_delays:
+    tianyan-287: 120.0
+    tianyan_s: 124.0
+    tianyan_sw: 48.0
+    tianyan_tn: 89.0
+  timeout: 30
+
+quantum:
+  backend: tianyan-287
+  max_qubits: 287
+  shots: 1024
+  simulator: qiskit-aer
+
+scheduler:
+  algorithm: PPO
+  batch_size: 64
+  epsilon_decay: 0.995
+  epsilon_end: 0.01
+  epsilon_start: 1.0
+  gamma: 0.99
+  learning_rate: 3e-4
+  replay_buffer_size: 10000
+
+annealing:
+  enabled: true
+  annealing_time: 1.0
+  num_qubits: 10
+  num_reads: 100
+  simulation_mode: true
+
+system:
+  log_level: DEBUG
+  max_queue_size: 100
+  max_steps: 1000
+  max_wait_time: 3600
+
+classical:
+  max_cpu_utilization: 0.95
+  memory_limit: 16384
+
+database:
+  type: sqlite
+  path: data/scheduler.db
+
+cache:
+  type: redis
+  host: localhost
+  port: 6379
+  db: 0
+
+web:
+  debug: true
+  host: 0.0.0.0
+  port: 8000

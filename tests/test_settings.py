@@ -512,5 +512,138 @@ class TestMissingConfigFallback(unittest.TestCase, TestEnvVarsMixin):
             self.assertEqual(s.max_qubits, 287)
 
 
+class TestAppEnvSelection(unittest.TestCase, TestEnvVarsMixin):
+    """APP_ENV 环境变量自动选择配置文件测试（Issue #214）。"""
+
+    def setUp(self) -> None:
+        self._snapshot_env()
+        # APP_ENV 测试需要额外管理 APP_ENV 变量
+        self._saved_app_env = os.environ.get("APP_ENV")
+        os.environ.pop("APP_ENV", None)
+
+    def tearDown(self) -> None:
+        self._restore_env()
+        if self._saved_app_env is None:
+            os.environ.pop("APP_ENV", None)
+        else:
+            os.environ["APP_ENV"] = self._saved_app_env
+
+    def test_app_env_dev_loads_dev_config(self):
+        """APP_ENV=dev 应加载 config.dev.yaml。"""
+        os.environ["APP_ENV"] = "dev"
+        with tempfile.TemporaryDirectory() as tmp:
+            # 在 tmp/config/config.dev.yaml 下创建开发配置
+            config_dir = os.path.join(tmp, "config")
+            os.makedirs(config_dir, exist_ok=True)
+            dev_cfg = os.path.join(config_dir, "config.dev.yaml")
+            _write_yaml(
+                dev_cfg,
+                "system:\n  log_level: DEBUG\n  max_steps: 500\nscheduler:\n  algorithm: PPO\n",
+            )
+            # 切换到 tmp 目录调用 load_settings
+            saved_cwd = os.getcwd()
+            try:
+                os.chdir(tmp)
+                s = load_settings(env_path=os.path.join(tmp, "no.env"))
+                self.assertEqual(s.log_level, "DEBUG")
+                self.assertEqual(s.max_steps, 500)
+                self.assertEqual(s.algorithm, "PPO")
+            finally:
+                os.chdir(saved_cwd)
+
+    def test_app_env_prod_loads_prod_config(self):
+        """APP_ENV=prod 应加载 config.prod.yaml。"""
+        os.environ["APP_ENV"] = "prod"
+        with tempfile.TemporaryDirectory() as tmp:
+            config_dir = os.path.join(tmp, "config")
+            os.makedirs(config_dir, exist_ok=True)
+            prod_cfg = os.path.join(config_dir, "config.prod.yaml")
+            _write_yaml(
+                prod_cfg,
+                "system:\n  log_level: INFO\n  max_steps: 2000\nscheduler:\n  algorithm: PPO\n",
+            )
+            saved_cwd = os.getcwd()
+            try:
+                os.chdir(tmp)
+                s = load_settings(env_path=os.path.join(tmp, "no.env"))
+                self.assertEqual(s.log_level, "INFO")
+                self.assertEqual(s.max_steps, 2000)
+            finally:
+                os.chdir(saved_cwd)
+
+    def test_app_env_unset_falls_back_to_default_config(self):
+        """APP_ENV 未设置时应回退到 config/config.yaml。"""
+        # APP_ENV 已在 setUp 中清空
+        with tempfile.TemporaryDirectory() as tmp:
+            config_dir = os.path.join(tmp, "config")
+            os.makedirs(config_dir, exist_ok=True)
+            default_cfg = os.path.join(config_dir, "config.yaml")
+            _write_yaml(
+                default_cfg,
+                "system:\n  log_level: WARNING\n  max_steps: 999\n",
+            )
+            saved_cwd = os.getcwd()
+            try:
+                os.chdir(tmp)
+                s = load_settings(env_path=os.path.join(tmp, "no.env"))
+                self.assertEqual(s.log_level, "WARNING")
+                self.assertEqual(s.max_steps, 999)
+            finally:
+                os.chdir(saved_cwd)
+
+    def test_app_env_case_insensitive(self):
+        """APP_ENV 大写也应能正确加载（DEV/PROD）。"""
+        os.environ["APP_ENV"] = "DEV"
+        with tempfile.TemporaryDirectory() as tmp:
+            config_dir = os.path.join(tmp, "config")
+            os.makedirs(config_dir, exist_ok=True)
+            dev_cfg = os.path.join(config_dir, "config.dev.yaml")
+            _write_yaml(
+                dev_cfg,
+                "system:\n  log_level: DEBUG\n",
+            )
+            saved_cwd = os.getcwd()
+            try:
+                os.chdir(tmp)
+                s = load_settings(env_path=os.path.join(tmp, "no.env"))
+                self.assertEqual(s.log_level, "DEBUG")
+            finally:
+                os.chdir(saved_cwd)
+
+    def test_explicit_config_path_overrides_app_env(self):
+        """显式传 config_path 时应忽略 APP_ENV。"""
+        os.environ["APP_ENV"] = "dev"
+        with tempfile.TemporaryDirectory() as tmp:
+            # 在 tmp 下创建 dev.yaml（不该被加载）
+            config_dir = os.path.join(tmp, "config")
+            os.makedirs(config_dir, exist_ok=True)
+            dev_cfg = os.path.join(config_dir, "config.dev.yaml")
+            _write_yaml(dev_cfg, "system:\n  log_level: DEBUG\n")
+            # 显式指定的配置文件
+            explicit_cfg = os.path.join(tmp, "explicit.yaml")
+            _write_yaml(explicit_cfg, "system:\n  log_level: ERROR\n")
+            s = load_settings(
+                config_path=explicit_cfg,
+                env_path=os.path.join(tmp, "no.env"),
+            )
+            # 应使用 explicit_cfg，而非 dev.yaml
+            self.assertEqual(s.log_level, "ERROR")
+
+    def test_app_env_with_missing_config_falls_back_to_defaults(self):
+        """APP_ENV 设置但对应配置文件不存在时应回退到默认值。"""
+        os.environ["APP_ENV"] = "staging"
+        with tempfile.TemporaryDirectory() as tmp:
+            saved_cwd = os.getcwd()
+            try:
+                os.chdir(tmp)
+                # tmp/config/config.staging.yaml 不存在
+                s = load_settings(env_path=os.path.join(tmp, "no.env"))
+                # 应回退到默认值
+                self.assertEqual(s.max_qubits, 287)
+                self.assertEqual(s.algorithm, "DQN")
+            finally:
+                os.chdir(saved_cwd)
+
+
 if __name__ == "__main__":
     unittest.main()
