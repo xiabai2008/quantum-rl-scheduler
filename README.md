@@ -1,6 +1,6 @@
 # 量子RL驱动的天衍云平台智能调度系统
 
-> 2026年度"揭榜挂帅"擂台赛参赛项目  
+> 2026年度"揭榜挂帅"擂台赛参赛项目
 > 选题编号：XA-202609 | 发榜单位：中国电信集团有限公司
 
 [![CI](https://github.com/xiabai2004/quantum-rl-scheduler/actions/workflows/ci.yml/badge.svg)](https://github.com/xiabai2004/quantum-rl-scheduler/actions/workflows/ci.yml)
@@ -256,6 +256,51 @@ TIANYAN_API_KEY=你的真实API密钥
 | 答辩PPT大纲 | `答辩PPT大纲.md` |
 | 白皮书更新计划 | `技术白皮书_更新计划.md` |
 | B1 实验数据报告 | `results/reports/` 下 4 份报告 |
+
+## 最终提交包说明
+
+比赛最终提交物清单定义在 `config/submission_manifest.yaml`，使用校验工具管理：
+
+```bash
+# 准备提交物（创建 dist/ 目录 + 生成缺失项报告 + 输出检查清单）
+python scripts/ci/validate_submission.py --prepare
+
+# 校验所有提交物是否符合要求
+python scripts/ci/validate_submission.py --check
+
+# 生成缺失项清单报告
+python scripts/ci/validate_submission.py --check --report results/reports/submission_validation_report.md
+
+# 打包（校验通过后生成 dist/submission_v8.0_YYYYMMDD.zip）
+python scripts/ci/validate_submission.py --pack
+```
+
+### 提交物清单（13 项）
+
+| 编号 | 名称 | 类型 | 状态 |
+|:--:|:--|:--:|:--:|
+| CODE_REPO | 代码仓库（Git 标签 v8.0-submission） | git_tag | 8/15 冻结后创建 |
+| CODE_ARCHIVE | 代码压缩包 | zip | 冻结后 --pack 生成 |
+| WHITEPAPER | 技术白皮书（20-50页 PDF） | pdf | docx→PDF 转换 |
+| PRESENTATION | 答辩 PPT（15-20页） | pptx | 人工制作 |
+| DEMO_VIDEO | 演示视频（4-5分钟 1080p） | mp4 | 人工录制 |
+| EXP_STRATEGY | 策略对比报告 | md | ✅ 已完成 |
+| EXP_ABLATION | 消融实验报告 | md | ✅ 已完成 |
+| EXP_STRESS | 压力测试报告 | md | ✅ 已完成 |
+| EXP_REAL | 真机验证报告 | md | ✅ 已完成 |
+| EXP_STAT | 统计显著性报告 | md | ✅ 已完成 |
+| MODEL_PPO | PPO 权威模型 | zip | ✅ 已完成 |
+| MODEL_DQN | DQN 权威模型 | zip | ✅ 已完成 |
+| REQUIREMENTS_MATRIX | 需求追溯矩阵 | md | ✅ 已完成 |
+
+### 代码冻结流程（8/15）
+
+1. 确认所有 CI 检查全绿
+2. 运行 `python scripts/ci/pre_freeze_check.sh` 执行冻结前检查
+3. 运行 `python scripts/ci/validate_submission.py --check` 确认通过
+4. 创建标签：`git tag -a v8.0-submission -m "v8.0 提交版本" && git push origin v8.0-submission`
+5. 打包：`python scripts/ci/validate_submission.py --pack`
+6. 提交压缩包至比赛平台
 
 ## 开发计划
 
