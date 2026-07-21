@@ -32,7 +32,7 @@
 
 ```bash
 # 克隆仓库
-git clone https://github.com/xiabai2004/quantum-rl-scheduler.git
+git clone https://github.com/xiabai2008/quantum-rl-scheduler.git
 cd quantum-rl-scheduler
 
 # 一键初始化（推荐）
@@ -305,7 +305,7 @@ import pytest
 
 ### 8.1 报告 Bug
 
-使用 [Bug 报告模板](https://github.com/xiabai2004/quantum-rl-scheduler/issues/new?labels=bug&template=bug.md) 创建 Issue，需包含：
+使用 [Bug 报告模板](https://github.com/xiabai2008/quantum-rl-scheduler/issues/new?labels=bug&template=bug.md) 创建 Issue，需包含：
 
 - **描述**：清晰描述遇到的问题
 - **复现步骤**：1. 2. 3. 编号步骤
@@ -316,7 +316,7 @@ import pytest
 
 ### 8.2 提交功能建议
 
-使用 [功能建议模板](https://github.com/xiabai2004/quantum-rl-scheduler/issues/new?labels=enhancement&template=feature_request.md) 创建 Issue，需包含：
+使用 [功能建议模板](https://github.com/xiabai2008/quantum-rl-scheduler/issues/new?labels=enhancement&template=feature_request.md) 创建 Issue，需包含：
 
 - **描述**：你希望实现什么功能
 - **动机/背景**：为什么需要这个功能，解决什么问题
@@ -346,7 +346,7 @@ import pytest
 
 | GitHub 用户名 | 权限 | 角色 |
 | ------------ | ----- | ---- |
-| xiabai2004 | Admin | 项目负责人（瑞哥） |
+| xiabai2008 | Admin | 项目负责人（瑞哥） |
 | heka-ky | Write | 队员 |
 | zyhsga | Write | 队员 |
 | NN2914 | Write | 队员 |
@@ -423,4 +423,4 @@ docker-compose up -d
 
 ---
 
-感谢你的贡献！🎉 如有任何问题，请在 [Issues](https://github.com/xiabai2004/quantum-rl-scheduler/issues) 或群聊中提出。
+感谢你的贡献！🎉 如有任何问题，请在 [Issues](https://github.com/xiabai2008/quantum-rl-scheduler/issues) 或群聊中提出。

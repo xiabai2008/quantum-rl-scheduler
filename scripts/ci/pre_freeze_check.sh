@@ -102,7 +102,7 @@ if command -v gh &> /dev/null; then
     fi
 else
     warn "gh CLI 未安装，跳过自动 CI 检查"
-    echo "        请手动访问: https://github.com/xiabai2004/quantum-rl-scheduler/actions"
+    echo "        请手动访问: https://github.com/xiabai2008/quantum-rl-scheduler/actions"
 fi
 
 # ---------------------------------------------------------------------------

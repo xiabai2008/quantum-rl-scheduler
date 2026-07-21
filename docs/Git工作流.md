@@ -30,7 +30,7 @@ main（保护分支，只接受PR合并）
 
 ```bash
 # 1. 克隆仓库（所有人）
-git clone https://github.com/xiabai2004/quantum-rl-scheduler.git
+git clone https://github.com/xiabai2008/quantum-rl-scheduler.git
 cd quantum-rl-scheduler
 
 

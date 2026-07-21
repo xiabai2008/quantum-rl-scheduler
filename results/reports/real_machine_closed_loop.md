@@ -13,7 +13,7 @@
 ## 正式运行前检查
 
 - dotenv 加载、authenticate：成功；后端 `tianyan176` 状态：`running`。
-- cqlib 未暴露平台权威余额接口；额度检查采用仓库 QuotaTracker 本地账本，并已在 Issue #164 @xiabai2004 说明。
+- cqlib 未暴露平台权威余额接口；额度检查采用仓库 QuotaTracker 本地账本，并已在 Issue #164 @xiabai2008 说明。
 - 最小冒烟：真实真机任务 `2078156758599368706`，1 qubit / 32 shots，状态 `completed`，耗时 7.727s。
 
 ## 结果

@@ -249,7 +249,7 @@
 - 4:36："多机协同 +86.3%"
 - 4:40："团队名单"
 - 4:48："致谢"
-- 4:55："GitHub：xiabai2004/quantum-rl-scheduler"
+- 4:55："GitHub：xiabai2008/quantum-rl-scheduler"
 
 ### 素材来源
 

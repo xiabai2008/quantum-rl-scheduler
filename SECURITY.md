@@ -26,7 +26,7 @@
 
 发送邮件至项目负责人邮箱：
 
-- **收件人**：xiabai2004（瑞哥）— 见 GitHub 个人主页
+- **收件人**：xiabai2008（瑞哥）— 见 GitHub 个人主页
 - **邮件主题**：`[SECURITY] 量子RL调度系统 — 简要描述`
 - **加密**：如涉及敏感信息，建议使用 PGP 加密（公钥可向负责人索取）
 
@@ -172,7 +172,7 @@
 
 ## 7. 联系方式
 
-- **项目负责人**：瑞哥（GitHub: [@xiabai2004](https://github.com/xiabai2004)）
+- **项目负责人**：瑞哥（GitHub: [@xiabai2008](https://github.com/xiabai2008)）
 - **团队**：8 人团队（详见 [AGENTS.md](AGENTS.md) 第 10 节）
 - **安全报告邮箱**：见负责人 GitHub 主页
 

@@ -410,7 +410,7 @@ def generate_report(results: dict[str, Any], report_path: Path, plot_path: Path)
         f"- dotenv 加载、authenticate：成功；后端 `{results['preflight']['machine']}` 状态："
         f"`{results['preflight']['backend_status']}`。",
         "- cqlib 未暴露平台权威余额接口；额度检查采用仓库 QuotaTracker 本地账本，"
-        "并已在 Issue #164 @xiabai2004 说明。",
+        "并已在 Issue #164 @xiabai2008 说明。",
         f"- 最小冒烟：真实真机任务 `{smoke['task_id']}`，1 qubit / {smoke['shots']} shots，"
         f"状态 `{smoke['status']}`，耗时 {smoke['elapsed_s']:.3f}s。",
         "",
@@ -481,7 +481,7 @@ def save_blocked_report(results: dict[str, Any], report_path: Path) -> None:
                 "- cqlib 未暴露平台权威余额接口；仓库本地额度账本不能代表平台余额。",
                 f"- 1-qubit QCIS / {smoke['shots']} shots 冒烟提交被平台拒绝："
                 "剩余机时不足；没有 task ID。",
-                "- 已在 Issue #164 @xiabai2004 请求补充/确认机时额度。",
+                "- 已在 Issue #164 @xiabai2008 请求补充/确认机时额度。",
                 "",
                 "## 实验结果",
                 "",

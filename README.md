@@ -3,7 +3,7 @@
 > 2026年度"揭榜挂帅"擂台赛参赛项目
 > 选题编号：XA-202609 | 发榜单位：中国电信集团有限公司
 
-[![CI](https://github.com/xiabai2004/quantum-rl-scheduler/actions/workflows/ci.yml/badge.svg)](https://github.com/xiabai2004/quantum-rl-scheduler/actions/workflows/ci.yml)
+[![CI](https://github.com/xiabai2008/quantum-rl-scheduler/actions/workflows/ci.yml/badge.svg)](https://github.com/xiabai2008/quantum-rl-scheduler/actions/workflows/ci.yml)
 [![Python](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
@@ -64,7 +64,7 @@ quantum-rl-scheduler/
 ### 方式一：一键初始化（推荐）
 
 ```bash
-git clone https://github.com/xiabai2004/quantum-rl-scheduler.git
+git clone https://github.com/xiabai2008/quantum-rl-scheduler.git
 cd quantum-rl-scheduler
 
 # Linux / macOS / Git Bash
@@ -77,7 +77,7 @@ powershell .\setup.ps1
 ### 方式二：手动安装
 
 ```bash
-git clone https://github.com/xiabai2004/quantum-rl-scheduler.git
+git clone https://github.com/xiabai2008/quantum-rl-scheduler.git
 cd quantum-rl-scheduler
 
 python -m venv .venv

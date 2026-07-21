@@ -1,6 +1,6 @@
 # Issues 并行会话任务提示词
 
-> **仓库**: xiabai2004/quantum-rl-scheduler
+> **仓库**: xiabai2008/quantum-rl-scheduler
 > **Open Issues 总数**: 22 个
 > **会话数**: 5 个（可并行执行）
 > **生成时间**: 2026-07-02
@@ -34,7 +34,7 @@
 ### 提示词
 
 ```
-你是量子RL调度系统项目的文档工程师。仓库地址：https://github.com/xiabai2004/quantum-rl-scheduler，工作目录为项目根目录。
+你是量子RL调度系统项目的文档工程师。仓库地址：https://github.com/xiabai2008/quantum-rl-scheduler，工作目录为项目根目录。
 
 ## 你的任务
 完成以下 5 个 GitHub Issues（全部为文档撰写，不涉及代码修改）：
@@ -69,10 +69,10 @@
    - 输出：docs/api_reference.md
 
 ## 工作流程
-1. 先用 `gh issue view <编号> --repo xiabai2004/quantum-rl-scheduler` 阅读每个 issue 的完整描述
+1. 先用 `gh issue view <编号> --repo xiabai2008/quantum-rl-scheduler` 阅读每个 issue 的完整描述
 2. 阅读相关源码和已有文档
 3. 逐个完成文档撰写
-4. 每完成一个 issue，用 `gh issue close <编号> --repo xiabai2004/quantum-rl-scheduler --comment "已完成：<文件路径>"` 关闭
+4. 每完成一个 issue，用 `gh issue close <编号> --repo xiabai2008/quantum-rl-scheduler --comment "已完成：<文件路径>"` 关闭
 
 ## 注意事项
 - 所有文档使用中文
@@ -88,7 +88,7 @@
 ### 提示词
 
 ```
-你是量子RL调度系统项目的实验工程师。仓库地址：https://github.com/xiabai2004/quantum-rl-scheduler，工作目录为项目根目录。
+你是量子RL调度系统项目的实验工程师。仓库地址：https://github.com/xiabai2008/quantum-rl-scheduler，工作目录为项目根目录。
 
 ## 你的任务
 完成以下 3 个 GitHub Issues（运行实验脚本，产出数据和报告）：
@@ -140,7 +140,7 @@
 ### 提示词
 
 ```
-你是量子RL调度系统项目的核心开发工程师。仓库地址：https://github.com/xiabai2004/quantum-rl-scheduler，工作目录为项目根目录。
+你是量子RL调度系统项目的核心开发工程师。仓库地址：https://github.com/xiabai2008/quantum-rl-scheduler，工作目录为项目根目录。
 
 ## 你的任务
 按以下顺序完成 3 个 GitHub Issues（涉及 src/ 核心代码修改，必须按顺序执行）：
@@ -192,7 +192,7 @@
 ### 提示词
 
 ```
-你是量子RL调度系统项目的 DevOps 工程师。仓库地址：https://github.com/xiabai2004/quantum-rl-scheduler，工作目录为项目根目录。
+你是量子RL调度系统项目的 DevOps 工程师。仓库地址：https://github.com/xiabai2008/quantum-rl-scheduler，工作目录为项目根目录。
 
 ## 你的任务
 完成以下 5 个 GitHub Issues（主要修改配置文件和 CI 脚本，不涉及 src/ 代码逻辑）：
@@ -250,7 +250,7 @@
 ### 提示词
 
 ```
-你是量子RL调度系统项目的功能开发工程师。仓库地址：https://github.com/xiabai2004/quantum-rl-scheduler，工作目录为项目根目录。
+你是量子RL调度系统项目的功能开发工程师。仓库地址：https://github.com/xiabai2008/quantum-rl-scheduler，工作目录为项目根目录。
 
 ## 你的任务
 完成以下 6 个 GitHub Issues（新功能开发和前端改进）：
