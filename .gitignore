@@ -95,7 +95,10 @@ results/raw/
 results/fair_comparison/
 results/issue_experiments/
 results/multiseed_evaluation/
-results/real_machine/
+# 真机实验数据：tianyan287 实验数据小（<4KB），作为可信度证据入库
+!results/real_machine/
+!results/real_machine/tianyan287/
+!results/real_machine/tianyan287/**
 
 # ── 变异测试 / 临时虚拟环境（切勿提交）──
 mutants/

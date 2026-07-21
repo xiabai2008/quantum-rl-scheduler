@@ -1,0 +1,129 @@
+{
+  "timestamp": "2026-07-21T17:09:12.374340",
+  "mock": false,
+  "machine": "tianyan287",
+  "strategy_comparison": {
+    "ppo_32": {
+      "strategy": "PPO",
+      "num_tasks": 32,
+      "machine": "tianyan287",
+      "timestamp": "2026-07-21T17:09:19.552203",
+      "metrics": {
+        "total_reward": 1348.2707,
+        "total_steps": 96,
+        "elapsed_seconds": 40.53,
+        "action_distribution": {
+          "classical": 0,
+          "quantum": 86,
+          "hybrid": 10
+        },
+        "real_tasks_submitted": 5,
+        "real_tasks_completed": 5,
+        "avg_fidelity": 0.9924
+      },
+      "real_records": []
+    },
+    "fcfs_32": {
+      "strategy": "FCFS",
+      "num_tasks": 32,
+      "machine": "tianyan287",
+      "timestamp": "2026-07-21T17:10:17.467574",
+      "metrics": {
+        "total_reward": 382.7877,
+        "total_steps": 96,
+        "elapsed_seconds": 40.31,
+        "action_distribution": {
+          "classical": 0,
+          "quantum": 0,
+          "hybrid": 96
+        },
+        "real_tasks_submitted": 5,
+        "real_tasks_completed": 5,
+        "avg_fidelity": 0.9739
+      },
+      "real_records": []
+    },
+    "sjf_32": {
+      "strategy": "SJF",
+      "num_tasks": 32,
+      "machine": "tianyan287",
+      "timestamp": "2026-07-21T17:11:09.657399",
+      "metrics": {
+        "total_reward": 740.4267,
+        "total_steps": 96,
+        "elapsed_seconds": 40.94,
+        "action_distribution": {
+          "classical": 1,
+          "quantum": 52,
+          "hybrid": 43
+        },
+        "real_tasks_submitted": 5,
+        "real_tasks_completed": 5,
+        "avg_fidelity": 0.9811
+      },
+      "real_records": []
+    }
+  },
+  "multi_qubit": {
+    "test_type": "multi_qubit",
+    "qubit_sizes": [
+      1,
+      2,
+      4
+    ],
+    "machine": "tianyan287",
+    "timestamp": "2026-07-21T17:12:02.615573",
+    "results_per_qubit": {
+      "1": {
+        "n_qubits": 1,
+        "qcis": "H Q0\nM Q0",
+        "tasks_submitted": 5,
+        "tasks_succeeded": 5,
+        "tasks_failed": 0,
+        "avg_execution_time": 27.46,
+        "success_rate": 1.0,
+        "fidelities": [
+          0.9897,
+          0.9822,
+          0.99,
+          0.9801,
+          0.9804
+        ],
+        "avg_fidelity": 0.9845
+      },
+      "2": {
+        "n_qubits": 2,
+        "qcis": "H Q0\nH Q1\nM Q0 Q1",
+        "tasks_submitted": 5,
+        "tasks_succeeded": 4,
+        "tasks_failed": 1,
+        "avg_execution_time": 44.85,
+        "success_rate": 0.8,
+        "fidelities": [
+          0.826,
+          0.8323,
+          0.8029,
+          0.7976
+        ],
+        "avg_fidelity": 0.8147
+      },
+      "4": {
+        "n_qubits": 4,
+        "qcis": "H Q0\nH Q1\nH Q2\nH Q3\nM Q0 Q1 Q2 Q3",
+        "tasks_submitted": 5,
+        "tasks_succeeded": 5,
+        "tasks_failed": 0,
+        "avg_execution_time": 23.48,
+        "success_rate": 1.0,
+        "fidelities": [
+          0.8613,
+          0.9097,
+          0.9096,
+          0.926,
+          0.8978
+        ],
+        "avg_fidelity": 0.9009
+      }
+    }
+  }
+}
