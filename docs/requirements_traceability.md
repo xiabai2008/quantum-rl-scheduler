@@ -69,7 +69,7 @@
 |---------|----------------|------|-------------|---------|---------|---------|---------|
 | R-I-01 | 双向赋能：AI 赋能量子计算 | 创新 | `src/scheduler/` | **已实现** | 实验验证 | "RL 智能调度量子/经典任务，资源利用率提升显著" | `results/reports/strategy_comparison.md` |
 | R-I-02 | 双向赋能：量子赋能 AI | 创新 | `src/quantum/annealing.py` | **已实现** | 消融实验 | "量子退火加速 RL 训练，形成闭环：AI 优化量子调度 → 量子加速 AI 训练" | `results/reports/ablation_report.md` |
-| R-I-03 | 首次将 RL 应用于量子云调度 | 创新 | 全系统 | **已实现** | 文献调研 | "据我们所知，这是首个将强化学习应用于量子云平台任务调度的系统" | 项目 README |
+| R-I-03 | 将 RL 应用于量子云调度 | 创新 | 全系统 | **已实现** | 文献调研 | "我们将强化学习应用于量子云平台任务调度" | 项目 README |
 | R-I-04 | QUBO 映射神经网络权重 | 创新 | `src/quantum/annealing.py` | **已实现** | 单元测试 | "将策略网络权重差分编码为 QUBO 矩阵，用量子退火求解全局最优" | `src/quantum/annealing.py` L1-300 |
 | R-I-05 | 多智能体协同调度（MAPPO） | 创新 | `src/scheduler/marl.py` | **已实现** | 多机实验 | "CTDE 架构：去中心化执行 + 集中式训练，单模型零成本复用到多机器" | `src/scheduler/marl.py` |
 

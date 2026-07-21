@@ -32,7 +32,7 @@
 
 **双向赋能核心**：
 
-- **AI 赋能量子计算**：用强化学习（RL）智能调度量子/经典混合任务，量化目标为资源利用率提升 ≥30%、平均等待时间降低 ≥40%
+- **AI 赋能量子计算**：用强化学习（RL）智能调度量子/经典混合任务，量化目标为资源利用率提升 ≥30%
 - **量子赋能 AI**：用量子退火（QUBO 映射）加速 RL 策略搜索
 
 **技术栈**：Python ≥3.10 + Stable-Baselines3（DQN/PPO）+ Gymnasium + PyTorch + Qiskit + D-Wave Ocean SDK + FastAPI + Vue3 + Echarts
