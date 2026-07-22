@@ -2,7 +2,7 @@
 
 > 本报告为提交清单 `EXP_STAT` 必需文件，使用 250 次独立episode验证PPO相对于基线策略的统计显著性。
 
-> **数据来源**: `C:\Users\WJH\Desktop\2026年度中国青年科技创新“揭榜挂帅”擂台赛\quantum-rl-scheduler\results\multiseed_evaluation\rewards_multiseed.json`
+> **数据来源**: `results/multiseed_evaluation/rewards_multiseed.json`
 > **显著性水平 α**: 0.05
 > **比较次数**: 28（Bonferroni 校正后 α = 0.0018）
 
@@ -209,4 +209,4 @@
 - **rank-biserial 等级**：< 0.1 可忽略，0.1-0.3 小，0.3-0.5 中，≥ 0.5 大
 
 ---
-*报告自动生成 | 数据源: C:\Users\WJH\Desktop\2026年度中国青年科技创新“揭榜挂帅”擂台赛\quantum-rl-scheduler\results\multiseed_evaluation\rewards_multiseed.json*
+*报告自动生成 | 数据源: results/multiseed_evaluation/rewards_multiseed.json*

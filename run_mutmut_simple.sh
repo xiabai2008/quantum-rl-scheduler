@@ -1,5 +1,5 @@
 #!/bin/bash
-cd /mnt/c/Users/HZR/Desktop/揭榜挂帅擂台赛/quantum-rl-scheduler
+cd "$(dirname "$0")"
 
 # 检查虚拟环境
 if [ ! -d ".venv-mutmut" ]; then

@@ -131,8 +131,8 @@ quantum-rl-scheduler/
 ## 关键路径
 
 ```
-项目仓库: C:\Users\HZR\Desktop\揭榜挂帅擂台赛\quantum-rl-scheduler
-Python: D:\tools\Python 3.12.9\python.exe
+项目仓库: quantum-rl-scheduler（仓库根目录）
+Python: python（建议通过 venv/.venv 虚拟环境）
 推送: PR流程（main分支保护）
 
 提示词文件：

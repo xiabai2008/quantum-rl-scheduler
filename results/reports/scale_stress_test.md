@@ -19,7 +19,7 @@
 | 随机种子 | 42 |
 | 泊松到达率 λ | 1.2 |
 | 量子比特上限 | 287 |
-| PPO 模型 | `D:\桌面\quantum-rl-scheduler\deliverable_models/ppo_best_model_14dim.zip` |
+| PPO 模型 | `deliverable_models/ppo_best_model_14dim.zip` |
 
 ## 三、指标定义
 
