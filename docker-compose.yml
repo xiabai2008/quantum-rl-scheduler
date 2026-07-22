@@ -1,6 +1,23 @@
+# =============================================================================
+# 量子RL调度系统 - Docker Compose 多服务编排
+# =============================================================================
+#
+# 启动方式：
+#   docker compose up                          # 启动 Web 服务（默认）
+#   docker compose --profile monitoring up     # 启动 Web + TensorBoard
+#   docker compose --profile cache up          # 启动 Web + Redis 缓存
+#   docker compose --profile full up           # 启动全部服务
+#
+# 资源限制（docker compose v2 支持 deploy.resources）：
+#   本配置使用 mem_limit / cpus 限制单容器资源（compose v2 兼容）。
+#   生产环境建议使用 Docker Swarm 或 Kubernetes，deploy 字段才会生效。
+#
+# =============================================================================
+
 version: '3.8'
 
 services:
+  # ── 主服务：FastAPI Web 监控面板 ──
   web:
     build:
       context: .
@@ -14,6 +31,9 @@ services:
       - PYTHONUNBUFFERED=1
       - LOG_LEVEL=INFO
       - TIANYAN_MOCK_MODE=true
+      # Redis 连接（需 --profile cache 启用 redis 服务）
+      - REDIS_HOST=${REDIS_HOST:-redis}
+      - REDIS_PORT=${REDIS_PORT:-6379}
     volumes:
       # 持久化日志
       - ./logs:/app/logs
@@ -27,14 +47,56 @@ services:
       timeout: 10s
       retries: 3
       start_period: 15s
+    # 资源限制（单容器，compose v2 兼容）
+    mem_limit: 2g
+    cpus: 2.0
 
+  # ── TensorBoard：训练可视化（可选） ──
   tensorboard:
     image: tensorflow/tensorflow:latest
     container_name: quantum-rl-tensorboard
+    restart: unless-stopped
     command: tensorboard --logdir /app/logs --host 0.0.0.0 --port 6006
     ports:
       - "6006:6006"
     volumes:
       - ./logs:/app/logs
+    healthcheck:
+      # TensorBoard 默认无 /health 端点，通过检查端口可达性判断
+      test: ["CMD", "curl", "-f", "http://localhost:6006/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    mem_limit: 512m
+    cpus: 0.5
     profiles:
       - monitoring
+      - full
+
+  # ── Redis：缓存服务（可选） ──
+  # 启用方式：docker compose --profile cache up
+  # 用途：scheduler.cache 模块使用 Redis 缓存调度决策
+  redis:
+    image: redis:7-alpine
+    container_name: quantum-rl-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    mem_limit: 256m
+    cpus: 0.5
+    profiles:
+      - cache
+      - full
+
+volumes:
+  redis-data:
+    driver: local
