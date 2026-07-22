@@ -2,12 +2,19 @@
 """天衍-287 多seed真机实验（Issue #45 / PR #57）
 
 按 Issue #58 要求重构：
-- 单次正式实验只能使用一个机器（tianyan287）、一个 shots（32）、一个电路配置（H Q0/M Q0）、一个超时策略
+- 单次正式实验只能使用一个机器（tianyan-287）、一个 shots（32）、一个电路配置（H Q1/M Q1）、一个超时策略
 - 10 seeds × 3策略 × 1真机任务/run = 30 个正式任务
 - 冒烟上限 1，总硬上限 31
 - 不得自动回退到 tianyan176、Mock 或其他机器
 - 统一统计方法：Welch t-test 主分析 + 配对敏感性分析
 - bonferroni_significant=false 时 judgment 必须为"不支持"
+
+已核实事实（cqlib 1.3.11）：
+- 正确后端代码：tianyan-287（有连字符）；tianyan287 不存在
+- 天衍-287 物理比特 Q1～Q105，没有 Q0
+- H Q0/M Q0 QCIS 校验 false；H Q1/M Q1 QCIS 校验 true
+- get_task_status() 概率字段名为 result，非 probability
+- 历史失败 task mapQcis/computerQcis 均为 null，属编译映射失败
 
 机时预算：10 seeds × 3策略 × 1真机任务 = 30个真机任务 + 1 冒烟 = 31 上限
 目标：收集多seed数据，计算效应量(Cohen's d) + 95% CI
@@ -20,6 +27,7 @@
     python scripts/real_machine/tianyan287_multiseed.py --formal
 """
 
+import contextlib
 import json
 import os
 import sys
@@ -39,8 +47,8 @@ if str(_PROJECT_ROOT) not in sys.path:
 
 os.environ.setdefault("TIANYAN_API_KEY", "")
 os.environ.setdefault("TIANYAN_MOCK_MODE", "false")
-# 按 Issue #58：默认目标机器为 tianyan287，不得自动回退
-os.environ.setdefault("TIANYAN_MACHINE", "tianyan287")
+# 已核实：正确后端代码为 tianyan-287（有连字符），不得自动回退
+os.environ.setdefault("TIANYAN_MACHINE", "tianyan-287")
 
 from loguru import logger
 
@@ -66,22 +74,23 @@ NUM_TASKS = 32
 MAX_REAL_TASKS_PER_RUN = 1
 REAL_SUBMIT_INTERVAL = 5  # 每5步提交一次真机任务
 
-# Issue #58：shots 统一为 32（原 1024 已废弃）
+# 已核实：shots 统一为 32
 SHOTS = 32
 
-# Issue #58：目标机器固定为 tianyan287，不得回退
-TARGET_MACHINE = "tianyan287"
+# 已核实：正确后端代码为 tianyan-287（有连字符），不得回退
+TARGET_MACHINE = "tianyan-287"
 
-# Issue #58：提交硬上限
+# 已核实：提交硬上限
 # 正式 30 + 冒烟 1 = 31 总硬上限
 HARD_LIMIT_FORMAL = 30  # 10 seeds × 3 策略 × 1 真机任务
 HARD_LIMIT_SMOKE = 1
 HARD_LIMIT_TOTAL = HARD_LIMIT_FORMAL + HARD_LIMIT_SMOKE  # 31
 
-# Issue #58：固定电路配置（1-qubit, H Q0/M Q0）
-QCIS_CIRCUIT = "H Q0\nM Q0"
+# 已核实：天衍-287 物理比特 Q1～Q105，没有 Q0
+# H Q0/M Q0 QCIS 校验 false；H Q1/M Q1 QCIS 校验 true
+QCIS_CIRCUIT = "H Q1\nM Q1"
 
-# Issue #58：超时统一
+# 已核实：超时统一
 TASK_TIMEOUT_SECONDS = 120
 TASK_POLL_INTERVAL = 5
 
@@ -89,9 +98,10 @@ PPO_MODEL_PATH = _PROJECT_ROOT / "deliverable_models" / "ppo_best_model_14dim.zi
 
 DEFAULT_MACHINE_CONFIGS = [
     {
-        "name": "tianyan287",
+        "name": "tianyan-287",
         "machine_type": "quantum",
-        "max_qubits": 287,
+        # 已核实：天衍-287 当前配置 105 个物理比特，不得因名称写 287
+        "max_qubits": 105,
         "noise_level": 0.01,
         "queue_capacity": 10,
     },
@@ -141,13 +151,13 @@ def run_single_seed(
         strategy_name: 策略名称
         seed: 随机种子
         client: 真机客户端
-        machine_name: 机器名称（必须为 tianyan287）
+        machine_name: 机器名称（必须为 tianyan-287）
         shots: 真机测量次数（必须为 32）
 
     Returns:
         实验结果字典
     """
-    # Issue #58：一致性校验
+    # 已核实：一致性校验
     if machine_name != TARGET_MACHINE:
         raise ValueError(
             f"机器一致性违规: 期望 {TARGET_MACHINE}, 实际 {machine_name}. 不得自动回退到其他机器."
@@ -158,17 +168,15 @@ def run_single_seed(
     strategy = create_strategy(strategy_name)
     logger.info(f"[Seed {seed}] 策略 {strategy.name} 开始")
 
-    submitted_at = datetime.now().isoformat()
     result = {
         "strategy": strategy.name,
         "seed": seed,
         "machine": machine_name,
         "shots": shots,
         "circuit": QCIS_CIRCUIT,
-        "submitted_at": submitted_at,
         "metrics": {},
         "real_records": [],
-        # Issue #58：明确标记非 Mock/仿真
+        # 明确标记非 Mock/仿真
         "mock": False,
         "degraded": False,
     }
@@ -188,8 +196,11 @@ def run_single_seed(
         obs, _info = env.reset(seed=seed)
         total_reward = 0.0
         step = 0
-        real_task_count = 0
-        real_records = []
+        real_tasks_submitted = 0  # 实际获得 task_id 的真机提交数
+        real_tasks_completed = 0  # status=completed 且有合法概率结果
+        real_tasks_failed = 0  # 明确失败
+        real_tasks_timeout = 0  # 超时
+        real_tasks_query_error = 0  # SDK 查询异常
 
         while step < env.max_steps:
             action = strategy.select_action(obs)
@@ -198,91 +209,57 @@ def run_single_seed(
             step += 1
 
             # 按间隔提交真机任务（最多 1 次/run）
-            if step % REAL_SUBMIT_INTERVAL == 0 and real_task_count < MAX_REAL_TASKS_PER_RUN:
-                try:
-                    task_id = client.submit_quantum_task(
-                        qcis=QCIS_CIRCUIT,
-                        shots=shots,
-                        task_name=f"seed{seed}_{strategy_name}_{real_task_count}",
-                    )
-                    task_submitted_at = datetime.now().isoformat()
-                    poll_result = client.wait_for_task(
-                        task_id, timeout=TASK_TIMEOUT_SECONDS, poll_interval=TASK_POLL_INTERVAL
-                    )
-                    task_completed_at = datetime.now().isoformat()
-                    prob = poll_result.get("probability", {}) if poll_result else {}
-                    final_status = (
-                        poll_result.get("status", "unknown") if poll_result else "unknown"
-                    )
+            if step % REAL_SUBMIT_INTERVAL == 0 and real_tasks_submitted < MAX_REAL_TASKS_PER_RUN:
+                record = _submit_and_poll_one_task(
+                    client=client,
+                    qcis=QCIS_CIRCUIT,
+                    shots=shots,
+                    task_name=f"seed{seed}_{strategy_name}_{real_tasks_submitted}",
+                    machine_name=machine_name,
+                )
+                record["step"] = step
+                result["real_records"].append(record)
 
-                    if prob:
-                        p0 = prob.get("0", 0.0)
-                        p1 = prob.get("1", 0.0)
-                        fidelity = 1.0 - abs(p0 - 0.5) - abs(p1 - 0.5)
-                        fidelity = max(0.0, min(1.0, fidelity))
-                    else:
-                        fidelity = None
-
-                    real_records.append(
-                        {
-                            "task_id": str(task_id),
-                            "step": step,
-                            "shots": shots,
-                            "circuit": QCIS_CIRCUIT,
-                            "submitted_at": task_submitted_at,
-                            "completed_at": task_completed_at,
-                            "status": final_status,
-                            "probability": prob,
-                            "fidelity": round(fidelity, 4) if fidelity else None,
-                            "elapsed_seconds": round(
-                                (
-                                    datetime.fromisoformat(task_completed_at)
-                                    - datetime.fromisoformat(task_submitted_at)
-                                ).total_seconds(),
-                                2,
-                            ),
-                        }
-                    )
-                    real_task_count += 1
-                    logger.info(
-                        f"[Seed {seed}] {strategy_name} 真机任务{real_task_count}: "
-                        f"task_id={task_id}, status={final_status}, "
-                        f"fid={fidelity:.4f}"
-                        if fidelity
-                        else f"[Seed {seed}] 真机任务{real_task_count}: task_id={task_id}, "
-                        f"status={final_status}"
-                    )
-                except Exception as e:
-                    logger.warning(f"[Seed {seed}] 真机提交失败: {e}")
-                    real_records.append(
-                        {
-                            "error": str(e)[:100],
-                            "submitted_at": datetime.now().isoformat(),
-                            "shots": shots,
-                            "circuit": QCIS_CIRCUIT,
-                        }
-                    )
+                # 按终态分类计数
+                if record.get("task_id"):
+                    real_tasks_submitted += 1
+                if record["status"] == "completed" and record.get("probability"):
+                    real_tasks_completed += 1
+                elif record["status"] == "failed":
+                    real_tasks_failed += 1
+                elif record["status"] == "timeout":
+                    real_tasks_timeout += 1
+                elif record["status"] == "query_error":
+                    real_tasks_query_error += 1
 
             if terminated or truncated:
                 break
 
         elapsed = time.time() - start_time
-        fidelities = [r["fidelity"] for r in real_records if r.get("fidelity") is not None]
+        scores = [
+            r["measurement_balance_score"]
+            for r in result["real_records"]
+            if r.get("measurement_balance_score") is not None
+        ]
 
         result["metrics"] = {
             "total_reward": round(total_reward, 4),
             "total_steps": step,
             "elapsed_seconds": round(elapsed, 2),
-            "real_tasks_submitted": real_task_count,
-            "real_tasks_completed": len([r for r in real_records if r.get("fidelity") is not None]),
-            "avg_fidelity": round(sum(fidelities) / max(len(fidelities), 1), 4)
-            if fidelities
+            "real_tasks_submitted": real_tasks_submitted,
+            "real_tasks_completed": real_tasks_completed,
+            "real_tasks_failed": real_tasks_failed,
+            "real_tasks_timeout": real_tasks_timeout,
+            "real_tasks_query_error": real_tasks_query_error,
+            "avg_measurement_balance_score": round(sum(scores) / max(len(scores), 1), 4)
+            if scores
             else None,
         }
         result["completed_at"] = datetime.now().isoformat()
         logger.info(
             f"[Seed {seed}] {strategy_name} 完成: "
-            f"reward={total_reward:.2f}, fid={result['metrics']['avg_fidelity']}, "
+            f"reward={total_reward:.2f}, "
+            f"submitted={real_tasks_submitted}, completed={real_tasks_completed}, "
             f"耗时={elapsed:.1f}s"
         )
 
@@ -294,19 +271,179 @@ def run_single_seed(
     return result
 
 
-def run_smoke_test(client: CqlibTianyanClient, machine_name: str) -> dict:
-    """Issue #58：冒烟测试，验证 tianyan287 可用性。
+def _submit_and_poll_one_task(
+    client: CqlibTianyanClient,
+    qcis: str,
+    shots: int,
+    task_name: str,
+    machine_name: str,
+) -> dict:
+    """提交并轮询单个真机任务，保留 task_id 即使轮询失败。
 
-    必须满足 task_id + completed + probability 非空 才能进入正式实验。
+    已核实修复：
+    - 提交前调用 qcis_check_regular 校验，false 立即终止
+    - task_id 为 None 时立即判定失败，不调用 wait_for_task(None)
+    - probability 从 poll_result["result"] 读取（非 probability 字段）
+    - 获得非空 task_id 后立即记录 submitted
+    - 轮询失败也保留 task_id
+    - status 分类: completed/failed/timeout/query_error
+    - measurement_balance_score 衡量 H 态测量分布接近 50/50 的程度（非完整保真度）
+    """
+    record: dict = {
+        "task_id": None,
+        "step": None,
+        "shots": shots,
+        "circuit": qcis,
+        "machine": machine_name,
+        "submitted_at": None,
+        "completed_at": None,
+        "status": None,
+        "probability": None,
+        "measurement_balance_score": None,
+        "elapsed_seconds": None,
+        "error": None,
+        "mock": False,
+        "degraded": False,
+    }
+
+    # 已核实：提交前 QCIS 预校验
+    try:
+        platform = getattr(client, "platform", None)
+        if platform is not None and hasattr(platform, "qcis_check_regular"):
+            qcis_valid = platform.qcis_check_regular(qcis)
+            if not qcis_valid:
+                record["status"] = "failed"
+                record["error"] = "QCIS 预校验失败（qcis_check_regular 返回 false）"
+                logger.error(f"  ❌ QCIS 预校验失败: {qcis!r}，零提交")
+                return record
+    except Exception as e:
+        record["status"] = "query_error"
+        record["error"] = f"QCIS 校验异常: {str(e)[:100]}"
+        logger.warning(f"  ⚠️ QCIS 校验异常: {e}，跳过提交")
+        return record
+
+    # 提交任务
+    try:
+        task_id = client.submit_quantum_task(
+            qcis=qcis,
+            shots=shots,
+            task_name=task_name,
+        )
+    except Exception as e:
+        record["status"] = "failed"
+        record["error"] = f"提交异常: {str(e)[:150]}"
+        record["submitted_at"] = datetime.now().isoformat()
+        logger.warning(f"  ❌ 提交异常: {e}")
+        return record
+
+    # 已核实：task_id 为 None 时立即失败，不得调用 wait_for_task(None)
+    if task_id is None or (isinstance(task_id, str) and not task_id.strip()):
+        record["status"] = "failed"
+        record["error"] = "submit_quantum_task 返回 None（全部机器不可用）"
+        record["submitted_at"] = datetime.now().isoformat()
+        logger.error("  ❌ 提交失败：task_id 为 None，不轮询")
+        return record
+
+    # 已核实：获得非空 task_id 后立即记录 submitted
+    record["task_id"] = str(task_id)
+    record["submitted_at"] = datetime.now().isoformat()
+    logger.info(f"  ✅ task_id 已获得: {task_id}（已记录 submitted）")
+
+    # 轮询等待结果
+    try:
+        poll_result = client.wait_for_task(
+            task_id, timeout=TASK_TIMEOUT_SECONDS, poll_interval=TASK_POLL_INTERVAL
+        )
+    except Exception as e:
+        # 轮询异常：保留 task_id，标记 query_error
+        record["status"] = "query_error"
+        record["error"] = f"轮询异常: {str(e)[:150]}"
+        record["completed_at"] = datetime.now().isoformat()
+        logger.warning(f"  ⚠️ 轮询异常（task_id={task_id} 保留）: {e}")
+        return record
+
+    record["completed_at"] = datetime.now().isoformat()
+
+    if not poll_result:
+        record["status"] = "timeout"
+        record["error"] = "wait_for_task 返回空"
+        logger.warning(f"  ⚠️ task_id={task_id} 轮询返回空")
+        return record
+
+    final_status = poll_result.get("status", "unknown")
+    record["status"] = final_status
+
+    # 已核实：probability 从 result 字段读取（get_task_status 返回的字典字段名是 result）
+    prob = poll_result.get("result")
+    if prob is None:
+        # 兼容：部分实现可能在 probability 字段
+        prob = poll_result.get("probability")
+    # 已核实修复：cqlib SDK 可能返回 JSON 字符串而非 dict
+    # 需要解析后才能用于 isinstance(prob, dict) 判断和 score 计算
+    if isinstance(prob, str) and prob:
+        with contextlib.suppress(json.JSONDecodeError, ValueError):
+            prob = json.loads(prob)
+    record["probability"] = prob
+
+    if final_status == "completed" and prob and isinstance(prob, dict):
+        p0 = prob.get("0", 0.0)
+        p1 = prob.get("1", 0.0)
+        # measurement_balance_score：H 态测量分布接近 50/50 的分数
+        # 不是完整量子态保真度，仅衡量测量分布平衡度
+        score = 1.0 - abs(p0 - 0.5) - abs(p1 - 0.5)
+        score = max(0.0, min(1.0, score))
+        record["measurement_balance_score"] = round(score, 4)
+    elif final_status == "timeout":
+        record["error"] = "任务超时"
+    elif final_status == "error":
+        record["error"] = poll_result.get("error", "任务执行错误")
+    elif final_status != "completed":
+        record["error"] = f"非终态完成: status={final_status}"
+
+    # 计算 elapsed_seconds
+    if record["submitted_at"] and record["completed_at"]:
+        with contextlib.suppress(ValueError, TypeError):
+            record["elapsed_seconds"] = round(
+                (
+                    datetime.fromisoformat(record["completed_at"])
+                    - datetime.fromisoformat(record["submitted_at"])
+                ).total_seconds(),
+                2,
+            )
+
+    log_msg = (
+        f"  task_id={task_id}, status={final_status}, "
+        f"prob={prob}, score={record['measurement_balance_score']}"
+    )
+    if record["measurement_balance_score"] is not None:
+        logger.info(f"  ✅ 真机完成: {log_msg}")
+    else:
+        logger.warning(f"  ⚠️ 真机未完成: {log_msg}")
+
+    return record
+
+
+def run_smoke_test(client: CqlibTianyanClient, machine_name: str) -> dict:
+    """已核实：冒烟测试，验证 tianyan-287 可用性。
+
+    必须同时满足以下条件才能进入正式实验：
+    - 后端精确等于 tianyan-287
+    - QCIS 预校验通过
+    - task_id 非空
+    - status=completed
+    - probability 为非空字典
+    - mock=false
+    - degraded=false
 
     Returns:
         冒烟结果字典，包含 passed / task_id / status / probability
     """
     logger.info("=" * 60)
-    logger.info("冒烟测试：验证 tianyan287 可用性")
+    logger.info("冒烟测试：验证 tianyan-287 可用性")
     logger.info(f"  电路: {QCIS_CIRCUIT!r}")
     logger.info(f"  shots: {SHOTS}")
     logger.info(f"  超时: {TASK_TIMEOUT_SECONDS}s")
+    logger.info(f"  机器: {machine_name}（必须为 {TARGET_MACHINE}）")
     logger.info("=" * 60)
 
     smoke_result = {
@@ -314,57 +451,70 @@ def run_smoke_test(client: CqlibTianyanClient, machine_name: str) -> dict:
         "machine": machine_name,
         "shots": SHOTS,
         "circuit": QCIS_CIRCUIT,
-        "submitted_at": datetime.now().isoformat(),
         "task_id": None,
+        "submitted_at": None,
+        "completed_at": None,
         "status": None,
         "probability": None,
+        "measurement_balance_score": None,
+        "mock": False,
+        "degraded": False,
         "passed": False,
         "error": None,
     }
 
-    try:
-        task_id = client.submit_quantum_task(
-            qcis=QCIS_CIRCUIT,
-            shots=SHOTS,
-            task_name="smoke_test",
+    # 已核实：后端一致性校验
+    if machine_name != TARGET_MACHINE:
+        smoke_result["error"] = f"后端不一致: 期望 {TARGET_MACHINE}, 实际 {machine_name}"
+        smoke_result["status"] = "failed"
+        logger.error(f"  ❌ {smoke_result['error']}")
+        return smoke_result
+
+    # 复用统一的提交+轮询逻辑
+    record = _submit_and_poll_one_task(
+        client=client,
+        qcis=QCIS_CIRCUIT,
+        shots=SHOTS,
+        task_name="smoke_test",
+        machine_name=machine_name,
+    )
+
+    # 合并 record 到 smoke_result
+    for key in (
+        "task_id",
+        "submitted_at",
+        "completed_at",
+        "status",
+        "probability",
+        "measurement_balance_score",
+        "error",
+    ):
+        if record.get(key) is not None:
+            smoke_result[key] = record[key]
+
+    # 已核实：冒烟通过条件必须同时满足
+    passed = (
+        machine_name == TARGET_MACHINE
+        and record.get("task_id") is not None
+        and record.get("status") == "completed"
+        and isinstance(record.get("probability"), dict)
+        and len(record.get("probability", {})) > 0
+        and record.get("mock") is False
+        and record.get("degraded") is False
+    )
+    smoke_result["passed"] = passed
+
+    if passed:
+        logger.info(
+            f"  ✅ 冒烟通过: task_id={record.get('task_id')}, "
+            f"status={record.get('status')}, probability={record.get('probability')}"
         )
-        smoke_result["task_id"] = str(task_id)
-        logger.info(f"  冒烟 task_id: {task_id}")
-
-        poll_result = client.wait_for_task(
-            task_id, timeout=TASK_TIMEOUT_SECONDS, poll_interval=TASK_POLL_INTERVAL
+    else:
+        logger.error(
+            f"  ❌ 冒烟失败: task_id={record.get('task_id')}, "
+            f"status={record.get('status')}, probability={record.get('probability')}. "
+            f"禁止正式 30 次提交，保留失败 pilot 记录。"
         )
-        smoke_result["completed_at"] = datetime.now().isoformat()
-
-        if not poll_result:
-            smoke_result["error"] = "poll_result 为空"
-            logger.error("  ❌ 冒烟失败：poll_result 为空")
-            return smoke_result
-
-        status = poll_result.get("status", "unknown")
-        prob = poll_result.get("probability", {})
-
-        smoke_result["status"] = status
-        smoke_result["probability"] = prob
-
-        # Issue #58：必须同时满足 task_id + completed + probability 非空
-        passed = (
-            task_id is not None and status == "completed" and prob is not None and len(prob) > 0
-        )
-        smoke_result["passed"] = passed
-
-        if passed:
-            logger.info(f"  ✅ 冒烟通过: status={status}, probability={prob}")
-        else:
-            logger.error(
-                f"  ❌ 冒烟失败: status={status}, probability={prob}. "
-                f"按 Issue #58：禁止正式 30 次提交，保留失败 pilot 记录。"
-            )
-
-    except Exception as e:
-        smoke_result["error"] = str(e)[:200]
-        smoke_result["completed_at"] = datetime.now().isoformat()
-        logger.error(f"  ❌ 冒烟异常: {e}")
 
     return smoke_result
 
@@ -515,7 +665,7 @@ def main() -> None:
     with data_file.open("w", encoding="utf-8") as f:
         json.dump(
             {
-                "experiment": "tianyan287_multiseed_10seeds",
+                "experiment": "tianyan-287_multiseed_10seeds",
                 "timestamp": datetime.now().isoformat(),
                 "config": {
                     "seeds": seeds,
@@ -544,19 +694,19 @@ def main() -> None:
     logger.info("\n" + "=" * 60)
     logger.info("多seed实验汇总")
     logger.info("=" * 60)
-    logger.info(f"{'策略':<10} {'Seed':<6} {'奖励':<12} {'保真度':<10} {'耗时':<8}")
+    logger.info(f"{'策略':<10} {'Seed':<6} {'奖励':<12} {'测量平衡分':<12} {'耗时':<8}")
     logger.info("-" * 50)
     for r in all_results:
         if r.get("smoke_test"):
             continue  # 跳过冒烟记录
         m = r.get("metrics", {})
         reward = m.get("total_reward")
-        fid = m.get("avg_fidelity")
+        score = m.get("avg_measurement_balance_score")
         elapsed = m.get("elapsed_seconds")
         logger.info(
             f"{r.get('strategy', 'N/A'):<10} {r.get('seed', 'N/A'):<6} "
             f"{(reward if reward is not None else 'N/A')!s:<12} "
-            f"{(fid if fid is not None else 'N/A')!s:<10} "
+            f"{(score if score is not None else 'N/A')!s:<12} "
             f"{(elapsed if elapsed is not None else 'N/A')!s:<8}"
         )
 
@@ -570,23 +720,23 @@ def main() -> None:
             and r.get("strategy", "").upper() == strategy_name.upper()
             and "total_reward" in r.get("metrics", {})
         ]
-        fids = [
-            r["metrics"]["avg_fidelity"]
+        scores = [
+            r["metrics"]["avg_measurement_balance_score"]
             for r in all_results
             if not r.get("smoke_test")
             and r.get("strategy", "").upper() == strategy_name.upper()
-            and r.get("metrics", {}).get("avg_fidelity")
+            and r.get("metrics", {}).get("avg_measurement_balance_score")
         ]
         if rewards:
             import numpy as np
 
             mean_r = np.mean(rewards)
             std_r = np.std(rewards, ddof=1) if len(rewards) > 1 else 0.0
-            mean_f = np.mean(fids) if fids else 0.0
+            mean_s = np.mean(scores) if scores else 0.0
             logger.info(
                 f"  {strategy_name.upper()}: "
                 f"奖励={mean_r:.2f}±{std_r:.2f} (N={len(rewards)}), "
-                f"保真度={mean_f:.4f} (N={len(fids)})"
+                f"测量平衡分={mean_s:.4f} (N={len(scores)})"
             )
 
     logger.info(f"\n数据文件: {data_file}")

@@ -376,13 +376,22 @@ class CqlibTianyanClient:
                     }
             return {"task_id": task_id, "status": "unknown", "raw": result}
         except CqlibRequestError as e:
-            # SDK 同时使用 CqlibRequestError 表示“仍在运行”和服务端终态失败。
+            # SDK 同时使用 CqlibRequestError 表示"仍在运行"和服务端终态失败。
             # 终态失败必须立即返回 error，否则 wait_for_task 会无意义轮询到超时。
             message = str(e)
             terminal_failure_markers = ("运行失败", "run failure", "tasks have failed")
             if any(marker in message.lower() for marker in terminal_failure_markers):
                 return {"task_id": task_id, "status": "error", "error": message}
-            return {"task_id": task_id, "status": "running", "raw": {}}
+            # 已核实：不得把通用 CqlibRequestError 无条件标成 running
+            # 可能是查询错误、网络问题或未知 SDK 状态
+            # 标记为 query_error 而非 running，绝不能计为 completed
+            logger.debug(f"[Cqlib] 查询任务 {task_id} CqlibRequestError: {message[:80]}")
+            return {
+                "task_id": task_id,
+                "status": "query_error",
+                "error": message[:200],
+                "raw": {},
+            }
         except Exception as e:
             # cqlib 查询接口异常类型无法穷举，保留宽捕获并记录日志
             logger.debug(f"[Cqlib] 查询任务 {task_id} 状态失败: {e}")

@@ -34,10 +34,10 @@ from scripts.evaluation.multiseed_real_machine_analysis import (
     generate_report,
 )
 
-# ── 测试数据（统一协议：tianyan287 + shots=32） ──
+# ── 测试数据（统一协议：tianyan-287 + shots=32） ──
 
 SAMPLE_DATA_VALID = {
-    "experiment": "tianyan287_multiseed_10seeds",
+    "experiment": "tianyan-287_multiseed_10seeds",
     "timestamp": "2026-07-22T03:06:25",
     "config": {
         "seeds": [42, 123, 456, 789, 1024],
@@ -45,112 +45,112 @@ SAMPLE_DATA_VALID = {
         "num_tasks": 32,
         "max_real_tasks_per_run": 1,
         "shots": 32,
-        "machine": "tianyan287",
+        "machine": "tianyan-287",
     },
     "total_elapsed_seconds": 536.16,
     "results": [
         {
             "strategy": "PPO",
             "seed": 42,
-            "machine": "tianyan287",
+            "machine": "tianyan-287",
             "shots": 32,
             "metrics": {"total_reward": 1560.86},
         },
         {
             "strategy": "FCFS",
             "seed": 42,
-            "machine": "tianyan287",
+            "machine": "tianyan-287",
             "shots": 32,
             "metrics": {"total_reward": 410.23},
         },
         {
             "strategy": "SJF",
             "seed": 42,
-            "machine": "tianyan287",
+            "machine": "tianyan-287",
             "shots": 32,
             "metrics": {"total_reward": 704.32},
         },
         {
             "strategy": "PPO",
             "seed": 123,
-            "machine": "tianyan287",
+            "machine": "tianyan-287",
             "shots": 32,
             "metrics": {"total_reward": 1224.13},
         },
         {
             "strategy": "FCFS",
             "seed": 123,
-            "machine": "tianyan287",
+            "machine": "tianyan-287",
             "shots": 32,
             "metrics": {"total_reward": 288.77},
         },
         {
             "strategy": "SJF",
             "seed": 123,
-            "machine": "tianyan287",
+            "machine": "tianyan-287",
             "shots": 32,
             "metrics": {"total_reward": 502.91},
         },
         {
             "strategy": "PPO",
             "seed": 456,
-            "machine": "tianyan287",
+            "machine": "tianyan-287",
             "shots": 32,
             "metrics": {"total_reward": 1615.17},
         },
         {
             "strategy": "FCFS",
             "seed": 456,
-            "machine": "tianyan287",
+            "machine": "tianyan-287",
             "shots": 32,
             "metrics": {"total_reward": 317.66},
         },
         {
             "strategy": "SJF",
             "seed": 456,
-            "machine": "tianyan287",
+            "machine": "tianyan-287",
             "shots": 32,
             "metrics": {"total_reward": 854.43},
         },
         {
             "strategy": "PPO",
             "seed": 789,
-            "machine": "tianyan287",
+            "machine": "tianyan-287",
             "shots": 32,
             "metrics": {"total_reward": 2097.05},
         },
         {
             "strategy": "FCFS",
             "seed": 789,
-            "machine": "tianyan287",
+            "machine": "tianyan-287",
             "shots": 32,
             "metrics": {"total_reward": 404.57},
         },
         {
             "strategy": "SJF",
             "seed": 789,
-            "machine": "tianyan287",
+            "machine": "tianyan-287",
             "shots": 32,
             "metrics": {"total_reward": 390.39},
         },
         {
             "strategy": "PPO",
             "seed": 1024,
-            "machine": "tianyan287",
+            "machine": "tianyan-287",
             "shots": 32,
             "metrics": {"total_reward": 1828.90},
         },
         {
             "strategy": "FCFS",
             "seed": 1024,
-            "machine": "tianyan287",
+            "machine": "tianyan-287",
             "shots": 32,
             "metrics": {"total_reward": 344.85},
         },
         {
             "strategy": "SJF",
             "seed": 1024,
-            "machine": "tianyan287",
+            "machine": "tianyan-287",
             "shots": 32,
             "metrics": {"total_reward": 383.93},
         },
@@ -159,7 +159,7 @@ SAMPLE_DATA_VALID = {
 
 # 混合机器/shots 的无效数据（模拟旧 10seeds_merged.json）
 SAMPLE_DATA_INVALID = {
-    "experiment": "tianyan287_multiseed_10seeds",
+    "experiment": "tianyan-287_multiseed_10seeds",
     "timestamp": "2026-07-22T03:06:25",
     "config": {
         "seeds": [42, 123, 456, 789, 1024],
@@ -172,14 +172,14 @@ SAMPLE_DATA_INVALID = {
         {
             "strategy": "PPO",
             "seed": 42,
-            "machine": "tianyan287",
+            "machine": "tianyan-287",
             "shots": 1024,
             "metrics": {"total_reward": 1560.86},
         },
         {
             "strategy": "FCFS",
             "seed": 42,
-            "machine": "tianyan287",
+            "machine": "tianyan-287",
             "shots": 1024,
             "metrics": {"total_reward": 410.23},
         },
@@ -230,8 +230,8 @@ class TestConstants:
         assert pytest.approx(0.01667, rel=0.01) == ALPHA_BONFERRONI
 
     def test_expected_machine_constant(self) -> None:
-        """Issue #58：期望机器必须为 tianyan287。"""
-        assert EXPECTED_MACHINE == "tianyan287"
+        """Issue #58：期望机器必须为 tianyan-287。"""
+        assert EXPECTED_MACHINE == "tianyan-287"
 
     def test_expected_shots_constant(self) -> None:
         """Issue #58：期望 shots 必须为 32。"""
@@ -382,7 +382,7 @@ class TestValidateDataProvenance:
         assert result["valid"] is True
         assert result["invalid_for_formal_comparison"] is False
         assert result["reason"] == "unified_protocol"
-        assert result["machines_found"] == ["tianyan287"]
+        assert result["machines_found"] == ["tianyan-287"]
         assert result["shots_found"] == ["32"]
 
     def test_invalid_mixed_machines(self) -> None:
@@ -391,11 +391,11 @@ class TestValidateDataProvenance:
         assert result["valid"] is False
         assert result["invalid_for_formal_comparison"] is True
         assert result["reason"] == "mixed_machines_or_shots"
-        assert "tianyan287" in result["machines_found"]
+        assert "tianyan-287" in result["machines_found"]
         assert "tianyan176" in result["machines_found"]
 
     def test_invalid_wrong_machine(self) -> None:
-        """单机器但非 tianyan287 应标记为 invalid。"""
+        """单机器但非 tianyan-287 应标记为 invalid。"""
         data = {
             "config": {"machine": "tianyan176", "shots": 32},
             "results": [
@@ -414,12 +414,12 @@ class TestValidateDataProvenance:
     def test_invalid_wrong_shots(self) -> None:
         """单机器但 shots 不为 32 应标记为 invalid。"""
         data = {
-            "config": {"machine": "tianyan287", "shots": 1024},
+            "config": {"machine": "tianyan-287", "shots": 1024},
             "results": [
                 {
                     "strategy": "PPO",
                     "seed": 42,
-                    "machine": "tianyan287",
+                    "machine": "tianyan-287",
                     "shots": 1024,
                     "metrics": {"total_reward": 1000.0},
                 },
@@ -431,12 +431,12 @@ class TestValidateDataProvenance:
     def test_skips_smoke_test_records(self) -> None:
         """冒烟记录应被跳过。"""
         data = {
-            "config": {"machine": "tianyan287", "shots": 32},
+            "config": {"machine": "tianyan-287", "shots": 32},
             "results": [
                 {
                     "strategy": "PPO",
                     "seed": 42,
-                    "machine": "tianyan287",
+                    "machine": "tianyan-287",
                     "shots": 32,
                     "metrics": {"total_reward": 1000.0},
                 },
@@ -559,12 +559,12 @@ class TestJudgmentRule:
         """
         # 构造不显著的数据：PPO 和 FCFS 的 reward 接近
         data = {
-            "config": {"machine": "tianyan287", "shots": 32, "seeds": [1, 2, 3, 4, 5]},
+            "config": {"machine": "tianyan-287", "shots": 32, "seeds": [1, 2, 3, 4, 5]},
             "results": [
                 {
                     "strategy": "PPO",
                     "seed": i,
-                    "machine": "tianyan287",
+                    "machine": "tianyan-287",
                     "shots": 32,
                     "metrics": {"total_reward": 1000.0 + i * 10},
                 }
@@ -574,7 +574,7 @@ class TestJudgmentRule:
                 {
                     "strategy": "FCFS",
                     "seed": i,
-                    "machine": "tianyan287",
+                    "machine": "tianyan-287",
                     "shots": 32,
                     "metrics": {"total_reward": 1000.0 + i * 5},
                 }
@@ -584,7 +584,7 @@ class TestJudgmentRule:
                 {
                     "strategy": "SJF",
                     "seed": i,
-                    "machine": "tianyan287",
+                    "machine": "tianyan-287",
                     "shots": 32,
                     "metrics": {"total_reward": 1000.0 + i * 7},
                 }

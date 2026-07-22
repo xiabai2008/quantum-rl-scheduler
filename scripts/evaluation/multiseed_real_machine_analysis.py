@@ -13,7 +13,7 @@
 
 输入 JSON 格式（由 tianyan287_multiseed.py 生成）：
     {
-        "config": {"machine": "tianyan287", "shots": 32, ...},
+        "config": {"machine": "tianyan-287", "shots": 32, ...},
         "results": [
             {"strategy": "PPO", "seed": 42, "metrics": {"total_reward": 1560.86, ...}},
             ...
@@ -57,8 +57,9 @@ COMPARISONS = [
 N_COMPARISONS = len(COMPARISONS)
 ALPHA_BONFERRONI = 0.05 / N_COMPARISONS  # 0.0167
 
-#: Issue #58：统一机器和 shots 配置
-EXPECTED_MACHINE = "tianyan287"
+#: 已核实：统一机器和 shots 配置
+# 正确后端代码为 tianyan-287（有连字符），tianyan287 不存在
+EXPECTED_MACHINE = "tianyan-287"
 EXPECTED_SHOTS = 32
 
 
