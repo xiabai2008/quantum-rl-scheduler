@@ -332,13 +332,19 @@ class TestSaveLoadNewFormat:
 
     def test_load_with_verbose_logs(self) -> None:
         """verbose=1 时加载应记录日志。"""
+        from unittest.mock import patch
+
         agent = _make_agent(verbose=1)
         with tempfile.TemporaryDirectory() as tmpdir:
             save_path = os.path.join(tmpdir, "model")
             agent._save_internal(save_path)
             agent2 = _make_agent(verbose=1)
-            # 不抛异常即通过
-            agent2.load(save_path)
+            with patch("src.scheduler.marl.logger.info") as mock_info:
+                agent2.load(save_path)
+            # 验证 logger.info 被调用且消息含"模型已从"
+            calls = [str(c) for c in mock_info.call_args_list]
+            assert any("模型已从" in c for c in calls), \
+                "verbose=1 加载时应输出日志"
 
 
 # ---------------------------------------------------------------------------
@@ -635,16 +641,22 @@ class TestGetGlobalState:
         assert gs.dtype == np.float32
 
     def test_global_state_changes_after_step(self) -> None:
-        """step 后全局状态应发生变化（除非环境状态不变）。"""
+        """step 后全局状态应发生变化。"""
         env = _make_env(machine_count=2, max_steps=10, seed=42)
         wrapper = MultiAgentEnvWrapper(env)
         env.reset(seed=42)
         gs_before = wrapper.get_global_state().copy()
-        actions = dict.fromkeys(wrapper.machine_names, 0)
-        wrapper.step(actions)
-        gs_after = wrapper.get_global_state()
-        # 至少形状应一致
-        assert gs_after.shape == gs_before.shape
+        # 执行多步确保状态变化（单步可能因无任务到达而不变）
+        changed = False
+        for _ in range(5):
+            actions = dict.fromkeys(wrapper.machine_names, 0)
+            wrapper.step(actions)
+            gs_after = wrapper.get_global_state()
+            if not np.allclose(gs_before, gs_after):
+                changed = True
+                break
+            gs_before = gs_after.copy()
+        assert changed, "5步内全局状态应至少变化一次"
 
 
 # ---------------------------------------------------------------------------
@@ -669,3 +681,69 @@ class TestUpdateEdgeCases:
         assert "mean_actor_loss" in result
         assert "critic_loss" in result
         assert "mean_entropy" in result
+
+
+# ---------------------------------------------------------------------------
+# MultiAgentEnvWrapper.refresh_machines
+# ---------------------------------------------------------------------------
+
+
+class TestRefreshMachines:
+    """refresh_machines 方法的覆盖。"""
+
+    def test_refresh_no_change_returns_false(self) -> None:
+        """机器列表未变化时返回 False。"""
+        env = _make_env(machine_count=2, max_steps=10, seed=42)
+        wrapper = MultiAgentEnvWrapper(env)
+        env.reset(seed=42)
+        result = wrapper.refresh_machines()
+        assert result is False
+
+    def test_refresh_with_change_returns_true(self) -> None:
+        """机器列表变化时返回 True 并更新内部状态。"""
+        env = _make_env(machine_count=2, max_steps=10, seed=42)
+        wrapper = MultiAgentEnvWrapper(env)
+        env.reset(seed=42)
+        # 模拟机器名称变化
+        wrapper.machine_names = ["old_machine"]
+        result = wrapper.refresh_machines()
+        assert result is True
+        assert wrapper.num_agents == len(env.machine_names)
+        assert wrapper.machine_names == list(env.machine_names)
+
+
+# ---------------------------------------------------------------------------
+# 旧格式加载（无 _config.json）
+# ---------------------------------------------------------------------------
+
+
+class TestLoadOldFormat:
+    """旧格式加载（无 _config.json，配置嵌入 .pt）。"""
+
+    def test_load_old_format_without_config_json(self) -> None:
+        """无 _config.json 时应走旧格式加载路径（weights_only=False）。"""
+        agent = _make_agent(verbose=0)
+        with tempfile.TemporaryDirectory() as tmpdir:
+            save_path = os.path.join(tmpdir, "model")
+            # 先用新格式保存
+            agent._save_internal(save_path)
+            # 删除 _config.json 模拟旧格式
+            os.remove(save_path + "_config.json")
+            # 将 config 嵌入 .pt 文件模拟旧格式
+            state = torch.load(save_path + ".pt", map_location="cpu", weights_only=True)
+            state["config"] = {
+                "num_agents": agent.num_agents,
+                "local_obs_dim": agent.local_obs_dim,
+                "global_state_dim": agent.global_state_dim,
+                "machine_names": agent.machine_names,
+            }
+            torch.save(state, save_path + ".pt")
+            # 加载旧格式（不抛异常即通过）
+            agent2 = _make_agent(verbose=0)
+            agent2.load(save_path)
+            # 验证参数一致
+            for i, (a1, a2) in enumerate(
+                zip(agent.actors, agent2.actors, strict=True)
+            ):
+                for p1, p2 in zip(a1.parameters(), a2.parameters(), strict=True):
+                    assert torch.allclose(p1, p2), f"Actor {i} 参数不一致"
