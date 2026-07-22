@@ -28,6 +28,7 @@ SKIP_DIRS = {
     "multiseed_evaluation",
     "real_machine",
     "gradient_stress",
+    "ablation_d3_training",
     "models",
 }
 SELF_EXCLUDES = {
