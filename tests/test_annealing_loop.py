@@ -12,6 +12,7 @@
 import json
 import time
 from typing import Any, Optional
+from unittest.mock import patch
 
 import numpy as np
 import pytest
@@ -216,7 +217,11 @@ def test_real_machine_fallback(tmp_path):
 
 
 def test_callback_triggers_submit():
-    """验证回调在达到间隔时正确提交退火任务。"""
+    """验证回调在达到间隔时正确提交退火任务。
+
+    用 mock 替代直接读队列大小，避免与后台工作线程消费队列的时序竞争
+    (Issue #65: Python 3.10 CI 上 qsize()==0 而非 1 的 flaky 失败)。
+    """
     optimizer = FakeOptimizer()
     env = FakeEnv()
     loop = AsyncAnnealingLoop(
@@ -231,9 +236,15 @@ def test_callback_triggers_submit():
     callback.model = FakeModel()
 
     callback.n_calls = 10
-    callback._on_step()
+    # 用 mock 替换 loop.submit，验证回调确实调用了提交，且不依赖
+    # 后台工作线程是否已消费队列的时序
+    with patch.object(loop, "submit", return_value=True) as mock_submit:
+        callback._on_step()
+        assert mock_submit.call_count == 1
+        # 校验提交参数：policy 快照 + 当前步数
+        _submitted_policy, submitted_step = mock_submit.call_args.args
+        assert submitted_step == 10
 
-    assert loop._queue.qsize() == 1
     loop.shutdown()
 
 
