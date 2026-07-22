@@ -186,7 +186,7 @@ class TestRealSubmissionBudget:
         )
         client = _RecordingClient()
         env.attach_real_clients({"tianyan176": client})
-        machine = QuantumMachine(name="tianyan176", total_qubits=66, is_real=True)
+        machine = QuantumMachine(name="tianyan176", total_qubits=287, is_real=True)
         task = Task(task_id="budget", task_type="quantum", qubit_count=1)
         return env, client, machine, task
 
@@ -268,7 +268,7 @@ def _make_env_with_client(
     if client is None:
         client = _StatusClient()
     env.attach_real_clients({machine_name: client})
-    machine = QuantumMachine(name=machine_name, total_qubits=66, is_real=True)
+    machine = QuantumMachine(name=machine_name, total_qubits=287, is_real=True)
     task = Task(task_id="t0", task_type="quantum", qubit_count=1)
     return env, client, machine, task
 
