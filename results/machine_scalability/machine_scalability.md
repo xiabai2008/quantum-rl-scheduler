@@ -5,7 +5,7 @@
 > **机器规模梯度**: [1, 3, 10, 50, 100]
 > **任务规模**: 200 步/episode
 > **观测维度**: 10
-> **PPO 模型**: `deliverable_models/ppo_best_model_10dim.zip`（加载一次，全局共享）
+> **PPO 模型**: `deliverable_models/ppo_best_model_14dim.zip`（加载一次，全局共享）
 > **总耗时**: 0.01h
 > **实验类型**: 仿真规模验证（非真机实验，real_machine_involved=False）
 

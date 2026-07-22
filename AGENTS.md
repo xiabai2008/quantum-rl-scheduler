@@ -157,7 +157,7 @@ quantum-rl-scheduler/
 ├── models/                       # 训练模型（PPO/DQN 检查点）
 ├── results/
 │   ├── reports/                  # 实验报告（10份，含statistical_validation.md, multiseed_real_machine_report.md）
-│   ├── models/                   # 归档的权威模型（ppo_best_10dim.zip等）
+│   ├── models/                   # 归档的权威模型（ppo_best_model_14dim.zip等）
 │   ├── multiseed_evaluation/     # 多seed评估数据
 │   ├── fair_comparison/          # 公平对比数据
 │   ├── issue_experiments/        # Issue实验数据

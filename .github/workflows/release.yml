@@ -128,7 +128,7 @@ jobs:
           echo "" >> release_notes.md
           echo "### 权威数字" >> release_notes.md
           echo "" >> release_notes.md
-          echo "- PPO (14维) vs FCFS: **+86.9%** (50 seed 统计显著 p<0.001)" >> release_notes.md
+          echo "- PPO (14维) vs FCFS: **+88.3%** (50 seed 统计显著 p<0.001)" >> release_notes.md
           echo "- 量子占比敏感性: 50% 时 PPO 提升最高 **+94.1%**" >> release_notes.md
           echo "" >> release_notes.md
           echo "### CI 检查结果" >> release_notes.md

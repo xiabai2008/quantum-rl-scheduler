@@ -105,7 +105,7 @@ items:
 
   # 训练好的权威模型检查点（换机复现所必需）
   - id: MODEL_PPO
-    name: PPO 权威模型（10维观测）
+    name: PPO 权威模型（14维观测）
     type: zip
     path: "deliverable_models/ppo_best_model_14dim.zip"
     requirements:

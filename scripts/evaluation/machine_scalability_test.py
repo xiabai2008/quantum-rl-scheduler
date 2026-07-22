@@ -254,7 +254,7 @@ def evaluate_single_run(
     tasks_per_episode: int = 200,
     obs_dim: int = 10,
     ppo_model: Any = None,
-    ppo_model_path: str = "deliverable_models/ppo_best_model_10dim.zip",
+    ppo_model_path: str = "deliverable_models/ppo_best_model_14dim.zip",
 ) -> dict[str, Any]:
     """评估单次运行（指定机器数 + seed）。
 
@@ -365,7 +365,7 @@ def run_machine_scalability_test(
     obs_dim: int = 10,
     machine_scales: list[int] | None = None,
     output_dir: Path | None = None,
-    ppo_model_path: str = "deliverable_models/ppo_best_model_10dim.zip",
+    ppo_model_path: str = "deliverable_models/ppo_best_model_14dim.zip",
 ) -> dict[str, Any]:
     """运行机器规模扩展性测试主实验。
 
@@ -1018,7 +1018,7 @@ def main() -> None:
     parser.add_argument(
         "--ppo-model",
         type=str,
-        default="deliverable_models/ppo_best_model_10dim.zip",
+        default="deliverable_models/ppo_best_model_14dim.zip",
         help="PPO 模型路径",
     )
     parser.add_argument(
