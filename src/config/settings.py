@@ -21,7 +21,10 @@ Unified Configuration Loader
 
 from __future__ import annotations
 
+import logging
+import logging.config
 import os
+import types
 from dataclasses import dataclass, fields
 from typing import Any, cast
 
@@ -360,3 +363,93 @@ def load_settings(
             field_values[fname] = default_val
 
     return Settings(**field_values)
+
+
+# =============================================================================
+# 统一日志配置（Issue #193）
+# =============================================================================
+# 项目中 loguru 与标准 logging 并存：
+#   - 多数模块使用 `from loguru import logger`
+#   - 少数模块（annealing / annealing_loop / scheduler.__init__）使用标准 logging
+# 实际日志初始化由 ``src.utils.helpers.setup_logging`` 统一完成（文本/JSON 切换、
+# 文件轮转），本模块仅提供：
+#   1. LOGGING_CONFIG：标准 logging 的 dictConfig 元数据（文档化用途）
+#   2. install_intercept_handler：把标准 logging 桥接到 loguru，避免双系统输出
+
+
+# 标准 logging 配置：dictConfig 形式（文档化用途，实际不直接使用）
+# 真正的日志输出由 loguru sink 负责（见 src.utils.helpers.setup_logging）
+LOGGING_CONFIG: dict[str, Any] = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {
+        "detailed": {"format": "%(asctime)s [%(levelname)s] %(name)s:%(lineno)d - %(message)s"},
+        "simple": {"format": "%(levelname)s %(name)s: %(message)s"},
+    },
+    "handlers": {
+        "console": {
+            "class": "logging.StreamHandler",
+            "formatter": "simple",
+            "level": "INFO",
+        },
+        "file": {
+            "class": "logging.handlers.RotatingFileHandler",
+            "filename": "logs/scheduler.log",
+            "maxBytes": 10485760,  # 10MB
+            "backupCount": 5,
+            "formatter": "detailed",
+            "level": "DEBUG",
+        },
+    },
+    "loggers": {
+        "src": {"level": "DEBUG", "handlers": ["console", "file"], "propagate": False},
+        "uvicorn": {"level": "INFO"},
+        "stable_baselines3": {"level": "WARNING"},
+    },
+    "root": {"level": "WARNING", "handlers": ["console"]},
+}
+
+
+class _InterceptHandler(logging.Handler):
+    """把标准 logging 的记录转发到 loguru。
+
+    loguru 与标准 logging 是两套独立系统。本 handler 安装到标准 logging 的
+    根 logger 后，所有通过 ``logging.getLogger(...).xxx()`` 发出的日志都会
+    被转发到 loguru，由 loguru 的 sink 统一输出。
+    """
+
+    def emit(self, record: logging.LogRecord) -> None:
+        try:
+            from loguru import logger as _loguru_logger
+
+            level: str | int
+            try:
+                level = record.levelname
+            except AttributeError:
+                level = record.levelno
+
+            frame: types.FrameType | None = logging.currentframe()
+            depth = 2
+            while frame and frame.f_code.co_filename == logging.__file__:
+                frame = frame.f_back
+                depth += 1
+
+            _loguru_logger.opt(depth=depth, exception=record.exc_info).log(
+                level, record.getMessage()
+            )
+        except Exception:
+            # 拦截 handler 自身异常，避免日志系统崩溃影响主流程
+            pass
+
+
+def install_intercept_handler() -> None:
+    """安装标准 logging → loguru 桥接 handler。
+
+    在调用 ``src.utils.helpers.setup_logging`` 之后调用本函数，确保使用
+    标准 logging 的模块（annealing / annealing_loop / scheduler.__init__ 等）
+    的日志也能走 loguru 的统一管道。
+    """
+    logging.basicConfig(handlers=[_InterceptHandler()], level=0, force=True)
+    # 调整若干噪声 logger 的级别
+    for noisy in ("urllib3", "asyncio", "matplotlib", "PIL"):
+        logging.getLogger(noisy).setLevel(logging.WARNING)

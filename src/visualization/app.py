@@ -346,6 +346,13 @@ def start_web_server(
     port: int = 8000,
 ) -> None:
     """启动 Web 服务器"""
+    # 初始化统一日志配置（Issue #193）
+    from src.config.settings import install_intercept_handler
+    from src.utils.helpers import setup_logging
+
+    setup_logging()
+    install_intercept_handler()
+
     import uvicorn
 
     logger.info("========================================")
