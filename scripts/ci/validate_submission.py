@@ -383,6 +383,11 @@ class SubmissionValidator:
     def _validate_zip(self, item: dict[str, Any], path: Path, messages: list[str]) -> None:
         """校验 ZIP 文件
 
+        校验维度：
+        1. 文件大小不超过 max_size_mb
+        2. 必须包含 include 列表中的路径
+        3. 不得包含 exclude 列表中的路径
+
         Args:
             item: 提交物定义
             path: 文件路径
@@ -400,6 +405,55 @@ class SubmissionValidator:
         else:
             messages.append(f"文件大小: {size_mb:.1f}MB")
             print(f"  ✅ 文件大小: {size_mb:.1f}MB")
+
+        # 校验 ZIP 内容（include / exclude 规则）
+        include_list = reqs.get("include", [])
+        exclude_list = reqs.get("exclude", [])
+        if include_list or exclude_list:
+            try:
+                with zipfile.ZipFile(path, "r") as zipf:
+                    zip_names = set(zipf.namelist())
+            except zipfile.BadZipFile as e:
+                msg = f"ZIP 文件损坏: {e}"
+                self.errors.append(f"[{item['id']}] {msg}")
+                messages.append(msg)
+                print(f"  ❌ {msg}")
+                return
+
+            # 检查 include：ZIP 中必须包含这些路径前缀
+            if include_list:
+                missing_includes = []
+                for inc in include_list:
+                    # inc 可能是目录（如 "src/"）或文件（如 "README.md"）
+                    inc_clean = inc.rstrip("/")
+                    found = any(n.startswith(inc_clean + "/") or n == inc_clean for n in zip_names)
+                    if not found:
+                        missing_includes.append(inc)
+                if missing_includes:
+                    msg = f"ZIP 缺少必需路径: {', '.join(missing_includes)}"
+                    self.errors.append(f"[{item['id']}] {msg}")
+                    messages.append(msg)
+                    print(f"  ❌ {msg}")
+                else:
+                    messages.append(f"包含所有必需路径: {', '.join(include_list)}")
+                    print("  ✅ 包含所有必需路径")
+
+            # 检查 exclude：ZIP 中不得包含这些路径前缀
+            if exclude_list:
+                found_excludes = []
+                for exc in exclude_list:
+                    exc_clean = exc.rstrip("/")
+                    found = any(n.startswith(exc_clean + "/") or n == exc_clean for n in zip_names)
+                    if found:
+                        found_excludes.append(exc)
+                if found_excludes:
+                    msg = f"ZIP 包含禁止路径: {', '.join(found_excludes)}"
+                    self.errors.append(f"[{item['id']}] {msg}")
+                    messages.append(msg)
+                    print(f"  ❌ {msg}")
+                else:
+                    messages.append(f"未包含禁止路径: {', '.join(exclude_list)}")
+                    print("  ✅ 未包含禁止路径")
 
     def _validate_git_tag(self, item: dict[str, Any], messages: list[str]) -> None:
         """校验 Git 标签
@@ -459,12 +513,36 @@ class SubmissionValidator:
             print(f"  ⚠️  依赖项: {depends_on}")
 
     def _check_version_consistency(self) -> None:
-        """检查版本一致性"""
+        """检查版本一致性
+
+        校验 manifest 中声明的版本号是否与项目关键文件（README.md、AGENTS.md）
+        中出现的版本号一致，避免提交物版本与文档版本不匹配。
+        """
         version = self.manifest["submission"]["version"]
         print(f"\n[版本一致性] 目标版本: {version}")
-        # 简化处理：假设版本一致
-        self.warnings.append(f"版本一致性检查: {version}")
-        print(f"  ⚠️  版本一致性检查: {version}")
+
+        # 检查 README.md 和 AGENTS.md 中的版本号
+        files_to_check = [
+            self.project_root / "README.md",
+            self.project_root / "AGENTS.md",
+        ]
+
+        for file_path in files_to_check:
+            if not file_path.exists():
+                continue
+            try:
+                content = file_path.read_text(encoding="utf-8")
+                # 检查文件中是否出现版本号
+                if version in content:
+                    print(f"  ✅ {file_path.name}: 包含版本号 {version}")
+                else:
+                    msg = f"{file_path.name}: 未找到版本号 {version}"
+                    self.warnings.append(f"[版本一致性] {msg}")
+                    print(f"  ⚠️  {msg}")
+            except OSError as e:
+                msg = f"{file_path.name}: 读取失败 ({e})"
+                self.warnings.append(f"[版本一致性] {msg}")
+                print(f"  ⚠️  {msg}")
 
     def _report(self) -> None:
         """输出校验报告"""
