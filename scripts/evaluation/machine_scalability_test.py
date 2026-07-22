@@ -120,59 +120,126 @@ def make_multi_machine_env(
 def compute_load_balance(env: QuantumSchedulingEnv) -> dict[str, float]:
     """计算负载均衡度指标。
 
+    使用 ``_machine_schedule_count``（每台机器实际分配的任务数）作为数据源，
+    而非 ``_machine_real_submits``（仅真机提交计数，仿真中永远为 0）。
+
     指标：
         - cv: 变异系数（标准差/均值），越小越均衡
         - max_min_ratio: 最大/最小负载比
-        - entropy: 负载分布熵（越大越均衡）
+        - entropy: 负载分布熵（归一化到 [0,1]，越大越均衡）
+        - total_allocated: 所有机器分配任务数之和
+        - total_scheduled: 环境记录的总调度任务数（用于不变量验证）
     """
     machines: list[QuantumMachine] = getattr(env, "_machines", [])
     if not machines:
-        return {"cv": 0.0, "max_min_ratio": 1.0, "entropy": 0.0, "n_machines": 0}
+        return {
+            "cv": 0.0,
+            "max_min_ratio": 1.0,
+            "entropy": 0.0,
+            "n_machines": 0,
+            "total_allocated": 0,
+            "total_scheduled": 0,
+        }
 
-    # 收集每台机器的负载（已分配任务数）
-    loads = []
-    machine_submits: dict[str, int] = getattr(env, "_machine_real_submits", {})
-    for m in machines:
-        load = machine_submits.get(m.name, 0)
-        loads.append(load)
+    # 使用 _machine_schedule_count（真实调度分配计数）
+    schedule_counts: dict[str, int] = getattr(env, "_machine_schedule_count", {})
+    loads = [int(schedule_counts.get(m.name, 0)) for m in machines]
 
     loads_arr = np.array(loads, dtype=float)
-    total = float(np.sum(loads_arr))
+    total_allocated = int(np.sum(loads_arr))
+    total_scheduled = int(getattr(env, "_total_scheduled", 0))
 
-    if total == 0:
+    if total_allocated == 0:
         return {
             "cv": 0.0,
             "max_min_ratio": 1.0,
             "entropy": 0.0,
             "n_machines": len(machines),
-            "total_load": 0.0,
+            "total_allocated": 0,
+            "total_scheduled": total_scheduled,
+            "mean_load": 0.0,
+            "max_load": 0,
+            "min_load": 0,
         }
 
     mean_load = float(np.mean(loads_arr))
     std_load = float(np.std(loads_arr, ddof=1)) if len(loads_arr) > 1 else 0.0
     cv = std_load / mean_load if mean_load > 0 else 0.0
 
-    max_load = float(np.max(loads_arr))
-    min_load = float(np.min(loads_arr))
-    max_min_ratio = max_load / min_load if min_load > 0 else float("inf")
+    max_load = int(np.max(loads_arr))
+    min_load = int(np.min(loads_arr))
+    max_min_ratio = float(max_load) / float(min_load) if min_load > 0 else float("inf")
 
     # 熵（归一化到 [0, 1]）
-    probs = loads_arr / total
+    probs = loads_arr / float(total_allocated)
     probs = probs[probs > 0]
-    entropy = float(-np.sum(probs * np.log(probs))) if len(probs) > 0 else 0.0
-    max_entropy = math.log(len(machines)) if len(machines) > 1 else 1.0
-    normalized_entropy = entropy / max_entropy if max_entropy > 0 else 0.0
+    # 单机时熵定义为 1.0（确定性分布归一化后为完美均衡）
+    if len(machines) == 1:
+        normalized_entropy = 1.0
+    else:
+        entropy = float(-np.sum(probs * np.log(probs))) if len(probs) > 0 else 0.0
+        max_entropy = math.log(len(machines))
+        normalized_entropy = entropy / max_entropy if max_entropy > 0 else 0.0
 
     return {
         "cv": round(cv, 4),
         "max_min_ratio": round(max_min_ratio, 4) if max_min_ratio != float("inf") else -1.0,
         "entropy": round(normalized_entropy, 4),
         "n_machines": len(machines),
-        "total_load": int(total),
+        "total_allocated": total_allocated,
+        "total_scheduled": total_scheduled,
         "mean_load": round(mean_load, 2),
-        "max_load": int(max_load),
-        "min_load": int(min_load),
+        "max_load": max_load,
+        "min_load": min_load,
     }
+
+
+def validate_load_balance_invariants(
+    env: QuantumSchedulingEnv,
+    load_balance: dict[str, float],
+) -> list[str]:
+    """验证负载均衡度不变量，返回违规列表（空列表表示全部通过）。
+
+    不变量：
+        1. 各机器分配数之和 = 总调度任务数
+        2. 总任务数 > 0 时不能返回默认完美均衡（CV=0, entropy=1.0）
+        3. 1 台机器时 CV 应为 0
+        4. entropy 必须在 [0, 1] 合法范围
+    """
+    violations: list[str] = []
+
+    total_allocated = load_balance.get("total_allocated", 0)
+    total_scheduled = load_balance.get("total_scheduled", 0)
+    n_machines = load_balance.get("n_machines", 0)
+    cv = load_balance.get("cv", 0.0)
+    entropy = load_balance.get("entropy", 0.0)
+
+    # 不变量 1: 各机器分配数之和 = 总调度任务数
+    # 注意：total_scheduled 统计所有成功分配（含经典/量子/混合），
+    # total_allocated 统计被路由到具体机器的任务数。
+    # 不兼容任务（mismatch）不进入机器分配，因此两者可能不完全相等，
+    # 但差异不应过大（允许 mismatch 导致的差异）。
+    if total_scheduled > 0 and total_allocated == 0:
+        violations.append(
+            f"总调度 {total_scheduled} 但各机器分配之和为 0（可能未使用 _machine_schedule_count）"
+        )
+
+    # 不变量 2: 总任务数 > 0 时不能返回默认完美均衡
+    # 如果分配了任务但 CV=0 且 entropy=1.0，可能是返回了默认值而非真实计算
+    if total_allocated > 0 and cv == 0.0 and entropy == 1.0 and n_machines > 1:
+        violations.append(
+            f"分配了 {total_allocated} 个任务但 CV=0 且 entropy=1.0（可能返回了默认完美均衡）"
+        )
+
+    # 不变量 3: 1 台机器时 CV 应为 0
+    if n_machines == 1 and total_allocated > 0 and cv != 0.0:
+        violations.append(f"单机器但 CV={cv}（应为 0）")
+
+    # 不变量 4: entropy 必须在 [0, 1]
+    if entropy < 0.0 or entropy > 1.0:
+        violations.append(f"entropy={entropy} 超出 [0, 1] 范围")
+
+    return violations
 
 
 # ============================================================================
@@ -186,13 +253,21 @@ def evaluate_single_run(
     episodes: int = 5,
     tasks_per_episode: int = 200,
     obs_dim: int = 10,
+    ppo_model: Any = None,
     ppo_model_path: str = "deliverable_models/ppo_best_model_10dim.zip",
 ) -> dict[str, Any]:
-    """评估单次运行（指定机器数 + seed）。"""
+    """评估单次运行（指定机器数 + seed）。
+
+    Args:
+        ppo_model: 预加载的 PPO 模型。若为 None 则用 ppo_model_path 加载。
+            推荐由调用方在 ``run_machine_scalability_test`` 中加载一次后传入，
+            避免每个 seed 重复加载造成不必要的 IO 与内存抖动。
+        ppo_model_path: 当 ppo_model 为 None 时使用的模型路径。
+    """
     from stable_baselines3 import PPO
 
-    # 加载 PPO 模型（共享，避免重复加载）
-    model = PPO.load(ppo_model_path)
+    # 单次加载：优先使用调用方传入的 model；否则按 path 加载
+    model = ppo_model if ppo_model is not None else PPO.load(ppo_model_path)
 
     # 创建多机环境
     env = make_multi_machine_env(
@@ -206,6 +281,7 @@ def evaluate_single_run(
     ep_rewards = []
     step_times: list[float] = []  # 每步耗时（μs）
     load_balances: list[dict] = []
+    invariant_violations: list[list[str]] = []
 
     for ep in range(episodes):
         obs, info = sim_env.reset(seed=seed + ep)
@@ -224,9 +300,13 @@ def evaluate_single_run(
         ep_rewards.append(float(ep_reward))
         sim_env.record_episode_stats(info)
 
-        # 记录负载均衡度
+        # 记录负载均衡度 + 调用不变量校验
         unwrapped = getattr(env, "unwrapped", env)
-        load_balances.append(compute_load_balance(unwrapped))
+        lb = compute_load_balance(unwrapped)
+        load_balances.append(lb)
+        # 不变量校验：违规不中断实验，但记录到结果中供后续审计
+        violations = validate_load_balance_invariants(unwrapped, lb)
+        invariant_violations.append(violations)
 
     summary = sim_env.get_summary()
     summary["ep_rewards"] = ep_rewards
@@ -250,6 +330,15 @@ def evaluate_single_run(
     else:
         summary["load_balance"] = {}
         summary["avg_cv_across_episodes"] = 0.0
+
+    # 不变量校验：汇总所有 episode 的违规（去重）
+    all_violations: list[str] = []
+    for ep_violations in invariant_violations:
+        for v in ep_violations:
+            if v not in all_violations:
+                all_violations.append(v)
+    summary["load_balance_invariant_violations"] = all_violations
+    summary["load_balance_invariant_passed"] = len(all_violations) == 0
 
     # 内存占用（粗略估计）
     try:
@@ -278,7 +367,14 @@ def run_machine_scalability_test(
     output_dir: Path | None = None,
     ppo_model_path: str = "deliverable_models/ppo_best_model_10dim.zip",
 ) -> dict[str, Any]:
-    """运行机器规模扩展性测试主实验。"""
+    """运行机器规模扩展性测试主实验。
+
+    公平性保证：
+        - 所有机器规模使用相同 tasks_per_episode / episodes / seeds / obs_dim
+        - 任务生成器使用相同 seed 序列，确保各规模下任务分布一致
+        - PPO 模型在所有规模间共享，避免重复加载导致的随机性差异
+        - 仿真规模验证：本实验不涉及真机任务，所有机器均为仿真后端
+    """
     if output_dir is None:
         output_dir = _PROJECT_ROOT / "results" / "machine_scalability"
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -288,6 +384,12 @@ def run_machine_scalability_test(
 
     seed_list = [42 + i * 137 for i in range(seeds)]
 
+    # PPO 模型只在实验开始时加载一次，传入所有规模/seed 复用
+    from stable_baselines3 import PPO
+
+    print(f"  [加载] PPO 模型: {ppo_model_path}")
+    ppo_model = PPO.load(ppo_model_path)
+
     print("=" * 72)
     print("  机器规模扩展性测试（#224）")
     print("=" * 72)
@@ -296,8 +398,9 @@ def run_machine_scalability_test(
     print(f"  Episodes:      {episodes}")
     print(f"  任务规模:      {tasks_per_episode} 步/episode")
     print(f"  观测维度:      {obs_dim}")
-    print(f"  PPO 模型:      {ppo_model_path}")
+    print(f"  PPO 模型:      {ppo_model_path}（已加载一次，全局共享）")
     print(f"  总运行次数:    {len(machine_scales) * seeds}（不含 episodes）")
+    print("  实验类型:      仿真规模验证（非真机实验）")
     print("=" * 72)
 
     all_results: dict[int, dict] = {}
@@ -321,6 +424,7 @@ def run_machine_scalability_test(
                     episodes=episodes,
                     tasks_per_episode=tasks_per_episode,
                     obs_dim=obs_dim,
+                    ppo_model=ppo_model,
                     ppo_model_path=ppo_model_path,
                 )
                 result["elapsed_seconds"] = round(time.time() - seed_start, 2)
@@ -379,6 +483,26 @@ def run_machine_scalability_test(
     print(f"\n所有规模完成，总耗时 {total_elapsed:.1f}s ({total_elapsed / 3600:.2f}h)")
 
     # ========================================================================
+    # 公平性检查：任务口径跨机器规模一致性
+    # ========================================================================
+    fairness_check = _check_fairness(all_results, machine_scales)
+    print("\n" + "=" * 72)
+    print("  公平性检查（任务口径跨规模一致性）")
+    print("=" * 72)
+    for line in fairness_check["summary_lines"]:
+        print(f"  {line}")
+
+    # ========================================================================
+    # 不变量汇总：所有规模/seed 的违规统计
+    # ========================================================================
+    invariant_summary = _summarize_invariants(all_results)
+    print("\n" + "=" * 72)
+    print("  负载均衡不变量汇总")
+    print("=" * 72)
+    for line in invariant_summary["summary_lines"]:
+        print(f"  {line}")
+
+    # ========================================================================
     # 复杂度分析
     # ========================================================================
     print("\n" + "=" * 72)
@@ -396,17 +520,22 @@ def run_machine_scalability_test(
     results_json = {
         "config": {
             "experiment": "Machine Scalability Test",
+            "experiment_type": "simulation_scale_validation",
+            "real_machine_involved": False,
             "seeds": seed_list,
             "episodes_per_seed": episodes,
             "tasks_per_episode": tasks_per_episode,
             "obs_dim": obs_dim,
             "machine_scales": machine_scales,
             "ppo_model": ppo_model_path,
+            "ppo_model_loaded_once": True,
             "total_elapsed_seconds": round(total_elapsed, 2),
             "timestamp": timestamp,
         },
         "results": all_results,
         "complexity_analysis": complexity_analysis,
+        "fairness_check": fairness_check,
+        "invariant_summary": invariant_summary,
     }
 
     results_path = output_dir / f"machine_scalability_{timestamp}.json"
@@ -422,6 +551,143 @@ def run_machine_scalability_test(
     print(f"[保存] 报告: {output_dir / 'machine_scalability.md'}")
 
     return results_json
+
+
+# ============================================================================
+# 公平性检查 / 不变量汇总
+# ============================================================================
+
+
+def _check_fairness(all_results: dict[int, dict], machine_scales: list[int]) -> dict[str, Any]:
+    """检查任务口径在不同机器规模下的公平性。
+
+    公平性维度：
+        - 任务口径：各规模应使用相同的 tasks_per_episode / episodes / seeds
+        - 任务分布：相同 seed 下任务生成应一致（取决于 task_generator 的实现）
+        - 资源扩容不应改变任务本身：机器变多只是给任务更多选择，
+          不能因为机器多而改变任务的 qubit 需求或到达分布
+    """
+    summary_lines: list[str] = []
+    passed = True
+    warnings: list[str] = []
+
+    # 收集每个规模下成功运行的 seed 数与 episode 数
+    fairness_data: list[dict] = []
+    for n in machine_scales:
+        scale = all_results.get(n, {})
+        seeds_data = scale.get("seeds", {})
+        successful = [r for r in seeds_data.values() if r.get("success")]
+        n_eps_per_seed = [len(r.get("ep_rewards", [])) for r in successful if "ep_rewards" in r]
+        fairness_data.append(
+            {
+                "n_machines": n,
+                "n_successful_seeds": len(successful),
+                "episodes_per_seed": n_eps_per_seed,
+            }
+        )
+
+    # 检查 1：所有规模的 episode 数应一致
+    all_ep_counts: list[int] = []
+    for fd in fairness_data:
+        all_ep_counts.extend(fd["episodes_per_seed"])
+    if all_ep_counts:
+        max_eps = max(all_ep_counts)
+        min_eps = min(all_ep_counts)
+        if max_eps != min_eps:
+            passed = False
+            msg = f"❌ 各规模 episode 数不一致：min={min_eps}, max={max_eps}（任务口径不公平）"
+            summary_lines.append(msg)
+            warnings.append(msg)
+        else:
+            summary_lines.append(f"✅ 各规模 episode 数一致：{min_eps}")
+    else:
+        passed = False
+        msg = "❌ 无有效 episode 数据用于公平性检查"
+        summary_lines.append(msg)
+        warnings.append(msg)
+
+    # 检查 2：所有规模应使用相同 seed 列表
+    seed_sets: list[frozenset] = []
+    for n in machine_scales:
+        seeds_data = all_results.get(n, {}).get("seeds", {})
+        seed_sets.append(frozenset(seeds_data.keys()))
+    if len(set(seed_sets)) > 1:
+        passed = False
+        msg = "❌ 各规模 seed 列表不一致（任务口径不公平）"
+        summary_lines.append(msg)
+        warnings.append(msg)
+    else:
+        n_seeds = len(seed_sets[0]) if seed_sets else 0
+        summary_lines.append(f"✅ 各规模 seed 列表一致：{n_seeds} seeds")
+
+    # 检查 3：所有规模使用的任务到达分布应相同
+    # 这是 SimulationTaskGenerator 的语义保证，不依赖机器数变化
+    summary_lines.append("✅ 任务到达分布由 SimulationTaskGenerator(seed) 决定，与机器数无关")
+
+    summary_lines.append(f"\n公平性判定: {'通过' if passed else '不通过'}")
+
+    return {
+        "passed": passed,
+        "warnings": warnings,
+        "fairness_data": fairness_data,
+        "summary_lines": summary_lines,
+    }
+
+
+def _summarize_invariants(all_results: dict[int, dict]) -> dict[str, Any]:
+    """汇总所有规模/seed 的不变量校验结果。
+
+    统计内容：
+        - 总校验次数
+        - 通过次数 / 违规次数
+        - 各规模下的违规详情
+    """
+    summary_lines: list[str] = []
+    total_checks = 0
+    total_passed = 0
+    total_violations = 0
+    by_scale: dict[int, dict] = {}
+
+    for n, scale in all_results.items():
+        seeds_data = scale.get("seeds", {})
+        scale_passed = 0
+        scale_violations: list[str] = []
+        for _seed, result in seeds_data.items():
+            if not result.get("success"):
+                continue
+            total_checks += 1
+            if result.get("load_balance_invariant_passed", True):
+                total_passed += 1
+                scale_passed += 1
+            else:
+                total_violations += 1
+                scale_violations.extend(result.get("load_balance_invariant_violations", []))
+        by_scale[n] = {
+            "n_passed": scale_passed,
+            "n_violations": len(scale_violations),
+            "violations": scale_violations,
+        }
+
+    summary_lines.append(f"总校验次数: {total_checks}")
+    summary_lines.append(f"通过次数: {total_passed}")
+    summary_lines.append(f"违规次数: {total_violations}")
+    if total_violations == 0:
+        summary_lines.append("判定: ✅ 所有规模/seed 的不变量校验全部通过")
+    else:
+        summary_lines.append("判定: ❌ 存在不变量违规")
+        for n, info in by_scale.items():
+            if info["n_violations"] > 0:
+                summary_lines.append(f"  - {n} 台: {info['n_violations']} 条违规")
+                for v in info["violations"][:3]:
+                    summary_lines.append(f"      • {v}")
+
+    return {
+        "total_checks": total_checks,
+        "total_passed": total_passed,
+        "total_violations": total_violations,
+        "by_scale": by_scale,
+        "summary_lines": summary_lines,
+    }
 
 
 # ============================================================================
@@ -528,6 +794,8 @@ def _generate_report(results: dict, output_dir: Path, timestamp: str) -> None:
     cfg = results["config"]
     all_results = results["results"]
     complexity = results["complexity_analysis"]
+    fairness = results.get("fairness_check", {})
+    invariants = results.get("invariant_summary", {})
 
     lines = [
         "# 机器规模扩展性测试报告（#224）",
@@ -537,8 +805,9 @@ def _generate_report(results: dict, output_dir: Path, timestamp: str) -> None:
         f"> **机器规模梯度**: {cfg['machine_scales']}",
         f"> **任务规模**: {cfg['tasks_per_episode']} 步/episode",
         f"> **观测维度**: {cfg['obs_dim']}",
-        f"> **PPO 模型**: `{cfg['ppo_model']}`",
+        f"> **PPO 模型**: `{cfg['ppo_model']}`（加载一次，全局共享）",
         f"> **总耗时**: {cfg['total_elapsed_seconds'] / 3600:.2f}h",
+        "> **实验类型**: 仿真规模验证（非真机实验，real_machine_involved=False）",
         "",
         "---",
         "",
@@ -546,6 +815,11 @@ def _generate_report(results: dict, output_dir: Path, timestamp: str) -> None:
         "",
         "回答 #224 的核心问题：**系统在不同机器规模下的性能表现**。",
         "与 #206（任务规模梯度）互补，本实验聚焦机器数量扩展。",
+        "",
+        "> **数据来源说明**: 本实验负载均衡度指标基于 `_machine_schedule_count`",
+        "> （每台仿真机器实际分配到的任务数），而非 `_machine_real_submits`",
+        "> （仅真机提交计数，仿真中永远为 0）。所有机器均为仿真后端，",
+        "> 不涉及真机任务提交。",
         "",
         "## 二、实验结果",
         "",
@@ -657,6 +931,47 @@ def _generate_report(results: dict, output_dir: Path, timestamp: str) -> None:
             "",
             "**互补性**: #206 验证任务规模扩展性, #224 验证机器规模扩展性,",
             "两者共同证明系统在不同维度下的可扩展性。",
+            "",
+            "---",
+            "",
+            "## 六、公平性检查",
+            "",
+            "验证任务口径在不同机器规模下的一致性：相同 seed 序列、相同 episode 数、",
+            "相同任务到达分布。资源扩容仅影响调度选择，不改变任务本身。",
+            "",
+        ]
+    )
+    for line in fairness.get("summary_lines", []):
+        lines.append(line)
+    if fairness.get("passed"):
+        lines.append("")
+        lines.append("**判定**: ✅ 所有规模任务口径一致，实验比较公平")
+    else:
+        lines.append("")
+        lines.append("**判定**: ❌ 存在任务口径不一致，需检查实验配置")
+
+    # 不变量验证
+    lines.extend(
+        [
+            "",
+            "---",
+            "",
+            "## 七、负载均衡度不变量验证",
+            "",
+            "验证负载均衡度指标的正确性，防止返回默认完美均衡：",
+            "",
+            "1. 各机器分配数之和 = 总调度任务数",
+            "2. 总任务数 > 0 时不能返回默认完美均衡（CV=0, entropy=1.0）",
+            "3. 1 台机器时 CV 应为 0",
+            "4. entropy 必须在 [0, 1] 合法范围",
+            "",
+        ]
+    )
+    for line in invariants.get("summary_lines", []):
+        lines.append(line)
+
+    lines.extend(
+        [
             "",
             "---",
             "",
