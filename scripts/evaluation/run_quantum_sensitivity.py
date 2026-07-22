@@ -95,7 +95,6 @@ def run_single_seed(env_kwargs, strategy, seed, quantum_ratio):
     )
     inner_env = QuantumSchedulingEnv(**env_kwargs)
     sim_env = SimulationEnv(env=inner_env, task_generator=task_generator)
-    sim_env = Obs10SimWrapper(sim_env)
 
     summary = run_strategy(
         env=sim_env,
@@ -119,13 +118,13 @@ def main():
     print(f"  PPO Model:     {PPO_MODEL_PATH.name}")
     print("=" * 64)
 
-    # Load PPO model once
+    # Load PPO model once (14-dim, no wrapper needed)
     if not PPO_MODEL_PATH.exists():
         print(f"[ERROR] PPO model not found: {PPO_MODEL_PATH}")
         sys.exit(1)
-    ppo_env = Obs10Wrapper(QuantumSchedulingEnv(max_steps=TASKS_PER_EPISODE, max_qubits=287))
+    ppo_env = QuantumSchedulingEnv(max_steps=TASKS_PER_EPISODE, max_qubits=287)
     ppo_model = PPO.load(str(PPO_MODEL_PATH), env=ppo_env)
-    print("[PPO] Model loaded successfully")
+    print("[PPO] Model loaded successfully (14-dim)")
 
     base_env_kwargs = {
         "max_steps": TASKS_PER_EPISODE,
@@ -349,7 +348,7 @@ def main():
         "# 量子占比敏感性分析",
         "",
         f"> 生成时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
-        f"> 模型: `{PPO_MODEL_PATH.name}` (10维观测)",
+        f"> 模型: `{PPO_MODEL_PATH.name}` (14维观测)",
         f"> 参数: 泊松 λ={ARRIVAL_LAMBDA}, {NUM_SEEDS} seeds × {EPISODES_PER_SEED} episodes, {TASKS_PER_EPISODE} tasks/ep",
         "",
         "---",
@@ -358,7 +357,7 @@ def main():
         "",
         "回答关键问题：**量子任务占比多少时，PPO 相对于 FCFS 的优势最大？优势的转折点/饱和点在哪里？**",
         "",
-        "已有权威数字（PPO +88.3%, p=3.04e-11）仅在量子占比 70% 这一个点测得。",
+        "已有权威数字（PPO +86.9%, p=3.04e-11）仅在量子占比 70% 这一个点测得。",
         "本实验通过 5 个梯度点（10% / 30% / 50% / 70% / 90%）系统刻画 PPO 优势曲线。",
         "",
         "---",
@@ -454,7 +453,7 @@ def main():
         idx70 = ratios_list.index(70)
         ref_imp = improvements[idx70]
         report_lines += [
-            f"- **与权威数字对比**: 70% 量子占比下测得提升 +{ref_imp:.1f}%（权威数字 +88.3%，差异来源于 seed 数/训练策略/模型版本）",
+            f"- **与权威数字对比**: 70% 量子占比下测得提升 +{ref_imp:.1f}%（权威数字 +86.9%，差异来源于 seed 数/训练策略/模型版本）",
         ]
 
     report_lines += [
