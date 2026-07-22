@@ -343,8 +343,7 @@ class TestSaveLoadNewFormat:
                 agent2.load(save_path)
             # 验证 logger.info 被调用且消息含"模型已从"
             calls = [str(c) for c in mock_info.call_args_list]
-            assert any("模型已从" in c for c in calls), \
-                "verbose=1 加载时应输出日志"
+            assert any("模型已从" in c for c in calls), "verbose=1 加载时应输出日志"
 
 
 # ---------------------------------------------------------------------------
@@ -742,8 +741,6 @@ class TestLoadOldFormat:
             agent2 = _make_agent(verbose=0)
             agent2.load(save_path)
             # 验证参数一致
-            for i, (a1, a2) in enumerate(
-                zip(agent.actors, agent2.actors, strict=True)
-            ):
+            for i, (a1, a2) in enumerate(zip(agent.actors, agent2.actors, strict=True)):
                 for p1, p2 in zip(a1.parameters(), a2.parameters(), strict=True):
                     assert torch.allclose(p1, p2), f"Actor {i} 参数不一致"
