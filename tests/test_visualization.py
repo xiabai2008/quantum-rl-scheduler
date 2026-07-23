@@ -1664,3 +1664,120 @@ class TestErrorHandling:
         monkeypatch.setattr(app_module, "_ppo_env", None)
         data = (await async_client.get("/api/ppo/predict")).json()
         assert "error" in data
+
+
+class TestWebSocketHandlerPPOStats:
+    """WebSocket /ws 端点 PPO 统计读取测试。
+
+    覆盖 src/visualization/websocket_handler.py 第 40-51 行：成功读取
+    simulation_results JSON 并提取 PPO 排名，以及三种异常路径
+    （JSONDecodeError / OSError / 无结果文件）。
+    """
+
+    def test_websocket_init_with_ppo_rank(self, tmp_path, monkeypatch):
+        """有仿真结果文件且含 PPO 策略时应返回正确排名。"""
+        results_dir = tmp_path / "results"
+        results_dir.mkdir()
+        sim_data = {
+            "PPO": {"avg_reward": 2746.94},
+            "FCFS": {"avg_reward": 1458.77},
+            "Random": {"avg_reward": 1000.0},
+        }
+        (results_dir / "simulation_results_001.json").write_text(
+            json.dumps(sim_data), encoding="utf-8"
+        )
+        monkeypatch.setattr(app_module, "_PROJECT_ROOT", str(tmp_path))
+
+        with (
+            patch.object(app_module, "simulate_scheduler", _noop_simulate_scheduler),
+            TestClient(app) as client,
+            client.websocket_connect("/ws") as ws,
+        ):
+            msg = ws.receive_json()
+            assert msg["type"] == "init"
+            assert msg["ppo_stats"]["ppo_rank"] == 1
+            assert msg["ppo_stats"]["total"] == 3
+
+    def test_websocket_init_ppo_not_in_results(self, tmp_path, monkeypatch):
+        """结果文件中不含 PPO 策略时 ppo_rank 应为 None。"""
+        results_dir = tmp_path / "results"
+        results_dir.mkdir()
+        sim_data = {
+            "FCFS": {"avg_reward": 1458.77},
+            "Random": {"avg_reward": 1000.0},
+        }
+        (results_dir / "simulation_results_001.json").write_text(
+            json.dumps(sim_data), encoding="utf-8"
+        )
+        monkeypatch.setattr(app_module, "_PROJECT_ROOT", str(tmp_path))
+
+        with (
+            patch.object(app_module, "simulate_scheduler", _noop_simulate_scheduler),
+            TestClient(app) as client,
+            client.websocket_connect("/ws") as ws,
+        ):
+            msg = ws.receive_json()
+            assert msg["type"] == "init"
+            assert msg["ppo_stats"]["ppo_rank"] is None
+            assert msg["ppo_stats"]["total"] == 2
+
+    def test_websocket_init_no_simulation_files(self, tmp_path, monkeypatch):
+        """results 目录存在但无仿真结果文件时 ppo_stats 应为空。"""
+        results_dir = tmp_path / "results"
+        results_dir.mkdir()
+        monkeypatch.setattr(app_module, "_PROJECT_ROOT", str(tmp_path))
+
+        with (
+            patch.object(app_module, "simulate_scheduler", _noop_simulate_scheduler),
+            TestClient(app) as client,
+            client.websocket_connect("/ws") as ws,
+        ):
+            msg = ws.receive_json()
+            assert msg["type"] == "init"
+            assert msg["ppo_stats"] == {}
+
+    def test_websocket_init_json_decode_error(self, tmp_path, monkeypatch):
+        """仿真结果文件 JSON 格式错误时不应崩溃，ppo_stats 应为空。"""
+        results_dir = tmp_path / "results"
+        results_dir.mkdir()
+        (results_dir / "simulation_results_001.json").write_text("{invalid json", encoding="utf-8")
+        monkeypatch.setattr(app_module, "_PROJECT_ROOT", str(tmp_path))
+
+        with (
+            patch.object(app_module, "simulate_scheduler", _noop_simulate_scheduler),
+            TestClient(app) as client,
+            client.websocket_connect("/ws") as ws,
+        ):
+            msg = ws.receive_json()
+            assert msg["type"] == "init"
+            assert msg["ppo_stats"] == {}
+
+    def test_websocket_init_oserror_no_results_dir(self, tmp_path, monkeypatch):
+        """results 目录不存在时不应崩溃，ppo_stats 应为空。"""
+        monkeypatch.setattr(app_module, "_PROJECT_ROOT", str(tmp_path))
+
+        with (
+            patch.object(app_module, "simulate_scheduler", _noop_simulate_scheduler),
+            TestClient(app) as client,
+            client.websocket_connect("/ws") as ws,
+        ):
+            msg = ws.receive_json()
+            assert msg["type"] == "init"
+            assert msg["ppo_stats"] == {}
+
+    def test_websocket_init_oserror_on_open(self, tmp_path, monkeypatch):
+        """仿真结果文件无法读取（IsADirectoryError）时不应崩溃。"""
+        results_dir = tmp_path / "results"
+        results_dir.mkdir()
+        # 创建同名目录使 open() 抛出 IsADirectoryError（OSError 子类）
+        (results_dir / "simulation_results_001.json").mkdir()
+        monkeypatch.setattr(app_module, "_PROJECT_ROOT", str(tmp_path))
+
+        with (
+            patch.object(app_module, "simulate_scheduler", _noop_simulate_scheduler),
+            TestClient(app) as client,
+            client.websocket_connect("/ws") as ws,
+        ):
+            msg = ws.receive_json()
+            assert msg["type"] == "init"
+            assert msg["ppo_stats"] == {}
