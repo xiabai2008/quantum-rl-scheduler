@@ -507,3 +507,62 @@ async def get_tenants() -> dict:
     except Exception as e:
         logger.debug(f"[Web] 租户状态查询失败: {e}")
         return {"tenants": []}
+
+
+@router.get("/api/explainability")
+async def get_explainability(limit: int = 20) -> dict:
+    """获取最近决策的特征贡献度摘要（Issue #73）。
+
+    从决策日志中提取包含 feature_contributions 的记录，
+    返回最近 limit 条决策的可解释性数据。
+
+    Args:
+        limit: 返回最近多少条决策，默认 20，最大 200
+
+    Returns:
+        包含 decisions 列表和 count 的字典
+    """
+    decisions = _app._decision_log[-min(limit, 200) :]
+    result = [
+        {
+            "step": d.get("step"),
+            "action": d.get("action"),
+            "action_label": d.get("action_label"),
+            "feature_contributions": d.get("feature_contributions", {}),
+            "explanation_text": d.get("explanation_text", ""),
+        }
+        for d in decisions
+        if "feature_contributions" in d
+    ]
+    return {"decisions": result, "count": len(result)}
+
+
+@router.get("/api/explainability/summary")
+async def get_explainability_summary() -> dict:
+    """获取当前会话的全局特征重要性排名（Issue #73）。
+
+    聚合所有包含特征贡献度的决策记录，计算各特征的平均贡献度，
+    并返回降序排列的特征重要性列表。
+
+    Returns:
+        包含 feature_importance 列表和 total_decisions 的字典
+    """
+    records = [d for d in _app._decision_log if "feature_contributions" in d]
+    if not records:
+        return {"feature_importance": [], "total_decisions": 0}
+
+    accumulator: dict[str, float] = {}
+    for d in records:
+        for name, contrib in d["feature_contributions"].items():
+            accumulator[name] = accumulator.get(name, 0.0) + contrib
+
+    count = len(records)
+    feature_importance = [
+        {"feature": name, "importance": round(total / count, 6)}
+        for name, total in sorted(accumulator.items(), key=lambda x: x[1], reverse=True)
+    ]
+
+    return {
+        "feature_importance": feature_importance,
+        "total_decisions": count,
+    }
