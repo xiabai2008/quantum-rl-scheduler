@@ -23,11 +23,10 @@ from datetime import datetime, timezone
 
 import numpy as np
 import torch as th
+import torch.nn.functional as F
 from stable_baselines3.common.callbacks import EvalCallback
 from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.dqn import DQN
-from torch import nn
-import torch.nn.functional as F
 
 # ── 确保项目根目录在路径中 ──
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -273,12 +272,12 @@ def evaluate_random(
     """
     rewards = []
     for ep in range(num_episodes):
-        obs, _ = env.reset(seed=seed + ep)
+        _obs, _ = env.reset(seed=seed + ep)
         ep_reward = 0.0
         done = False
         while not done:
             action = env.action_space.sample()
-            obs, reward, terminated, truncated, _info = env.step(action)
+            _obs, reward, terminated, truncated, _info = env.step(action)
             ep_reward += float(reward)
             done = terminated or truncated
         rewards.append(ep_reward)
@@ -308,13 +307,13 @@ def evaluate_fcfs(
     action_counts: dict[int, int] = {0: 0, 1: 0, 2: 0}
 
     for ep in range(num_episodes):
-        obs, _ = env.reset(seed=seed + ep)
+        _obs, _ = env.reset(seed=seed + ep)
         ep_reward = 0.0
         done = False
         while not done:
             action = strategy.select_action(env)
             action_counts[int(action)] = action_counts.get(int(action), 0) + 1
-            obs, reward, terminated, truncated, _info = env.step(action)
+            _obs, reward, terminated, truncated, _info = env.step(action)
             ep_reward += float(reward)
             done = terminated or truncated
         rewards.append(ep_reward)
@@ -460,7 +459,7 @@ def main() -> None:
     print(f"  {'FCFS':<12} {fcfs_mean:>10.2f} {fcfs_std:>10.2f} {fcfs_vs_random_imp:>+13.1f}%")
     print(f"  {'Random':<12} {random_mean:>10.2f} {random_std:>10.2f} {'——':>13}")
 
-    print(f"\n  统计检验:")
+    print("\n  统计检验:")
     print(
         f"  DQN vs Random : t={dqn_vs_random_t:.2f}, p={dqn_vs_random_p:.2e}, d={dqn_vs_random_d:.2f}"
     )
