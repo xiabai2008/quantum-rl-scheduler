@@ -26,7 +26,6 @@ PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(_
 if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
-import numpy as np
 from stable_baselines3 import PPO
 
 from src.scheduler.env import QuantumSchedulingEnv
@@ -88,7 +87,7 @@ def main() -> None:
         records.append(record)
         logger.log(record)
 
-        obs, reward, terminated, truncated, _info = env.step(int(action))
+        obs, _reward, terminated, truncated, _info = env.step(int(action))
         done = terminated or truncated
         step += 1
 
@@ -121,7 +120,7 @@ def main() -> None:
     print(f"  总步数: {summary['total_steps']}")
     print(f"  动作分布: {summary['action_distribution']}")
     print(f"  异常决策数: {summary['anomaly_count']}")
-    print(f"  前5特征:")
+    print("  前5特征:")
     for item in summary["top5_features"]:
         bar = "█" * int(item["importance"] * 50)
         print(f"    {item['feature']:12s} {bar} {item['importance']:.4f}")
@@ -192,9 +191,7 @@ def _generate_insights(
             f"建议检查这些区间的训练覆盖"
         )
     else:
-        insights.append(
-            f"异常决策率仅{anomaly_rate:.1f}%（<10%），说明模型决策质量稳定可信"
-        )
+        insights.append(f"异常决策率仅{anomaly_rate:.1f}%（<10%），说明模型决策质量稳定可信")
 
     # 洞察4：特征分布均匀性
     if sorted_importance:
@@ -206,9 +203,7 @@ def _generate_insights(
                 f"可能某些特征对决策的贡献被淹没，建议关注低贡献特征是否应优化"
             )
         else:
-            insights.append(
-                "特征贡献度分布相对均匀，模型能综合利用多个状态维度进行决策"
-            )
+            insights.append("特征贡献度分布相对均匀，模型能综合利用多个状态维度进行决策")
 
     return insights
 
@@ -226,8 +221,8 @@ def _write_markdown_report(
         "# 可解释性模块深度应用报告",
         "",
         f"> 生成时间: {datetime.now(timezone.utc).isoformat()}",
-        f"> Issue: #31",
-        f"> 模型: ppo_best_model_14dim.zip",
+        "> Issue: #31",
+        "> 模型: ppo_best_model_14dim.zip",
         f"> 推理步数: {len(records)}",
         "",
         "## 实验目的",
@@ -246,48 +241,52 @@ def _write_markdown_report(
     for i, (name, imp) in enumerate(sorted_importance[:5], 1):
         lines.append(f"| {i} | {name} | {imp:.4f} |")
 
-    lines.extend([
-        "",
-        "## 会话统计",
-        "",
-        f"- 总步数: {summary['total_steps']}",
-        f"- 动作分布: {summary['action_distribution']}",
-        f"- 异常决策数: {summary['anomaly_count']}",
-        "",
-        "## 决策洞察",
-        "",
-    ])
+    lines.extend(
+        [
+            "",
+            "## 会话统计",
+            "",
+            f"- 总步数: {summary['total_steps']}",
+            f"- 动作分布: {summary['action_distribution']}",
+            f"- 异常决策数: {summary['anomaly_count']}",
+            "",
+            "## 决策洞察",
+            "",
+        ]
+    )
     for i, insight in enumerate(insights, 1):
         lines.append(f"{i}. {insight}")
 
     if anomalies:
-        lines.extend([
-            "",
-            "## 异常决策详情",
-            "",
-        ])
+        lines.extend(
+            [
+                "",
+                "## 异常决策详情",
+                "",
+            ]
+        )
         for idx in anomalies[:5]:
             r = records[idx]
-            lines.append(
-                f"- 步{r.step}: 动作{r.action}, 置信度{r.action_prob:.3f}"
-            )
+            lines.append(f"- 步{r.step}: 动作{r.action}, 置信度{r.action_prob:.3f}")
 
-    lines.extend([
-        "",
-        "## 结论",
-        "",
-        "- 可解释性模块成功应用于PPO调度策略，提供决策透明度和审计能力",
-        f"- 特征重要性排名揭示了调度决策的关键影响因素",
-        f"- 异常检测发现{len(anomalies)}个异常决策，可用于模型改进和风险评估",
-        "- 验证通过，可解释性模块满足竞赛「方案可行性」和「验证严谨性」评审标准",
-        "",
-        "## 复现命令",
-        "",
-        "```bash",
-        "cd quantum-rl-scheduler",
-        "python scripts/evaluation/run_explainability_demo.py",
-        "```",
-    ])
+    lines.extend(
+        [
+            "",
+            "## 结论",
+            "",
+            "- 可解释性模块成功应用于PPO调度策略，提供决策透明度和审计能力",
+            "- 特征重要性排名揭示了调度决策的关键影响因素",
+            f"- 异常检测发现{len(anomalies)}个异常决策，可用于模型改进和风险评估",
+            "- 验证通过，可解释性模块满足竞赛「方案可行性」和「验证严谨性」评审标准",
+            "",
+            "## 复现命令",
+            "",
+            "```bash",
+            "cd quantum-rl-scheduler",
+            "python scripts/evaluation/run_explainability_demo.py",
+            "```",
+        ]
+    )
 
     with open(output_path, "w", encoding="utf-8") as f:
         f.write("\n".join(lines))
