@@ -6,8 +6,9 @@ src.api 包初始化模块
 import os
 from typing import Any
 
+from src.api.circuit_breaker import CircuitBreaker, CircuitState
 from src.api.mock_client import MockTianyanClient, create_tianyan_client
-from src.api.tianyan_client import CircuitState, TianyanAPIError, TianyanClient
+from src.api.tianyan_client import TianyanAPIError, TianyanClient
 from src.api.tianyan_cqlib import (
     CqlibTianyanClient,
     MultiMachineCqlibCoordinator,
@@ -15,6 +16,7 @@ from src.api.tianyan_cqlib import (
 )
 
 __all__ = [
+    "CircuitBreaker",
     "CircuitState",
     "CqlibTianyanClient",
     "MockTianyanClient",

@@ -14,7 +14,6 @@ import random
 import time
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
-from enum import Enum
 from time import monotonic
 from typing import Any, TypeVar, cast
 
@@ -23,8 +22,8 @@ import yaml
 from dotenv import load_dotenv
 from loguru import logger
 
-from src.exceptions import CircuitOpenError, RateLimitError
-from src.utils.alerts import alert_error
+from src.api.circuit_breaker import CircuitBreaker
+from src.exceptions import RateLimitError
 from src.utils.metrics import (
     api_calls,
     api_errors,
@@ -54,12 +53,6 @@ def mask_token(token: str) -> str:
     return f"{token[:4]}{'*' * (len(token) - 8)}{token[-4:]}"
 
 
-class CircuitState(Enum):
-    CLOSED = "closed"
-    OPEN = "open"
-    HALF_OPEN = "half_open"
-
-
 class TianyanAPIError(Exception):
     """天衍云平台 API 自定义异常
 
@@ -76,52 +69,6 @@ class TianyanAPIError(Exception):
         self.message = message
         self.response_body = response_body or {}
         super().__init__(f"[{status_code}] {message}")
-
-
-class CircuitBreaker:
-    """熔断器模式实现
-
-    状态：CLOSED（正常）→ OPEN（熔断）→ HALF_OPEN（试探）→ CLOSED
-
-    Args:
-        failure_threshold: 连续失败阈值，超过则熔断
-        recovery_timeout: 熔断恢复超时时间（秒）
-    """
-
-    def __init__(self, failure_threshold: int = 5, recovery_timeout: float = 60.0):
-        self.failure_threshold = failure_threshold
-        self.recovery_timeout = recovery_timeout
-        self.state = CircuitState.CLOSED
-        self.failure_count = 0
-        self.last_failure_time = 0.0
-
-    def before_request(self) -> None:
-        """请求前检查熔断器状态"""
-        if self.state == CircuitState.OPEN:
-            if monotonic() - self.last_failure_time >= self.recovery_timeout:
-                self.state = CircuitState.HALF_OPEN
-            else:
-                raise CircuitOpenError("Circuit breaker is open")
-
-    def on_success(self) -> None:
-        """请求成功时重置状态"""
-        self.failure_count = 0
-        self.state = CircuitState.CLOSED
-
-    def on_failure(self) -> None:
-        """请求失败时增加失败计数"""
-        self.failure_count += 1
-        self.last_failure_time = monotonic()
-        if self.failure_count >= self.failure_threshold:
-            self.state = CircuitState.OPEN
-            alert_error(
-                "api",
-                f"API 熔断器打开（连续失败 {self.failure_count}/{self.failure_threshold}）",
-            )
-
-    def get_state(self) -> str:
-        """返回当前状态字符串"""
-        return self.state.value
 
 
 class TokenBucketRateLimiter:
