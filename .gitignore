@@ -108,3 +108,11 @@ mutants/
 .venv-mutmut/
 .venv-mutmut-wsl/
 .venv-mutmut-win/
+
+# ── TRAE 工作目录 ──
+.trae/
+
+# ── 内部队友协作文档 ──
+docs/teammate_*.md
+docs/pr_patrol_*.md
+docs/project_dashboard_*.html
