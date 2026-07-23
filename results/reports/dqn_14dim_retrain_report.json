@@ -1,7 +1,7 @@
 {
   "title": "14维DQN模型重训报告",
   "issue": "#46",
-  "generated_at": "2026-07-23T11:03:04.815781+00:00",
+  "generated_at": "2026-07-23T11:46:53.296463+00:00",
   "config": {
     "algorithm": "Double DQN (no Dueling)",
     "net_arch": [
@@ -35,36 +35,36 @@
       }
     },
     "random": {
-      "mean": 1923.14,
-      "std": 815.3
+      "mean": 1893.43,
+      "std": 774.11
     },
     "fcfs": {
-      "mean": -6781.52,
-      "std": 355.32,
+      "mean": 3434.47,
+      "std": 135.73,
       "action_distribution": {
-        "0": 52460,
-        "1": 71878,
-        "2": 662
+        "0": 0,
+        "1": 0,
+        "2": 125000
       }
     },
     "comparisons": {
       "dqn_vs_random": {
-        "improvement_pct": 77.0,
-        "t_stat": 28.15,
-        "p_value": 2.898676588701883e-82,
-        "cohens_d": 2.52
+        "improvement_pct": 79.8,
+        "t_stat": 30.18,
+        "p_value": 8.502828617379938e-89,
+        "cohens_d": 2.7
       },
       "dqn_vs_fcfs": {
-        "improvement_pct": 150.2,
-        "t_stat": 410.49,
-        "p_value": 0.0,
-        "cohens_d": 36.71
+        "improvement_pct": -0.9,
+        "t_stat": -2.19,
+        "p_value": 0.029254750327079238,
+        "cohens_d": -0.2
       },
       "fcfs_vs_random": {
-        "improvement_pct": -452.6,
-        "t_stat": -154.75,
-        "p_value": 0.0,
-        "cohens_d": -13.84
+        "improvement_pct": 81.4,
+        "t_stat": 31.0,
+        "p_value": 5.051851264776833e-90,
+        "cohens_d": 2.77
       }
     }
   },
@@ -76,5 +76,10 @@
     "fcfs_std": 55.85,
     "improvement": 88.3,
     "note": "本报告DQN数据为14维环境独立评估，与权威数字（10维Obs10Wrapper环境）不可直接数值对比，仅用于验证DQN > Random（退化已修复）"
+  },
+  "limitations": {
+    "quantum_action_rate": 0.48,
+    "note": "DQN量子动作(action=1)使用率极低，说明模型主要依赖经典/混合执行路径。可能与reward clipping[-1,1]压缩了量子任务的高奖励信号有关，未来可尝试分层reward或量子专属奖励 shaping 提升量子资源利用率。",
+    "fcfs_note": "FCFS基线使用action=2（环境内部pick_next_task按priority/wait_steps排序），匹配项目权威FCFS实现（run_multiseed_evaluation.py）。"
   }
 }

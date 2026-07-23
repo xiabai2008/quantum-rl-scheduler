@@ -35,7 +35,6 @@ if PROJECT_ROOT not in sys.path:
 
 import gymnasium as gym
 
-from src.scheduler.baselines import FCFSScheduler
 from src.scheduler.env import QuantumSchedulingEnv
 
 # ── 常量 ──
@@ -76,53 +75,28 @@ class RewardClipWrapper(gym.Wrapper):
 
 
 class FCFSEnvStrategy:
-    """FCFS 调度策略：基于环境任务队列选择最早到达的任务并映射到动作。
+    """FCFS 调度策略：始终选择混合执行（action=2）。
 
-    使用 baselines.FCFSScheduler 选择最早到达的任务，
-    然后根据任务类型映射到动作空间（0=经典/1=量子/2=混合）。
-    若无任务，默认选择混合执行（action=2）。
+    项目权威 FCFS 实现为 return 2（环境内部 pick_next_task 已按
+    priority/wait_steps 排序，action=2 触发环境默认调度逻辑）。
+    参见 AGENTS.md 权威对比框架与 run_multiseed_evaluation.py。
     """
 
     name = "FCFS"
 
     def __init__(self) -> None:
         """初始化 FCFS 策略。"""
-        self._scheduler = FCFSScheduler()
 
     def select_action(self, env: QuantumSchedulingEnv) -> int:
-        """根据环境任务队列选择动作。
+        """返回 FCFS 动作。
 
         Args:
             env: 量子调度环境实例
 
         Returns:
-            动作索引（0=经典, 1=量子, 2=混合）
+            动作索引 2（混合执行，环境内部按 FCFS 排序）
         """
-        task_queue = getattr(env, "_task_queue", [])
-        if not task_queue:
-            return 2  # 默认混合执行
-
-        tasks_for_scheduler = []
-        for i, task in enumerate(task_queue):
-            tasks_for_scheduler.append(
-                {
-                    "task_id": getattr(task, "task_id", str(i)),
-                    "arrival_time": float(getattr(task, "wait_steps", 0)),
-                    "task_type": getattr(task, "task_type", "hybrid"),
-                }
-            )
-
-        selected_idx = self._scheduler.select_action(tasks_for_scheduler, {})
-        if selected_idx < 0 or selected_idx >= len(task_queue):
-            return 2
-
-        task_type = getattr(task_queue[selected_idx], "task_type", "hybrid")
-        if task_type == "quantum":
-            return 1
-        elif task_type == "classical":
-            return 0
-        else:
-            return 2
+        return 2
 
 
 # ============================================================================
