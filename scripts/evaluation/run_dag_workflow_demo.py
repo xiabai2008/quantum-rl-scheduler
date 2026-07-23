@@ -23,10 +23,10 @@ if PROJECT_ROOT not in sys.path:
 
 from src.scheduler.dag_scheduler import DAGScheduler, DAGTask
 
-
 # ---------------------------------------------------------------------------
 # 真实量子工作流定义
 # ---------------------------------------------------------------------------
+
 
 def build_vqe_workflow() -> list[DAGTask]:
     """构建VQE (Variational Quantum Eigensolver) 工作流。
@@ -41,20 +41,61 @@ def build_vqe_workflow() -> list[DAGTask]:
         7. 结果输出（经典）
     """
     return [
-        DAGTask(task_id="vqe_hamiltonian", task_type="classical", qubits_required=0,
-                estimated_time=1.0, priority=5),
-        DAGTask(task_id="vqe_circuit", task_type="quantum", qubits_required=12,
-                estimated_time=3.0, priority=5, dependencies=["vqe_hamiltonian"]),
-        DAGTask(task_id="vqe_measure", task_type="quantum", qubits_required=12,
-                estimated_time=2.0, priority=4, dependencies=["vqe_circuit"]),
-        DAGTask(task_id="vqe_expectation", task_type="classical", qubits_required=0,
-                estimated_time=0.5, priority=4, dependencies=["vqe_measure"]),
-        DAGTask(task_id="vqe_optimize", task_type="classical", qubits_required=0,
-                estimated_time=2.0, priority=4, dependencies=["vqe_expectation"]),
-        DAGTask(task_id="vqe_convergence", task_type="classical", qubits_required=0,
-                estimated_time=0.5, priority=3, dependencies=["vqe_optimize"]),
-        DAGTask(task_id="vqe_output", task_type="classical", qubits_required=0,
-                estimated_time=0.5, priority=3, dependencies=["vqe_convergence"]),
+        DAGTask(
+            task_id="vqe_hamiltonian",
+            task_type="classical",
+            qubits_required=0,
+            estimated_time=1.0,
+            priority=5,
+        ),
+        DAGTask(
+            task_id="vqe_circuit",
+            task_type="quantum",
+            qubits_required=12,
+            estimated_time=3.0,
+            priority=5,
+            dependencies=["vqe_hamiltonian"],
+        ),
+        DAGTask(
+            task_id="vqe_measure",
+            task_type="quantum",
+            qubits_required=12,
+            estimated_time=2.0,
+            priority=4,
+            dependencies=["vqe_circuit"],
+        ),
+        DAGTask(
+            task_id="vqe_expectation",
+            task_type="classical",
+            qubits_required=0,
+            estimated_time=0.5,
+            priority=4,
+            dependencies=["vqe_measure"],
+        ),
+        DAGTask(
+            task_id="vqe_optimize",
+            task_type="classical",
+            qubits_required=0,
+            estimated_time=2.0,
+            priority=4,
+            dependencies=["vqe_expectation"],
+        ),
+        DAGTask(
+            task_id="vqe_convergence",
+            task_type="classical",
+            qubits_required=0,
+            estimated_time=0.5,
+            priority=3,
+            dependencies=["vqe_optimize"],
+        ),
+        DAGTask(
+            task_id="vqe_output",
+            task_type="classical",
+            qubits_required=0,
+            estimated_time=0.5,
+            priority=3,
+            dependencies=["vqe_convergence"],
+        ),
     ]
 
 
@@ -71,20 +112,61 @@ def build_qaoa_workflow() -> list[DAGTask]:
         7. 参数更新（经典）
     """
     return [
-        DAGTask(task_id="qaoa_qubo", task_type="classical", qubits_required=0,
-                estimated_time=2.0, priority=5),
-        DAGTask(task_id="qaoa_mixer", task_type="quantum", qubits_required=20,
-                estimated_time=4.0, priority=5, dependencies=["qaoa_qubo"]),
-        DAGTask(task_id="qaoa_problem", task_type="quantum", qubits_required=20,
-                estimated_time=4.0, priority=5, dependencies=["qaoa_qubo"]),
-        DAGTask(task_id="qaoa_evolve", task_type="quantum", qubits_required=20,
-                estimated_time=5.0, priority=4, dependencies=["qaoa_mixer", "qaoa_problem"]),
-        DAGTask(task_id="qaoa_sample", task_type="quantum", qubits_required=20,
-                estimated_time=3.0, priority=4, dependencies=["qaoa_evolve"]),
-        DAGTask(task_id="qaoa_evaluate", task_type="classical", qubits_required=0,
-                estimated_time=1.0, priority=4, dependencies=["qaoa_sample"]),
-        DAGTask(task_id="qaoa_update", task_type="classical", qubits_required=0,
-                estimated_time=1.5, priority=3, dependencies=["qaoa_evaluate"]),
+        DAGTask(
+            task_id="qaoa_qubo",
+            task_type="classical",
+            qubits_required=0,
+            estimated_time=2.0,
+            priority=5,
+        ),
+        DAGTask(
+            task_id="qaoa_mixer",
+            task_type="quantum",
+            qubits_required=20,
+            estimated_time=4.0,
+            priority=5,
+            dependencies=["qaoa_qubo"],
+        ),
+        DAGTask(
+            task_id="qaoa_problem",
+            task_type="quantum",
+            qubits_required=20,
+            estimated_time=4.0,
+            priority=5,
+            dependencies=["qaoa_qubo"],
+        ),
+        DAGTask(
+            task_id="qaoa_evolve",
+            task_type="quantum",
+            qubits_required=20,
+            estimated_time=5.0,
+            priority=4,
+            dependencies=["qaoa_mixer", "qaoa_problem"],
+        ),
+        DAGTask(
+            task_id="qaoa_sample",
+            task_type="quantum",
+            qubits_required=20,
+            estimated_time=3.0,
+            priority=4,
+            dependencies=["qaoa_evolve"],
+        ),
+        DAGTask(
+            task_id="qaoa_evaluate",
+            task_type="classical",
+            qubits_required=0,
+            estimated_time=1.0,
+            priority=4,
+            dependencies=["qaoa_sample"],
+        ),
+        DAGTask(
+            task_id="qaoa_update",
+            task_type="classical",
+            qubits_required=0,
+            estimated_time=1.5,
+            priority=3,
+            dependencies=["qaoa_evaluate"],
+        ),
     ]
 
 
@@ -100,18 +182,53 @@ def build_grover_workflow() -> list[DAGTask]:
         6. 结果验证（经典）
     """
     return [
-        DAGTask(task_id="grover_init", task_type="classical", qubits_required=0,
-                estimated_time=0.5, priority=5),
-        DAGTask(task_id="grover_oracle", task_type="quantum", qubits_required=8,
-                estimated_time=2.0, priority=5, dependencies=["grover_init"]),
-        DAGTask(task_id="grover_amplify", task_type="quantum", qubits_required=8,
-                estimated_time=3.0, priority=4, dependencies=["grover_oracle"]),
-        DAGTask(task_id="grover_iterate", task_type="quantum", qubits_required=8,
-                estimated_time=4.0, priority=4, dependencies=["grover_amplify"]),
-        DAGTask(task_id="grover_measure", task_type="quantum", qubits_required=8,
-                estimated_time=1.0, priority=4, dependencies=["grover_iterate"]),
-        DAGTask(task_id="grover_verify", task_type="classical", qubits_required=0,
-                estimated_time=0.5, priority=3, dependencies=["grover_measure"]),
+        DAGTask(
+            task_id="grover_init",
+            task_type="classical",
+            qubits_required=0,
+            estimated_time=0.5,
+            priority=5,
+        ),
+        DAGTask(
+            task_id="grover_oracle",
+            task_type="quantum",
+            qubits_required=8,
+            estimated_time=2.0,
+            priority=5,
+            dependencies=["grover_init"],
+        ),
+        DAGTask(
+            task_id="grover_amplify",
+            task_type="quantum",
+            qubits_required=8,
+            estimated_time=3.0,
+            priority=4,
+            dependencies=["grover_oracle"],
+        ),
+        DAGTask(
+            task_id="grover_iterate",
+            task_type="quantum",
+            qubits_required=8,
+            estimated_time=4.0,
+            priority=4,
+            dependencies=["grover_amplify"],
+        ),
+        DAGTask(
+            task_id="grover_measure",
+            task_type="quantum",
+            qubits_required=8,
+            estimated_time=1.0,
+            priority=4,
+            dependencies=["grover_iterate"],
+        ),
+        DAGTask(
+            task_id="grover_verify",
+            task_type="classical",
+            qubits_required=0,
+            estimated_time=0.5,
+            priority=3,
+            dependencies=["grover_measure"],
+        ),
     ]
 
 
@@ -127,18 +244,53 @@ def build_shor_workflow() -> list[DAGTask]:
         6. 因数提取（经典）
     """
     return [
-        DAGTask(task_id="shor_random", task_type="classical", qubits_required=0,
-                estimated_time=0.5, priority=5),
-        DAGTask(task_id="shor_qft", task_type="quantum", qubits_required=30,
-                estimated_time=6.0, priority=5, dependencies=["shor_random"]),
-        DAGTask(task_id="shor_modular", task_type="quantum", qubits_required=30,
-                estimated_time=5.0, priority=5, dependencies=["shor_random"]),
-        DAGTask(task_id="shor_period", task_type="quantum", qubits_required=30,
-                estimated_time=4.0, priority=4, dependencies=["shor_qft", "shor_modular"]),
-        DAGTask(task_id="shor_postprocess", task_type="classical", qubits_required=0,
-                estimated_time=1.0, priority=4, dependencies=["shor_period"]),
-        DAGTask(task_id="shor_factor", task_type="classical", qubits_required=0,
-                estimated_time=0.5, priority=3, dependencies=["shor_postprocess"]),
+        DAGTask(
+            task_id="shor_random",
+            task_type="classical",
+            qubits_required=0,
+            estimated_time=0.5,
+            priority=5,
+        ),
+        DAGTask(
+            task_id="shor_qft",
+            task_type="quantum",
+            qubits_required=30,
+            estimated_time=6.0,
+            priority=5,
+            dependencies=["shor_random"],
+        ),
+        DAGTask(
+            task_id="shor_modular",
+            task_type="quantum",
+            qubits_required=30,
+            estimated_time=5.0,
+            priority=5,
+            dependencies=["shor_random"],
+        ),
+        DAGTask(
+            task_id="shor_period",
+            task_type="quantum",
+            qubits_required=30,
+            estimated_time=4.0,
+            priority=4,
+            dependencies=["shor_qft", "shor_modular"],
+        ),
+        DAGTask(
+            task_id="shor_postprocess",
+            task_type="classical",
+            qubits_required=0,
+            estimated_time=1.0,
+            priority=4,
+            dependencies=["shor_period"],
+        ),
+        DAGTask(
+            task_id="shor_factor",
+            task_type="classical",
+            qubits_required=0,
+            estimated_time=0.5,
+            priority=3,
+            dependencies=["shor_postprocess"],
+        ),
     ]
 
 
@@ -146,12 +298,21 @@ def build_shor_workflow() -> list[DAGTask]:
 # 辅助函数
 # ---------------------------------------------------------------------------
 
+
 def _machines_from_config() -> list[dict]:
     """从默认机器配置生成多机器规格。"""
     return [
-        {"name": "天衍-287", "qubits": 287, "supports": ["u1", "u2", "u3", "cx", "cz", "h", "rx", "ry", "rz"]},
+        {
+            "name": "天衍-287",
+            "qubits": 287,
+            "supports": ["u1", "u2", "u3", "cx", "cz", "h", "rx", "ry", "rz"],
+        },
         {"name": "天衍-72", "qubits": 72, "supports": ["u1", "u2", "u3", "cx", "h"]},
-        {"name": "天衍-176", "qubits": 176, "supports": ["u1", "u2", "u3", "cx", "cz", "h", "rx", "ry", "rz"]},
+        {
+            "name": "天衍-176",
+            "qubits": 176,
+            "supports": ["u1", "u2", "u3", "cx", "cz", "h", "rx", "ry", "rz"],
+        },
     ]
 
 
@@ -216,19 +377,21 @@ def main() -> None:
 
     results = {}
     for name, tasks in workflows.items():
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print(f"  调度 {name} 工作流 ({len(tasks)} 个任务)")
-        print(f"{'='*60}")
+        print(f"{'=' * 60}")
         result = _schedule_workflow(name, tasks, machines)
         results[name] = result
 
         print(f"  状态: {result['status']}")
         print(f"  关键路径: {' -> '.join(result['critical_path'])}")
         print(f"  Makespan: {result['makespan']:.1f}")
-        print(f"  调度详情:")
+        print("  调度详情:")
         for item in result["schedule"][:5]:
-            print(f"    {item['task_id']}: machine={item['machine_id']}, "
-                  f"start={item['start_time']:.1f}, finish={item['estimated_finish']:.1f}")
+            print(
+                f"    {item['task_id']}: machine={item['machine_id']}, "
+                f"start={item['start_time']:.1f}, finish={item['estimated_finish']:.1f}"
+            )
         if len(result["schedule"]) > 5:
             print(f"    ... (共 {len(result['schedule'])} 个调度项)")
 
@@ -261,15 +424,13 @@ def main() -> None:
     print(f"Markdown报告: {md_path}")
 
 
-def _write_markdown_report(
-    results: dict, machines: list[dict], output_path: str
-) -> None:
+def _write_markdown_report(results: dict, machines: list[dict], output_path: str) -> None:
     """生成Markdown格式的DAG工作流验证报告。"""
     lines = [
         "# DAG工作流调度验证报告",
         "",
         f"> 生成时间: {datetime.now(timezone.utc).isoformat()}",
-        f"> Issue: #32",
+        "> Issue: #32",
         f"> 机器配置: {len(machines)}台 ({', '.join(m['name'] for m in machines)})",
         "",
         "## 实验目的",
@@ -286,38 +447,40 @@ def _write_markdown_report(
     ]
     for name, r in results.items():
         task_count = len(r["schedule"])
-        usage_str = ", ".join(
-            f"M{k}={v:.0%}" for k, v in r["machine_usage"].items()
-        )
+        usage_str = ", ".join(f"M{k}={v:.0%}" for k, v in r["machine_usage"].items())
         lines.append(
             f"| {name} | {task_count} | {r['makespan']:.1f} | "
             f"{r['critical_path_length']} | {usage_str} |"
         )
-    lines.extend([
-        "",
-        "## 关键路径",
-        "",
-    ])
+    lines.extend(
+        [
+            "",
+            "## 关键路径",
+            "",
+        ]
+    )
     for name, r in results.items():
         lines.append(f"### {name}")
         lines.append(f"`{' -> '.join(r['critical_path'])}`")
         lines.append("")
 
-    lines.extend([
-        "## 结论",
-        "",
-        "- DAG调度器成功处理了4种真实量子计算工作流，所有DAG均通过合法性校验",
-        "- 多机器资源约束调度正确分配任务到不同机器，考虑时序和量子比特容量约束",
-        "- 关键路径分析识别出各工作流的瓶颈任务",
-        "- 验证通过，DAG工作流调度能力满足竞赛要求",
-        "",
-        "## 复现命令",
-        "",
-        "```bash",
-        "cd quantum-rl-scheduler",
-        "python scripts/evaluation/run_dag_workflow_demo.py",
-        "```",
-    ])
+    lines.extend(
+        [
+            "## 结论",
+            "",
+            "- DAG调度器成功处理了4种真实量子计算工作流，所有DAG均通过合法性校验",
+            "- 多机器资源约束调度正确分配任务到不同机器，考虑时序和量子比特容量约束",
+            "- 关键路径分析识别出各工作流的瓶颈任务",
+            "- 验证通过，DAG工作流调度能力满足竞赛要求",
+            "",
+            "## 复现命令",
+            "",
+            "```bash",
+            "cd quantum-rl-scheduler",
+            "python scripts/evaluation/run_dag_workflow_demo.py",
+            "```",
+        ]
+    )
 
     with open(output_path, "w", encoding="utf-8") as f:
         f.write("\n".join(lines))
