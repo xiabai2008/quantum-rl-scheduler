@@ -3,8 +3,11 @@
 量子占比敏感性分析 —— PPO vs FCFS 优势曲线
 
 跑 5 个量子占比（10%/30%/50%/70%/90%），
-每个点 10 seeds × 5 episodes，固定泊松 λ=0.5，Obs10Wrapper。
+每个点 10 seeds × 5 episodes，固定泊松 λ=0.5，使用原生 14 维观测。
 输出报告 + 折线图到 results/reports/quantum_ratio_sensitivity.md。
+
+注: 本脚本使用 14 维原生环境（无 Obs10Wrapper），与项目权威对比框架
+（10 维 Obs10Wrapper, 200步, 50 seeds）配置不同，绝对奖励值不可直接比较。
 """
 
 import json
@@ -13,58 +16,17 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-import gymnasium as gym
 import matplotlib
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
-from gymnasium import spaces
 
 # Add project root to path
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from stable_baselines3 import PPO
-
-from src.scheduler.env import QuantumSchedulingEnv
-
-
-class Obs10Wrapper(gym.Wrapper):
-    """Gymnasium 包装器：将 14 维观测截断为 10 维，用于 PPO.load()。"""
-
-    def __init__(self, env):
-        super().__init__(env)
-        self.observation_space = spaces.Box(low=0.0, high=1.0, shape=(10,), dtype=np.float32)
-
-    def reset(self, **kwargs):
-        obs, info = self.env.reset(**kwargs)
-        return obs[:10].astype(np.float32), info
-
-    def step(self, action):
-        obs, reward, terminated, truncated, info = self.env.step(action)
-        return obs[:10].astype(np.float32), reward, terminated, truncated, info
-
-
-class Obs10SimWrapper:
-    """普通包装器：将 SimulationEnv 的 14 维观测截断为 10 维。
-    不继承 gym.Wrapper，可包裹非 gymnasium.Env 对象。
-    """
-
-    def __init__(self, sim_env):
-        self.sim_env = sim_env
-
-    def __getattr__(self, name):
-        return getattr(self.sim_env, name)
-
-    def reset(self, **kwargs):
-        obs, info = self.sim_env.reset(**kwargs)
-        return obs[:10].astype(np.float32), info
-
-    def step(self, action):
-        obs, reward, terminated, truncated, info = self.sim_env.step(action)
-        return obs[:10].astype(np.float32), reward, terminated, truncated, info
-
 
 # Import strategy classes from the simulation script
 from scripts.evaluation.run_simulation import (
@@ -74,6 +36,7 @@ from scripts.evaluation.run_simulation import (
     SimulationTaskGenerator,
     run_strategy,
 )
+from src.scheduler.env import QuantumSchedulingEnv
 
 # ── Configuration ──────────────────────────────────────────────
 QUANTUM_RATIOS = [0.1, 0.3, 0.5, 0.7, 0.9]
@@ -359,6 +322,10 @@ def main():
         "",
         "已有权威数字（PPO +88.3%, p=3.04e-11）仅在量子占比 70% 这一个点测得。",
         "本实验通过 5 个梯度点（10% / 30% / 50% / 70% / 90%）系统刻画 PPO 优势曲线。",
+        "",
+        "> **方法论差异说明**: 本实验使用 14 维原生环境（无 Obs10Wrapper），",
+        "> 与项目权威对比框架（10 维 Obs10Wrapper, 200步, 50 seeds）配置不同，",
+        "> 绝对奖励值不可直接比较。提升百分比在同一配置内对比有效。",
         "",
         "---",
         "",
