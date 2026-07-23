@@ -1,5 +1,5 @@
 #!/bin/bash
-cd /mnt/c/Users/HZR/Desktop/揭榜挂帅擂台赛/quantum-rl-scheduler
+cd "$(dirname "$0")"
 source .venv-mutmut/bin/activate
 
 # 检查依赖
