@@ -543,6 +543,11 @@ class TestSchedulerAgent(unittest.TestCase):
             zip_path = save_path + ".zip"
             self.assertTrue(os.path.exists(zip_path))
 
+    def test_save_raises_without_model(self):
+        """测试未训练时调用 save 抛异常"""
+        with self.assertRaises(RuntimeError):
+            self.agent.save("/tmp/no_model")
+
     def test_repr(self):
         """测试智能体的字符串表示"""
         rep = repr(self.agent)
@@ -1059,6 +1064,52 @@ class TestIntegration(unittest.TestCase):
         self.assertIn("success_rate", result)
         self.assertIn("num_episodes", result)
         self.assertEqual(result["num_episodes"], 3)
+
+    def test_evaluate_raises_without_model(self):
+        """测试未训练时调用 evaluate 抛异常"""
+        env = QuantumSchedulingEnv(max_steps=50, seed=42)
+        agent = SchedulerAgent(env=env, verbose=0, seed=42)
+        with self.assertRaises(RuntimeError):
+            agent.evaluate(num_episodes=3)
+
+    def test_load_standard_dqn(self):
+        """测试加载标准DQN模型（非Dueling架构）"""
+        from stable_baselines3 import DQN
+
+        import tempfile
+
+        env = QuantumSchedulingEnv(max_steps=50, seed=42)
+        # 构建标准DQN（非Dueling），使用简单网络
+        net_arch = [32, 32]
+        std_dqn = DQN(
+            policy="MlpPolicy",
+            env=env,
+            learning_rate=1e-3,
+            buffer_size=500,
+            batch_size=32,
+            learning_starts=50,
+            verbose=0,
+            seed=42,
+            policy_kwargs={"net_arch": net_arch},
+        )
+        std_dqn.learn(total_timesteps=100)
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            model_path = os.path.join(tmpdir, "std_dqn")
+            std_dqn.save(model_path)
+            zip_path = model_path + ".zip"
+            self.assertTrue(os.path.exists(zip_path))
+
+            # 加载标准DQN（非Dueling路径）
+            agent = SchedulerAgent(env=env, verbose=0, seed=42)
+            agent.NET_ARCH = net_arch
+            agent.load(zip_path)
+            self.assertIsNotNone(agent.model)
+
+            # 验证模型可以推理
+            state = np.zeros(OBS_DIM, dtype=np.float32)
+            action = agent.predict(state, deterministic=True)
+            self.assertIn(action, [0, 1, 2])
 
 
 def run_tests():
