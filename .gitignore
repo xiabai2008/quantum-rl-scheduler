@@ -22,6 +22,7 @@ wheels/
 
 # 虚拟环境
 venv/
+.venv/
 ENV/
 env/
 
@@ -32,14 +33,6 @@ env/
 *.swo
 *~
 .DS_Store
-
-# TRAE 工作目录（内部文件，不提交）
-.trae/
-
-# 内部项目管理文件（不提交到公共仓库）
-docs/teammate_*.md
-docs/pr_patrol_*.md
-docs/project_dashboard_*.html
 
 # Jupyter
 .ipynb_checkpoints/
@@ -115,3 +108,11 @@ mutants/
 .venv-mutmut/
 .venv-mutmut-wsl/
 .venv-mutmut-win/
+
+# ── TRAE 工作目录 ──
+.trae/
+
+# ── 内部队友协作文档 ──
+docs/teammate_*.md
+docs/pr_patrol_*.md
+docs/project_dashboard_*.html
