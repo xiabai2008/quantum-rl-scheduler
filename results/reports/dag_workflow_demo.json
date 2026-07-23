@@ -1,0 +1,326 @@
+{
+  "title": "DAG工作流调度验证报告",
+  "generated_at": "2026-07-23T07:56:55.741757+00:00",
+  "issue": "#32",
+  "machines": [
+    {
+      "name": "天衍-287",
+      "qubits": 287,
+      "supports": [
+        "u1",
+        "u2",
+        "u3",
+        "cx",
+        "cz",
+        "h",
+        "rx",
+        "ry",
+        "rz"
+      ]
+    },
+    {
+      "name": "天衍-72",
+      "qubits": 72,
+      "supports": [
+        "u1",
+        "u2",
+        "u3",
+        "cx",
+        "h"
+      ]
+    },
+    {
+      "name": "天衍-176",
+      "qubits": 176,
+      "supports": [
+        "u1",
+        "u2",
+        "u3",
+        "cx",
+        "cz",
+        "h",
+        "rx",
+        "ry",
+        "rz"
+      ]
+    }
+  ],
+  "workflows": {
+    "VQE": {
+      "workflow": "VQE",
+      "status": "ok",
+      "task_count": 7,
+      "critical_path": [
+        "vqe_hamiltonian",
+        "vqe_circuit",
+        "vqe_measure",
+        "vqe_expectation",
+        "vqe_optimize",
+        "vqe_convergence",
+        "vqe_output"
+      ],
+      "critical_path_length": 7,
+      "topological_order": [
+        "vqe_hamiltonian",
+        "vqe_circuit",
+        "vqe_measure",
+        "vqe_expectation",
+        "vqe_optimize",
+        "vqe_convergence",
+        "vqe_output"
+      ],
+      "schedule": [
+        {
+          "task_id": "vqe_hamiltonian",
+          "start_time": 0.0,
+          "machine_id": 0,
+          "estimated_finish": 1.0
+        },
+        {
+          "task_id": "vqe_circuit",
+          "start_time": 1.0,
+          "machine_id": 0,
+          "estimated_finish": 4.0
+        },
+        {
+          "task_id": "vqe_measure",
+          "start_time": 4.0,
+          "machine_id": 0,
+          "estimated_finish": 6.0
+        },
+        {
+          "task_id": "vqe_expectation",
+          "start_time": 6.0,
+          "machine_id": 0,
+          "estimated_finish": 6.5
+        },
+        {
+          "task_id": "vqe_optimize",
+          "start_time": 6.5,
+          "machine_id": 0,
+          "estimated_finish": 8.5
+        },
+        {
+          "task_id": "vqe_convergence",
+          "start_time": 8.5,
+          "machine_id": 0,
+          "estimated_finish": 9.0
+        },
+        {
+          "task_id": "vqe_output",
+          "start_time": 9.0,
+          "machine_id": 0,
+          "estimated_finish": 9.5
+        }
+      ],
+      "makespan": 9.5,
+      "machine_usage": {
+        "0": 1.0
+      }
+    },
+    "QAOA": {
+      "workflow": "QAOA",
+      "status": "ok",
+      "task_count": 7,
+      "critical_path": [
+        "qaoa_qubo",
+        "qaoa_problem",
+        "qaoa_evolve",
+        "qaoa_sample",
+        "qaoa_evaluate",
+        "qaoa_update"
+      ],
+      "critical_path_length": 6,
+      "topological_order": [
+        "qaoa_qubo",
+        "qaoa_mixer",
+        "qaoa_problem",
+        "qaoa_evolve",
+        "qaoa_sample",
+        "qaoa_evaluate",
+        "qaoa_update"
+      ],
+      "schedule": [
+        {
+          "task_id": "qaoa_qubo",
+          "start_time": 0.0,
+          "machine_id": 0,
+          "estimated_finish": 2.0
+        },
+        {
+          "task_id": "qaoa_mixer",
+          "start_time": 2.0,
+          "machine_id": 0,
+          "estimated_finish": 6.0
+        },
+        {
+          "task_id": "qaoa_problem",
+          "start_time": 2.0,
+          "machine_id": 0,
+          "estimated_finish": 6.0
+        },
+        {
+          "task_id": "qaoa_evolve",
+          "start_time": 6.0,
+          "machine_id": 0,
+          "estimated_finish": 11.0
+        },
+        {
+          "task_id": "qaoa_sample",
+          "start_time": 11.0,
+          "machine_id": 0,
+          "estimated_finish": 14.0
+        },
+        {
+          "task_id": "qaoa_evaluate",
+          "start_time": 14.0,
+          "machine_id": 0,
+          "estimated_finish": 15.0
+        },
+        {
+          "task_id": "qaoa_update",
+          "start_time": 15.0,
+          "machine_id": 0,
+          "estimated_finish": 16.5
+        }
+      ],
+      "makespan": 16.5,
+      "machine_usage": {
+        "0": 1.242
+      }
+    },
+    "Grover": {
+      "workflow": "Grover",
+      "status": "ok",
+      "task_count": 6,
+      "critical_path": [
+        "grover_init",
+        "grover_oracle",
+        "grover_amplify",
+        "grover_iterate",
+        "grover_measure",
+        "grover_verify"
+      ],
+      "critical_path_length": 6,
+      "topological_order": [
+        "grover_init",
+        "grover_oracle",
+        "grover_amplify",
+        "grover_iterate",
+        "grover_measure",
+        "grover_verify"
+      ],
+      "schedule": [
+        {
+          "task_id": "grover_init",
+          "start_time": 0.0,
+          "machine_id": 0,
+          "estimated_finish": 0.5
+        },
+        {
+          "task_id": "grover_oracle",
+          "start_time": 0.5,
+          "machine_id": 0,
+          "estimated_finish": 2.5
+        },
+        {
+          "task_id": "grover_amplify",
+          "start_time": 2.5,
+          "machine_id": 0,
+          "estimated_finish": 5.5
+        },
+        {
+          "task_id": "grover_iterate",
+          "start_time": 5.5,
+          "machine_id": 0,
+          "estimated_finish": 9.5
+        },
+        {
+          "task_id": "grover_measure",
+          "start_time": 9.5,
+          "machine_id": 0,
+          "estimated_finish": 10.5
+        },
+        {
+          "task_id": "grover_verify",
+          "start_time": 10.5,
+          "machine_id": 0,
+          "estimated_finish": 11.0
+        }
+      ],
+      "makespan": 11.0,
+      "machine_usage": {
+        "0": 1.0
+      }
+    },
+    "Shor": {
+      "workflow": "Shor",
+      "status": "ok",
+      "task_count": 6,
+      "critical_path": [
+        "shor_random",
+        "shor_qft",
+        "shor_period",
+        "shor_postprocess",
+        "shor_factor"
+      ],
+      "critical_path_length": 5,
+      "topological_order": [
+        "shor_random",
+        "shor_qft",
+        "shor_modular",
+        "shor_period",
+        "shor_postprocess",
+        "shor_factor"
+      ],
+      "schedule": [
+        {
+          "task_id": "shor_random",
+          "start_time": 0.0,
+          "machine_id": 0,
+          "estimated_finish": 0.5
+        },
+        {
+          "task_id": "shor_modular",
+          "start_time": 0.5,
+          "machine_id": 0,
+          "estimated_finish": 5.5
+        },
+        {
+          "task_id": "shor_qft",
+          "start_time": 0.5,
+          "machine_id": 0,
+          "estimated_finish": 6.5
+        },
+        {
+          "task_id": "shor_period",
+          "start_time": 6.5,
+          "machine_id": 0,
+          "estimated_finish": 10.5
+        },
+        {
+          "task_id": "shor_postprocess",
+          "start_time": 10.5,
+          "machine_id": 0,
+          "estimated_finish": 11.5
+        },
+        {
+          "task_id": "shor_factor",
+          "start_time": 11.5,
+          "machine_id": 0,
+          "estimated_finish": 12.0
+        }
+      ],
+      "makespan": 12.0,
+      "machine_usage": {
+        "0": 1.417
+      }
+    }
+  },
+  "summary": {
+    "total_workflows": 4,
+    "all_valid": true,
+    "max_makespan": 16.5,
+    "avg_makespan": 12.25
+  }
+}

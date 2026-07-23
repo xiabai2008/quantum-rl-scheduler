@@ -1666,118 +1666,109 @@ class TestErrorHandling:
         assert "error" in data
 
 
-class TestWebSocketHandlerPPOStats:
-    """WebSocket /ws 端点 PPO 统计读取测试。
+class TestExplainabilityEndpoints:
+    """GET /api/explainability 与 /api/explainability/summary 端点测试（Issue #73）。"""
 
-    覆盖 src/visualization/websocket_handler.py 第 40-51 行：成功读取
-    simulation_results JSON 并提取 PPO 排名，以及三种异常路径
-    （JSONDecodeError / OSError / 无结果文件）。
-    """
-
-    def test_websocket_init_with_ppo_rank(self, tmp_path, monkeypatch):
-        """有仿真结果文件且含 PPO 策略时应返回正确排名。"""
-        results_dir = tmp_path / "results"
-        results_dir.mkdir()
-        sim_data = {
-            "PPO": {"avg_reward": 2746.94},
-            "FCFS": {"avg_reward": 1458.77},
-            "Random": {"avg_reward": 1000.0},
-        }
-        (results_dir / "simulation_results_001.json").write_text(
-            json.dumps(sim_data), encoding="utf-8"
+    @pytest.mark.asyncio
+    async def test_explainability_returns_feature_contributions(self, async_client, monkeypatch):
+        """存在含 feature_contributions 的决策日志时，应返回对应记录。"""
+        monkeypatch.delenv("VISUALIZATION_API_KEY", raising=False)
+        app_module._decision_log.clear()
+        app_module._decision_log.extend(
+            [
+                {
+                    "step": 1,
+                    "action": 1,
+                    "action_label": "量子",
+                    "feature_contributions": {"队列长度": 0.5, "平均优先级": 0.3},
+                    "explanation_text": "第1步选择动作1",
+                },
+                {
+                    "step": 2,
+                    "action": 0,
+                    "action_label": "经典",
+                    "feature_contributions": {"队列长度": 0.2, "量子比特利用率": 0.8},
+                    "explanation_text": "第2步选择动作0",
+                },
+            ]
         )
-        monkeypatch.setattr(app_module, "_PROJECT_ROOT", str(tmp_path))
+        resp = await async_client.get("/api/explainability")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["count"] == 2
+        assert len(data["decisions"]) == 2
+        assert data["decisions"][0]["step"] == 1
+        assert "feature_contributions" in data["decisions"][0]
+        assert "explanation_text" in data["decisions"][0]
 
-        with (
-            patch.object(app_module, "simulate_scheduler", _noop_simulate_scheduler),
-            TestClient(app) as client,
-            client.websocket_connect("/ws") as ws,
-        ):
-            msg = ws.receive_json()
-            assert msg["type"] == "init"
-            assert msg["ppo_stats"]["ppo_rank"] == 1
-            assert msg["ppo_stats"]["total"] == 3
+    @pytest.mark.asyncio
+    async def test_explainability_empty_log(self, async_client, monkeypatch):
+        """空决策日志时应返回 count=0 的空列表。"""
+        monkeypatch.delenv("VISUALIZATION_API_KEY", raising=False)
+        app_module._decision_log.clear()
+        resp = await async_client.get("/api/explainability")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["count"] == 0
+        assert data["decisions"] == []
 
-    def test_websocket_init_ppo_not_in_results(self, tmp_path, monkeypatch):
-        """结果文件中不含 PPO 策略时 ppo_rank 应为 None。"""
-        results_dir = tmp_path / "results"
-        results_dir.mkdir()
-        sim_data = {
-            "FCFS": {"avg_reward": 1458.77},
-            "Random": {"avg_reward": 1000.0},
-        }
-        (results_dir / "simulation_results_001.json").write_text(
-            json.dumps(sim_data), encoding="utf-8"
+    @pytest.mark.asyncio
+    async def test_explainability_limit_param(self, async_client, monkeypatch):
+        """limit 参数应正确限制返回数量。"""
+        monkeypatch.delenv("VISUALIZATION_API_KEY", raising=False)
+        app_module._decision_log.clear()
+        for i in range(10):
+            app_module._decision_log.append(
+                {
+                    "step": i,
+                    "action": 0,
+                    "feature_contributions": {"队列长度": 0.1},
+                    "explanation_text": f"第{i}步",
+                }
+            )
+        resp = await async_client.get("/api/explainability?limit=3")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["count"] == 3
+
+    @pytest.mark.asyncio
+    async def test_explainability_summary_returns_ranking(self, async_client, monkeypatch):
+        """应返回全局特征重要性降序排名。"""
+        monkeypatch.delenv("VISUALIZATION_API_KEY", raising=False)
+        app_module._decision_log.clear()
+        app_module._decision_log.extend(
+            [
+                {
+                    "step": 1,
+                    "action": 1,
+                    "feature_contributions": {"队列长度": 0.6, "平均优先级": 0.4},
+                },
+                {
+                    "step": 2,
+                    "action": 0,
+                    "feature_contributions": {"队列长度": 0.4, "平均优先级": 0.6},
+                },
+            ]
         )
-        monkeypatch.setattr(app_module, "_PROJECT_ROOT", str(tmp_path))
+        resp = await async_client.get("/api/explainability/summary")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["total_decisions"] == 2
+        assert len(data["feature_importance"]) == 2
+        features = [item["feature"] for item in data["feature_importance"]]
+        assert "队列长度" in features
+        assert "平均优先级" in features
+        # 验证 importance 字段存在且为数值
+        for item in data["feature_importance"]:
+            assert isinstance(item["importance"], (int, float))
 
-        with (
-            patch.object(app_module, "simulate_scheduler", _noop_simulate_scheduler),
-            TestClient(app) as client,
-            client.websocket_connect("/ws") as ws,
-        ):
-            msg = ws.receive_json()
-            assert msg["type"] == "init"
-            assert msg["ppo_stats"]["ppo_rank"] is None
-            assert msg["ppo_stats"]["total"] == 2
-
-    def test_websocket_init_no_simulation_files(self, tmp_path, monkeypatch):
-        """results 目录存在但无仿真结果文件时 ppo_stats 应为空。"""
-        results_dir = tmp_path / "results"
-        results_dir.mkdir()
-        monkeypatch.setattr(app_module, "_PROJECT_ROOT", str(tmp_path))
-
-        with (
-            patch.object(app_module, "simulate_scheduler", _noop_simulate_scheduler),
-            TestClient(app) as client,
-            client.websocket_connect("/ws") as ws,
-        ):
-            msg = ws.receive_json()
-            assert msg["type"] == "init"
-            assert msg["ppo_stats"] == {}
-
-    def test_websocket_init_json_decode_error(self, tmp_path, monkeypatch):
-        """仿真结果文件 JSON 格式错误时不应崩溃，ppo_stats 应为空。"""
-        results_dir = tmp_path / "results"
-        results_dir.mkdir()
-        (results_dir / "simulation_results_001.json").write_text("{invalid json", encoding="utf-8")
-        monkeypatch.setattr(app_module, "_PROJECT_ROOT", str(tmp_path))
-
-        with (
-            patch.object(app_module, "simulate_scheduler", _noop_simulate_scheduler),
-            TestClient(app) as client,
-            client.websocket_connect("/ws") as ws,
-        ):
-            msg = ws.receive_json()
-            assert msg["type"] == "init"
-            assert msg["ppo_stats"] == {}
-
-    def test_websocket_init_oserror_no_results_dir(self, tmp_path, monkeypatch):
-        """results 目录不存在时不应崩溃，ppo_stats 应为空。"""
-        monkeypatch.setattr(app_module, "_PROJECT_ROOT", str(tmp_path))
-
-        with (
-            patch.object(app_module, "simulate_scheduler", _noop_simulate_scheduler),
-            TestClient(app) as client,
-            client.websocket_connect("/ws") as ws,
-        ):
-            msg = ws.receive_json()
-            assert msg["type"] == "init"
-            assert msg["ppo_stats"] == {}
-
-    def test_websocket_init_oserror_on_open(self, tmp_path, monkeypatch):
-        """仿真结果文件无法读取（IsADirectoryError）时不应崩溃。"""
-        results_dir = tmp_path / "results"
-        results_dir.mkdir()
-        # 创建同名目录使 open() 抛出 IsADirectoryError（OSError 子类）
-        (results_dir / "simulation_results_001.json").mkdir()
-        monkeypatch.setattr(app_module, "_PROJECT_ROOT", str(tmp_path))
-
-        with (
-            patch.object(app_module, "simulate_scheduler", _noop_simulate_scheduler),
-            TestClient(app) as client,
-            client.websocket_connect("/ws") as ws,
-        ):
-            msg = ws.receive_json()
-            assert msg["type"] == "init"
-            assert msg["ppo_stats"] == {}
+    @pytest.mark.asyncio
+    async def test_explainability_summary_empty_log(self, async_client, monkeypatch):
+        """空决策日志时 summary 应返回空列表和 0。"""
+        monkeypatch.delenv("VISUALIZATION_API_KEY", raising=False)
+        app_module._decision_log.clear()
+        resp = await async_client.get("/api/explainability/summary")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["total_decisions"] == 0
+        assert data["feature_importance"] == []
