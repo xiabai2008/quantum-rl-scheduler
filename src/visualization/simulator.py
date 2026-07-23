@@ -19,6 +19,9 @@ from loguru import logger
 # 此处 app 模块虽可能处于部分加载状态，但 _app.X 均在函数体内访问，
 # 实际调用时 app 模块已完成加载。
 import src.visualization.app as _app
+from src.scheduler.explainability import DecisionExplainer
+
+_explainer = DecisionExplainer()
 
 
 async def simulate_scheduler() -> None:
@@ -37,6 +40,7 @@ async def simulate_scheduler() -> None:
 
         # 本轮 PPO 推理动作（-1 表示未推理）
         action: int = -1
+        obs = None  # 保存状态用于可解释性分析
 
         # 尝试使用 PPO 推理
         model = _app._get_ppo_model()
@@ -125,16 +129,22 @@ async def simulate_scheduler() -> None:
         # 记录决策日志（Issue #22：决策过程回放）
         if action >= 0:
             action_label_map = {0: "经典", 1: "量子", 2: "混合"}
-            _app._decision_log.append(
-                {
-                    "step": _app.system_status["current_step"],
-                    "task_id": f"task_{_app.system_status['current_step']}",
-                    "action": int(action),
-                    "action_label": action_label_map.get(int(action), "未知"),
-                    "reward": round(_app.system_status["qubit_utilization"] * 10, 2),
-                    "source": "PPO",
-                }
-            )
+            log_entry = {
+                "step": _app.system_status["current_step"],
+                "task_id": f"task_{_app.system_status['current_step']}",
+                "action": int(action),
+                "action_label": action_label_map.get(int(action), "未知"),
+                "reward": round(_app.system_status["qubit_utilization"] * 10, 2),
+                "source": "PPO",
+            }
+            # 计算特征贡献度（Issue #73）
+            if obs is not None:
+                record = _explainer.explain(
+                    state=obs, action=int(action), step=_app.system_status["current_step"]
+                )
+                log_entry["feature_contributions"] = record.feature_contributions
+                log_entry["explanation_text"] = _explainer.format_explanation(record, top_k=5)
+            _app._decision_log.append(log_entry)
             if len(_app._decision_log) > 200:
                 _app._decision_log.pop(0)
 

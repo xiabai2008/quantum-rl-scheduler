@@ -1664,3 +1664,111 @@ class TestErrorHandling:
         monkeypatch.setattr(app_module, "_ppo_env", None)
         data = (await async_client.get("/api/ppo/predict")).json()
         assert "error" in data
+
+
+class TestExplainabilityEndpoints:
+    """GET /api/explainability 与 /api/explainability/summary 端点测试（Issue #73）。"""
+
+    @pytest.mark.asyncio
+    async def test_explainability_returns_feature_contributions(self, async_client, monkeypatch):
+        """存在含 feature_contributions 的决策日志时，应返回对应记录。"""
+        monkeypatch.delenv("VISUALIZATION_API_KEY", raising=False)
+        app_module._decision_log.clear()
+        app_module._decision_log.extend(
+            [
+                {
+                    "step": 1,
+                    "action": 1,
+                    "action_label": "量子",
+                    "feature_contributions": {"队列长度": 0.5, "平均优先级": 0.3},
+                    "explanation_text": "第1步选择动作1",
+                },
+                {
+                    "step": 2,
+                    "action": 0,
+                    "action_label": "经典",
+                    "feature_contributions": {"队列长度": 0.2, "量子比特利用率": 0.8},
+                    "explanation_text": "第2步选择动作0",
+                },
+            ]
+        )
+        resp = await async_client.get("/api/explainability")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["count"] == 2
+        assert len(data["decisions"]) == 2
+        assert data["decisions"][0]["step"] == 1
+        assert "feature_contributions" in data["decisions"][0]
+        assert "explanation_text" in data["decisions"][0]
+
+    @pytest.mark.asyncio
+    async def test_explainability_empty_log(self, async_client, monkeypatch):
+        """空决策日志时应返回 count=0 的空列表。"""
+        monkeypatch.delenv("VISUALIZATION_API_KEY", raising=False)
+        app_module._decision_log.clear()
+        resp = await async_client.get("/api/explainability")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["count"] == 0
+        assert data["decisions"] == []
+
+    @pytest.mark.asyncio
+    async def test_explainability_limit_param(self, async_client, monkeypatch):
+        """limit 参数应正确限制返回数量。"""
+        monkeypatch.delenv("VISUALIZATION_API_KEY", raising=False)
+        app_module._decision_log.clear()
+        for i in range(10):
+            app_module._decision_log.append(
+                {
+                    "step": i,
+                    "action": 0,
+                    "feature_contributions": {"队列长度": 0.1},
+                    "explanation_text": f"第{i}步",
+                }
+            )
+        resp = await async_client.get("/api/explainability?limit=3")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["count"] == 3
+
+    @pytest.mark.asyncio
+    async def test_explainability_summary_returns_ranking(self, async_client, monkeypatch):
+        """应返回全局特征重要性降序排名。"""
+        monkeypatch.delenv("VISUALIZATION_API_KEY", raising=False)
+        app_module._decision_log.clear()
+        app_module._decision_log.extend(
+            [
+                {
+                    "step": 1,
+                    "action": 1,
+                    "feature_contributions": {"队列长度": 0.6, "平均优先级": 0.4},
+                },
+                {
+                    "step": 2,
+                    "action": 0,
+                    "feature_contributions": {"队列长度": 0.4, "平均优先级": 0.6},
+                },
+            ]
+        )
+        resp = await async_client.get("/api/explainability/summary")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["total_decisions"] == 2
+        assert len(data["feature_importance"]) == 2
+        features = [item["feature"] for item in data["feature_importance"]]
+        assert "队列长度" in features
+        assert "平均优先级" in features
+        # 验证 importance 字段存在且为数值
+        for item in data["feature_importance"]:
+            assert isinstance(item["importance"], (int, float))
+
+    @pytest.mark.asyncio
+    async def test_explainability_summary_empty_log(self, async_client, monkeypatch):
+        """空决策日志时 summary 应返回空列表和 0。"""
+        monkeypatch.delenv("VISUALIZATION_API_KEY", raising=False)
+        app_module._decision_log.clear()
+        resp = await async_client.get("/api/explainability/summary")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["total_decisions"] == 0
+        assert data["feature_importance"] == []
