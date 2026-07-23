@@ -1,0 +1,19 @@
+{
+  "smoke_test": true,
+  "machine": "tianyan-287",
+  "shots": 32,
+  "circuit": "H Q1\nM Q1",
+  "task_id": "2079824777348124673",
+  "submitted_at": "2026-07-22T15:04:02.044642",
+  "completed_at": "2026-07-22T15:04:09.560264",
+  "status": "completed",
+  "probability": {
+    "0": 0.4605124420075918,
+    "1": 0.5394875579924084
+  },
+  "measurement_balance_score": 0.921,
+  "mock": false,
+  "degraded": false,
+  "passed": true,
+  "error": null
+}

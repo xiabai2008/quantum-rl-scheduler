@@ -1,0 +1,224 @@
+{
+  "invalid_for_formal_comparison": true,
+  "invalid_reason": "混合机器(tianyan287无连字符+tianyan176无连字符) + 混合shots(32+1024) + real_tasks_completed=0 + SJF_vs_FCFS自相矛盾judgment(已修正) + 统计方法不统一。不得作为权威结论引用。",
+  "config": {
+    "seeds": [
+      42,
+      123,
+      456,
+      789,
+      1024,
+      2025,
+      3141,
+      5678,
+      8765,
+      9999
+    ],
+    "strategies": [
+      "ppo",
+      "fcfs",
+      "sjf"
+    ],
+    "num_tasks": 32,
+    "max_real_tasks_per_run": 1,
+    "shots": "32 (new5) / 1024 (old5)",
+    "machine": "tianyan176",
+    "note": "merged old5 (20260721, shots=1024, fid=None) + new5 (20260722, shots=32, fid=None)"
+  },
+  "total_elapsed_seconds": 795.78,
+  "descriptive": {
+    "PPO": {
+      "n": 10,
+      "mean": 1736.3191299999999,
+      "std": 355.78305301190073,
+      "median": 1722.03235,
+      "min": 1224.1265,
+      "max": 2293.1819
+    },
+    "SJF": {
+      "n": 10,
+      "mean": 575.32775,
+      "std": 237.6939650743846,
+      "median": 547.3114,
+      "min": 260.9098,
+      "max": 944.1546
+    },
+    "FCFS": {
+      "n": 10,
+      "mean": 382.99704,
+      "std": 49.13392524051426,
+      "median": 406.64105,
+      "min": 288.7705,
+      "max": 432.9603
+    }
+  },
+  "normality": {
+    "PPO": {
+      "test": "Shapiro-Wilk",
+      "p_value": 0.7760362993023191,
+      "is_normal": true
+    },
+    "SJF": {
+      "test": "Shapiro-Wilk",
+      "p_value": 0.5577937948037586,
+      "is_normal": true
+    },
+    "FCFS": {
+      "test": "Shapiro-Wilk",
+      "p_value": 0.06871657295034242,
+      "is_normal": true
+    }
+  },
+  "pairwise": {
+    "PPO_vs_FCFS": {
+      "mean_a": 1736.3191299999999,
+      "mean_b": 382.99704,
+      "mean_diff": 1353.32209,
+      "cohens_d": 5.328788855726074,
+      "effect_level": "大效应",
+      "rank_biserial": 1.0,
+      "mean_diff_ci_95": [
+        1097.8260144557655,
+        1608.8181655442343
+      ],
+      "ci_crosses_zero": false,
+      "improvement_pct": 353.35053503285553,
+      "improvement_ci_95": [
+        290.7800840213059,
+        421.1259919821419
+      ],
+      "welch_t": 11.915534119146823,
+      "welch_p": 5.842213967741441e-07,
+      "bonferroni_significant": true,
+      "judgment": "支持"
+    },
+    "PPO_vs_SJF": {
+      "mean_a": 1736.3191299999999,
+      "mean_b": 575.32775,
+      "mean_diff": 1160.99138,
+      "cohens_d": 3.8372804321500906,
+      "effect_level": "大效应",
+      "rank_biserial": 1.0,
+      "mean_diff_ci_95": [
+        873.7063063311082,
+        1448.2764536688917
+      ],
+      "ci_crosses_zero": false,
+      "improvement_pct": 201.79652033123725,
+      "improvement_ci_95": [
+        133.41495033476795,
+        304.98243332729237
+      ],
+      "welch_t": 8.580419895017371,
+      "welch_p": 2.5514949632968574e-07,
+      "bonferroni_significant": true,
+      "judgment": "支持"
+    },
+    "SJF_vs_FCFS": {
+      "mean_a": 575.32775,
+      "mean_b": 382.99704,
+      "mean_diff": 192.33071,
+      "cohens_d": 1.1206233609487044,
+      "effect_level": "大效应",
+      "rank_biserial": 0.3999999999999999,
+      "mean_diff_ci_95": [
+        20.758128950400447,
+        363.9032910495996
+      ],
+      "ci_crosses_zero": false,
+      "improvement_pct": 50.21728366360221,
+      "improvement_ci_95": [
+        13.207753082870171,
+        90.18065879896821
+      ],
+      "welch_t": 2.505790012255586,
+      "welch_p": 0.031647250262744626,
+      "bonferroni_significant": false,
+      "judgment": "不支持"
+    }
+  },
+  "full_stats": {
+    "PPO vs SJF": {
+      "test": "独立样本 t 检验",
+      "statistic": 8.580419895017371,
+      "p_value": 8.91220621815521e-08,
+      "significant": true,
+      "effect_size": 3.8372804321500906,
+      "effect_size_type": "Cohen's d",
+      "mean_diff": 1160.99138,
+      "ci_lower": 876.7217977866426,
+      "ci_upper": 1445.2609622133573,
+      "improvement_pct": 201.79652033123725,
+      "improvement_pct_ci_lower": 133.41495033476795,
+      "improvement_pct_ci_upper": 304.98243332729237,
+      "bonferroni_alpha": 0.016666666666666666,
+      "n_comparisons": 3,
+      "normality_a": {
+        "is_normal": true,
+        "p_value": 0.7760362993023191,
+        "test": "Shapiro-Wilk"
+      },
+      "normality_b": {
+        "is_normal": true,
+        "p_value": 0.5577937948037586,
+        "test": "Shapiro-Wilk"
+      },
+      "interpretation": "使用 独立样本 t 检验 比较 PPO 与 SJF：PPO 平均奖励高于SJF 1160.99（95% CI: [876.72, 1445.26]）；统计量=8.5804，p=8.912e-08。经 Bonferroni 校正（3 次比较，校正 α=0.0167），差异显著。效应量 Cohen's d=3.8373（大效应）。"
+    },
+    "PPO vs FCFS": {
+      "test": "Welch t 检验",
+      "statistic": 11.915534119146823,
+      "p_value": 5.842213967741441e-07,
+      "significant": true,
+      "effect_size": 5.328788855726074,
+      "effect_size_type": "Cohen's d",
+      "mean_diff": 1353.32209,
+      "ci_lower": 1097.8260144557655,
+      "ci_upper": 1608.8181655442343,
+      "improvement_pct": 353.35053503285553,
+      "improvement_pct_ci_lower": 290.7800840213059,
+      "improvement_pct_ci_upper": 421.1259919821419,
+      "bonferroni_alpha": 0.016666666666666666,
+      "n_comparisons": 3,
+      "normality_a": {
+        "is_normal": true,
+        "p_value": 0.7760362993023191,
+        "test": "Shapiro-Wilk"
+      },
+      "normality_b": {
+        "is_normal": true,
+        "p_value": 0.06871657295034242,
+        "test": "Shapiro-Wilk"
+      },
+      "interpretation": "使用 Welch t 检验 比较 PPO 与 FCFS：PPO 平均奖励高于FCFS 1353.32（95% CI: [1097.83, 1608.82]）；统计量=11.9155，p=5.842e-07。经 Bonferroni 校正（3 次比较，校正 α=0.0167），差异显著。效应量 Cohen's d=5.3288（大效应）。"
+    },
+    "SJF vs FCFS": {
+      "test": "Welch t 检验",
+      "statistic": 2.505790012255586,
+      "p_value": 0.031647250262744626,
+      "significant": false,
+      "effect_size": 1.1206233609487044,
+      "effect_size_type": "Cohen's d",
+      "mean_diff": 192.33071,
+      "ci_lower": 20.758128950400447,
+      "ci_upper": 363.9032910495996,
+      "improvement_pct": 50.21728366360221,
+      "improvement_pct_ci_lower": 13.207753082870171,
+      "improvement_pct_ci_upper": 90.18065879896821,
+      "bonferroni_alpha": 0.016666666666666666,
+      "n_comparisons": 3,
+      "normality_a": {
+        "is_normal": true,
+        "p_value": 0.5577937948037586,
+        "test": "Shapiro-Wilk"
+      },
+      "normality_b": {
+        "is_normal": true,
+        "p_value": 0.06871657295034242,
+        "test": "Shapiro-Wilk"
+      },
+      "interpretation": "使用 Welch t 检验 比较 SJF 与 FCFS：SJF 平均奖励高于FCFS 192.33（95% CI: [20.76, 363.90]）；统计量=2.5058，p=0.03165。经 Bonferroni 校正（3 次比较，校正 α=0.0167），差异不显著。效应量 Cohen's d=1.1206（大效应）。"
+    }
+  },
+  "alpha_bonferroni": 0.016666666666666666
+}

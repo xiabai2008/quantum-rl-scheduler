@@ -233,7 +233,11 @@ def test_task_status_result_shapes_and_request_timeout(
     client: CqlibTianyanClient,
     fake_sdk: tuple[types.ModuleType, type[Exception]],
 ) -> None:
-    """完成、运行、未知和 SDK 请求超时应映射到稳定状态。"""
+    """完成、运行、未知和 SDK 请求异常应映射到稳定状态。
+
+    Issue #58 / PR #57：通用 CqlibRequestError 不再无条件标为 running，
+    改为 query_error，绝不能计为 completed。
+    """
     _, request_error = fake_sdk
     cast(Any, client)._platform.query_experiment.return_value = [
         {"probability": {"0": 1.0}, "resultStatus": "done"}
@@ -245,8 +249,13 @@ def test_task_status_result_shapes_and_request_timeout(
     assert client.get_task_status("queued")["status"] == "running"
     cast(Any, client)._platform.query_experiment.return_value = {"unexpected": True}
     assert client.get_task_status("unknown")["status"] == "unknown"
+
+    # Issue #58：通用 CqlibRequestError（非终态失败标记）→ query_error
     cast(Any, client)._platform.query_experiment.side_effect = request_error("still running")
-    assert client.get_task_status("timeout")["status"] == "running"
+    query_err = client.get_task_status("timeout")
+    assert query_err["status"] == "query_error"
+    assert query_err["task_id"] == "timeout"
+    assert "still running" in query_err["error"]
 
     cast(Any, client)._platform.query_experiment.side_effect = request_error(
         "Run failure: tasks have failed"
