@@ -45,10 +45,10 @@ load_dotenv(_PROJECT_ROOT / ".env")
 if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 
-os.environ.setdefault("TIANYAN_API_KEY", "")
-os.environ.setdefault("TIANYAN_MOCK_MODE", "false")
-# 已核实：正确后端代码为 tianyan-287（有连字符），不得自动回退
-os.environ.setdefault("TIANYAN_MACHINE", "tianyan-287")
+# 注意：不得在模块导入阶段修改 os.environ（会导致 pytest 进程环境污染，
+# 使 tests/test_api.py::test_explicit_mock_mode_false 失败）。
+# TIANYAN_API_KEY / TIANYAN_MOCK_MODE / TIANYAN_MACHINE 的设置只放在 main() 中，
+# 或由调用者显式传参给 CqlibTianyanClient（见 main() 的 login_key/machine_name）。
 
 from loguru import logger
 

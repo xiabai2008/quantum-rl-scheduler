@@ -1,4 +1,6 @@
 {
+  "invalid_for_formal_comparison": true,
+  "invalid_reason": "混合机器(tianyan287无连字符+tianyan176无连字符) + 混合shots(32+1024) + real_tasks_completed=0 + SJF_vs_FCFS自相矛盾judgment(已修正) + 统计方法不统一。不得作为权威结论引用。",
   "config": {
     "seeds": [
       42,
@@ -132,7 +134,7 @@
       "welch_t": 2.505790012255586,
       "welch_p": 0.031647250262744626,
       "bonferroni_significant": false,
-      "judgment": "支持"
+      "judgment": "不支持"
     }
   },
   "full_stats": {

@@ -16,6 +16,7 @@
 
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 from typing import Any, cast
@@ -755,3 +756,64 @@ class TestHardLimit:
         total = len(SEEDS) * len(STRATEGIES) * MAX_REAL_TASKS_PER_RUN
         assert total == HARD_LIMIT_FORMAL
         assert total + HARD_LIMIT_SMOKE == HARD_LIMIT_TOTAL
+
+
+# ── CI 环境污染修复验证（PR #57 re-review）──
+
+
+class TestNoEnvironPollution:
+    """验证导入 tianyan287_multiseed 不污染 os.environ。
+
+    PR #57 re-review：模块顶层不得 setdefault 环境变量，
+    否则会污染 pytest 进程导致 tests/test_api.py 失败。
+    """
+
+    def test_no_top_level_environ_setdefault(self) -> None:
+        """模块源码顶层不得调用 os.environ.setdefault。"""
+        module_path = PROJECT_ROOT / "scripts" / "real_machine" / "tianyan287_multiseed.py"
+        source = module_path.read_text(encoding="utf-8")
+        lines = source.splitlines()
+        for i, line in enumerate(lines, 1):
+            stripped = line.lstrip()
+            if "os.environ.setdefault" in stripped:
+                indent = len(line) - len(stripped)
+                if indent == 0:
+                    pytest.fail(
+                        f"第 {i} 行: 模块顶层调用了 os.environ.setdefault，会污染 pytest 进程环境"
+                    )
+
+    def test_import_does_not_modify_environ(self) -> None:
+        """导入模块不得 setdefault TIANYAN_API_KEY/MOCK_MODE/MACHINE（子进程验证）。
+
+        排除 load_dotenv（.env 加载）和系统 PATH（第三方库副作用）的影响，
+        只验证三个目标变量不被 setdefault 强制设置。
+        """
+        import subprocess
+
+        script = (
+            "import os, sys\n"
+            "from unittest.mock import patch\n"
+            "targets = ('TIANYAN_API_KEY', 'TIANYAN_MOCK_MODE', 'TIANYAN_MACHINE')\n"
+            "before = {k: os.environ.get(k) for k in targets}\n"
+            f"sys.path.insert(0, r'{PROJECT_ROOT / 'scripts' / 'real_machine'}')\n"
+            f"sys.path.insert(0, r'{PROJECT_ROOT}')\n"
+            "with patch('dotenv.load_dotenv'):\n"
+            "    import tianyan287_multiseed\n"
+            "after = {k: os.environ.get(k) for k in targets}\n"
+            "changed = [k for k in targets if before[k] != after[k]]\n"
+            "assert not changed, f'导入修改了目标环境变量: {changed}'\n"
+            "print('PASS: no pollution')"
+        )
+        result = subprocess.run(
+            [sys.executable, "-c", script],
+            capture_output=True,
+            text=True,
+            cwd=str(PROJECT_ROOT),
+            timeout=30,
+        )
+        assert result.returncode == 0, (
+            f"子进程失败:\nstdout: {result.stdout}\nstderr: {result.stderr}"
+        )
+        assert "PASS" in result.stdout, (
+            f"导入污染了目标环境变量:\nstdout: {result.stdout}\nstderr: {result.stderr}"
+        )

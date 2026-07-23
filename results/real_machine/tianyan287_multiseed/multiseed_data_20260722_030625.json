@@ -1,6 +1,8 @@
 {
   "experiment": "tianyan287_multiseed",
   "timestamp": "2026-07-22T03:06:25.810997",
+  "invalid_for_formal_comparison": true,
+  "invalid_reason": "machine=tianyan176(无连字符,非tianyan-287) + real_tasks_completed=0。不得作为权威结论引用。",
   "config": {
     "seeds": [
       2025,

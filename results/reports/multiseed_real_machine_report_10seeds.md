@@ -1,5 +1,17 @@
 # 天衍-287 多seed真机实验统计分析报告
 
+> **⚠️ INVALID FOR FORMAL COMPARISON（invalid_for_formal_comparison=true）**
+>
+> 本报告基于旧混合数据，**不得作为权威结论引用**。失效原因：
+> - 混合机器：`tianyan287`（无连字符）+ `tianyan176`（无连字符），均非正确的 `tianyan-287`
+> - 混合 shots：`1024`（old5）+ `32`（new5），不满足 Issue #58 统一口径
+> - `real_tasks_completed=0`：无任何真机任务真正完成
+> - SJF vs FCFS 的 `judgment` 自相矛盾（`bonferroni_significant=false` 却标"支持"，已修正为"不支持"）
+> - 统计检验方法不统一（混合使用 Welch t / 独立样本 t / 配对 t）
+>
+> 报告中的 PPO=1736.32、FCFS=382.99、Cohen's d=5.33 **不是权威结论**。
+> 正式 10-seed 真机验证需基于 `tianyan-287` + `shots=32` + `H Q1/M Q1` + 统一 Welch t-test 的全新数据。
+
 **数据文件**: `results\real_machine\tianyan287_multiseed\multiseed_data_10seeds_merged.json`
 
 **实验时间**: N/A
@@ -64,7 +76,7 @@
 - **均值差 95% CI**: [20.76, 363.90] (不跨0)
 - **提升百分比**: 50.2% (95% CI: [13.2%, 90.2%])
 - **Welch t 检验**: t=2.5058, p=0.031647 (Bonferroni不显著)
-- **判定**: **支持**
+- **判定**: **不支持**（bonferroni_significant=false，已修正自相矛盾）
 
 ## 4. 汇总表
 
@@ -72,7 +84,7 @@
 |:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|
 | PPO vs FCFS | 1353.32 | 5.3288 | 大效应 | [1097.83, 1608.82] | 否 | 0.000001 | 显著 | 支持 |
 | PPO vs SJF | 1160.99 | 3.8373 | 大效应 | [873.71, 1448.28] | 否 | 0.000000 | 显著 | 支持 |
-| SJF vs FCFS | 192.33 | 1.1206 | 大效应 | [20.76, 363.90] | 否 | 0.031647 | 不显著 | 支持 |
+| SJF vs FCFS | 192.33 | 1.1206 | 大效应 | [20.76, 363.90] | 否 | 0.031647 | 不显著 | 不支持 |
 
 ## 5. compare_strategies 完整输出
 
