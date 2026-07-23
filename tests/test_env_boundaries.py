@@ -160,3 +160,49 @@ def test_register_env_is_idempotent() -> None:
     """重复注册 Gym 环境不应向调用方抛出异常。"""
     register_env()
     register_env()
+
+
+def test_route_to_machine_none_sets_last_selected() -> None:
+    """路由到 None 机器时设置 _last_selected_machine 为 None。"""
+    from src.scheduler.env_machines import route_to_machine
+
+    env = QuantumSchedulingEnv(max_steps=5, seed=7)
+    env.reset(seed=7)
+    task = _task("none_route")
+    rng = np.random.default_rng(7)
+
+    env._last_selected_machine = "prev_machine"
+    route_to_machine(env, None, task, rng)
+    assert env._last_selected_machine is None
+
+
+def test_recompute_aggregate_empty_machines() -> None:
+    """空机器列表应允许重算聚合值（不崩溃）。"""
+    from src.scheduler.env_machines import recompute_aggregate
+
+    env = QuantumSchedulingEnv(max_steps=5, seed=7)
+    env.reset(seed=7)
+    env._machines = []
+    # 不应崩溃
+    recompute_aggregate(env)
+
+
+def test_recompute_aggregate_zero_total_qubits() -> None:
+    """所有机器量子比特为 0 时重算不崩溃。"""
+    from src.scheduler.env_machines import recompute_aggregate
+
+    env = QuantumSchedulingEnv(max_steps=5, seed=7)
+    env.reset(seed=7)
+    for m in env._machines:
+        m.total_qubits = 0
+    # 不应崩溃
+    recompute_aggregate(env)
+
+
+def test_record_real_failure_wrapper() -> None:
+    """_record_real_failure 薄包装应正确委托。"""
+    env = QuantumSchedulingEnv(max_steps=5, seed=7)
+    env.reset(seed=7)
+    initial_fail_count = env._real_fail_count
+    env._record_real_failure("test_machine", "test_error")
+    assert env._real_fail_count == initial_fail_count + 1
