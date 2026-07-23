@@ -1074,9 +1074,9 @@ class TestIntegration(unittest.TestCase):
 
     def test_load_standard_dqn(self):
         """测试加载标准DQN模型（非Dueling架构）"""
-        from stable_baselines3 import DQN
-
         import tempfile
+
+        from stable_baselines3 import DQN
 
         env = QuantumSchedulingEnv(max_steps=50, seed=42)
         # 构建标准DQN（非Dueling），使用简单网络
