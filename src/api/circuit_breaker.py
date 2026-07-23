@@ -71,7 +71,7 @@ from typing import Any, TypeVar
 from loguru import logger
 
 from src.exceptions import CircuitOpenError
-from src.utils.alerts import alert_critical
+from src.utils.alerts import alert_critical, alert_error
 
 __all__ = ["CircuitBreaker", "CircuitState"]
 
@@ -301,6 +301,69 @@ class CircuitBreaker:
         self.state = CircuitState.CLOSED
         self.failure_count = 0
         self.last_failure_time = 0.0
+
+    # ------------------------------------------------------------------
+    # 兼容方法：供 TianyanClient 等外部调用方使用
+    # 这些方法的行为与原 tianyan_client.py 中的简化版熔断器完全一致
+    # ------------------------------------------------------------------
+
+    def before_request(self) -> None:
+        """请求前检查熔断器状态（兼容接口）
+
+        OPEN 状态下若已过 ``recovery_timeout`` 则转入 HALF_OPEN 并放行，
+        否则抛出 :class:`~src.exceptions.CircuitOpenError`。
+        CLOSED / HALF_OPEN 状态直接放行。
+
+        行为与原 ``tianyan_client.py`` 中的 ``CircuitBreaker.before_request`` 完全一致。
+
+        Raises:
+            CircuitOpenError: 熔断器处于 OPEN 状态且未到恢复超时时抛出。
+        """
+        if self.state == CircuitState.OPEN:
+            if time.monotonic() - self.last_failure_time >= self.recovery_timeout:
+                self.state = CircuitState.HALF_OPEN
+            else:
+                raise CircuitOpenError(
+                    "Circuit breaker is open",
+                    code="CIRCUIT_OPEN",
+                    retryable=True,
+                )
+
+    def on_success(self) -> None:
+        """请求成功时重置状态（兼容接口）
+
+        清零 ``failure_count`` 并将状态设为 ``CLOSED``。
+        行为与原 ``tianyan_client.py`` 中的 ``CircuitBreaker.on_success`` 完全一致。
+        """
+        self.failure_count = 0
+        self.state = CircuitState.CLOSED
+
+    def on_failure(self) -> None:
+        """请求失败时累加失败计数（兼容接口）
+
+        累加 ``failure_count``，更新 ``last_failure_time``，
+        达到 ``failure_threshold`` 时转为 OPEN 并发出告警。
+
+        告警使用 ``alert_error``（与原 ``tianyan_client.py`` 一致），
+        而非 :meth:`call` 方法使用的 ``alert_critical``。
+        """
+        self.failure_count += 1
+        self.last_failure_time = time.monotonic()
+        if self.failure_count >= self.failure_threshold:
+            self.state = CircuitState.OPEN
+            # 使用 alert_error 以与原 tianyan_client.py 行为一致
+            alert_error(
+                "api",
+                f"API 熔断器打开（连续失败 {self.failure_count}/{self.failure_threshold}）",
+            )
+
+    def get_state(self) -> str:
+        """返回当前状态字符串（兼容接口）
+
+        Returns:
+            状态字符串："closed" / "open" / "half_open"
+        """
+        return self.state.value
 
     def is_available(self) -> bool:
         """判断熔断器当前是否放行调用
