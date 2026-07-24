@@ -384,16 +384,12 @@ def test_train_with_log_dir_override(monkeypatch, tiny_env: TinyEnv) -> None:
     agent = PPOAgent(tiny_env, log_dir=LOG_DIR, verbose=0)
     monkeypatch.setattr(agent, "_build_model", MagicMock(return_value=model))
 
-    agent.train(
-        total_timesteps=10, eval_freq=2, log_dir="custom_tb_log", progress_bar=False
-    )
+    agent.train(total_timesteps=10, eval_freq=2, log_dir="custom_tb_log", progress_bar=False)
 
     assert model.learn.call_args.kwargs["tb_log_name"] == "custom_tb_log"
 
 
-def test_train_resume_file_not_found_builds_new(
-    monkeypatch, tiny_env: TinyEnv
-) -> None:
+def test_train_resume_file_not_found_builds_new(monkeypatch, tiny_env: TinyEnv) -> None:
     """resume_from 指定的文件不存在时应回退到构建新模型。"""
     _patch_training_callbacks(monkeypatch)
     model = MagicMock()
@@ -402,9 +398,7 @@ def test_train_resume_file_not_found_builds_new(
     monkeypatch.setattr(agent, "_build_model", build_mock)
     monkeypatch.setattr(ppo_module.os.path, "exists", lambda path: False)
 
-    agent.train(
-        total_timesteps=10, eval_freq=2, resume_from="nonexistent.zip", progress_bar=False
-    )
+    agent.train(total_timesteps=10, eval_freq=2, resume_from="nonexistent.zip", progress_bar=False)
 
     build_mock.assert_called_once()
     assert model.learn.call_args.kwargs["reset_num_timesteps"] is True
@@ -418,9 +412,7 @@ def test_train_with_only_extra_callbacks(monkeypatch, tiny_env: TinyEnv) -> None
     monkeypatch.setattr(agent, "_build_model", MagicMock(return_value=model))
 
     extra = MagicMock(name="extra_callback")
-    agent.train(
-        total_timesteps=10, eval_freq=2, extra_callbacks=[extra], progress_bar=False
-    )
+    agent.train(total_timesteps=10, eval_freq=2, extra_callbacks=[extra], progress_bar=False)
 
     callback_list_cls.assert_called_once()
     callbacks = callback_list_cls.call_args.args[0]

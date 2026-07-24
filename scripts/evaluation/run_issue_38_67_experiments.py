@@ -414,8 +414,15 @@ def run_strategy(
 def build_strategies(
     dqn_path: str | None = None,
     ppo_path: str | None = None,
+    obs_dim: int = 10,
 ) -> list[BaseStrategy]:
-    """构建 8 个策略，自动加载可用的 DQN/PPO 模型。"""
+    """构建 8 个策略，自动加载可用的 DQN/PPO 模型。
+
+    Args:
+        dqn_path: DQN 模型文件路径
+        ppo_path: PPO 模型文件路径
+        obs_dim: 观测空间维度（10 或 14），用于创建正确的 DQN 加载环境
+    """
     from stable_baselines3 import PPO
 
     from src.scheduler.agent import SchedulerAgent
@@ -424,8 +431,8 @@ def build_strategies(
 
     # DQN：优先使用 SchedulerAgent 加载
     if dqn_path and os.path.isfile(dqn_path):
-        print(f"[DQN] 加载模型: {dqn_path}")
-        dqn_env = make_env(100)
+        print(f"[DQN] 加载模型: {dqn_path}（obs_dim={obs_dim}）")
+        dqn_env = make_env(100, obs_dim=obs_dim)
         agent = SchedulerAgent(env=dqn_env)
         agent.load(dqn_path)
         strategies.append(DQNModelStrategy(agent.model))

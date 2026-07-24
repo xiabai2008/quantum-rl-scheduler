@@ -262,10 +262,11 @@ class MultiObjectiveRewardWrapper(gym.Wrapper):
             float: 平衡度目标值 [-1, 0]
         """
         env: QuantumSchedulingEnv = self.env.unwrapped  # type: ignore[assignment]
-        quantum_util = env._quantum.available_ratio  # 量子可用比率（越高越空闲）
+        # 统一为"利用率"语义（越高越忙），消除方向相反问题
+        quantum_util = 1.0 - env._quantum.available_ratio  # 量子利用率（越高越忙）
         classical_util = env._classical.load  # 经典负载（越高越忙）
 
-        # 平衡度 = -|量子空闲率 - 经典负载率|
+        # 平衡度 = -|量子利用率 - 经典负载率|
         # 当两者相等时最平衡，值为 0
         balance = -abs(quantum_util - classical_util)
         return float(np.clip(balance, -1.0, 0.0))

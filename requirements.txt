@@ -46,22 +46,6 @@ prometheus_client>=0.19.0
 click>=8.1.0
 tqdm>=4.66.0
 
-# === 测试依赖（可选） ===
-pytest>=7.4.0
-pytest-asyncio>=0.21.0
-pytest-cov>=4.1.0
-pytest-timeout>=2.4.0
-pytest-xdist>=3.3.0
-pytest-benchmark>=4.0.0
-hypothesis>=6.100.0
-
-# === 代码质量工具（可选） ===
-black>=23.0.0
-isort>=5.12.0
-mypy>=1.5.0
-ruff>=0.4.0
-bandit>=1.7.0
-
 # === Jupyter（可选） ===
 jupyter>=1.0.0
 ipykernel>=6.25.0

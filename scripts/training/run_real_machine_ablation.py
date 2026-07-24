@@ -213,9 +213,7 @@ class MockRealClient:
         return task_id
 
     def get_task_status(self, task_id: str) -> dict[str, Any]:
-        return self._cached_status.get(
-            str(task_id), {"status": "unknown"}
-        )
+        return self._cached_status.get(str(task_id), {"status": "unknown"})
 
     def wait_for_task(self, task_id: str, **kwargs: Any) -> dict[str, Any]:
         return self._cached_status.get(
@@ -524,7 +522,7 @@ def generate_report(results: dict[str, Any], report_path: Path, plot_path: Path)
         f"- 三种条件均为 {len(results['config']['seeds'])} seeds；每 seed 固定 "
         f"{results['config']['tasks_per_seed']} 个训练任务，并在独立 200-task 仿真环境评估。",
         f"- 混合条件 real-prob={results['config']['mixed_real_probability']:.2f}；纯真机条件 "
-        'real-prob=1.0。这里的\u201c纯真机\u201d指所有符合量子真机提交资格的调度步骤均尝试真机，'
+        "real-prob=1.0。这里的\u201c纯真机\u201d指所有符合量子真机提交资格的调度步骤均尝试真机，"
         "不表示经典动作也被伪装成量子任务。",
         "- **评估方法（Issue #108 修复）**：原评估使用纯仿真环境（`use_real_machine=False`），"
         "导致 mixed_real 和 pure_real 条件的评估 reward 完全相同——因为真机反馈仅在训练时"

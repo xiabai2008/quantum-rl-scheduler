@@ -185,8 +185,13 @@ class MockTianyanClient:
                     counts[state] = count
                     remaining_shots -= count
 
-        # 如果是 Bell 态电路（包含 h 和 cx），调整结果使其更接近 |00> + |11>
-        if "h q[0]" in circuit_qasm and "cx q[0], q[1]" in circuit_qasm:
+        # 如果是 Bell 态电路，调整结果使其更接近 |00> + |11>
+        # 支持 QCIS 格式（"H Q0" + "CNOT Q0 Q1"）和 QASM 格式（"h q[0]" + "cx q[0], q[1]"）
+        is_bell_qcis = "H Q0" in circuit_qasm and (
+            "CNOT Q0 Q1" in circuit_qasm or "CZ Q0 Q1" in circuit_qasm
+        )
+        is_bell_qasm = "h q[0]" in circuit_qasm and "cx q[0], q[1]" in circuit_qasm
+        if is_bell_qcis or is_bell_qasm:
             counts = {
                 "00": int(shots * 0.5),
                 "11": int(shots * 0.5),

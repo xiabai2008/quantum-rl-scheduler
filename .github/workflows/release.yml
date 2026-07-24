@@ -25,7 +25,7 @@ jobs:
   # ---------------------------------------------------------------------------
   quality-gate:
     name: "Quality Gate"
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
@@ -44,9 +44,10 @@ jobs:
         run: |
           python -m pytest tests/ \
             -v \
+            -n auto --dist loadscope \
             --cov=src \
             --cov-report=term-missing \
-            --cov-fail-under=60 \
+            --cov-fail-under=70 \
             --timeout=120 \
             -W ignore::DeprecationWarning
 
@@ -133,7 +134,7 @@ jobs:
           echo "" >> release_notes.md
           echo "### CI 检查结果" >> release_notes.md
           echo "" >> release_notes.md
-          echo "- ✅ 全量单元测试通过 (cov >= 60%)" >> release_notes.md
+          echo "- ✅ 全量单元测试通过 (cov >= 70%)" >> release_notes.md
           echo "- ✅ 提交物校验通过" >> release_notes.md
           echo "- ✅ 权威数字审计通过" >> release_notes.md
           echo "" >> release_notes.md

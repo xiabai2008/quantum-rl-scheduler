@@ -42,7 +42,7 @@ def run_multiseed(
     episodes_per_seed: int = 5,
     tasks_per_episode: int = 200,
     ppo_model: str = "deliverable_models/ppo_best_model_14dim.zip",
-    dqn_model: str = "deliverable_models/dqn_best_model_10dim.zip",
+    dqn_model: str = "deliverable_models/dqn_best_model_14dim.zip",
     obs_dim: int = 14,
     alpha: float = 0.05,
 ) -> dict:
@@ -60,9 +60,9 @@ def run_multiseed(
     print("=" * 70)
 
     # 构建策略列表（加载模型）
-    # 14 维环境下 DQN 模型为 10 维，观测空间不匹配，退化为随机策略
-    dqn_path = dqn_model if obs_dim == 10 else None
-    strategies = build_strategies(dqn_path=dqn_path, ppo_path=ppo_model)
+    # 根据观测维度选择合适的 DQN 模型
+    dqn_path = "deliverable_models/dqn_best_model_10dim.zip" if obs_dim == 10 else dqn_model
+    strategies = build_strategies(dqn_path=dqn_path, ppo_path=ppo_model, obs_dim=obs_dim)
     strategy_names = [s.name for s in strategies]
     print(f"\n已加载 {len(strategies)} 个策略: {strategy_names}")
 
@@ -229,7 +229,7 @@ def run_multiseed(
         f"> **环境**: {obs_dim} 维观测空间（{'原生 14 维环境' if obs_dim == 14 else '10 维公平对比环境，Obs10Wrapper 截断 14 维原生环境，兼容所有已训练模型'}）",
         f"> **任务规模**: 每 episode {tasks_per_episode} 步，泊松到达 λ=0.5，量子任务占比 70%",
         f"> **PPO 模型**: `{ppo_model}`（{obs_dim}维，Actor-Critic）",
-        f"> **DQN 模型**: `{dqn_model}`（{'10维，Dueling DQN，观测空间不匹配时退化为随机动作' if obs_dim == 14 else '10维，Dueling DQN'}）",
+        f"> **DQN 模型**: `{dqn_model}`（{obs_dim}维，Double DQN + reward clip）",
         f"> **显著性水平**: α = {alpha}（Bonferroni 校正）",
         "",
         "| 排名 | 策略 | 平均奖励 | 标准差 | 标准误 | 提升 vs FCFS | 提升% 95% CI |",
@@ -345,7 +345,7 @@ def main():
         "--ppo-model", type=str, default="deliverable_models/ppo_best_model_14dim.zip"
     )
     parser.add_argument(
-        "--dqn-model", type=str, default="deliverable_models/dqn_best_model_10dim.zip"
+        "--dqn-model", type=str, default="deliverable_models/dqn_best_model_14dim.zip"
     )
     parser.add_argument(
         "--obs-dim", type=int, default=14, choices=[10, 14], help="观测空间维度：10 或 14（默认14）"

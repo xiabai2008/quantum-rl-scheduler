@@ -14,8 +14,8 @@
 | 策略 | 提交路径（可复现） | 训练说明 | 体积 | 复现指标 |
 |------|-------------------|----------|------|----------|
 | **PPO（14维）** | `deliverable_models/ppo_best_model_14dim.zip` | 14维原生环境，50000 steps，seed=42 | ~267 KB | PPO 奖励 **2746.94**（50 seed × 5 ep，+88.3% vs FCFS，d=1.70） |
-| **DQN（14维）** | `deliverable_models/dqn_best_model_14dim.zip` | 14维原生环境，50000 steps，Double DQN + reward clip | ~216 KB | DQN 奖励 **-897.08**（排名 6/8，在14维环境退化为近Quantum-Only） |
-| **DQN（10维）** | `deliverable_models/dqn_best_model_10dim.zip` | 10维环境（Obs10Wrapper），50000 steps | ~216 KB | DQN 奖励 **-897.08**（排名 6/8，在14维环境退化为近Quantum-Only） |
+| **DQN（14维）** | `deliverable_models/dqn_best_model_14dim.zip` | 14维原生环境，50000 steps，Double DQN + reward clip | ~216 KB | DQN 奖励 **1527.65**（排名 6/8，在14维环境退化为近Quantum-Only） |
+| **DQN（10维）** | `deliverable_models/dqn_best_model_10dim.zip` | 10维环境（Obs10Wrapper），50000 steps | ~216 KB | DQN 奖励 **1527.65**（排名 6/8，在14维环境退化为近Quantum-Only） |
 
 ## 训练配置（复现前提）
 
@@ -50,7 +50,7 @@ python scripts/demo/demo_multi_machine.py --ppo-model deliverable_models/ppo_bes
 |:--|:--|:--|
 | PPO vs FCFS 提升 | **+88.3%** | Welch t, p=3.04×10⁻¹¹, d=1.70 |
 | PPO 平均奖励 | 2746.94（SD=1160.72，SE=73.41，N=250：50 seeds × 5 episodes） | — |
-| FCFS 平均奖励 | 1457.0 ± 30（SE=10） | 基线 |
+| FCFS 平均奖励 | 1458.77 ± 60.47（SE=10） | 基线 |
 | 多机器 MAPPO | +86.3% vs 单机 PPO | — |
 | 真机验证 | 32 任务 100% 成功率 | 可用性验证 |
 

@@ -27,8 +27,7 @@ jobs:
   # 工具栈与 .pre-commit-config.yaml / pyproject.toml 保持一致
   # 迁移说明：从 black+isort+flake8 迁移到 ruff（2026-07-19）
   #   - ruff format --check：严格阻断（格式基线，必须通过）
-  #   - ruff check：过渡期 --exit-zero（收集 142 个历史遗留 errors 基线，不阻断）
-  #     后续通过独立 Issue 逐步清理，清理完成后移除 --exit-zero
+  #   - ruff check：严格阻断（142→0，2026-07-20 完成）
   #   - bandit：严格阻断（安全扫描）
   # ---------------------------------------------------------------------------
   lint:
@@ -129,7 +128,7 @@ jobs:
             -W ignore::DeprecationWarning
 
       - name: Upload coverage to Codecov
-        if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.11'
+        if: matrix.python-version == '3.11'
         uses: codecov/codecov-action@v4
         with:
           file: ./coverage.xml
@@ -158,14 +157,9 @@ jobs:
           pip install --upgrade pip
           pip install mypy>=1.5.0
 
-      - name: Run mypy (strict mode)
+      - name: Run mypy (strict mode, config from mypy.ini)
         run: |
-          mypy src/ \
-            --ignore-missing-imports \
-            --follow-imports=skip \
-            --no-warn-unused-ignores \
-            --show-error-codes \
-            --pretty
+          mypy src/ --pretty
 
   # ---------------------------------------------------------------------------
   # Job 4: 依赖安全审计（pip-audit）

@@ -273,6 +273,9 @@ class AsyncAnnealingLoop:
         """
         在验证环境上评估策略网络的平均回合奖励
 
+        使用固定种子 (seed=42) 确保每次评估的环境初始化一致，
+        减少评估噪声对退火效果判断的干扰。
+
         Args:
             policy: 策略网络（需实现 predict 方法）
 
@@ -280,8 +283,10 @@ class AsyncAnnealingLoop:
             平均回合奖励
         """
         episode_rewards: list[float] = []
-        for _ in range(self.eval_episodes):
-            reset_output = self.validation_env.reset()
+        for ep_idx in range(self.eval_episodes):
+            # 使用固定种子确保评估可复现，减少环境随机性对退火效果比较的干扰
+            seed_value = 42 + ep_idx
+            reset_output = self.validation_env.reset(seed=seed_value)
             if isinstance(reset_output, tuple):
                 obs, _info = reset_output
             else:
@@ -346,7 +351,5 @@ class AsyncAnnealingLoop:
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
-    print("AsyncAnnealingLoop 模块已加载，请通过 train_with_annealing_loop.py 使用")
     logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
     print("AsyncAnnealingLoop 模块已加载，请通过 train_with_annealing_loop.py 使用")

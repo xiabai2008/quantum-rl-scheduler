@@ -45,7 +45,7 @@
 | 平均奖励 | 2746.94 | 1458.77 | **+88.3%** |
 
 - 实验条件：50 seed × 5 episode = 250 次独立运行（N=250）；泊松 λ=0.5；量子任务占比 70%
-- 8 策略排名：PPO(2747) > SJF(1468) > FCFS(1459) > Random(1276) > Greedy(-72) > DQN(-897) > Quantum-Only(-897) > Classical-Only(-1134)
+- 8 策略排名：PPO(2746.94) > SJF(1462.39) > FCFS(1459) > Random(1247.17) > Greedy(-25.95) > DQN(-897) > Quantum-Only(-920.54) > Classical-Only(-1128.29)
 - 数据来源：`results/reports/strategy_comparison.md`
 
 ### 2.2 动态量子比特资源分配

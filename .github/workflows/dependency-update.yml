@@ -34,8 +34,13 @@ jobs:
       - name: Generate updated lock file
         run: |
           pip-compile requirements.txt -o requirements.lock.new --allow-unsafe
-          echo "=== 对比差异 ==="
-          diff requirements.lock requirements.lock.new || echo "发现更新"
+          echo "=== 生成新的 lock 文件 ==="
+          if [ -f requirements.lock ]; then
+            echo "=== 对比差异 ==="
+            diff requirements.lock requirements.lock.new || echo "发现更新"
+          else
+            echo "requirements.lock 不存在（首次运行），直接使用新生成的文件"
+          fi
 
       - name: Upload results
         uses: actions/upload-artifact@v4

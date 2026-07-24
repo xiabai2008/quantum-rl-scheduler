@@ -23,7 +23,7 @@ from dotenv import load_dotenv
 from loguru import logger
 
 from src.api.circuit_breaker import CircuitBreaker
-from src.exceptions import RateLimitError
+from src.exceptions import QuantumSchedulerError, RateLimitError
 from src.utils.metrics import (
     api_calls,
     api_errors,
@@ -53,10 +53,11 @@ def mask_token(token: str) -> str:
     return f"{token[:4]}{'*' * (len(token) - 8)}{token[-4:]}"
 
 
-class TianyanAPIError(Exception):
+class TianyanAPIError(QuantumSchedulerError):
     """天衍云平台 API 自定义异常
 
     当 API 返回非 200 状态码时抛出，携带状态码和响应详情。
+    继承自 QuantumSchedulerError，纳入统一异常体系。
 
     Attributes:
         status_code: HTTP 响应状态码
@@ -68,7 +69,9 @@ class TianyanAPIError(Exception):
         self.status_code = status_code
         self.message = message
         self.response_body = response_body or {}
-        super().__init__(f"[{status_code}] {message}")
+        super().__init__(
+            f"[{status_code}] {message}", code=str(status_code), retryable=status_code >= 500
+        )
 
 
 class TokenBucketRateLimiter:

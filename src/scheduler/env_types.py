@@ -123,6 +123,7 @@ class Task:
         execution_time : 预估执行时间（步数），与任务规模正相关
         qcis           : QCIS 格式量子电路（仅量子任务，用于真机提交）
         tenant_id      : 租户 ID（多租户配额隔离，Issue #97）
+        required_gates : 任务所需的量子门集合（如 ("H","CZ","M")），None 表示不限制
     """
 
     task_id: str
@@ -134,6 +135,7 @@ class Task:
     execution_time: int = 3
     qcis: str | None = None  # QCIS 格式电路，None 表示未生成
     tenant_id: str | None = None  # 租户 ID（多租户配额隔离，Issue #97）
+    required_gates: tuple[str, ...] | None = None  # 任务所需的量子门集合，None 表示不限制
 
 
 @dataclass

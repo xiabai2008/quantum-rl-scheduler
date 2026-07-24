@@ -190,8 +190,9 @@ class TestMultiObjectiveWrapper(unittest.TestCase):
         """测试利用率不平衡时平衡度为负值"""
         self.mo_env.reset(seed=42)
         env = self.mo_env.env.unwrapped
+        # 量子空闲（available_ratio=0.9 → 利用率=0.1），经典繁忙（load=0.9 → 利用率=0.9）
         env._quantum.available_ratio = 0.9
-        env._classical.load = 0.1
+        env._classical.load = 0.9
         balance = self.mo_env._compute_balance()
         self.assertLess(balance, -0.5)  # 应该显著为负
 
