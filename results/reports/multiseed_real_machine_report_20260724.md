@@ -2,7 +2,7 @@
 
 **数据文件**: `results\real_machine\tianyan287_multiseed\multiseed_data_20260724_105757.json`
 
-**实验时间**: N/A
+**实验时间**: 2026-07-24 10:47-10:57（耗时 529.6s）
 
 **实验配置**: 5 seeds × 3 策略
 
@@ -89,3 +89,15 @@
 1. **PPO vs FCFS**: Cohen's d=5.64（大效应），Welch p=6.83e-04, Bonferroni校正后显著。判定：**支持**。
 
 2. **PPO vs SJF**: Cohen's d=4.04（大效应），Welch p=4.25e-04, Bonferroni校正后显著。判定：**支持**。
+
+3. **SJF vs FCFS**: Cohen's d=1.42（大效应），Welch p=0.080, Bonferroni校正后不显著（95% CI跨0）。判定：**不支持**。SJF 虽然均值高于 FCFS，但统计上无法确认差异。
+
+---
+
+## 5. 总体结论
+
+在 5 seeds × 3 策略的天衍-287 真机实验中：
+- **PPO 显著优于 FCFS**（d=5.64, p=6.83e-04, Bonferroni显著），真机环境验证了仿真结论。
+- **PPO 显著优于 SJF**（d=4.04, p=4.25e-04, Bonferroni显著）。
+- **SJF vs FCFS 无显著差异**（p=0.080），与仿真结果一致。
+- 所有 16 次真机任务调用成功率 100%，无失败/超时/降级。
