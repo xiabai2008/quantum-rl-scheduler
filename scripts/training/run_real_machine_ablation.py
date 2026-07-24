@@ -183,9 +183,84 @@ def run_preflight(
     )
 
 
-def evaluate_one_episode(model: PPO, *, seed: int, tasks: int) -> dict[str, Any]:
-    """在纯仿真环境用固定任务数评估最终策略。"""
-    env = QuantumSchedulingEnv(max_steps=tasks, seed=seed)
+class MockRealClient:
+    """确定性 Mock 真机客户端，用于评估阶段模拟真机反馈（不消耗真机机时）。
+
+    Issue #108 修复：原 evaluate_one_episode 使用纯仿真环境评估，导致
+    mixed_real 和 pure_real 条件的评估 reward 完全相同（因为真机反馈
+    仅在训练时通过 _poll_pending_real_tasks 加入 reward，评估环境
+    use_real_machine=False 使反馈为零）。此 Mock 客户端使评估环境
+    与训练条件匹配，确保评估 reward 反映真机参与率差异。
+
+    - submit_quantum_task : 立即返回 fake task_id 并缓存 completed 状态
+    - get_task_status     : 返回缓存的 completed 状态
+    - wait_for_task       : 立即返回缓存状态（评估不阻塞）
+    """
+
+    def __init__(self, machine_name: str = "tianyan176") -> None:
+        self.machine_name = machine_name
+        self._counter = 0
+        self._cached_status: dict[str, dict[str, Any]] = {}
+
+    def submit_quantum_task(self, **kwargs: Any) -> str | None:
+        self._counter += 1
+        task_id = f"mock_eval_{self._counter}"
+        self._cached_status[task_id] = {
+            "status": "completed",
+            "result": {"0": 0.5, "1": 0.5},
+            "execution_time_s": 0.001,
+        }
+        return task_id
+
+    def get_task_status(self, task_id: str) -> dict[str, Any]:
+        return self._cached_status.get(
+            str(task_id), {"status": "unknown"}
+        )
+
+    def wait_for_task(self, task_id: str, **kwargs: Any) -> dict[str, Any]:
+        return self._cached_status.get(
+            str(task_id), {"status": "completed", "result": {"0": 0.5, "1": 0.5}}
+        )
+
+
+def evaluate_one_episode(
+    model: PPO,
+    *,
+    seed: int,
+    tasks: int,
+    condition: str = "simulation",
+    machine: str = "tianyan176",
+    real_probability: float = 0.0,
+    shots: int = 8,
+) -> dict[str, Any]:
+    """在仿真环境评估最终策略；真机条件使用 Mock 客户端模拟真机反馈。
+
+    Issue #108 修复：评估环境需与训练条件匹配。当条件为 mixed_real 或
+    pure_real 时，使用 MockRealClient 模拟真机反馈（不消耗真机机时），
+    确保评估 reward 反映真机参与率差异，而非因纯仿真评估导致三条件
+    reward 完全相同。
+
+    Args:
+        model            : 训练完成的 PPO 模型
+        seed             : 评估随机种子
+        tasks            : 评估任务数
+        condition        : 实验条件（simulation / mixed_real / pure_real）
+        machine          : 机器名称（用于 machine_configs）
+        real_probability : 真机提交概率（与训练一致）
+        shots            : 真机 shots 数（与训练一致）
+    """
+    use_real = condition != "simulation" and real_probability > 0
+    env = QuantumSchedulingEnv(
+        max_steps=tasks,
+        machine_configs=_machine_config(machine, is_real=use_real),
+        real_submit_probability=real_probability if use_real else 0.0,
+        use_real_machine=use_real,
+        max_real_submissions=None,  # 评估不限制提交次数
+        real_machine_shots=shots,
+        seed=seed,
+    )
+    if use_real:
+        env.attach_real_clients({machine: MockRealClient(machine_name=machine)})
     obs, _ = env.reset(seed=seed)
     total_reward = 0.0
     done = False
@@ -246,7 +321,15 @@ def train_seed(
     started = time.perf_counter()
     model.learn(total_timesteps=tasks, callback=callback)
     elapsed_s = round(time.perf_counter() - started, 3)
-    evaluation = evaluate_one_episode(model, seed=seed + 1000, tasks=tasks)
+    evaluation = evaluate_one_episode(
+        model,
+        seed=seed + 1000,
+        tasks=tasks,
+        condition=condition,
+        machine=machine,
+        real_probability=real_probability if use_real else 0.0,
+        shots=shots,
+    )
 
     model_dir.mkdir(parents=True, exist_ok=True)
     model_path = model_dir / f"ppo_{condition}_seed_{seed}"
@@ -441,8 +524,13 @@ def generate_report(results: dict[str, Any], report_path: Path, plot_path: Path)
         f"- 三种条件均为 {len(results['config']['seeds'])} seeds；每 seed 固定 "
         f"{results['config']['tasks_per_seed']} 个训练任务，并在独立 200-task 仿真环境评估。",
         f"- 混合条件 real-prob={results['config']['mixed_real_probability']:.2f}；纯真机条件 "
-        "real-prob=1.0。这里的“纯真机”指所有符合量子真机提交资格的调度步骤均尝试真机，"
+        'real-prob=1.0。这里的\u201c纯真机\u201d指所有符合量子真机提交资格的调度步骤均尝试真机，'
         "不表示经典动作也被伪装成量子任务。",
+        "- **评估方法（Issue #108 修复）**：原评估使用纯仿真环境（`use_real_machine=False`），"
+        "导致 mixed_real 和 pure_real 条件的评估 reward 完全相同——因为真机反馈仅在训练时"
+        "通过 `_poll_pending_real_tasks()` 加入 reward，评估环境无真机配置使反馈为零。"
+        "修复后，真机条件的评估使用 `MockRealClient` 模拟真机反馈（确定性 completed 状态 + "
+        "固定概率分布），不消耗真机机时，但使评估 reward 反映真机参与率差异。",
         f"- 本次断点补跑的正式 SDK 调用硬上限 {results['config']['formal_submission_cap']}；"
         f"加冒烟最坏 {preflight['estimated_total_with_smoke']} tasks，"
         f"每任务 {results['config']['shots']} shots。",
@@ -473,7 +561,10 @@ def generate_report(results: dict[str, Any], report_path: Path, plot_path: Path)
         "",
         "- 纯仿真条件没有 SDK 调用。",
         "- 混合/纯真机条件只把带真实 task ID 且状态 completed 的记录计作真机成功。",
-        "- 提交拒绝、失败、超时以及降级后的仿真步骤均不计作真机成功；本实验没有调用 Mock 客户端。",
+        "- 提交拒绝、失败、超时以及降级后的仿真步骤均不计作真机成功；本实验训练阶段没有调用 Mock 客户端。",
+        "- **评估阶段**（Issue #108 修复）：真机条件的评估使用 `MockRealClient` 模拟真机反馈，"
+        "不消耗真机机时；Mock 客户端对所有提交返回确定性 completed 状态，反馈模式为 "
+        "`status_only`（固定 bonus=2.0），与训练阶段的 `real_feedback_mode` 一致。",
         f"- 共保存 {total_records} 条正式 SDK 调用审计记录；完整 task ID、状态、概率和耗时见 "
         "`results/real_machine/issue165_ablation.json`，不含 API Key。",
         "",

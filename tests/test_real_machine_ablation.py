@@ -1,12 +1,17 @@
 """Issue #165 真机消融脚本的无密钥单元测试。"""
 
 from pathlib import Path
+from unittest.mock import MagicMock
 
+import numpy as np
+import pytest
 import yaml
 
 from scripts.training.run_real_machine_ablation import (
+    MockRealClient,
     _convergence_timestep,
     aggregate_condition,
+    evaluate_one_episode,
     experiment_status,
     parse_seeds,
     run_preflight,
@@ -126,3 +131,78 @@ def test_save_plot_writes_three_condition_figure(tmp_path: Path) -> None:
     save_plot(conditions, output)
     assert output.exists()
     assert output.stat().st_size > 0
+
+
+# -- Issue #108: MockRealClient 与评估环境匹配测试 --
+
+
+def test_mock_real_client_returns_completed_status() -> None:
+    """MockRealClient 提交后应返回确定性 completed 状态。"""
+    client = MockRealClient(machine_name="tianyan176")
+    task_id = client.submit_quantum_task(qcis="H Q0\nM Q0", shots=8, task_name="test")
+    assert task_id is not None
+    status = client.get_task_status(task_id)
+    assert status["status"] == "completed"
+    assert "result" in status
+
+
+def test_mock_real_client_wait_for_task_returns_immediately() -> None:
+    """wait_for_task 不应阻塞，立即返回缓存状态。"""
+    client = MockRealClient()
+    task_id = client.submit_quantum_task(qcis="H Q0\nM Q0", shots=8)
+    result = client.wait_for_task(task_id, timeout=1, poll_interval=1)
+    assert result["status"] == "completed"
+
+
+def test_evaluate_one_episode_simulation_condition_no_real_machine() -> None:
+    """simulation 条件的评估不应启用真机（use_real_machine=False）。"""
+    mock_model = MagicMock()
+    # action=2（混合执行）对所有任务类型兼容，确保 episode 可完成
+    mock_model.predict = MagicMock(return_value=(np.array(2), None))
+    result = evaluate_one_episode(
+        mock_model,
+        seed=42,
+        tasks=20,
+        condition="simulation",
+    )
+    assert "reward" in result
+    assert "completion_rate" in result
+    assert result["tasks"] == 20
+
+
+def test_evaluate_one_episode_real_conditions_produce_different_rewards() -> None:
+    """Issue #108 核心断言：mixed_real 和 pure_real 的评估 reward 应不同。
+
+    原缺陷：evaluate_one_episode 使用纯仿真环境，导致两条件 reward 完全相同。
+    修复后：真机条件使用 MockRealClient，real_probability 不同 → 真机反馈
+    次数不同 → reward 不同。
+
+    使用 action=2（混合执行）因为该动作对所有任务类型兼容（classical/quantum/
+    universal），且会触发 route_to_machine → 真机提交路径。
+    """
+    mock_model = MagicMock()
+    mock_model.predict = MagicMock(return_value=(np.array(2), None))
+
+    mixed_result = evaluate_one_episode(
+        mock_model,
+        seed=42,
+        tasks=40,
+        condition="mixed_real",
+        machine="tianyan176",
+        real_probability=0.05,
+        shots=8,
+    )
+    pure_result = evaluate_one_episode(
+        mock_model,
+        seed=42,
+        tasks=40,
+        condition="pure_real",
+        machine="tianyan176",
+        real_probability=1.0,
+        shots=8,
+    )
+    # 两条件的 reward 必须不同（Issue #108 的核心修复目标）
+    assert mixed_result["reward"] != pure_result["reward"], (
+        f"mixed_real reward={mixed_result['reward']} 不应等于 "
+        f"pure_real reward={pure_result['reward']}（Issue #108 缺陷复现）"
+    )
