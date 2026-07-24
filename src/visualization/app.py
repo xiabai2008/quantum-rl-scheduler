@@ -140,6 +140,20 @@ _decision_log: list[dict[str, Any]] = []
 _ppo_model = None
 _ppo_env = None
 
+# PPO vs FCFS 对战状态（Day4-7-11）
+_battle_state: dict = {
+    "running": False,
+    "step": 0,
+    "ppo_reward": 0.0,
+    "fcfs_reward": 0.0,
+    "ppo_history": [],  # [{step, reward, cumulative, action, util}]
+    "fcfs_history": [],
+    "ppo_env": None,  # 运行时注入
+    "fcfs_env": None,
+    "ppo_obs": None,
+    "fcfs_obs": None,
+}
+
 # 懒加载真机 cqlib 客户端（仅在配置了 TIANYAN_API_KEY 时创建）
 _real_cqlib_client = None
 _real_cqlib_checked = False
@@ -147,8 +161,11 @@ _real_cqlib_checked = False
 # 全局配额追踪器实例（懒加载）
 _quota_tracker_instance: Any = None
 
-# 前端 HTML 文件路径
-FRONTEND_HTML_PATH = os.path.join(os.path.dirname(__file__), "frontend", "index.html")
+# 前端目录路径
+_FRONTEND_DIR = os.path.join(os.path.dirname(__file__), "frontend")
+FRONTEND_HTML_PATH = os.path.join(_FRONTEND_DIR, "index.html")
+# Vue3 构建产物目录（npm run build 后生成）
+FRONTEND_DIST_PATH = os.path.join(_FRONTEND_DIR, "dist")
 
 # 缓存前端 HTML 内容
 _VUE3_HTML_TEMPLATE = None
@@ -160,14 +177,28 @@ _VUE3_HTML_TEMPLATE = None
 
 
 def _load_vue3_template() -> str:
-    """加载 Vue3 前端 HTML 模板"""
+    """加载 Vue3 前端 HTML 模板。
+
+    优先级：
+    1. dist/index.html（npm run build 产物，生产模式）
+    2. frontend/index.html（开发模式源文件）
+    3. HTML_TEMPLATE（内置回退模板）
+    """
     global _VUE3_HTML_TEMPLATE
     if _VUE3_HTML_TEMPLATE is None:
-        if os.path.exists(FRONTEND_HTML_PATH):
+        # 优先使用构建产物
+        dist_html = os.path.join(FRONTEND_DIST_PATH, "index.html")
+        if os.path.exists(dist_html):
+            with open(dist_html, encoding="utf-8") as f:
+                _VUE3_HTML_TEMPLATE = f.read()
+            logger.info("[Web] 使用 Vue3 构建产物 (dist/index.html)")
+        elif os.path.exists(FRONTEND_HTML_PATH):
             with open(FRONTEND_HTML_PATH, encoding="utf-8") as f:
                 _VUE3_HTML_TEMPLATE = f.read()
+            logger.info("[Web] 使用 Vue3 源文件 (frontend/index.html)")
         else:
             _VUE3_HTML_TEMPLATE = HTML_TEMPLATE  # 回退到内置 HTML
+            logger.info("[Web] 使用内置回退 HTML 模板")
     return _VUE3_HTML_TEMPLATE
 
 
@@ -320,6 +351,14 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
 
 
 app = FastAPI(title="量子RL调度系统监控界面", version="1.0.0", lifespan=lifespan)
+
+# 挂载 Vue3 构建产物的静态资源目录（dist/assets/）
+_dist_assets = os.path.join(FRONTEND_DIST_PATH, "assets")
+if os.path.isdir(_dist_assets):
+    from fastapi.staticfiles import StaticFiles
+
+    app.mount("/assets", StaticFiles(directory=_dist_assets), name="assets")
+    logger.info(f"[Web] 静态资源目录已挂载: {_dist_assets}")
 
 
 # ============================================================

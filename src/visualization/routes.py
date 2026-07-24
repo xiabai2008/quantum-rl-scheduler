@@ -566,3 +566,191 @@ async def get_explainability_summary() -> dict:
         "feature_importance": feature_importance,
         "total_decisions": count,
     }
+
+
+# ============================================================
+# 决策放大镜：最新决策详情（Day2-3-10）
+# ============================================================
+
+
+@router.get("/api/explainability/latest")
+async def get_explainability_latest() -> dict:
+    """获取最新一条决策的完整可解释性数据（Day2-3-10）。
+
+    返回最近一条包含 feature_contributions 的决策记录，
+    包含状态向量、动作、特征贡献度、解释文本等完整信息，
+    供前端决策放大镜面板实时展示。
+
+    Returns:
+        包含 latest 决策记录的字典；无记录时返回 empty=True
+    """
+    for d in reversed(_app._decision_log):
+        if "feature_contributions" in d:
+            return {
+                "empty": False,
+                "latest": d,
+            }
+    return {"empty": True, "latest": None}
+
+
+# ============================================================
+# PPO vs FCFS 实时对战面板（Day4-7-11）
+# ============================================================
+
+
+@router.post("/api/battle/start")
+async def battle_start(_auth: None = Depends(verify_api_key)) -> dict:
+    """启动 PPO vs FCFS 对战（Day4-7-11）。
+
+    初始化两个独立的调度环境实例，分别使用 PPO 和 FCFS 策略。
+    后续通过 /api/battle/step 逐步推进对比。
+
+    Returns:
+        包含 success 和 initial state 的字典
+    """
+    try:
+        from src.scheduler.env import QuantumSchedulingEnv
+
+        # 创建两个独立环境（相同 seed 确保公平对比）
+        _app._battle_state["ppo_env"] = QuantumSchedulingEnv(max_qubits=20, seed=42)
+        _app._battle_state["fcfs_env"] = QuantumSchedulingEnv(max_qubits=20, seed=42)
+
+        _app._battle_state["ppo_obs"], _ = _app._battle_state["ppo_env"].reset()
+        _app._battle_state["fcfs_obs"], _ = _app._battle_state["fcfs_env"].reset()
+
+        _app._battle_state["running"] = True
+        _app._battle_state["step"] = 0
+        _app._battle_state["ppo_reward"] = 0.0
+        _app._battle_state["fcfs_reward"] = 0.0
+        _app._battle_state["ppo_history"] = []
+        _app._battle_state["fcfs_history"] = []
+
+        return {
+            "success": True,
+            "message": "对战已启动",
+            "step": 0,
+            "ppo_obs": _app._battle_state["ppo_obs"].tolist()[:5],
+            "fcfs_obs": _app._battle_state["fcfs_obs"].tolist()[:5],
+        }
+    except Exception as e:
+        logger.error(f"[Web] 对战启动失败: {e}")
+        return {"success": False, "error": str(e)}
+
+
+@router.post("/api/battle/step")
+async def battle_step(_auth: None = Depends(verify_api_key)) -> dict:
+    """推进对战一步（Day4-7-11）。
+
+    PPO 使用模型预测动作，FCFS 使用固定策略（始终选择动作 0=经典资源）。
+    两个环境各 step 一次，记录奖励和状态。
+
+    Returns:
+        包含本步两个策略的 reward/action/util 和累积奖励的字典
+    """
+    if not _app._battle_state["running"]:
+        return {"error": "对战未启动，请先调用 /api/battle/start"}
+
+    try:
+        # --- PPO 策略 ---
+        model = _app._get_ppo_model()
+        ppo_action = 0
+        ppo_step_reward = 0.0
+        ppo_util = 0.0
+        ppo_done = False
+
+        if model is not None:
+            ppo_action, _ = model.predict(_app._battle_state["ppo_obs"], deterministic=True)
+            new_obs, reward, terminated, truncated, _info = _app._battle_state["ppo_env"].step(
+                int(ppo_action)
+            )
+            ppo_step_reward = float(reward)
+            ppo_util = float(new_obs[0])  # 量子比特可用率
+            _app._battle_state["ppo_reward"] += ppo_step_reward
+            _app._battle_state["ppo_obs"] = new_obs
+            ppo_done = terminated or truncated
+            if ppo_done:
+                _app._battle_state["ppo_obs"], _ = _app._battle_state["ppo_env"].reset()
+
+        # --- FCFS 策略（固定选择经典资源=动作0） ---
+        fcfs_action = 0
+        new_obs, reward, terminated, truncated, _info = _app._battle_state["fcfs_env"].step(0)
+        fcfs_step_reward = float(reward)
+        fcfs_util = float(new_obs[0])
+        _app._battle_state["fcfs_reward"] += fcfs_step_reward
+        _app._battle_state["fcfs_obs"] = new_obs
+        fcfs_done = terminated or truncated
+        if fcfs_done:
+            _app._battle_state["fcfs_obs"], _ = _app._battle_state["fcfs_env"].reset()
+
+        # 更新步数
+        _app._battle_state["step"] += 1
+        step = _app._battle_state["step"]
+
+        # 记录历史
+        ppo_entry = {
+            "step": step,
+            "reward": round(ppo_step_reward, 4),
+            "cumulative": round(_app._battle_state["ppo_reward"], 2),
+            "action": int(ppo_action),
+            "util": round(ppo_util, 4),
+        }
+        fcfs_entry = {
+            "step": step,
+            "reward": round(fcfs_step_reward, 4),
+            "cumulative": round(_app._battle_state["fcfs_reward"], 2),
+            "action": int(fcfs_action),
+            "util": round(fcfs_util, 4),
+        }
+        _app._battle_state["ppo_history"].append(ppo_entry)
+        _app._battle_state["fcfs_history"].append(fcfs_entry)
+
+        # 限制历史长度
+        if len(_app._battle_state["ppo_history"]) > 200:
+            _app._battle_state["ppo_history"] = _app._battle_state["ppo_history"][-200:]
+            _app._battle_state["fcfs_history"] = _app._battle_state["fcfs_history"][-200:]
+
+        return {
+            "step": step,
+            "ppo": ppo_entry,
+            "fcfs": fcfs_entry,
+            "ppo_total": round(_app._battle_state["ppo_reward"], 2),
+            "fcfs_total": round(_app._battle_state["fcfs_reward"], 2),
+            "gap": round(_app._battle_state["ppo_reward"] - _app._battle_state["fcfs_reward"], 2),
+        }
+    except Exception as e:
+        logger.error(f"[Web] 对战步进失败: {e}")
+        return {"error": str(e)}
+
+
+@router.get("/api/battle/status")
+async def battle_status() -> dict:
+    """获取对战当前状态（Day4-7-11）。
+
+    Returns:
+        包含 running/step/累积奖励/历史数据的字典
+    """
+    return {
+        "running": _app._battle_state["running"],
+        "step": _app._battle_state["step"],
+        "ppo_total": round(_app._battle_state["ppo_reward"], 2),
+        "fcfs_total": round(_app._battle_state["fcfs_reward"], 2),
+        "gap": round(_app._battle_state["ppo_reward"] - _app._battle_state["fcfs_reward"], 2),
+        "ppo_history": _app._battle_state["ppo_history"][-50:],
+        "fcfs_history": _app._battle_state["fcfs_history"][-50:],
+    }
+
+
+@router.post("/api/battle/reset")
+async def battle_reset(_auth: None = Depends(verify_api_key)) -> dict:
+    """重置对战状态（Day4-7-11）。"""
+    _app._battle_state["running"] = False
+    _app._battle_state["step"] = 0
+    _app._battle_state["ppo_reward"] = 0.0
+    _app._battle_state["fcfs_reward"] = 0.0
+    _app._battle_state["ppo_history"] = []
+    _app._battle_state["fcfs_history"] = []
+    _app._battle_state["ppo_env"] = None
+    _app._battle_state["fcfs_env"] = None
+    _app._battle_state["ppo_obs"] = None
+    _app._battle_state["fcfs_obs"] = None
+    return {"success": True, "message": "对战已重置"}

@@ -1,5 +1,5 @@
 # =============================================================================
-# 量子RL调度系统 - 多阶段 Dockerfile
+# 量子RL调度系统 - 多阶段 Dockerfile（v2：含前端构建 + 依赖瘦身）
 # =============================================================================
 #
 # 构建镜像：
@@ -13,7 +13,20 @@
 #
 # =============================================================================
 
-# ---------- 阶段 1：构建依赖 ----------
+# ---------- 阶段 0：构建 Vue3 前端 ----------
+FROM node:20-slim AS frontend-builder
+
+WORKDIR /frontend
+
+# 先复制 package 文件以利用 Docker 层缓存
+COPY src/visualization/frontend/package*.json ./
+RUN npm ci --production=false
+
+# 复制前端源码并构建
+COPY src/visualization/frontend/ ./
+RUN npm run build
+
+# ---------- 阶段 1：构建 Python 依赖 ----------
 FROM python:3.11-slim AS builder
 
 WORKDIR /app
@@ -22,7 +35,6 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     curl \
-    git \
     && rm -rf /var/lib/apt/lists/*
 
 # 复制依赖清单并安装到用户目录（便于多阶段复制）
@@ -39,10 +51,9 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1
 
-# 安装运行时系统依赖（OpenMP / OpenGL / GLib，用于 numpy / cv2 / matplotlib）
+# 安装运行时系统依赖（OpenMP for numpy, GLib for matplotlib）
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libgomp1 \
-    libgl1-mesa-glx \
     libglib2.0-0 \
     curl \
     && rm -rf /var/lib/apt/lists/*
@@ -55,6 +66,9 @@ ENV PATH=/root/.local/bin:$PATH
 
 # 复制项目代码
 COPY . .
+
+# 复制前端构建产物到 dist/ 目录
+COPY --from=frontend-builder /frontend/dist /app/src/visualization/frontend/dist
 
 # 创建运行时目录
 RUN mkdir -p logs models results

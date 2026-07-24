@@ -112,6 +112,16 @@ mutants/
 # ── TRAE 工作目录 ──
 .trae/
 
+# ── 前端构建产物 ──
+node_modules/
+*.tsbuildinfo
+src/visualization/frontend/vite.config.d.ts
+src/visualization/frontend/vite.config.js
+
+# ── 项目评审临时文件 ──
+project-review/
+.trae-html-share-packages/
+
 # ── 内部队友协作文档 ──
 docs/teammate_*.md
 docs/pr_patrol_*.md

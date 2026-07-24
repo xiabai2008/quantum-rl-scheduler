@@ -5,6 +5,8 @@ import TaskQueue from './components/TaskQueue.vue'
 import ResourceDashboard from './components/ResourceDashboard.vue'
 import DecisionLog from './components/DecisionLog.vue'
 import MachineStatus from './components/MachineStatus.vue'
+import DecisionMagnifier from './components/DecisionMagnifier.vue'
+import BattlePanel from './components/BattlePanel.vue'
 
 // ============ 响应式数据 ============
 const loading = ref(true)
@@ -296,6 +298,12 @@ defineExpose({
 
     <!-- 决策过程回放（Issue #22：时间轴滑动） -->
     <DecisionLog />
+
+    <!-- 决策放大镜（Day2-3-10：特征贡献度分析） -->
+    <DecisionMagnifier />
+
+    <!-- PPO vs FCFS 实时对战面板（Day4-7-11） -->
+    <BattlePanel />
 
     <!-- 真机状态 + 真机提交记录（天衍云 cqlib 真实数据） -->
     <div class="control-grid">

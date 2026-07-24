@@ -696,6 +696,7 @@ def test_load_vue3_template_fallback(monkeypatch):
     """前端文件不存在时应回退到内置 HTML_TEMPLATE。"""
     monkeypatch.setattr(app_module, "_VUE3_HTML_TEMPLATE", None)
     monkeypatch.setattr(app_module, "FRONTEND_HTML_PATH", "/nonexistent/path/index.html")
+    monkeypatch.setattr(app_module, "FRONTEND_DIST_PATH", "/nonexistent/dist")
     result = app_module._load_vue3_template()
     assert result == app_module.HTML_TEMPLATE
 
@@ -974,7 +975,7 @@ class TestApiStatusEndpoint:
     async def test_strategy_options_contains_known_strategies(self, async_client):
         """可选策略列表应包含已知策略。"""
         data = (await async_client.get("/api/status")).json()
-        for s in ["DQN-Reward", "PPO-Balanced", "FCFS"]:
+        for s in ["PPO", "DQN", "FCFS"]:
             assert s in data["strategy_options"]
 
 
@@ -1277,13 +1278,13 @@ class TestStrategyEndpoint:
     async def test_known_strategy_switches(self, async_client, monkeypatch):
         """已知策略应切换成功且更新 current_strategy。"""
         monkeypatch.delenv("VISUALIZATION_API_KEY", raising=False)
-        resp = await async_client.post("/api/strategy", params={"strategy": "DQN-Reward"})
+        resp = await async_client.post("/api/strategy", params={"strategy": "PPO"})
         assert resp.status_code == 200
         data = resp.json()
         assert data["success"] is True
-        assert "DQN-Reward" in data["message"]
+        assert "PPO" in data["message"]
         status = await async_client.get("/api/status")
-        assert status.json()["current_strategy"] == "DQN-Reward"
+        assert status.json()["current_strategy"] == "PPO"
 
     @pytest.mark.asyncio
     async def test_unknown_strategy_fails(self, async_client, monkeypatch):
