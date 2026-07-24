@@ -29,6 +29,14 @@
 | 5 | [开发计划.md](./开发计划.md) | 8.7 KB | 14周路线图+风险管理 | ⚠️ 含占位符 |
 | 6 | [项目记忆_给AI.md](./项目记忆_给AI.md) | 15 KB | 技术架构+完成状态+决策记录 | ⚠️ 日期待更新 |
 | 7 | [docker-deploy.md](./docker-deploy.md) | 1.9 KB | Docker容器化部署手册 | ✅ |
+| 8 | [technical_bottlenecks.md](./technical_bottlenecks.md) | 12 KB | 7项技术瓶颈+缓解策略（2026-07-24） | ✅ |
+| 9 | [annealing_significance-defense.md](./annealing_significance-defense.md) | 8 KB | 退火p=0.19答辩话术+5类评委问题 | ✅ |
+| 10 | [deployment_architecture.md](./deployment_architecture.md) | 15 KB | 三阶段部署路径（原型→试点→生产） | ✅ |
+| 11 | [cross_hardware_scalability.md](./cross_hardware_scalability.md) | 10 KB | 三层解耦架构+跨硬件扩展路径 | ✅ |
+| 12 | [value_quantification.md](./value_quantification.md) | 14 KB | 10项指标+ROI分析+VQE场景案例 | ✅ |
+| 13 | [defense_qa_handbook.md](./defense_qa_handbook.md) | 25 KB | 30+预设问题及标准答案 | ✅ |
+| 14 | [Code_Wiki.md](./Code_Wiki.md) | 30 KB | 系统架构+模块详解+类函数参考 | ✅ |
+| 15 | [requirements_traceability.md](./requirements_traceability.md) | 18 KB | 27条需求追溯矩阵 | ✅ |
 
 ---
 
@@ -57,6 +65,18 @@
 - [新人上手指南 - 代码规范](./新人上手指南.md) — Python风格+Docstring+文件头
 - [Git工作流.md](./Git工作流.md) — Commit格式规范
 - 项目根目录 `CONTRIBUTING.md` — 贡献指南
+
+### 🔬 深度分析与答辩准备
+- [technical_bottlenecks.md](./technical_bottlenecks.md) — 7项技术瓶颈+缓解策略
+- [annealing_significance-defense.md](./annealing_significance-defense.md) — 退火p=0.19答辩话术
+- [defense_qa_handbook.md](./defense_qa_handbook.md) — 30+预设问题及标准答案
+- [requirements_traceability.md](./requirements_traceability.md) — 27条需求追溯矩阵
+- [value_quantification.md](./value_quantification.md) — 价值量化（10项指标+ROI）
+
+### 🚢 部署与扩展
+- [deployment_architecture.md](./deployment_architecture.md) — 三阶段部署路径
+- [cross_hardware_scalability.md](./cross_hardware_scalability.md) — 跨硬件扩展性
+- [docker-deploy.md](./docker-deploy.md) — Docker容器化部署
 
 ---
 
@@ -88,5 +108,5 @@
 
 ---
 
-> **最后更新**：2026-06-30
+> **最后更新**：2026-07-24
 > **维护人**：文档工程师 / 瑞哥

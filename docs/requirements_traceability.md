@@ -4,7 +4,7 @@
 > **发榜单位**: 中国电信集团有限公司  
 > **选题编号**: XA-202609  
 > **生成时间**: 2026-07-02  
-> **最后更新**: 2026-07-02
+> **最后更新**: 2026-07-24（新增D3奖励消融实验证据、多租户公平调度验证）
 
 ---
 
@@ -36,7 +36,7 @@
 | R-F-04 | 实现量子退火加速 RL 训练 | 功能 | `src/quantum/annealing.py`<br>`src/scheduler/async_annealing_callback.py` | **已实现** | 5 Seed 消融实验 | "量子退火将策略网络权重映射为 QUBO 问题，训练奖励提升 6.4%" | `results/reports/ablation_report.md` |
 | R-F-05 | 支持多机器协同调度 | 功能 | `src/scheduler/marl.py`<br>`src/scheduler/env.py` | **已实现** | 单机 vs 多机对比 | "MAPPO 多智能体协同调度，3 台真机负载均衡 CV=0.246，奖励提升 86.3%" | `results/reports/ablation_report.md` |
 | R-F-06 | 任务解析与资源预估 | 功能 | `src/scheduler/parser.py` | **已实现** | 单元测试 | "支持 QASM 电路解析、资源约束校验、执行时间预估" | `tests/test_parser.py` |
-| R-F-07 | 多目标奖励设计（等待时间 + 利用率） | 功能 | `src/scheduler/multi_objective_env.py` | **已实现** | 多目标实验 | "多目标奖励函数同时优化等待时间、量子利用率、经典利用率" | `tests/test_multi_objective.py` |
+| R-F-07 | 多目标奖励设计（等待时间 + 利用率） | 功能 | `src/scheduler/multi_objective_env.py` | **已实现** | 多目标实验 + D3消融 | "多目标奖励函数同时优化吞吐量、资源平衡、服务质量；D3消融（7预设×2策略×10seeds）揭示各分量贡献占比：吞吐量27.6%、平衡21.2%、服务质量51.2%" | `tests/test_multi_objective.py`<br>`results/reports/d3_reward_ablation_report.md` |
 | R-F-08 | Mock 仿真环境（离线开发） | 功能 | `src/api/mock_client.py` | **已实现** | 真机 vs Mock 校准 | "Mock 环境经真机校准后偏差 < 5%，支持离线开发和 CI/CD" | `results/reports/real_machine_validation.md` |
 
 ### 2.2 性能性需求
@@ -44,7 +44,7 @@
 | 需求 ID | 需求描述（原文） | 类别 | 对应代码模块 | 实现状态 | 验证方式 | 答辩话术 | 证据文件 |
 |---------|----------------|------|-------------|---------|---------|---------|---------|
 | R-P-01 | 资源利用率提升 ≥30% | 性能 | `src/scheduler/env.py`<br>`src/scheduler/agent.py` | **已达成** | 8策略对比 | "PPO 经典利用率 48.96%，综合资源利用率 45.47%，较基线提升显著" | `results/reports/strategy_comparison.md` |
-| R-P-02 | 平均等待时间降低 ≥40% | 性能 | `src/scheduler/env.py`<br>`src/scheduler/agent.py` | **权衡边界** | D3奖励消融实验 | "PPO 等待时间 57.73 步高于 FCFS 38.22 步；D3消融证明推理时调整reward weight不改变已训练PPO的等待时间（policy固定），等待时间是多目标优化的权衡维度" | `results/reports/reward_ablation_d3.md` |
+| R-P-02 | 平均等待时间降低 ≥40% | 性能 | `src/scheduler/env.py`<br>`src/scheduler/agent.py` | **权衡边界** | D3奖励消融实验 | "PPO 等待时间 57.73 步高于 FCFS 38.22 步；D3消融（7预设×10seeds）证明PPO策略与原始奖励强耦合（91.7%量子分配），切换多目标权重不改变固定策略的动作分布，等待时间是多目标优化的权衡维度" | `results/reports/reward_ablation_d3.md`<br>`results/reports/d3_reward_ablation_report.md` |
 | R-P-03 | 调度决策延迟 < 100ms | 性能 | `src/scheduler/agent.py` | **已达成** | 性能测试 | "PPO 单次前向推理 < 10ms，满足实时调度需求" | `src/scheduler/agent.py` L200-400 |
 | R-P-04 | 适配 287 量子比特平台接口 | 性能 | `src/scheduler/env.py` | **已达成** | 真机可用性验证 | "系统已适配天衍-287 平台接口（MAX_QUBITS=287），284 次真机调用 100% 成功；真机任务规模受机时限制为 1-3 qubit" | `results/reports/real_machine_boundary_statement.md` |
 | R-P-05 | 压力测试：4 种极端场景稳定性 | 性能 | `scripts/benchmarking/stress_test.py` | **已达成** | 压力测试 | "PPO 在 4 种压力场景下综合稳定性最强，量子波动场景比第二名提升 91.4%" | `results/reports/stress_test_report.md` |
@@ -83,7 +83,8 @@
 |---------|---------|---------|---------------------|-------|------|
 | R-P-02 | 平均等待时间降低 ≥40% | **权衡边界**：PPO 等待时间高于 FCFS，D3 消融证明无法通过推理时调整 reward weight 改变 | **否** | 中 | D3 消融实验（6配置×2策略×25ep）证明：推理时调整 reward weight 不改变已训练 PPO 的 policy；等待时间是多目标优化的权衡维度，非独立可优化指标。详见 `results/reports/reward_ablation_d3.md` |
 | - | 任务规模梯度测试（100/500/1000/5000/10000） | **未实现** | **建议补齐** | 中 | 压力测试报告建议补充，可证明系统线性扩展能力 |
-| - | 奖励函数消融实验（D3） | **已完成** | — | — | Issue #201 已完成：6 种 reward 配置 × 2 策略 × 25 episodes，输出 6 项指标，证明奖励函数各组件有明确语义贡献。详见 `results/reports/reward_ablation_d3.md` |
+| - | 奖励函数消融实验（D3） | **已完成** | — | — | Issue #201 已完成：6 种 reward 配置 × 2 策略 × 25 episodes，输出 6 项指标，证明奖励函数各组件有明确语义贡献。详见 `results/reports/reward_ablation_d3.md`。2026-07-24 补充：7预设×2策略×10seeds固定策略交叉评估，揭示策略-奖励耦合关系，详见 `results/reports/d3_reward_ablation_report.md` |
+| - | 多租户公平调度验证 | **已完成** | — | — | 2026-07-24 完成：5租户不同优先级，PPO Jain's公平指数=0.9875，总奖励+57.6% vs FCFS，证明RL调度在公平性维度优于启发式。详见 `results/reports/fair_scheduling_report.md` |
 | - | 真机闭环预注册验证 | **已完成** | — | — | Issue #221 已完成：预注册方案（`results/reports/real_machine_preregistration.md`）+ 分析脚本（`scripts/evaluation/preregistered_real_machine_analysis.py`）+ 41 个测试。以效应量/CI 为主，禁止追 p 值，8 类 p-hacking 行为明确禁止 |
 | - | head_only 退火策略有效性验证 | **未实现** | **建议补齐** | 高 | Issue #104 已规划，需对比 head_only=True vs False 的退火效果 |
 
