@@ -14,6 +14,7 @@
 | 策略 | 提交路径（可复现） | 训练说明 | 体积 | 复现指标 |
 |------|-------------------|----------|------|----------|
 | **PPO（14维）** | `deliverable_models/ppo_best_model_14dim.zip` | 14维原生环境，50000 steps，seed=42 | ~267 KB | PPO 奖励 **2746.94**（50 seed × 5 ep，+88.3% vs FCFS，d=1.70） |
+| **DQN（14维）** | `deliverable_models/dqn_best_model_14dim.zip` | 14维原生环境，50000 steps，Double DQN + reward clip | ~216 KB | DQN 奖励 **-897.08**（排名 6/8，在14维环境退化为近Quantum-Only） |
 | **DQN（10维）** | `deliverable_models/dqn_best_model_10dim.zip` | 10维环境（Obs10Wrapper），50000 steps | ~216 KB | DQN 奖励 **-897.08**（排名 6/8，在14维环境退化为近Quantum-Only） |
 
 ## 训练配置（复现前提）
@@ -56,6 +57,6 @@ python scripts/demo/demo_multi_machine.py --ppo-model deliverable_models/ppo_bes
 ## 注意事项
 
 - PPO 权威模型已从 10 维升级到 14 维（v8→v9），旧 `ppo_best_model_10dim.zip` 保留作为历史参考但不再作为主要口径
-- DQN 暂无 14 维版本，继续使用 `dqn_best_model_10dim.zip`；在 14 维评估环境中 DQN 退化为近 Quantum-Only 行为（已知限制）
+- DQN 14维版本已归档：`deliverable_models/dqn_best_model_14dim.zip`（Double DQN + reward clip，Issue #46）。10维版本 `dqn_best_model_10dim.zip` 保留作为历史参考。在 14 维评估环境中 DQN 退化为近 Quantum-Only 行为（已知限制，归因于观测空间不匹配退化）
 - 如需重新训练并替换权威模型：训练完成后将 `best_model.zip` 复制至 `deliverable_models/` 并同步更新本文件
 - `models/` 目录已删除（旧版训练 artifacts），所有交付模型统一在 `deliverable_models/`

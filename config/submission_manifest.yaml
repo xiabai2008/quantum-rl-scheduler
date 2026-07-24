@@ -113,9 +113,9 @@ items:
       must_exist: true
 
   - id: MODEL_DQN
-    name: DQN 权威模型（10维观测）
+    name: DQN 权威模型（14维观测）
     type: zip
-    path: "deliverable_models/dqn_best_model_10dim.zip"
+    path: "deliverable_models/dqn_best_model_14dim.zip"
     requirements:
       max_size_mb: 50
       must_exist: true
