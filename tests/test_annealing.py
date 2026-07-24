@@ -1,15 +1,15 @@
 """
-量子RL调度系统 - 量子退火优化器单元测试
+??RL???? - ???????????
 Unit Tests for src/quantum/annealing.py
 
-测试覆盖：
-- QuantumAnnealingOptimizer 初始化（默认/自定义参数、低比特数警告）
-- network_to_qubo QUBO 矩阵构造（形状、对称性、对角项、梯度/TD误差分支）
-- bitstring_to_weights 比特串解码（形状保持、零比特串、带/不带当前权重、截断/填充）
-- anneal 退火求解（返回有效比特串、长度正确、能量有限、真机路径降级）
-- _compute_qubo_energy 能量计算（已知输入）
-- _extract_weights / _set_weights 权重提取与设置往返
-- optimize_policy 主流程（禁用/启用/无策略网络）及内部辅助方法
+????:
+- QuantumAnnealingOptimizer ???(??/????????????)
+- network_to_qubo QUBO ????(?????????????/TD????)
+- bitstring_to_weights ?????(???????????/?????????/??)
+- anneal ????(????????????????????????)
+- _compute_qubo_energy ????(????)
+- _extract_weights / _set_weights ?????????
+- optimize_policy ???(??/??/?????)???????
 """
 
 import os
@@ -28,13 +28,13 @@ from src.quantum.annealing import QuantumAnnealingOptimizer
 
 
 # ============================================================
-# 初始化测试
+# ?????
 # ============================================================
 class TestQuantumAnnealingOptimizerInit(unittest.TestCase):
-    """测试量子退火优化器初始化。"""
+    """?????????????"""
 
     def test_default_init(self):
-        """默认参数初始化应设置标准值。"""
+        """??????????????"""
         opt = QuantumAnnealingOptimizer()
         self.assertEqual(opt.num_qubits, 16)
         self.assertEqual(opt.annealing_time, 20.0)
@@ -43,7 +43,7 @@ class TestQuantumAnnealingOptimizerInit(unittest.TestCase):
         self.assertIsNone(opt.cqlib_client)
 
     def test_custom_init(self):
-        """自定义参数应被正确存储。"""
+        """????????????"""
         opt = QuantumAnnealingOptimizer(
             num_qubits=32,
             annealing_time=50.0,
@@ -56,39 +56,39 @@ class TestQuantumAnnealingOptimizerInit(unittest.TestCase):
         self.assertFalse(opt.simulation_mode)
 
     def test_simulation_mode_is_bool(self):
-        """simulation_mode 应被强制转换为 bool。"""
+        """simulation_mode ??????? bool?"""
         opt_false = QuantumAnnealingOptimizer(simulation_mode=0)
         self.assertFalse(opt_false.simulation_mode)
         opt_true = QuantumAnnealingOptimizer(simulation_mode=1)
         self.assertTrue(opt_true.simulation_mode)
 
     def test_cqlib_client_stored(self):
-        """cqlib_client 应被原样存储。"""
+        """cqlib_client ???????"""
         client = object()
         opt = QuantumAnnealingOptimizer(cqlib_client=client)
         self.assertIs(opt.cqlib_client, client)
 
     def test_simulated_annealing_hyperparams(self):
-        """内置模拟退火超参数应被正确设置。"""
+        """????????????????"""
         opt = QuantumAnnealingOptimizer()
         self.assertEqual(opt._sim_initial_temp, 2.0)
         self.assertEqual(opt._sim_cooling_rate, 0.995)
         self.assertEqual(opt._sim_num_sweeps, 200)
 
     def test_use_dw_flag_is_bool(self):
-        """use_dw 标志应为布尔值（取决于 D-Wave SDK 是否可用）。"""
+        """use_dw ???????(??? D-Wave SDK ????)?"""
         opt = QuantumAnnealingOptimizer()
         self.assertIsInstance(opt.use_dw, bool)
 
     def test_low_num_qubits_does_not_raise(self):
-        """量子比特数过低时应仅发出警告而不抛异常。"""
-        # num_qubits=4 → n_bits_per_weight=1 < 4，触发警告
+        """????????????????????"""
+        # num_qubits=4 ? n_bits_per_weight=1 < 4,????
         opt = QuantumAnnealingOptimizer(num_qubits=4)
         self.assertEqual(opt.num_qubits, 4)
 
     def test_n_bits_per_weight_derived_from_num_qubits(self):
-        """每权重比特数应等于 num_qubits // 4（至少为 1）。"""
-        # 通过 network_to_qubo 输出的总比特数反推验证
+        """????????? num_qubits // 4(??? 1)?"""
+        # ?? network_to_qubo ???????????
         weights = [np.array([0.1, 0.2])]
         for nq, expected_nbits in [(16, 4), (8, 2), (4, 1), (32, 8)]:
             opt = QuantumAnnealingOptimizer(num_qubits=nq)
@@ -97,13 +97,13 @@ class TestQuantumAnnealingOptimizerInit(unittest.TestCase):
 
 
 # ============================================================
-# network_to_qubo 测试
+# network_to_qubo ??
 # ============================================================
 class TestNetworkToQubo(unittest.TestCase):
-    """测试 network_to_qubo QUBO 矩阵构造。"""
+    """?? network_to_qubo QUBO ?????"""
 
     def setUp(self):
-        """使用小型权重以加速测试。"""
+        """????????????"""
         self.opt = QuantumAnnealingOptimizer(num_qubits=16)
         np.random.seed(42)
         self.weights = [
@@ -112,7 +112,7 @@ class TestNetworkToQubo(unittest.TestCase):
         ]
 
     def test_qubo_shape(self):
-        """QUBO 矩阵形状应为 (total_bits, total_bits)。"""
+        """QUBO ?????? (total_bits, total_bits)?"""
         Q = self.opt.network_to_qubo(self.weights)
         num_weights = sum(w.size for w in self.weights)
         n_bits_per_weight = max(1, self.opt.num_qubits // 4)
@@ -120,17 +120,17 @@ class TestNetworkToQubo(unittest.TestCase):
         self.assertEqual(Q.shape, (expected, expected))
 
     def test_qubo_is_symmetric(self):
-        """QUBO 矩阵应是对称的。"""
+        """QUBO ????????"""
         Q = self.opt.network_to_qubo(self.weights)
         np.testing.assert_array_almost_equal(Q, Q.T)
 
     def test_qubo_is_finite(self):
-        """QUBO 矩阵所有元素应为有限值。"""
+        """QUBO ????????????"""
         Q = self.opt.network_to_qubo(self.weights)
         self.assertTrue(np.all(np.isfinite(Q)))
 
     def test_qubo_sign_bit_diagonal_zero(self):
-        """每个权重的符号位（第 0 位）对角元应为 0。"""
+        """????????(? 0 ?)????? 0?"""
         Q = self.opt.network_to_qubo(self.weights)
         n_bits_per_weight = max(1, self.opt.num_qubits // 4)
         num_weights = sum(w.size for w in self.weights)
@@ -139,13 +139,13 @@ class TestNetworkToQubo(unittest.TestCase):
             self.assertEqual(Q[sign_idx, sign_idx], 0.0)
 
     def test_qubo_without_gradients(self):
-        """不提供梯度时应正常返回非零 QUBO 矩阵。"""
+        """????????????? QUBO ???"""
         Q = self.opt.network_to_qubo(self.weights)
         self.assertEqual(Q.shape[0], Q.shape[1])
         self.assertGreater(np.count_nonzero(Q), 0)
 
     def test_qubo_with_gradients_changes_matrix(self):
-        """提供梯度时应构造出与无梯度版本不同的 QUBO。"""
+        """?????????????????? QUBO?"""
         np.random.seed(0)
         gradients = [
             np.random.randn(4, 2).astype(np.float32),
@@ -157,7 +157,7 @@ class TestNetworkToQubo(unittest.TestCase):
         self.assertFalse(np.allclose(Q_grad, Q_no_grad))
 
     def test_qubo_with_td_errors(self):
-        """提供 TD 误差时应正常构造有限 QUBO 矩阵。"""
+        """?? TD ?????????? QUBO ???"""
         np.random.seed(1)
         gradients = [
             np.random.randn(4, 2).astype(np.float32),
@@ -169,20 +169,20 @@ class TestNetworkToQubo(unittest.TestCase):
         self.assertTrue(np.all(np.isfinite(Q)))
 
     def test_qubo_with_empty_td_errors_equals_none(self):
-        """空 TD 误差数组应等同于未提供 TD 误差。"""
+        """? TD ??????????? TD ???"""
         Q_empty = self.opt.network_to_qubo(self.weights, td_errors=np.array([]))
         Q_none = self.opt.network_to_qubo(self.weights)
         np.testing.assert_array_almost_equal(Q_empty, Q_none)
 
     def test_qubo_single_weight_layer(self):
-        """单个权重层应能正确构造 QUBO。"""
+        """??????????? QUBO?"""
         w = [np.array([0.5, -0.3, 0.8])]
         Q = self.opt.network_to_qubo(w)
         n_bits_per_weight = max(1, self.opt.num_qubits // 4)
         self.assertEqual(Q.shape, (3 * n_bits_per_weight, 3 * n_bits_per_weight))
 
     def test_qubo_with_gradients_is_symmetric(self):
-        """提供梯度时 QUBO 仍应保持对称。"""
+        """????? QUBO ???????"""
         np.random.seed(2)
         gradients = [
             np.random.randn(4, 2).astype(np.float32),
@@ -193,13 +193,13 @@ class TestNetworkToQubo(unittest.TestCase):
 
 
 # ============================================================
-# bitstring_to_weights 测试
+# bitstring_to_weights ??
 # ============================================================
 class TestBitstringToWeights(unittest.TestCase):
-    """测试 bitstring_to_weights 比特串解码。"""
+    """?? bitstring_to_weights ??????"""
 
     def setUp(self):
-        """初始化优化器与形状。"""
+        """??????????"""
         self.opt = QuantumAnnealingOptimizer(num_qubits=16)
         self.shapes = [(4, 2), (2,)]
         self.num_params = 10
@@ -207,7 +207,7 @@ class TestBitstringToWeights(unittest.TestCase):
         self.bitstring_len = self.num_params * self.n_bits  # 40
 
     def test_returns_list_of_correct_shapes(self):
-        """解码后应返回形状正确的权重列表。"""
+        """????????????????"""
         bitstring = "0" * self.bitstring_len
         weights = self.opt.bitstring_to_weights(bitstring, self.shapes)
         self.assertIsInstance(weights, list)
@@ -216,14 +216,14 @@ class TestBitstringToWeights(unittest.TestCase):
             self.assertEqual(w.shape, s)
 
     def test_all_zeros_bitstring_yields_zero_delta(self):
-        """全零比特串（无当前权重）应解码为零更新量。"""
+        """?????(?????)?????????"""
         bitstring = "0" * self.bitstring_len
         weights = self.opt.bitstring_to_weights(bitstring, self.shapes)
         for w in weights:
             np.testing.assert_array_almost_equal(w, np.zeros_like(w))
 
     def test_all_zeros_with_current_weights_returns_unchanged(self):
-        """全零比特串 + 当前权重应返回原权重（无更新）。"""
+        """????? + ??????????(???)?"""
         np.random.seed(7)
         current = [
             np.random.randn(4, 2).astype(np.float64),
@@ -235,16 +235,16 @@ class TestBitstringToWeights(unittest.TestCase):
             np.testing.assert_array_almost_equal(w, c)
 
     def test_sign_bit_one_yields_nonpositive_delta(self):
-        """符号位为 1（负更新）应产生非正更新量。"""
-        # 全 1 比特串：符号位=1（负），数值位全 1（最大幅度）
+        """???? 1(???)?????????"""
+        # ? 1 ???:???=1(?),???? 1(????)
         bitstring = "1" * self.bitstring_len
         weights = self.opt.bitstring_to_weights(bitstring, self.shapes)
         flat = np.concatenate([w.flatten() for w in weights])
         self.assertTrue(np.all(flat <= 0))
 
     def test_sign_bit_zero_yields_nonnegative_delta(self):
-        """符号位为 0（正更新）应产生非负更新量。"""
-        # 构造：每个权重符号位 0，数值位全 1
+        """???? 0(???)?????????"""
+        # ??:??????? 0,???? 1
         per = self.n_bits
         bitstring = "".join("0" + "1" * (per - 1) for _ in range(self.num_params))
         weights = self.opt.bitstring_to_weights(bitstring, self.shapes)
@@ -252,7 +252,7 @@ class TestBitstringToWeights(unittest.TestCase):
         self.assertTrue(np.all(flat >= 0))
 
     def test_with_current_weights_adds_delta(self):
-        """提供当前权重时，返回值应为 w_old + Δw（全零 delta 即原值）。"""
+        """???????,????? w_old + ?w(?? delta ???)?"""
         np.random.seed(11)
         current = [
             np.random.randn(4, 2).astype(np.float64),
@@ -264,42 +264,42 @@ class TestBitstringToWeights(unittest.TestCase):
             np.testing.assert_array_almost_equal(w, c)
 
     def test_short_bitstring_padded_with_zeros(self):
-        """过短比特串应被零填充后解码且不抛异常。"""
+        """???????????????????"""
         bitstring = "1"
         weights = self.opt.bitstring_to_weights(bitstring, self.shapes)
         self.assertEqual(len(weights), 2)
         self.assertEqual(weights[0].shape, (4, 2))
 
     def test_long_bitstring_truncated(self):
-        """过长比特串应被截断后解码。"""
+        """?????????????"""
         bitstring = "1" * (self.bitstring_len * 3)
         weights = self.opt.bitstring_to_weights(bitstring, self.shapes)
         self.assertEqual(weights[0].shape, (4, 2))
         self.assertEqual(weights[1].shape, (2,))
 
     def test_magnitude_scales_with_bits(self):
-        """数值位越多，更新幅度应越大（无当前权重时）。"""
+        """?????,???????(??????)?"""
         per = self.n_bits
-        # 仅最高数值位为 1
+        # ??????? 1
         bs_high = "".join("0" + "1" + "0" * (per - 2) for _ in range(self.num_params))
-        # 仅最低数值位为 1
+        # ??????? 1
         bs_low = "".join("0" + "0" * (per - 2) + "1" for _ in range(self.num_params))
         high = self.opt.bitstring_to_weights(bs_high, self.shapes)
         low = self.opt.bitstring_to_weights(bs_low, self.shapes)
         high_flat = np.concatenate([w.flatten() for w in high])
         low_flat = np.concatenate([w.flatten() for w in low])
-        # 高位权重 1/2，低位权重 1/2^(n-1)，高位应严格大于低位
+        # ???? 1/2,???? 1/2^(n-1),?????????
         self.assertTrue(np.all(high_flat >= low_flat))
 
 
 # ============================================================
-# anneal 测试
+# anneal ??
 # ============================================================
 class TestAnneal(unittest.TestCase):
-    """测试 anneal 退火求解方法。"""
+    """?? anneal ???????"""
 
     def setUp(self):
-        """初始化优化器并降低扫描次数以加速测试。"""
+        """???????????????????"""
         self.opt = QuantumAnnealingOptimizer(num_qubits=16, shots=10)
         self.opt._sim_num_sweeps = 20
         np.random.seed(123)
@@ -310,29 +310,29 @@ class TestAnneal(unittest.TestCase):
         self.Q = self.opt.network_to_qubo(self.weights)
 
     def test_returns_str(self):
-        """anneal 应返回字符串。"""
+        """anneal ???????"""
         result = self.opt.anneal(self.Q)
         self.assertIsInstance(result, str)
 
     def test_bitstring_length_matches_qubo(self):
-        """返回的比特串长度应等于 QUBO 矩阵维度。"""
+        """??????????? QUBO ?????"""
         result = self.opt.anneal(self.Q)
         self.assertEqual(len(result), self.Q.shape[0])
 
     def test_bitstring_is_binary(self):
-        """比特串应仅包含 0/1 字符。"""
+        """??????? 0/1 ???"""
         result = self.opt.anneal(self.Q)
         self.assertTrue(set(result).issubset({"0", "1"}))
 
     def test_energy_is_finite(self):
-        """退火解的能量应为有限值。"""
+        """????????????"""
         bitstring = self.opt.anneal(self.Q)
         bits = np.array([int(b) for b in bitstring], dtype=np.float64)
         energy = self.opt._compute_qubo_energy(bits, self.Q)
         self.assertTrue(np.isfinite(energy))
 
     def test_anneal_beats_worst_random(self):
-        """退火解能量应不劣于多个随机解中的最差者。"""
+        """????????????????????"""
         np.random.seed(42)
         bitstring = self.opt.anneal(self.Q)
         bits = np.array([int(b) for b in bitstring], dtype=np.float64)
@@ -346,7 +346,7 @@ class TestAnneal(unittest.TestCase):
         self.assertLessEqual(best_energy, worst_random)
 
     def test_real_machine_path_with_string_result(self):
-        """真机路径返回字符串时应直接使用该结果。"""
+        """???????????????????"""
         client = MagicMock()
         client.submit_annealing_task = MagicMock(return_value="1010")
         opt = QuantumAnnealingOptimizer(simulation_mode=False, cqlib_client=client)
@@ -355,7 +355,7 @@ class TestAnneal(unittest.TestCase):
         self.assertEqual(result, "1010")
 
     def test_real_machine_path_with_dict_result(self):
-        """真机路径返回字典时应提取 bitstring 字段。"""
+        """???????????? bitstring ???"""
         client = MagicMock()
         client.submit_annealing_task = MagicMock(return_value={"bitstring": "01"})
         opt = QuantumAnnealingOptimizer(simulation_mode=False, cqlib_client=client)
@@ -364,7 +364,7 @@ class TestAnneal(unittest.TestCase):
         self.assertEqual(result, "01")
 
     def test_real_machine_path_with_empty_dict_falls_back(self):
-        """真机返回空 bitstring 字典时应降级为仿真。"""
+        """????? bitstring ??????????"""
         client = MagicMock()
         client.submit_annealing_task = MagicMock(return_value={"bitstring": ""})
         opt = QuantumAnnealingOptimizer(simulation_mode=False, cqlib_client=client)
@@ -375,7 +375,7 @@ class TestAnneal(unittest.TestCase):
         self.assertTrue(set(result).issubset({"0", "1"}))
 
     def test_real_machine_path_falls_back_on_exception(self):
-        """真机退火抛异常时应降级为仿真并返回有效比特串。"""
+        """???????????????????????"""
         client = MagicMock()
         client.submit_annealing_task = MagicMock(side_effect=RuntimeError("boom"))
         opt = QuantumAnnealingOptimizer(simulation_mode=False, cqlib_client=client)
@@ -386,7 +386,7 @@ class TestAnneal(unittest.TestCase):
         self.assertTrue(set(result).issubset({"0", "1"}))
 
     def test_real_machine_unknown_result_type_falls_back(self):
-        """真机返回未知类型时应降级为仿真。"""
+        """????????????????"""
         client = MagicMock()
         client.submit_annealing_task = MagicMock(return_value=12345)
         opt = QuantumAnnealingOptimizer(simulation_mode=False, cqlib_client=client)
@@ -396,8 +396,8 @@ class TestAnneal(unittest.TestCase):
         self.assertEqual(len(result), 2)
 
     def test_cqlib_without_annealing_method_falls_back(self):
-        """cqlib 客户端无 submit_annealing_task 方法时应降级为仿真。"""
-        client = MagicMock(spec=[])  # 空接口
+        """cqlib ???? submit_annealing_task ??????????"""
+        client = MagicMock(spec=[])  # ???
         opt = QuantumAnnealingOptimizer(simulation_mode=False, cqlib_client=client)
         opt._sim_num_sweeps = 5
         Q = np.array([[1.0, 0.5], [0.5, 1.0]])
@@ -407,62 +407,62 @@ class TestAnneal(unittest.TestCase):
 
 
 # ============================================================
-# _compute_qubo_energy 测试
+# _compute_qubo_energy ??
 # ============================================================
 class TestQuboEnergy(unittest.TestCase):
-    """测试 _compute_qubo_energy 能量计算。"""
+    """?? _compute_qubo_energy ?????"""
 
     def setUp(self):
         self.opt = QuantumAnnealingOptimizer()
 
     def test_zero_solution_zero_energy(self):
-        """全零解的能量应为 0。"""
+        """???????? 0?"""
         Q = np.array([[1.0, 2.0], [2.0, 3.0]])
         x = np.array([0.0, 0.0])
         self.assertEqual(self.opt._compute_qubo_energy(x, Q), 0.0)
 
     def test_known_energy_single_bit(self):
-        """仅第一位置 1 的能量应等于 Q[0,0]。"""
+        """????? 1 ?????? Q[0,0]?"""
         Q = np.array([[1.0, 2.0], [2.0, 3.0]])
         x = np.array([1.0, 0.0])
         self.assertAlmostEqual(self.opt._compute_qubo_energy(x, Q), 1.0)
 
     def test_known_energy_full_ones(self):
-        """全 1 解的能量应等于矩阵所有元素之和。"""
+        """? 1 ????????????????"""
         Q = np.array([[1.0, 2.0], [2.0, 3.0]])
         x = np.array([1.0, 1.0])
         # Q00 + Q11 + Q01 + Q10 = 1 + 3 + 2 + 2 = 8
         self.assertAlmostEqual(self.opt._compute_qubo_energy(x, Q), 8.0)
 
     def test_energy_returns_float(self):
-        """能量应返回 float 类型。"""
+        """????? float ???"""
         Q = np.array([[1.0, 0.0], [0.0, 1.0]])
         x = np.array([1.0, 1.0])
         e = self.opt._compute_qubo_energy(x, Q)
         self.assertIsInstance(e, float)
 
     def test_energy_diagonal_only(self):
-        """仅对角矩阵的能量应为对应位 Q_ii 之和。"""
+        """????????????? Q_ii ???"""
         Q = np.diag([2.0, 3.0, 4.0])
         x = np.array([1.0, 0.0, 1.0])
         # 2 + 4 = 6
         self.assertAlmostEqual(self.opt._compute_qubo_energy(x, Q), 6.0)
 
     def test_energy_matches_manual_formula(self):
-        """能量应与手动 x^T Q x 公式一致。"""
+        """?????? x^T Q x ?????"""
         np.random.seed(99)
         Q = np.random.randn(5, 5)
-        Q = Q + Q.T  # 对称化
+        Q = Q + Q.T  # ???
         x = np.array([1, 0, 1, 1, 0], dtype=np.float64)
         expected = float(x @ Q @ x)
         self.assertAlmostEqual(self.opt._compute_qubo_energy(x, Q), expected)
 
 
 # ============================================================
-# 权重提取与设置测试
+# ?????????
 # ============================================================
 class TestWeightExtraction(unittest.TestCase):
-    """测试 _extract_weights / _set_weights 权重提取与设置。"""
+    """?? _extract_weights / _set_weights ????????"""
 
     def setUp(self):
         self.opt = QuantumAnnealingOptimizer()
@@ -472,7 +472,7 @@ class TestWeightExtraction(unittest.TestCase):
             self.net.bias.copy_(torch.tensor([0.01, 0.02]))
 
     def test_extract_returns_weights_and_shapes(self):
-        """提取应返回权重列表与形状列表。"""
+        """???????????????"""
         weights, shapes = self.opt._extract_weights(self.net)
         self.assertEqual(len(weights), 2)
         self.assertEqual(shapes, [(2, 4), (2,)])
@@ -480,14 +480,14 @@ class TestWeightExtraction(unittest.TestCase):
         np.testing.assert_array_almost_equal(weights[1], self.net.bias.detach().numpy())
 
     def test_extract_shapes_match_module(self):
-        """提取的形状应与 nn.Module 参数形状一致。"""
+        """??????? nn.Module ???????"""
         weights, shapes = self.opt._extract_weights(self.net)
         for w, s, p in zip(weights, shapes, self.net.parameters(), strict=False):
             self.assertEqual(w.shape, p.shape)
             self.assertEqual(s, p.shape)
 
     def test_set_weights_round_trip_preserves_values(self):
-        """设置权重后再提取应得到相同值（往返保持）。"""
+        """??????????????(????)?"""
         original_w, _ = self.opt._extract_weights(self.net)
         new_net = nn.Linear(4, 2)
         self.opt._set_weights(new_net, original_w)
@@ -496,7 +496,7 @@ class TestWeightExtraction(unittest.TestCase):
             np.testing.assert_array_almost_equal(a, b)
 
     def test_set_weights_modifies_parameters(self):
-        """_set_weights 应实际改变网络参数。"""
+        """_set_weights ??????????"""
         target = [
             np.full((2, 4), 0.9, dtype=np.float32),
             np.full((2,), 0.1, dtype=np.float32),
@@ -506,36 +506,36 @@ class TestWeightExtraction(unittest.TestCase):
         np.testing.assert_array_almost_equal(self.net.bias.detach().numpy(), np.full((2,), 0.1))
 
     def test_extract_multi_layer_network(self):
-        """多层网络应提取所有参数张量。"""
+        """??????????????"""
         net = nn.Sequential(nn.Linear(4, 3), nn.ReLU(), nn.Linear(3, 2))
         weights, shapes = self.opt._extract_weights(net)
-        # 4 个参数张量（2 个 Linear 各有 weight+bias，ReLU 无参数）
+        # 4 ?????(2 ? Linear ?? weight+bias,ReLU ???)
         self.assertEqual(len(weights), 4)
         self.assertEqual(shapes, [(3, 4), (3,), (2, 3), (2,)])
 
 
 # ============================================================
-# optimize_policy 与内部辅助方法测试
+# optimize_policy ?????????
 # ============================================================
 class TestOptimizePolicyAndHelpers(unittest.TestCase):
-    """测试 optimize_policy 主流程与内部辅助方法。"""
+    """?? optimize_policy ???????????"""
 
     def setUp(self):
         self.opt = QuantumAnnealingOptimizer(num_qubits=16, shots=10)
         self.opt._sim_num_sweeps = 10
 
     def test_optimize_policy_disabled_returns_agent(self):
-        """QUANTUM_ACCELERATION_ENABLED 未启用时应直接返回原 agent。"""
+        """QUANTUM_ACCELERATION_ENABLED ?????????? agent?"""
         agent = MagicMock()
         agent.policy_net = nn.Linear(4, 2)
         result = self.opt.optimize_policy(agent, num_iterations=1)
         self.assertIs(result, agent)
 
     def test_optimize_policy_enabled_runs_and_syncs_target(self):
-        """启用量子加速后 optimize_policy 应执行并同步 target_net。"""
+        """??????? optimize_policy ?????? target_net?"""
 
         class MockAgent:
-            """模拟 RL 智能体，用于测试 optimize_policy 接口。"""
+            """?? RL ???,???? optimize_policy ???"""
 
             def __init__(self):
                 self.policy_net = nn.Sequential(nn.Linear(4, 8), nn.ReLU(), nn.Linear(8, 2))
@@ -544,33 +544,33 @@ class TestOptimizePolicyAndHelpers(unittest.TestCase):
 
         agent = MockAgent()
         with patch.object(annealing_mod, "QUANTUM_ACCELERATION_ENABLED", True):
-            # head_only=False 走 _apply_weights_v2（head_only=True 路径有源码缺陷，见下述测试）
+            # head_only=False ? _apply_weights_v2(head_only=True ???????,?????)
             result = self.opt.optimize_policy(
                 agent, num_iterations=2, learning_rate=0.01, head_only=False
             )
         self.assertIs(result, agent)
-        # target_net 应被同步为 policy_net
+        # target_net ????? policy_net
         for p1, p2 in zip(
             agent.policy_net.parameters(), agent.target_net.parameters(), strict=False
         ):
             self.assertTrue(torch.equal(p1, p2))
 
-    @unittest.skip("v5 重构后 head_only 行为已变更，需重新设计测试")
+    @unittest.skip("v5 ??? head_only ?????,???????")
     def test_optimize_policy_head_only_raises_attribute_error(self):
         pass
 
     def test_optimize_policy_no_policy_net_returns_agent(self):
-        """agent 无可识别策略网络时应直接返回。"""
-        agent = MagicMock(spec=[])  # 无任何属性
+        """agent ???????????????"""
+        agent = MagicMock(spec=[])  # ?????
         with patch.object(annealing_mod, "QUANTUM_ACCELERATION_ENABLED", True):
             result = self.opt.optimize_policy(agent, num_iterations=1)
         self.assertIs(result, agent)
 
     def test_optimize_policy_callback_invoked(self):
-        """提供回调时应在每次迭代后被调用。"""
+        """????????????????"""
 
         class MockAgent:
-            """带 policy_net 的模拟智能体。"""
+            """? policy_net ???????"""
 
             def __init__(self):
                 self.policy_net = nn.Sequential(nn.Linear(4, 4), nn.ReLU(), nn.Linear(4, 2))
@@ -587,34 +587,34 @@ class TestOptimizePolicyAndHelpers(unittest.TestCase):
         self.assertEqual([c[0] for c in calls], [0, 1, 2])
 
     def test_get_policy_net_with_policy_net_attr(self):
-        """具有 policy_net 属性的 agent 应返回该网络。"""
+        """?? policy_net ??? agent ???????"""
         net = nn.Linear(4, 2)
         agent = MagicMock()
         agent.policy_net = net
         self.assertIs(self.opt._get_policy_net(agent), net)
 
     def test_get_policy_net_unrecognized_returns_none(self):
-        """无法识别的 agent 应返回 None。"""
+        """????? agent ??? None?"""
         agent = MagicMock(spec=[])
         self.assertIsNone(self.opt._get_policy_net(agent))
 
     def test_get_policy_net_with_sb3_dqn_style(self):
-        """SB3 DQN 风格 agent（policy.q_net）应返回 q_net。"""
+        """SB3 DQN ?? agent(policy.q_net)??? q_net?"""
         net = nn.Linear(4, 2)
         agent = MagicMock()
         agent.policy.q_net = net
-        del agent.policy_net  # 确保不走 policy_net 分支
+        del agent.policy_net  # ???? policy_net ??
         self.assertIs(self.opt._get_policy_net(agent), net)
 
     def test_evaluate_network_quality_positive_finite(self):
-        """网络质量评估应返回正的有限值。"""
+        """???????????????"""
         net = nn.Linear(4, 2)
         loss = self.opt._evaluate_network_quality(net)
         self.assertTrue(np.isfinite(loss))
         self.assertGreater(loss, 0.0)
 
     def test_matrix_to_qubo_dict_skips_zeros(self):
-        """_matrix_to_qubo_dict 应跳过接近零的项。"""
+        """_matrix_to_qubo_dict ?????????"""
         Q = np.array([[1.0, 0.0], [0.0, 2.0]])
         d = self.opt._matrix_to_qubo_dict(Q)
         self.assertIn((0, 0), d)
@@ -622,7 +622,7 @@ class TestOptimizePolicyAndHelpers(unittest.TestCase):
         self.assertNotIn((0, 1), d)
 
     def test_matrix_to_qubo_dict_values(self):
-        """_matrix_to_qubo_dict 应正确转换非零值。"""
+        """_matrix_to_qubo_dict ?????????"""
         Q = np.array([[1.0, 0.5], [0.5, 2.0]])
         d = self.opt._matrix_to_qubo_dict(Q)
         self.assertAlmostEqual(d[(0, 0)], 1.0)
@@ -630,7 +630,7 @@ class TestOptimizePolicyAndHelpers(unittest.TestCase):
         self.assertAlmostEqual(d[(1, 1)], 2.0)
 
     def test_apply_weights_v2_updates_with_learning_rate(self):
-        """_apply_weights_v2 应按学习率线性更新参数。"""
+        """_apply_weights_v2 ????????????"""
         net = nn.Linear(3, 1)
         with torch.no_grad():
             net.weight.copy_(torch.zeros(1, 3))
@@ -643,7 +643,7 @@ class TestOptimizePolicyAndHelpers(unittest.TestCase):
         np.testing.assert_array_almost_equal(net.bias.detach().numpy(), np.full(1, 0.5))
 
     def test_apply_weights_v1_linear_interpolation(self):
-        """_apply_weights 旧版本应按线性插值更新参数。"""
+        """_apply_weights ??????????????"""
         net = nn.Linear(2, 1)
         with torch.no_grad():
             net.weight.copy_(torch.tensor([[1.0, 1.0]]))
@@ -652,16 +652,16 @@ class TestOptimizePolicyAndHelpers(unittest.TestCase):
         new = [np.array([[3.0, 3.0]], dtype=np.float32), np.array([3.0], dtype=np.float32)]
         shapes = [(1, 2), (1,)]
         self.opt._apply_weights(net, old, new, shapes, learning_rate=0.5)
-        # old_std≈0, new_std≈0 → 缩放比≈1 → w_final = 0.5*1 + 0.5*3 = 2
+        # old_std?0, new_std?0 ? ????1 ? w_final = 0.5*1 + 0.5*3 = 2
         np.testing.assert_array_almost_equal(net.weight.detach().numpy(), np.full((1, 2), 2.0))
         np.testing.assert_array_almost_equal(net.bias.detach().numpy(), np.full(1, 2.0))
 
 
 # ============================================================
-# Issue #148: 分层/分块 QUBO 退火测试
+# Issue #148: ??/?? QUBO ????
 # ============================================================
 class TestParamBlockCreation(unittest.TestCase):
-    """测试 _create_param_blocks 分块逻辑。"""
+    """?? _create_param_blocks ?????"""
 
     def setUp(self):
         self.net = nn.Sequential(
@@ -673,23 +673,23 @@ class TestParamBlockCreation(unittest.TestCase):
         )
 
     def test_tensor_wise_each_tensor_separate(self):
-        """tensor_wise 策略下每个张量应独立成块。"""
+        """tensor_wise ?????????????"""
         params = list(self.net.parameters())
         blocks = QuantumAnnealingOptimizer._create_param_blocks(
             params, block_strategy="tensor_wise"
         )
-        # nn.Sequential 有 3 个 Linear → 6 个参数张量 (weight + bias)
-        # 但 ReLU 没有参数，input 维度不是参数
-        # Linear(4,16): weight(16,4) + bias(16) → 64+16=80 params
-        # Linear(16,8): weight(8,16) + bias(8) → 128+8=136 params
-        # Linear(8,4):  weight(4,8) + bias(4) → 32+4=36 params
+        # nn.Sequential ? 3 ? Linear ? 6 ????? (weight + bias)
+        # ? ReLU ????,input ??????
+        # Linear(4,16): weight(16,4) + bias(16) ? 64+16=80 params
+        # Linear(16,8): weight(8,16) + bias(8) ? 128+8=136 params
+        # Linear(8,4):  weight(4,8) + bias(4) ? 32+4=36 params
         self.assertEqual(len(blocks), len(params))
         for i, block in enumerate(blocks):
             self.assertEqual(len(block), 1)
             self.assertEqual(block[0], i)
 
     def test_size_limited_within_limit(self):
-        """size_limited 策略下每块参数量应 ≤ 上限。"""
+        """size_limited ????????? ? ???"""
         params = list(self.net.parameters())
         max_per_block = 150
         blocks = QuantumAnnealingOptimizer._create_param_blocks(
@@ -700,7 +700,7 @@ class TestParamBlockCreation(unittest.TestCase):
             self.assertLessEqual(block_params, max_per_block)
 
     def test_size_limited_covers_all_params(self):
-        """size_limited 策略应覆盖所有参数。"""
+        """size_limited ??????????"""
         params = list(self.net.parameters())
         total = len(params)
         blocks = QuantumAnnealingOptimizer._create_param_blocks(
@@ -712,8 +712,8 @@ class TestParamBlockCreation(unittest.TestCase):
         self.assertEqual(covered, set(range(total)))
 
     def test_large_tensor_own_block(self):
-        """超大单张量应独立成块。"""
-        # 构造一个 500 参数的大张量 + 若干小张量
+        """???????????"""
+        # ???? 500 ?????? + ?????
         large_param = nn.Parameter(torch.randn(500))
 
         class TestNet(nn.Module):
@@ -728,23 +728,23 @@ class TestParamBlockCreation(unittest.TestCase):
         blocks = QuantumAnnealingOptimizer._create_param_blocks(
             params, block_strategy="size_limited", max_params_per_block=200
         )
-        # 500 > 200，应独立成块
+        # 500 > 200,?????
         large_blocks = [b for b in blocks if 0 in b]
         self.assertEqual(len(large_blocks), 1)
         self.assertEqual(large_blocks[0], [0])
 
     def test_no_params_returns_empty(self):
-        """空参数列表返回空块列表。"""
+        """????????????"""
         blocks = QuantumAnnealingOptimizer._create_param_blocks([], block_strategy="size_limited")
         self.assertEqual(blocks, [])
 
 
 class TestHierarchicalAnnealing(unittest.TestCase):
-    """测试分层/分块退火优化完整流程。"""
+    """????/???????????"""
 
     def setUp(self):
         os.environ["QUANTUM_ACCELERATION_ENABLED"] = "1"
-        # 强制刷新 Annealing 模块的全局标志
+        # ???? Annealing ???????
         annealing_mod.QUANTUM_ACCELERATION_ENABLED = True
         self.opt = QuantumAnnealingOptimizer(num_qubits=16)
         self.net = nn.Sequential(
@@ -753,7 +753,7 @@ class TestHierarchicalAnnealing(unittest.TestCase):
             nn.Linear(8, 4),
         )
 
-        # 使用 SimpleAgent 接口
+        # ?? SimpleAgent ??
         class TestAgent:
             def __init__(self, net):
                 self.policy_net = net
@@ -766,7 +766,7 @@ class TestHierarchicalAnnealing(unittest.TestCase):
         ).strip().lower() in ("1", "true", "yes")
 
     def test_hierarchical_basic_run(self):
-        """分层退火应能正常运行并返回 agent。"""
+        """????????????? agent?"""
         result = self.opt.optimize_policy_hierarchical(
             self.agent,
             num_iterations=2,
@@ -775,8 +775,8 @@ class TestHierarchicalAnnealing(unittest.TestCase):
         self.assertIs(result, self.agent)
 
     def test_hierarchical_covers_more_than_4_tensors(self):
-        """分层退火应覆盖 >4 个参数张量。"""
-        # 使用更大的网络（3 层 → 6 个参数张量）
+        """??????? >4 ??????"""
+        # ???????(3 ? ? 6 ?????)
         big_net = nn.Sequential(
             nn.Linear(4, 16),
             nn.ReLU(),
@@ -791,10 +791,10 @@ class TestHierarchicalAnnealing(unittest.TestCase):
 
         BigAgent(big_net)
         total_tensors = len(list(big_net.parameters()))
-        self.assertGreater(total_tensors, 4, f"测试网络应有 >4 张量, 实际 {total_tensors}")
+        self.assertGreater(total_tensors, 4, f"?????? >4 ??, ?? {total_tensors}")
 
     def test_hierarchical_via_mode_parameter(self):
-        """通过 optimize_policy 的 mode='hierarchical' 应正确路由。"""
+        """?? optimize_policy ? mode='hierarchical' ??????"""
         result = self.opt.optimize_policy(
             self.agent,
             num_iterations=2,
@@ -803,7 +803,7 @@ class TestHierarchicalAnnealing(unittest.TestCase):
         self.assertIs(result, self.agent)
 
     def test_hierarchical_loss_does_not_increase(self):
-        """分层退火不应使 loss 显著增加。"""
+        """??????? loss ?????"""
         loss_before = QuantumAnnealingOptimizer._evaluate_network_quality(self.net)
         self.opt.optimize_policy_hierarchical(
             self.agent,
@@ -811,13 +811,13 @@ class TestHierarchicalAnnealing(unittest.TestCase):
             learning_rate=0.01,
         )
         loss_after = QuantumAnnealingOptimizer._evaluate_network_quality(self.net)
-        # loss 不应显著增加（允许微小波动，<5%）
+        # loss ??????(??????,<5%)
         self.assertLessEqual(
-            loss_after, loss_before * 1.05, f"loss 不应增加: {loss_before:.4f} → {loss_after:.4f}"
+            loss_after, loss_before * 1.05, f"loss ????: {loss_before:.4f} ? {loss_after:.4f}"
         )
 
     def test_hierarchical_disabled_when_quantum_disabled(self):
-        """量子加速禁用时应跳过并返回原 agent。"""
+        """?????????????? agent?"""
         original = annealing_mod.QUANTUM_ACCELERATION_ENABLED
         annealing_mod.QUANTUM_ACCELERATION_ENABLED = False
         result = self.opt.optimize_policy_hierarchical(self.agent, num_iterations=2)
@@ -825,7 +825,7 @@ class TestHierarchicalAnnealing(unittest.TestCase):
         annealing_mod.QUANTUM_ACCELERATION_ENABLED = original
 
     def test_hierarchical_no_replay_buffer(self):
-        """无 replay_buffer 时分层退火应正常退化。"""
+        """? replay_buffer ???????????"""
         result = self.opt.optimize_policy_hierarchical(
             self.agent,
             num_iterations=3,
@@ -835,14 +835,14 @@ class TestHierarchicalAnnealing(unittest.TestCase):
         self.assertIs(result, self.agent)
 
     def test_hierarchical_memory_efficient(self):
-        """分层退火内存应可控（不触发 OOM）。"""
+        """?????????(??? OOM)?"""
         import sys
 
-        # 中等规模网络（6 个参数张量，总参数 540，>500 满足断言）。
-        # 设计说明：最大张量 200 参数 → 单块 QUBO 800 维，
-        # neal 模拟退火在 CI 共享 runner 上可在 60s 内完成（本地 ~18s）。
-        # 原测试用 16→64→32→16→8 网络（3832 参数，QUBO 4096 维），
-        # 在 CI 上 simulated_annealing 单次调用超过 120s 触发 pytest-timeout。
+        # ??????(6 ?????,??? 540,>500 ????)?
+        # ????:???? 200 ?? ? ?? QUBO 800 ?,
+        # neal ????? CI ?? runner ??? 60s ???(?? ~18s)?
+        # ???? 16?64?32?16?8 ??(3832 ??,QUBO 4096 ?),
+        # ? CI ? simulated_annealing ?????? 120s ?? pytest-timeout?
         big_net = nn.Sequential(
             nn.Linear(10, 20),
             nn.ReLU(),
@@ -859,10 +859,10 @@ class TestHierarchicalAnnealing(unittest.TestCase):
         total_params = sum(p.numel() for p in big_net.parameters())
         total_tensors = len(list(big_net.parameters()))
 
-        self.assertGreater(total_tensors, 4, f"大网络应有 >4 张量, 实际 {total_tensors}")
-        self.assertGreater(total_params, 500, f"大网络应有 >500 参数, 实际 {total_params}")
+        self.assertGreater(total_tensors, 4, f"????? >4 ??, ?? {total_tensors}")
+        self.assertGreater(total_params, 500, f"????? >500 ??, ?? {total_params}")
 
-        # 分块运行，不应 OOM
+        # ????,?? OOM
         try:
             self.opt.optimize_policy_hierarchical(
                 agent,
@@ -871,10 +871,10 @@ class TestHierarchicalAnnealing(unittest.TestCase):
                 block_strategy="tensor_wise",
             )
         except MemoryError:
-            self.fail("分层退火触发了 MemoryError")
+            self.fail("??????? MemoryError")
 
     def test_head_only_backward_compatible(self):
-        """head_only 模式仍应正常工作（向后兼容）。"""
+        """head_only ????????(????)?"""
         result = self.opt.optimize_policy(
             self.agent,
             num_iterations=2,
@@ -885,10 +885,10 @@ class TestHierarchicalAnnealing(unittest.TestCase):
 
 
 # ============================================================
-# Issue #189: 模块级 QUBO 构建函数测试
+# Issue #189: ??? QUBO ??????
 # ============================================================
 class TestQuboMatrixConstruction(unittest.TestCase):
-    """测试 build_qubo_matrix / build_qubo_matrix_optimized 模块级函数。"""
+    """?? build_qubo_matrix / build_qubo_matrix_optimized ??????"""
 
     def setUp(self):
         np.random.seed(42)
@@ -896,73 +896,73 @@ class TestQuboMatrixConstruction(unittest.TestCase):
         self.times = np.array([5.0, 3.0, 2.0])
 
     def test_build_qubo_shape(self):
-        """build_qubo_matrix 应返回 (n, n) 矩阵。"""
+        """build_qubo_matrix ??? (n, n) ???"""
         Q = annealing_mod.build_qubo_matrix(self.priorities, self.times)
         self.assertEqual(Q.shape, (3, 3))
 
     def test_build_qubo_symmetric(self):
-        """build_qubo_matrix 应返回对称矩阵。"""
+        """build_qubo_matrix ????????"""
         Q = annealing_mod.build_qubo_matrix(self.priorities, self.times)
         np.testing.assert_array_almost_equal(Q, Q.T)
 
     def test_build_qubo_diagonal(self):
-        """对角元应等于 priority[i] * time[i]。"""
+        """?????? priority[i] * time[i]?"""
         Q = annealing_mod.build_qubo_matrix(self.priorities, self.times)
         for i in range(3):
             self.assertAlmostEqual(Q[i, i], self.priorities[i] * self.times[i])
 
     def test_build_qubo_custom_penalty(self):
-        """自定义 penalty 应影响非对角元。"""
-        # 默认 penalty=10.0，用 penalty=20.0 对比（应为 2 倍非对角元）
+        """??? penalty ????????"""
+        # ?? penalty=10.0,? penalty=20.0 ??(?? 2 ?????)
         Q_default = annealing_mod.build_qubo_matrix(self.priorities, self.times, penalty=10.0)
         Q_custom = annealing_mod.build_qubo_matrix(self.priorities, self.times, penalty=20.0)
-        # 对角元应相同（不受 penalty 影响）
+        # ??????(?? penalty ??)
         np.testing.assert_array_almost_equal(np.diag(Q_default), np.diag(Q_custom))
-        # 非对角元应为 2 倍关系
+        # ?????? 2 ???
         off_default = Q_default - np.diag(np.diag(Q_default))
         off_custom = Q_custom - np.diag(np.diag(Q_custom))
         np.testing.assert_array_almost_equal(off_custom, 2.0 * off_default)
 
     def test_build_qubo_shape_mismatch_raises(self):
-        """priorities 和 times 形状不一致应抛出 ValueError。"""
+        """priorities ? times ???????? ValueError?"""
         with self.assertRaises(ValueError):
             annealing_mod.build_qubo_matrix(np.array([1.0, 2.0]), np.array([1.0]))
 
     def test_build_qubo_non_1d_raises(self):
-        """非一维数组应抛出 ValueError。"""
+        """???????? ValueError?"""
         with self.assertRaises(ValueError):
             annealing_mod.build_qubo_matrix(
                 np.array([[1.0, 2.0], [3.0, 4.0]]), np.array([1.0, 2.0])
             )
 
     def test_build_qubo_optimized_matches_original(self):
-        """优化版应与原版结果一致。"""
+        """????????????"""
         Q_orig = annealing_mod.build_qubo_matrix(self.priorities, self.times, penalty=5.0)
         Q_opt = annealing_mod.build_qubo_matrix_optimized(self.priorities, self.times, penalty=5.0)
         np.testing.assert_array_almost_equal(Q_orig, Q_opt)
 
     def test_build_qubo_optimized_shape_mismatch_raises(self):
-        """优化版也应校验形状。"""
+        """??????????"""
         with self.assertRaises(ValueError):
             annealing_mod.build_qubo_matrix_optimized(np.array([1.0]), np.array([1.0, 2.0]))
 
     def test_build_qubo_optimized_non_1d_raises(self):
-        """优化版也应校验维度。"""
+        """??????????"""
         with self.assertRaises(ValueError):
             annealing_mod.build_qubo_matrix_optimized(np.array([[1.0]]), np.array([1.0]))
 
     def test_build_qubo_zero_penalty(self):
-        """penalty=0 时非对角元应全为 0。"""
+        """penalty=0 ???????? 0?"""
         Q = annealing_mod.build_qubo_matrix(self.priorities, self.times, penalty=0.0)
         off_diag = Q - np.diag(np.diag(Q))
         np.testing.assert_array_almost_equal(off_diag, np.zeros((3, 3)))
 
 
 class TestQuboProfiling(unittest.TestCase):
-    """测试 profile_qubo_construction / benchmark_qubo_versions 性能剖析函数。"""
+    """?? profile_qubo_construction / benchmark_qubo_versions ???????"""
 
     def test_profile_returns_valid_dict(self):
-        """profile_qubo_construction 应返回包含统计量的字典。"""
+        """profile_qubo_construction ????????????"""
         result = annealing_mod.profile_qubo_construction(n_tasks=5, n_iterations=3)
         self.assertIn("mean_time_ms", result)
         self.assertIn("std_time_ms", result)
@@ -975,22 +975,22 @@ class TestQuboProfiling(unittest.TestCase):
         self.assertGreaterEqual(result["mean_time_ms"], 0.0)
 
     def test_profile_negative_n_tasks_raises(self):
-        """负 n_tasks 应抛出 ValueError。"""
+        """? n_tasks ??? ValueError?"""
         with self.assertRaises(ValueError):
             annealing_mod.profile_qubo_construction(n_tasks=-1)
 
     def test_profile_zero_iterations_raises(self):
-        """n_iterations < 1 应抛出 ValueError。"""
+        """n_iterations < 1 ??? ValueError?"""
         with self.assertRaises(ValueError):
             annealing_mod.profile_qubo_construction(n_iterations=0)
 
     def test_profile_zero_tasks(self):
-        """n_tasks=0 应正常处理（空矩阵）。"""
+        """n_tasks=0 ?????(???)?"""
         result = annealing_mod.profile_qubo_construction(n_tasks=0, n_iterations=1)
         self.assertEqual(result["matrix_size"], 0)
 
     def test_benchmark_returns_valid_dict(self):
-        """benchmark_qubo_versions 应返回对比结果。"""
+        """benchmark_qubo_versions ????????"""
         result = annealing_mod.benchmark_qubo_versions(n_tasks=5, n_iterations=3)
         self.assertIn("original_mean_ms", result)
         self.assertIn("optimized_mean_ms", result)
@@ -999,37 +999,37 @@ class TestQuboProfiling(unittest.TestCase):
         self.assertTrue(result["results_match"])
 
     def test_benchmark_negative_n_tasks_raises(self):
-        """负 n_tasks 应抛出 ValueError。"""
+        """? n_tasks ??? ValueError?"""
         with self.assertRaises(ValueError):
             annealing_mod.benchmark_qubo_versions(n_tasks=-1)
 
     def test_benchmark_zero_iterations_raises(self):
-        """n_iterations < 1 应抛出 ValueError。"""
+        """n_iterations < 1 ??? ValueError?"""
         with self.assertRaises(ValueError):
             annealing_mod.benchmark_qubo_versions(n_iterations=0)
 
 
 class TestFindOptimalQuboParams(unittest.TestCase):
-    """测试 find_optimal_qubo_params 网格搜索函数。"""
+    """?? find_optimal_qubo_params ???????"""
 
     def setUp(self):
         self.priorities = np.array([1.0, 2.0, 3.0])
         self.times = np.array([5.0, 3.0, 2.0])
 
     def test_returns_valid_dict(self):
-        """应返回包含 best_penalty/best_energy/all_results 的字典。"""
+        """????? best_penalty/best_energy/all_results ????"""
         result = annealing_mod.find_optimal_qubo_params(self.priorities, self.times)
         self.assertIn("best_penalty", result)
         self.assertIn("best_energy", result)
         self.assertIn("all_results", result)
 
     def test_default_grid_has_5_penalties(self):
-        """默认网格应有 5 个 penalty 值。"""
+        """?????? 5 ? penalty ??"""
         result = annealing_mod.find_optimal_qubo_params(self.priorities, self.times)
         self.assertEqual(len(result["all_results"]), 5)
 
     def test_custom_grid(self):
-        """自定义网格应被正确使用。"""
+        """????????????"""
         custom_grid = {"penalty": [1.0, 10.0]}
         result = annealing_mod.find_optimal_qubo_params(
             self.priorities, self.times, param_grid=custom_grid
@@ -1037,7 +1037,7 @@ class TestFindOptimalQuboParams(unittest.TestCase):
         self.assertEqual(len(result["all_results"]), 2)
 
     def test_best_penalty_in_grid(self):
-        """best_penalty 应属于网格中的某个值。"""
+        """best_penalty ???????????"""
         grid = {"penalty": [2.0, 4.0, 8.0]}
         result = annealing_mod.find_optimal_qubo_params(
             self.priorities, self.times, param_grid=grid
@@ -1045,13 +1045,13 @@ class TestFindOptimalQuboParams(unittest.TestCase):
         self.assertIn(result["best_penalty"], [2.0, 4.0, 8.0])
 
     def test_best_energy_is_minimum(self):
-        """best_energy 应等于 all_results 中的最小能量。"""
+        """best_energy ??? all_results ???????"""
         result = annealing_mod.find_optimal_qubo_params(self.priorities, self.times)
         min_energy = min(r["energy"] for r in result["all_results"])
         self.assertAlmostEqual(result["best_energy"], min_energy)
 
     def test_empty_grid_falls_back(self):
-        """空网格应回退到默认 penalty=10.0。"""
+        """????????? penalty=10.0?"""
         result = annealing_mod.find_optimal_qubo_params(
             self.priorities, self.times, param_grid={"penalty": []}
         )
@@ -1059,13 +1059,13 @@ class TestFindOptimalQuboParams(unittest.TestCase):
 
 
 # ============================================================
-# Issue #189: _get_full_policy / _set_params_from_weights 测试
+# Issue #189: _get_full_policy / _set_params_from_weights ??
 # ============================================================
 class TestGetFullPolicy(unittest.TestCase):
-    """测试 _get_full_policy 静态方法。"""
+    """?? _get_full_policy ?????"""
 
     def test_with_sb3_ppo_style_policy(self):
-        """SB3 PPO 风格 agent（policy 是 nn.Module）应返回完整 policy。"""
+        """SB3 PPO ?? agent(policy ? nn.Module)????? policy?"""
         net = nn.Linear(4, 2)
         agent = MagicMock()
         agent.policy = net
@@ -1073,21 +1073,21 @@ class TestGetFullPolicy(unittest.TestCase):
         self.assertIs(result, net)
 
     def test_falls_back_to_get_policy_net(self):
-        """非 PPO 风格应回退到 _get_policy_net。"""
+        """? PPO ?????? _get_policy_net?"""
         net = nn.Linear(4, 2)
         agent = MagicMock()
         agent.policy_net = net
-        # policy 属性不存在 → 走回退路径
+        # policy ????? ? ?????
         del agent.policy
         result = QuantumAnnealingOptimizer._get_full_policy(agent)
         self.assertIs(result, net)
 
 
 class TestSetParamsFromWeights(unittest.TestCase):
-    """测试 _set_params_from_weights 静态方法。"""
+    """?? _set_params_from_weights ?????"""
 
     def test_updates_params_in_place(self):
-        """应原地更新参数子集。"""
+        """??????????"""
         params = [nn.Parameter(torch.zeros(3)), nn.Parameter(torch.zeros(2))]
         weights = [
             np.array([1.0, 2.0, 3.0], dtype=np.float32),
@@ -1098,22 +1098,22 @@ class TestSetParamsFromWeights(unittest.TestCase):
         np.testing.assert_array_almost_equal(params[1].detach().numpy(), [4.0, 5.0])
 
     def test_partial_param_subset(self):
-        """应能更新参数子集（不覆盖全部参数）。"""
+        """????????(???????)?"""
         all_params = [nn.Parameter(torch.ones(2)), nn.Parameter(torch.ones(3))]
-        subset = [all_params[1]]  # 只更新第二个
+        subset = [all_params[1]]  # ??????
         weights = [np.array([10.0, 20.0, 30.0], dtype=np.float32)]
         QuantumAnnealingOptimizer._set_params_from_weights(subset, weights)
-        # 第一个参数应保持不变
+        # ??????????
         np.testing.assert_array_almost_equal(all_params[0].detach().numpy(), [1.0, 1.0])
-        # 第二个参数应被更新
+        # ?????????
         np.testing.assert_array_almost_equal(all_params[1].detach().numpy(), [10.0, 20.0, 30.0])
 
 
 # ============================================================
-# Issue #189: _compute_gradients 测试（通过 mock replay buffer）
+# Issue #189: _compute_gradients ??(?? mock replay buffer)
 # ============================================================
 class TestComputeGradients(unittest.TestCase):
-    """测试 _compute_gradients 内部方法。"""
+    """?? _compute_gradients ?????"""
 
     def setUp(self):
         self.opt = QuantumAnnealingOptimizer(num_qubits=16, shots=10)
@@ -1121,22 +1121,22 @@ class TestComputeGradients(unittest.TestCase):
         self.net = nn.Sequential(nn.Linear(4, 2))
 
     def test_replay_buffer_sample_exception_raises_valueerror(self):
-        """replay buffer sample 抛异常时应转为 ValueError。"""
+        """replay buffer sample ??????? ValueError?"""
         bad_buffer = MagicMock()
         bad_buffer.sample = MagicMock(side_effect=RuntimeError("buffer empty"))
         with self.assertRaises(ValueError):
             self.opt._compute_gradients(self.net, bad_buffer, agent=None)
 
     def test_replay_buffer_without_sample_raises_valueerror(self):
-        """replay buffer 无 sample 方法时应抛出 ValueError。"""
-        bad_buffer = MagicMock(spec=[])  # 空接口
+        """replay buffer ? sample ?????? ValueError?"""
+        bad_buffer = MagicMock(spec=[])  # ???
         with self.assertRaises(ValueError):
             self.opt._compute_gradients(self.net, bad_buffer, agent=None)
 
     def test_compute_gradients_with_tuple_batch(self):
-        """tuple 格式 batch（SB3 ReplayBuffer）应能正常处理。"""
-        # 构造 SB3 风格的 batch: (obs, actions, rewards, next_obs, dones, ...)
-        # actions 必须是 2D (batch, 1)，因为 gather(1, actions) 要求同维度
+        """tuple ?? batch(SB3 ReplayBuffer)???????"""
+        # ?? SB3 ??? batch: (obs, actions, rewards, next_obs, dones, ...)
+        # actions ??? 2D (batch, 1),?? gather(1, actions) ?????
         batch = (
             np.random.randn(8, 4).astype(np.float32),  # obs
             np.array([[0], [1], [0], [1], [0], [1], [0], [1]], dtype=np.int64),  # actions 2D
@@ -1148,8 +1148,119 @@ class TestComputeGradients(unittest.TestCase):
         buffer = MagicMock()
         buffer.sample = MagicMock(return_value=batch)
         _gradients, _td_errors, loss = self.opt._compute_gradients(self.net, buffer, agent=None)
-        # 应返回有限值
+        # ??????
         self.assertTrue(np.isfinite(loss))
+
+
+# ============================================================
+# Issue #111: QUBO ?????????
+# ============================================================
+class TestSolverComparison(unittest.TestCase):
+    """?? QUBO ?????????????????????"""
+
+    def setUp(self):
+        """????????? QUBO ???"""
+        self.opt = QuantumAnnealingOptimizer(num_qubits=16, shots=10)
+        self.opt._sim_num_sweeps = 10
+        np.random.seed(42)
+        weights = [
+            np.random.randn(4, 2).astype(np.float32),
+            np.random.randn(2).astype(np.float32),
+        ]
+        self.Q = self.opt.network_to_qubo(weights)
+
+    def test_random_sample_qubo_returns_valid_bitstring(self):
+        """random_sample_qubo ?????????"""
+        from scripts.evaluation.annealing_solver_comparison import random_sample_qubo
+
+        bitstring = random_sample_qubo(self.Q, num_samples=100)
+        self.assertIsInstance(bitstring, str)
+        self.assertEqual(len(bitstring), self.Q.shape[0])
+        self.assertTrue(set(bitstring).issubset({"0", "1"}))
+
+    def test_random_sample_qubo_energy_is_finite(self):
+        """random_sample_qubo ????????????"""
+        from scripts.evaluation.annealing_solver_comparison import random_sample_qubo
+
+        bitstring = random_sample_qubo(self.Q, num_samples=100)
+        bits = np.array([int(b) for b in bitstring], dtype=np.float64)
+        energy = self.opt._compute_qubo_energy(bits, self.Q)
+        self.assertTrue(np.isfinite(energy))
+
+    def test_random_sample_improves_with_more_samples(self):
+        """?????????????(?????)?"""
+        from scripts.evaluation.annealing_solver_comparison import random_sample_qubo
+
+        np.random.seed(123)
+        bs_small = random_sample_qubo(self.Q, num_samples=10)
+        bits_small = np.array([int(b) for b in bs_small], dtype=np.float64)
+        energy_small = self.opt._compute_qubo_energy(bits_small, self.Q)
+
+        np.random.seed(123)
+        bs_large = random_sample_qubo(self.Q, num_samples=500)
+        bits_large = np.array([int(b) for b in bs_large], dtype=np.float64)
+        energy_large = self.opt._compute_qubo_energy(bits_large, self.Q)
+
+        # ??????????(????????????)
+        self.assertLessEqual(energy_large, energy_small)
+
+    def test_numpy_sa_beats_random_on_same_qubo(self):
+        """numpy ??????? QUBO ????????(?????)?"""
+        from scripts.evaluation.annealing_solver_comparison import random_sample_qubo
+
+        np.random.seed(7)
+        # ?? 20 ??? QUBO,???????????????
+        qubo = np.random.randn(20, 20).astype(np.float64)
+        qubo = qubo + qubo.T
+
+        # ????????
+        original_sweeps = self.opt._sim_num_sweeps
+        self.opt._sim_num_sweeps = 200
+
+        sa_energies = []
+        rand_energies = []
+        for _ in range(5):
+            bs_sa = self.opt._numpy_simulated_annealing(qubo)
+            bits_sa = np.array([int(b) for b in bs_sa], dtype=np.float64)
+            sa_energies.append(self.opt._compute_qubo_energy(bits_sa, qubo))
+
+            bs_rand = random_sample_qubo(qubo, num_samples=300)
+            bits_rand = np.array([int(b) for b in bs_rand], dtype=np.float64)
+            rand_energies.append(self.opt._compute_qubo_energy(bits_rand, qubo))
+
+        self.opt._sim_num_sweeps = original_sweeps
+
+        mean_sa = float(np.mean(sa_energies))
+        mean_rand = float(np.mean(rand_energies))
+        # ????? SA ???????
+        self.assertLessEqual(mean_sa, mean_rand, f"SA mean={mean_sa} > random mean={mean_rand}")
+
+    def test_apply_weights_v2_partial_with_gradient_direction(self):
+        """????????(D)???????????"""
+        net = nn.Linear(4, 2)
+        with torch.no_grad():
+            net.weight.copy_(torch.zeros(2, 4))
+            net.bias.copy_(torch.zeros(2))
+
+        old_weights = [
+            np.zeros((2, 4), dtype=np.float32),
+            np.zeros(2, dtype=np.float32),
+        ]
+        # ???????(???? = 1.0)
+        new_weights = [
+            np.ones((2, 4), dtype=np.float32),
+            np.ones(2, dtype=np.float32),
+        ]
+
+        QuantumAnnealingOptimizer._apply_weights_v2_partial(
+            list(net.parameters()), old_weights, new_weights, learning_rate=0.1
+        )
+
+        # ????? = 0 + 0.1 * (1 - 0) = 0.1
+        expected_w = np.full((2, 4), 0.1, dtype=np.float32)
+        expected_b = np.full(2, 0.1, dtype=np.float32)
+        np.testing.assert_array_almost_equal(net.weight.detach().numpy(), expected_w)
+        np.testing.assert_array_almost_equal(net.bias.detach().numpy(), expected_b)
 
 
 if __name__ == "__main__":
