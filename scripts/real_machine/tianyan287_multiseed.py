@@ -90,8 +90,8 @@ HARD_LIMIT_TOTAL = HARD_LIMIT_FORMAL + HARD_LIMIT_SMOKE  # 31
 # H Q0/M Q0 QCIS 校验 false；H Q1/M Q1 QCIS 校验 true
 QCIS_CIRCUIT = "H Q1\nM Q1"
 
-# 已核实：超时统一
-TASK_TIMEOUT_SECONDS = 120
+# 已核实：超时统一（120→180，适应排队高峰）
+TASK_TIMEOUT_SECONDS = 180
 TASK_POLL_INTERVAL = 5
 
 PPO_MODEL_PATH = _PROJECT_ROOT / "deliverable_models" / "ppo_best_model_14dim.zip"
