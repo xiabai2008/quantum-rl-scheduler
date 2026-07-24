@@ -292,3 +292,240 @@ def test_save_load_config_and_repr(monkeypatch, tiny_env: TinyEnv) -> None:
     assert "PPOAgent" in text
     assert "状态维度=4" in text
     assert "动作维度=3" in text
+
+
+# ============================================================================
+# Issue #99: 补充覆盖率 — ent_coef/clip_range/max_grad_norm 传递验证
+# ============================================================================
+
+
+def test_build_model_passes_all_hyperparameters(monkeypatch, tiny_env: TinyEnv) -> None:
+    """_build_model 应将全部超参数（ent_coef/clip_range/max_grad_norm）传递给 PPO。"""
+    standard = MagicMock(name="PPO")
+    monkeypatch.setattr(ppo_module, "PPO", standard)
+    agent = PPOAgent(
+        tiny_env,
+        learning_rate=5e-4,
+        n_steps=64,
+        batch_size=16,
+        n_epochs=5,
+        gamma=0.9,
+        gae_lambda=0.8,
+        clip_range=0.15,
+        ent_coef=0.03,
+        vf_coef=0.6,
+        max_grad_norm=0.7,
+        seed=42,
+        log_dir=LOG_DIR,
+        verbose=0,
+    )
+
+    agent._build_model()
+
+    kwargs = standard.call_args.kwargs
+    assert kwargs["ent_coef"] == 0.03
+    assert kwargs["clip_range"] == 0.15
+    assert kwargs["max_grad_norm"] == 0.7
+    assert kwargs["learning_rate"] == 5e-4
+    assert kwargs["n_steps"] == 64
+    assert kwargs["batch_size"] == 16
+    assert kwargs["n_epochs"] == 5
+    assert kwargs["gamma"] == 0.9
+    assert kwargs["gae_lambda"] == 0.8
+    assert kwargs["vf_coef"] == 0.6
+    assert kwargs["seed"] == 42
+
+
+def test_init_annealing_real_machine_mode(monkeypatch, tiny_env: TinyEnv) -> None:
+    """退火器真机模式（simulation_mode=False）应正确初始化。"""
+    optimizer = SimpleNamespace(simulation_mode=False)
+    optimizer_cls = MagicMock(return_value=optimizer)
+    monkeypatch.setattr(ppo_module, "QuantumAnnealingOptimizer", optimizer_cls)
+
+    agent = PPOAgent(
+        tiny_env,
+        log_dir=LOG_DIR,
+        verbose=0,
+        use_annealing=True,
+        anneal_simulation_mode=False,
+    )
+
+    assert agent.annealing_optimizer is optimizer
+    optimizer_cls.assert_called_once()
+    assert optimizer_cls.call_args.kwargs["simulation_mode"] is False
+
+
+# ============================================================================
+# Issue #99: 补充覆盖率 — train 方法未覆盖分支
+# ============================================================================
+
+
+def test_train_with_existing_model_skips_build(monkeypatch, tiny_env: TinyEnv) -> None:
+    """已有模型时应跳过 _build_model，直接进入训练（连续更新场景）。"""
+    _patch_training_callbacks(monkeypatch)
+    model = MagicMock()
+    agent = PPOAgent(tiny_env, log_dir=LOG_DIR, verbose=0)
+    agent.model = model
+    build_mock = MagicMock()
+    monkeypatch.setattr(agent, "_build_model", build_mock)
+
+    result = agent.train(total_timesteps=10, eval_freq=2, progress_bar=False)
+
+    assert result is model
+    build_mock.assert_not_called()
+    model.learn.assert_called_once()
+    assert model.learn.call_args.kwargs["reset_num_timesteps"] is True
+
+
+def test_train_with_log_dir_override(monkeypatch, tiny_env: TinyEnv) -> None:
+    """train 的 log_dir 参数应覆盖默认 tb_log_name。"""
+    _patch_training_callbacks(monkeypatch)
+    model = MagicMock()
+    agent = PPOAgent(tiny_env, log_dir=LOG_DIR, verbose=0)
+    monkeypatch.setattr(agent, "_build_model", MagicMock(return_value=model))
+
+    agent.train(
+        total_timesteps=10, eval_freq=2, log_dir="custom_tb_log", progress_bar=False
+    )
+
+    assert model.learn.call_args.kwargs["tb_log_name"] == "custom_tb_log"
+
+
+def test_train_resume_file_not_found_builds_new(
+    monkeypatch, tiny_env: TinyEnv
+) -> None:
+    """resume_from 指定的文件不存在时应回退到构建新模型。"""
+    _patch_training_callbacks(monkeypatch)
+    model = MagicMock()
+    agent = PPOAgent(tiny_env, log_dir=LOG_DIR, verbose=0)
+    build_mock = MagicMock(return_value=model)
+    monkeypatch.setattr(agent, "_build_model", build_mock)
+    monkeypatch.setattr(ppo_module.os.path, "exists", lambda path: False)
+
+    agent.train(
+        total_timesteps=10, eval_freq=2, resume_from="nonexistent.zip", progress_bar=False
+    )
+
+    build_mock.assert_called_once()
+    assert model.learn.call_args.kwargs["reset_num_timesteps"] is True
+
+
+def test_train_with_only_extra_callbacks(monkeypatch, tiny_env: TinyEnv) -> None:
+    """仅有 extra_callbacks（无退火、无真机）时应使用 CallbackList 组合回调。"""
+    _, _, _, callback_list_cls = _patch_training_callbacks(monkeypatch)
+    model = MagicMock()
+    agent = PPOAgent(tiny_env, log_dir=LOG_DIR, verbose=0)
+    monkeypatch.setattr(agent, "_build_model", MagicMock(return_value=model))
+
+    extra = MagicMock(name="extra_callback")
+    agent.train(
+        total_timesteps=10, eval_freq=2, extra_callbacks=[extra], progress_bar=False
+    )
+
+    callback_list_cls.assert_called_once()
+    callbacks = callback_list_cls.call_args.args[0]
+    assert len(callbacks) == 2
+    assert callbacks[1] is extra
+
+
+def test_train_real_callback_without_annealing(monkeypatch, tiny_env: TinyEnv) -> None:
+    """真机回调在未启用退火时应独立工作（callbacks = [eval, real]）。"""
+    _, _, _, callback_list_cls = _patch_training_callbacks(monkeypatch)
+    real_callback = MagicMock(name="real_callback")
+    real_cls = MagicMock(return_value=real_callback)
+    monkeypatch.setattr(ppo_module, "RealMachineCallback", real_cls)
+    model = MagicMock()
+    agent = PPOAgent(tiny_env, log_dir=LOG_DIR, verbose=0)
+    monkeypatch.setattr(agent, "_build_model", MagicMock(return_value=model))
+
+    client = object()
+    agent.train(
+        total_timesteps=10,
+        eval_freq=2,
+        real_callback_interval=5,
+        real_callback_prob=0.1,
+        real_callback_client=client,
+        real_callback_save_path="real.json",
+        real_callback_shots=128,
+        progress_bar=False,
+    )
+
+    real_cls.assert_called_once_with(
+        env=tiny_env,
+        interval=5,
+        prob=0.1,
+        client=client,
+        save_path="real.json",
+        shots=128,
+        verbose=1,
+    )
+    callbacks = callback_list_cls.call_args.args[0]
+    assert len(callbacks) == 2
+    assert callbacks[1] is real_callback
+
+
+# ============================================================================
+# Issue #99: 补充覆盖率 — predict / evaluate / get_config 未覆盖分支
+# ============================================================================
+
+
+def test_predict_handles_2d_state(tiny_env: TinyEnv) -> None:
+    """predict 应正确处理二维状态输入（不 reshape）。"""
+    agent = PPOAgent(tiny_env, log_dir=LOG_DIR, verbose=0)
+    model = MagicMock()
+    model.predict.return_value = (np.array([1]), None)
+    agent.model = model
+
+    state_2d = np.zeros((1, 4), dtype=np.float32)
+    result = agent.predict(state_2d, deterministic=True)
+
+    assert result == 1
+    assert model.predict.call_args.args[0].shape == (1, 4)
+
+
+def test_evaluate_non_deterministic(tiny_env: TinyEnv) -> None:
+    """evaluate 在 deterministic=False 时应将参数传递给 predict。"""
+    agent = PPOAgent(tiny_env, log_dir=LOG_DIR, verbose=0)
+    model = MagicMock()
+    model.predict.return_value = (np.array([1]), None)
+    agent.model = model
+
+    result = agent.evaluate(num_episodes=2, deterministic=False)
+
+    assert result["mean_reward"] == 3.0
+    assert result["num_episodes"] == 2
+    assert model.predict.call_args.kwargs["deterministic"] is False
+
+
+def test_get_config_returns_all_fields(tiny_env: TinyEnv) -> None:
+    """get_config 应返回全部超参数字段。"""
+    agent = PPOAgent(
+        tiny_env,
+        learning_rate=1e-4,
+        n_steps=32,
+        batch_size=8,
+        n_epochs=3,
+        gamma=0.8,
+        gae_lambda=0.7,
+        clip_range=0.1,
+        ent_coef=0.02,
+        vf_coef=0.4,
+        max_grad_norm=0.3,
+        log_dir=LOG_DIR,
+        verbose=0,
+    )
+
+    config = agent.get_config()
+    assert config["learning_rate"] == 1e-4
+    assert config["n_steps"] == 32
+    assert config["batch_size"] == 8
+    assert config["n_epochs"] == 3
+    assert config["gamma"] == 0.8
+    assert config["gae_lambda"] == 0.7
+    assert config["clip_range"] == 0.1
+    assert config["ent_coef"] == 0.02
+    assert config["vf_coef"] == 0.4
+    assert config["max_grad_norm"] == 0.3
+    assert config["architecture"] == "PPO"
+    assert config["observation_dim"] == 4
+    assert config["action_dim"] == 3
