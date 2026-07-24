@@ -276,14 +276,18 @@ class DQNModelStrategy(BaseStrategy):
 
 
 class FCFSStrategy(BaseStrategy):
-    """策略 B：先来先服务。"""
+    """策略 B：先来先服务（FCFS）。
+
+    说明：环境内部已按 wait_steps/arrival_time 排序取队首任务（FCFS 任务排序），
+    本策略负责资源分配决策。此处选择 action=2（混合执行）作为默认资源策略，
+    因为混合执行兼容所有任务类型，是最保守的资源分配方式。
+    因此本基线更准确的含义是"FCFS任务排序 + 混合资源默认策略"（Hybrid-Default）。
+    """
 
     name = "FCFS"
 
     def select_action(self, obs: np.ndarray) -> int:
-        # FCFS：总是选择混合执行（action=2），让环境内部的优先级排序生效
-        # 因为环境已经按 priority/wait_steps 排序取出队首任务
-        # FCFS 策略将当前任务送到最合适的资源（混合=最高兼容性）
+        # FCFS：任务排序由环境内部完成，资源分配选择混合执行（最高兼容性）
         return 2
 
 

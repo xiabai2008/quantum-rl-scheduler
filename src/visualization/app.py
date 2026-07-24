@@ -79,11 +79,11 @@ system_status: dict = {
     "current_step": 1024,  # 当前调度步数
     "current_strategy": "PPO-Balanced",  # 当前调度策略
     "strategy_options": [  # 可选策略列表
-        "DQN-Reward",
-        "DQN-Latency",
-        "PPO-Balanced",
-        "QAOA-Hybrid",
+        "PPO",
+        "DQN",
         "FCFS",
+        "SJF",
+        "Random",
     ],
     "real_machines": [],  # 真机列表 [{name, status, type, id}]
     "real_submissions": [],  # 真机提交记录 [{step, task_id, machine, latency_s, status}]

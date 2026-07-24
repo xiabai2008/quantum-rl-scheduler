@@ -64,7 +64,7 @@ def run_command(cmd, env=None):
 def demo_train(args):
     """步骤1: PPO 快速训练"""
     step("1/4 PPO 快速训练（5000步热身）")
-    cmd = "python scripts/quick_train.py"
+    cmd = "python scripts/training/quick_train.py"
     success = run_command(cmd)
     if success:
         print("  ✅ PPO 训练完成")
@@ -76,7 +76,7 @@ def demo_train(args):
 def demo_simulation(args):
     """步骤2: 8种策略仿真对比"""
     step("2/4 8种策略仿真对比（200任务）")
-    cmd = "python scripts/run_simulation.py --mock-mode --num-tasks 200 --output-dir ./results"
+    cmd = "python scripts/evaluation/run_simulation.py --mock-mode --num-tasks 200 --output-dir ./results"
     success = run_command(cmd)
     if success:
         print("  ✅ 仿真对比完成")

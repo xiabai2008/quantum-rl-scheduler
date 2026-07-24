@@ -46,7 +46,7 @@ from src.scheduler.env import (
 def ppo_policy_factory(model_path: str, env):
     """加载 PPO 模型构造策略函数；失败返回 None。"""
     try:
-        from src.scheduler.agent import PPOAgent
+        from src.scheduler.ppo_agent import PPOAgent
 
         agent = PPOAgent(env)
         agent.load(model_path)

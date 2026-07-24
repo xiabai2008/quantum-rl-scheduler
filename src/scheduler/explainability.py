@@ -45,22 +45,22 @@ import numpy as np
 # 常量定义
 # ---------------------------------------------------------------------------
 
-# 状态空间 14 维特征名（与 env.py 的 14 维状态向量对应）
+# 状态空间 14 维特征名（与 env_types.py 的 OBS_* 常量严格对应）
 STATE_FEATURE_NAMES: list[str] = [
-    "队列长度",
-    "平均优先级",
-    "最大等待时间",
-    "量子比特利用率",
-    "电路深度均值",
-    "任务类型_量子占比",
-    "任务类型_经典占比",
-    "任务类型_混合占比",
-    "优先级方差",
-    "预计执行时间均值",
-    "队列紧迫度",
-    "资源碎片化",
-    "历史完成率",
-    "当前步数",
+    "量子比特可用率",  # OBS_QUBIT_AVAILABILITY = 0
+    "队列长度",  # OBS_QUEUE_LENGTH = 1
+    "平均等待时间",  # OBS_AVG_WAIT_TIME = 2
+    "量子比特保真度",  # OBS_FIDELITY = 3
+    "经典资源负载",  # OBS_CLASSICAL_LOAD = 4
+    "量子队列占比",  # OBS_QUANTUM_QUEUE_RATIO = 5
+    "时间段",  # OBS_TIME_OF_DAY = 6
+    "任务紧急程度",  # OBS_URGENCY_LEVEL = 7
+    "量子任务标记",  # OBS_TASK_TYPE_QUANTUM = 8
+    "经典任务标记",  # OBS_TASK_TYPE_CLASSICAL = 9
+    "单比特门保真度",  # OBS_SINGLE_GATE_FIDELITY = 10
+    "两比特门保真度",  # OBS_TWO_GATE_FIDELITY = 11
+    "耦合图密度",  # OBS_COUPLING_DENSITY = 12
+    "平均连通度",  # OBS_AVG_CONNECTIVITY = 13
 ]
 
 # 异常决策检测：低置信度阈值（action_prob 低于此值视为异常）
