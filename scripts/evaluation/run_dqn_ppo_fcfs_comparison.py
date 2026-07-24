@@ -21,8 +21,8 @@ from scipy import stats
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from stable_baselines3 import PPO, DQN
-from src.scheduler.env import QuantumSchedulingEnv
+from stable_baselines3 import DQN, PPO
+
 from scripts.evaluation.run_simulation import (
     DQNModelStrategy,
     FCFSStrategy,
@@ -30,6 +30,7 @@ from scripts.evaluation.run_simulation import (
     SimulationEnv,
     SimulationTaskGenerator,
 )
+from src.scheduler.env import QuantumSchedulingEnv
 
 # ── Configuration ──────────────────────────────────────────────
 NUM_SEEDS = 10
