@@ -1,8 +1,14 @@
 """
 后台仿真任务
 
-simulate_scheduler：模拟调度引擎行为，使用 PPO 模型进行推理决策，
+simulate_scheduler：使用 PPO 模型进行真实的调度推理决策，
 定时推送状态更新，并周期性轮询天衍云真机状态与提交记录。
+
+v2 改进（Day2-3-9）：
+- 维护持久化环境状态，不再每次 tick reset
+- 通过 env.step(action) 推进真实调度状态
+- 系统指标从环境真实观测值提取，非伪造
+- 支持 episode 结束后自动重置
 
 为兼容测试对 app 模块全局状态的 monkeypatch，本模块通过 ``_app`` 引用
 访问 app 模块上的共享状态与辅助函数（system_status / task_queue /
@@ -13,6 +19,7 @@ import asyncio
 import random
 from datetime import datetime
 
+import numpy as np
 from loguru import logger
 
 # 通过 _app 访问 app 模块的全局状态与辅助函数，避免循环导入：
@@ -23,15 +30,26 @@ from src.scheduler.explainability import DecisionExplainer
 
 _explainer = DecisionExplainer()
 
+# PPO 推理持久化状态
+_ppo_current_obs: np.ndarray | None = None  # 当前观测向量（episode 内持续更新）
+_ppo_episode_reward = 0.0  # 当前 episode 累积奖励
+_ppo_episode_step = 0  # 当前 episode 步数
+
 
 async def simulate_scheduler() -> None:
-    """模拟调度引擎行为 — 使用 PPO 模型进行推理决策。
+    """模拟调度引擎行为 — 使用 PPO 模型进行真实推理决策。
 
-    每 3 秒推送一次状态更新。其中每 20 个 tick（约 60 秒）轮询一次天衍云
-    真机状态（``query_quantum_computer_list``）和真机提交记录
-    （``results/real_times.json``），将真实机器名/状态（running/calibrating/
-    maintenance）与真实提交历史通过 WebSocket 推送到前端监控卡片。
+    每 3 秒推送一次状态更新。使用持久化的 Gymnasium 环境实例，
+    通过 ``env.step(action)`` 推进真实调度状态，系统指标从环境
+    观测值中提取（非伪造）。episode 结束后自动重置。
+
+    其中每 20 个 tick（约 60 秒）轮询一次天衍云真机状态
+    （``query_quantum_computer_list``）和真机提交记录
+    （``results/real_times.json``），将真实机器名/状态与真实提交
+    历史通过 WebSocket 推送到前端监控卡片。
     """
+    global _ppo_current_obs, _ppo_episode_reward, _ppo_episode_step
+
     tick = 0
     while True:
         await asyncio.sleep(3)
@@ -41,21 +59,53 @@ async def simulate_scheduler() -> None:
         # 本轮 PPO 推理动作（-1 表示未推理）
         action: int = -1
         obs = None  # 保存状态用于可解释性分析
+        step_reward: float = 0.0  # 本步真实奖励
 
         # 尝试使用 PPO 推理
         model = _app._get_ppo_model()
-        if model is not None and model.env is not None and _app._ppo_env is not None:
+        if model is not None and _app._ppo_env is not None:
             try:
-                obs = model.env.reset()[0]
+                # 首次运行或 episode 结束后需要 reset
+                if _ppo_current_obs is None:
+                    _ppo_current_obs, _ = _app._ppo_env.reset()
+                    _ppo_episode_reward = 0.0
+                    _ppo_episode_step = 0
+                    logger.info("[Web] PPO 环境 reset，新 episode 开始")
+
+                # 使用当前观测进行预测（不 reset！）
+                obs = _ppo_current_obs
                 action, _ = model.predict(obs, deterministic=True)
-                # 根据 PPO 预测更新利用率
-                target_qubit = 0.45 if action == 1 else (0.40 if action == 2 else 0.35)
+
+                # 调用 env.step() 推进真实调度状态
+                new_obs, reward, terminated, truncated, _info = _app._ppo_env.step(int(action))
+                step_reward = float(reward)
+                _ppo_episode_reward += step_reward
+                _ppo_episode_step += 1
+
+                # 从真实环境观测值更新系统状态（OBS_DIM=14）
+                # obs[0] = 量子比特可用率, obs[1] = 队列长度(归一化), obs[2] = 平均等待时间(归一化)
                 _app.system_status["qubit_utilization"] = round(
-                    _app.system_status["qubit_utilization"] * 0.7 + target_qubit * 0.3, 4
-                )
-            except (ValueError, RuntimeError, OSError) as e:
+                    float(new_obs[0]), 4
+                )  # 真实量子比特利用率
+                _app.system_status["average_wait_time"] = round(
+                    float(new_obs[2]) * 100, 1
+                )  # 真实平均等待时间（反归一化）
+
+                # 检查 episode 是否结束
+                if terminated or truncated:
+                    logger.info(
+                        f"[Web] PPO episode 结束: "
+                        f"steps={_ppo_episode_step}, "
+                        f"total_reward={_ppo_episode_reward:.2f}"
+                    )
+                    _ppo_current_obs = None  # 下次 tick 会自动 reset
+                else:
+                    _ppo_current_obs = new_obs  # 更新观测，继续下一步
+
+            except (ValueError, RuntimeError, OSError, KeyError) as e:
                 # PPO 推理失败，回退随机
                 logger.debug(f"[Web] PPO 推理失败，回退随机: {e}")
+                _ppo_current_obs = None  # 重置状态，下次重新开始
                 _app.system_status["qubit_utilization"] = round(
                     max(
                         0.1,
@@ -79,9 +129,10 @@ async def simulate_scheduler() -> None:
         _app.system_status["queue_length"] = len(
             [t for t in _app.task_queue if t["status"] == "pending"]
         )
-        _app.system_status["average_wait_time"] = round(
-            max(0.5, _app.system_status["average_wait_time"] + random.uniform(-0.5, 0.5)), 1
-        )
+        if model is None:
+            _app.system_status["average_wait_time"] = round(
+                max(0.5, _app.system_status["average_wait_time"] + random.uniform(-0.5, 0.5)), 1
+            )
         _app.system_status["last_update"] = datetime.now().isoformat()
 
         # 每 20 个 tick（约 60 秒）轮询真机状态 + 真机提交记录
@@ -121,6 +172,7 @@ async def simulate_scheduler() -> None:
                 "queue_length": _app.system_status["queue_length"],
                 "completed_tasks": _app.system_status["completed_tasks"],
                 "average_wait_time": _app.system_status["average_wait_time"],
+                "ppo_episode_reward": round(_ppo_episode_reward, 2),
             }
         )
         if len(_app._resource_history) > 100:
@@ -134,8 +186,10 @@ async def simulate_scheduler() -> None:
                 "task_id": f"task_{_app.system_status['current_step']}",
                 "action": int(action),
                 "action_label": action_label_map.get(int(action), "未知"),
-                "reward": round(_app.system_status["qubit_utilization"] * 10, 2),
+                "reward": round(step_reward, 4),
                 "source": "PPO",
+                "episode_reward": round(_ppo_episode_reward, 2),
+                "episode_step": _ppo_episode_step,
             }
             # 计算特征贡献度（Issue #73）
             if obs is not None:
@@ -154,5 +208,7 @@ async def simulate_scheduler() -> None:
                 "status": _app.system_status,
                 "tasks": _app.task_queue,
                 "ppo_active": _app._ppo_model is not None,
+                "ppo_episode_reward": round(_ppo_episode_reward, 2),
+                "ppo_episode_step": _ppo_episode_step,
             }
         )
