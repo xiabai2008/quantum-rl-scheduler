@@ -75,15 +75,18 @@ STRATEGY_COLORS = {
     "D": "#9b59b6",
 }
 
+
 # Check if neal is actually available (not falling back to numpy SA)
 try:
     import neal
+
     NEAL_AVAILABLE = True
     logging.info("neal package is available and will be used for Strategy A")
 except ImportError:
     NEAL_AVAILABLE = False
-    logging.warning("neal package not available - Strategy A will fall back to numpy SA")
-
+    logging.warning(
+        "neal package not available - Strategy A will fall back to numpy SA"
+    )
 
 
 def random_sample_qubo(qubo_matrix: np.ndarray, num_samples: int = 1000) -> str:
@@ -141,7 +144,9 @@ class _AnnealingCallbackProxy(BaseCallback):
                     self.optimizer.use_dw = original_use_dw
                 elif self.strategy == "C":
                     original_anneal = self.optimizer.anneal
-                    self.optimizer.anneal = lambda qubo: random_sample_qubo(qubo, num_samples=1000)
+                    self.optimizer.anneal = lambda qubo: random_sample_qubo(
+                        qubo, num_samples=1000
+                    )
                     self.optimizer.optimize_policy(self.model, head_only=True)
                     self.optimizer.anneal = original_anneal
                     # monkey-patch 不会设置 _last_solver，手动修正
@@ -245,7 +250,9 @@ def _train_with_strategy(
     return r
 
 
-def evaluate_qubo_solvers(policy_net: Any, optimizer: QuantumAnnealingOptimizer) -> dict[str, Any]:
+def evaluate_qubo_solvers(
+    policy_net: Any, optimizer: QuantumAnnealingOptimizer
+) -> dict[str, Any]:
     """评估给定策略下 A/B/C 三种 QUBO 求解器表现
 
     Args:
@@ -354,7 +361,9 @@ def _plot_results(report: dict[str, Any], timestamp: str) -> None:
             color=STRATEGY_COLORS[s],
             label=STRATEGY_LABELS[s],
         )
-        ax.fill_between(ref_ts, mean - std, mean + std, alpha=0.15, color=STRATEGY_COLORS[s])
+        ax.fill_between(
+            ref_ts, mean - std, mean + std, alpha=0.15, color=STRATEGY_COLORS[s]
+        )
         ax.annotate(
             f"{mean[-1]:.1f}",
             (ref_ts[-1], mean[-1]),
@@ -382,9 +391,25 @@ def _plot_results(report: dict[str, Any], timestamp: str) -> None:
     energies_b = [q["B"]["energy"] for q in qubo_data]
     energies_c = [q["C"]["energy"] for q in qubo_data]
 
-    ax.bar(x - width, energies_a, width, label="A: neal", color=STRATEGY_COLORS["A"], alpha=0.8)
-    ax.bar(x, energies_b, width, label="B: numpy SA", color=STRATEGY_COLORS["B"], alpha=0.8)
-    ax.bar(x + width, energies_c, width, label="C: random", color=STRATEGY_COLORS["C"], alpha=0.8)
+    ax.bar(
+        x - width,
+        energies_a,
+        width,
+        label="A: neal",
+        color=STRATEGY_COLORS["A"],
+        alpha=0.8,
+    )
+    ax.bar(
+        x, energies_b, width, label="B: numpy SA", color=STRATEGY_COLORS["B"], alpha=0.8
+    )
+    ax.bar(
+        x + width,
+        energies_c,
+        width,
+        label="C: random",
+        color=STRATEGY_COLORS["C"],
+        alpha=0.8,
+    )
 
     ax.set_xlabel("Seed")
     ax.set_ylabel("QUBO Energy (lower is better)")
@@ -479,9 +504,13 @@ def _generate_markdown(report: dict[str, Any], path: str) -> None:
     solver_a = first_qubo.get("solver_a", "unknown")
     lines.append(f"- 策略 A 实际求解器: **{solver_a}**")
     if solver_a == "neal":
-        lines.append("  - neal (D-Wave SimulatedAnnealingSampler) 已正确调用，未回退到 numpy SA")
+        lines.append(
+            "  - neal (D-Wave SimulatedAnnealingSampler) 已正确调用，未回退到 numpy SA"
+        )
     else:
-        lines.append(f"  - 注意: 实际使用 {solver_a}，非 neal（可能 neal 未安装或回退）")
+        lines.append(
+            f"  - 注意: 实际使用 {solver_a}，非 neal（可能 neal 未安装或回退）"
+        )
 
     # 退火接受率诊断（如果训练阶段有记录）
     lines.extend(
@@ -496,7 +525,11 @@ def _generate_markdown(report: dict[str, Any], path: str) -> None:
     for s in ("A", "B", "C"):
         # 从 per_seed 数据中提取最后一个 seed 的退火统计
         per_seed = report["rewards"][s].get("per_seed", [])
-        if per_seed and isinstance(per_seed[-1], dict) and "anneal_stats" in per_seed[-1]:
+        if (
+            per_seed
+            and isinstance(per_seed[-1], dict)
+            and "anneal_stats" in per_seed[-1]
+        ):
             stats = per_seed[-1]["anneal_stats"]
             lines.append(
                 f"| {STRATEGY_LABELS[s]} | {stats.get('solver', 'N/A')} | "
@@ -545,7 +578,9 @@ def _generate_markdown(report: dict[str, Any], path: str) -> None:
     )
     for pair, res in report["welch_ttest"].items():
         sig = "显著" if res["significant_at_0_05"] else "不显著"
-        lines.append(f"| {pair} | {res['statistic']:.4f} | {res['p_value']:.4f} | {sig} |")
+        lines.append(
+            f"| {pair} | {res['statistic']:.4f} | {res['p_value']:.4f} | {sig} |"
+        )
 
     lines.extend(
         [
@@ -564,16 +599,22 @@ def _generate_markdown(report: dict[str, Any], path: str) -> None:
             g = q[s]["gap"]
             if g is not None:
                 avg_gaps[s].append(g)
-    gap_means = {s: float(np.mean(v)) if v else float("nan") for s, v in avg_gaps.items()}
+    gap_means = {
+        s: float(np.mean(v)) if v else float("nan") for s, v in avg_gaps.items()
+    }
 
-    best_solver = min((s for s in ("A", "B", "C")), key=lambda s: gap_means.get(s, float("inf")))
+    best_solver = min(
+        (s for s in ("A", "B", "C")), key=lambda s: gap_means.get(s, float("inf"))
+    )
     lines.append(
         f"- 平均 gap 最优的是 **{best_solver} ({STRATEGY_LABELS[best_solver]})**，"
         f"平均 gap = {gap_means[best_solver]:.4f}。"
     )
     # 比较退火求解器 vs 随机采样
     sa_solvers = [
-        s for s in ("A", "B") if gap_means.get(s) is not None and not math.isnan(gap_means[s])
+        s
+        for s in ("A", "B")
+        if gap_means.get(s) is not None and not math.isnan(gap_means[s])
     ]
     if sa_solvers and gap_means.get("C") is not None and not math.isnan(gap_means["C"]):
         avg_sa_gap = sum(gap_means[s] for s in sa_solvers) / len(sa_solvers)
@@ -693,7 +734,9 @@ def run_experiment(seeds: list[int], total_timesteps: int) -> dict[str, Any]:
         print(f"        最终 reward={final_r:.1f}  耗时={r_c['train_time_s']:.0f}s")
 
     # ---- 汇总 reward 数据 ----
-    ref_ts = all_results["D"][0]["timesteps"] if all_results["D"][0]["timesteps"] else []
+    ref_ts = (
+        all_results["D"][0]["timesteps"] if all_results["D"][0]["timesteps"] else []
+    )
     n_evals = len(ref_ts)
     n_seeds = len(seeds)
 
@@ -713,7 +756,8 @@ def run_experiment(seeds: list[int], total_timesteps: int) -> dict[str, Any]:
 
     # ---- Welch t 检验（比较最终 reward）----
     final_rewards = {
-        s: [r["rewards"][-1] for r in all_results[s] if r["rewards"]] for s in STRATEGIES
+        s: [r["rewards"][-1] for r in all_results[s] if r["rewards"]]
+        for s in STRATEGIES
     }
     welch_a_c = stats.ttest_ind(
         np.array(final_rewards["A"]),
@@ -762,7 +806,9 @@ def run_experiment(seeds: list[int], total_timesteps: int) -> dict[str, Any]:
         "timesteps": ref_ts,
     }
 
-    json_path = os.path.join(RESULTS_DIR, f"annealing_solver_comparison_{timestamp}.json")
+    json_path = os.path.join(
+        RESULTS_DIR, f"annealing_solver_comparison_{timestamp}.json"
+    )
     with open(json_path, "w", encoding="utf-8") as f:
         json.dump(report, f, indent=2, ensure_ascii=False)
 
@@ -784,7 +830,7 @@ def run_experiment(seeds: list[int], total_timesteps: int) -> dict[str, Any]:
 def main() -> None:
     """主函数入口"""
     # 启用量子加速（原为模块级设置，移入函数避免副作用）
-        os.environ["QUANTUM_ACCELERATION_ENABLED"] = "1"
+    os.environ["QUANTUM_ACCELERATION_ENABLED"] = "1"
     _annealing_mod.QUANTUM_ACCELERATION_ENABLED = True
 
     parser = argparse.ArgumentParser(description="QUBO 求解器对比实验 (Issue #111)")
