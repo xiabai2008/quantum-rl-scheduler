@@ -3,7 +3,7 @@
 > 此文件供所有 AI Agent（CodeBuddy / TRAE / Claude / Cursor 等）读取，以快速理解项目全貌。
 > 每次重要变更后请更新本文档的"最后更新"日期和对应章节。
 
-**最后更新**：2026-07-25（验证报告v3修复：API密钥轮换/README路径+文件数+Mermaid架构图/setup脚本过时依赖+路径/.env.example补VISUALIZATION_API_KEY/答辩QA手册补完美分离+量子含量5问答，8文件修改；2285测试全通过；Day2-3/Day4-7完成：依赖清理/Docker优化/PPO调度修复/决策放大镜/对战面板/高负载公平调度/MARL热力图，14文件+2832行；Issues #127/#128/#129/#130：双向赋能非对称性分析 + 真机验证结论边界 + 观测维度口径管理标准 + 生产落地路径规划）
+**最后更新**：2026-07-26（Issues全面清理：关闭21个issues(#125/#170-#190)，创建防泄漏/OOD泛化评估模块(src/evaluation/)、真机客户端录制回放框架(cqlib_recorder.py+5fixtures+11测试)、可视化状态重构(state.py打破循环依赖)、日志统一到loguru、配置统一入口(settings.py re-export schema.py)、pytest-randomly引入、覆盖率门槛70→80、mutmut扩展到7模块+CI PR触发；2363+测试全通过；新增ADR/代码冻结检查清单/参赛总结报告）
 
 ***
 
@@ -101,18 +101,24 @@ quantum-rl-scheduler/
 │   │   ├── explainability.py     # 可解释性
 │   │   ├── export.py             # 模型导出
 │   │   └── cache.py              # 缓存
-│   ├── api/                      # API层（~6文件）
+│   ├── api/                      # API层（~7文件）
 │   │   ├── tianyan_client.py     # 天衍云 API 客户端
 │   │   ├── tianyan_cqlib.py      # cqlib 真机客户端 + 多机器协调器
+│   │   ├── cqlib_recorder.py     # 真机响应录制/回放客户端（Issue #175）
 │   │   ├── mock_client.py        # Mock API 客户端
 │   │   ├── circuit_breaker.py    # 熔断器（CLOSED/OPEN/HALF_OPEN）
 │   │   └── quota_tracker.py      # 配额追踪
 │   ├── quantum/                  # 量子计算（~3文件）
 │   │   ├── annealing.py          # 量子退火优化器
 │   │   └── annealing_loop.py     # 异步退火闭环控制器
-│   ├── visualization/            # Web监控（~8文件 + Vue3前端）
+│   ├── evaluation/               # 评估模块（~4文件，Issue #170 防泄漏/OOD）
+│   │   ├── data_split.py         # 数据分割（防泄漏）
+│   │   ├── blind_test.py         # 留出盲测评估
+│   │   └── ood_generalization.py # 分布外泛化验证
+│   ├── visualization/            # Web监控（~10文件 + Vue3前端）
 │   │   ├── app.py               # FastAPI 入口（含对战状态管理+前端静态服务）
 │   │   ├── routes.py             # 路由（含/metrics端点+/api/explainability+/api/battle）
+│   │   ├── state.py              # 共享全局状态唯一定义（Issue #179 打破循环依赖）
 │   │   ├── simulator.py          # 仿真器（PPO真实env.step调度）
 │   │   ├── websocket_handler.py  # WebSocket
 │   │   └── frontend/             # Vue3 前端（DecisionMagnifier/BattlePanel等组件）

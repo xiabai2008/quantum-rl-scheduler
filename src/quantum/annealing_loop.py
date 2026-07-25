@@ -11,7 +11,6 @@
 
 import copy
 import json
-import logging
 import os
 import queue
 import threading
@@ -20,10 +19,9 @@ import types
 from typing import Any
 
 import numpy as np
+from loguru import logger
 
 from src.utils.alerts import alert_error
-
-logger = logging.getLogger(__name__)
 
 
 class AsyncAnnealingLoop:
@@ -351,5 +349,5 @@ class AsyncAnnealingLoop:
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
-    print("AsyncAnnealingLoop 模块已加载，请通过 train_with_annealing_loop.py 使用")
+    # loguru 已在模块顶部导入，无需 basicConfig
+    logger.info("AsyncAnnealingLoop 模块已加载，请通过 train_with_annealing_loop.py 使用")

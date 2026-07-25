@@ -10,9 +10,16 @@ v2 改进（Day2-3-9）：
 - 系统指标从环境真实观测值提取，非伪造
 - 支持 episode 结束后自动重置
 
-为兼容测试对 app 模块全局状态的 monkeypatch，本模块通过 ``_app`` 引用
-访问 app 模块上的共享状态与辅助函数（system_status / task_queue /
-manager / _get_ppo_model 等），确保运行时看到的总是 app 模块当前绑定。
+共享状态访问（Issue #179）：
+    共享全局状态（``system_status`` / ``task_queue`` / ``manager`` /
+    ``_resource_history`` / ``_decision_log``）定义在 ``state.py`` 中，
+    由 ``app.py`` 再导出为模块级属性。本模块通过 ``_app`` 访问这些状态，
+    以保持与现有测试的兼容性——测试通过 ``patch("src.visualization.simulator._app",
+    mock_app)`` 替换整个 ``_app`` 引用，从而隔离全局状态。
+
+    在生产环境中，``_app.system_status`` 与 ``state.system_status`` 指向
+    同一字典对象（app.py 从 state.py 再导出），无额外开销。
+    新代码如需直接访问状态或使用线程安全访问器，请从 ``state.py`` 导入。
 """
 
 import asyncio
@@ -22,9 +29,9 @@ from datetime import datetime
 import numpy as np
 from loguru import logger
 
-# 通过 _app 访问 app 模块的全局状态与辅助函数，避免循环导入：
-# 此处 app 模块虽可能处于部分加载状态，但 _app.X 均在函数体内访问，
-# 实际调用时 app 模块已完成加载。
+# _app 提供共享状态（从 state.py 再导出）和辅助函数访问。
+# 测试通过 patch("src.visualization.simulator._app", mock_app) 替换整个引用，
+# 实现全局状态隔离。
 import src.visualization.app as _app
 from src.scheduler.explainability import DecisionExplainer
 

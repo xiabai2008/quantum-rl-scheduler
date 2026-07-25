@@ -130,4 +130,4 @@ class AsyncAnnealingCallback(BaseCallback):
 
 
 if __name__ == "__main__":
-    print("AsyncAnnealingCallback 模块已加载，请配合 AsyncAnnealingLoop 使用")
+    logger.info("AsyncAnnealingCallback 模块已加载，请配合 AsyncAnnealingLoop 使用")

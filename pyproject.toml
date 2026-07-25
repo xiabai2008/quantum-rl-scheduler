@@ -117,6 +117,7 @@ addopts = [
     "--strict-markers",
     "--tb=short",
     "-W", "ignore::DeprecationWarning",
+    "--randomly-seed=42",
 ]
 markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
@@ -149,7 +150,7 @@ exclude_lines = [
     "class .*\\bProtocol\\):",
     "@(abc\\.)?abstractmethod",
 ]
-fail_under = 70
+fail_under = 80
 show_missing = true
 skip_empty = true
 
@@ -178,12 +179,19 @@ source_paths = [
     "src/utils/seeds.py",
     "src/utils/helpers.py",
     "src/scheduler/parser.py",
+    "src/scheduler/env_reward.py",
+    "src/scheduler/env_observation.py",
+    "src/quantum/annealing.py",
+    "src/api/circuit_breaker.py",
 ]
 # 测试选择：只收集/运行这些测试文件（mutmut 3.x 用 pytest_add_cli_args_test_selection，runner_command 已废弃）
 pytest_add_cli_args_test_selection = [
     "tests/test_seeds.py",
     "tests/test_helpers.py",
     "tests/test_parser.py",
+    "tests/test_scheduler.py",
+    "tests/test_annealing.py",
+    "tests/test_circuit_breaker.py",
 ]
 # 并行工作进程数
 workers = 4

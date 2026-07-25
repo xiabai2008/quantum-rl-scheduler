@@ -18,7 +18,6 @@ QUBO 问题形式：min  x^T Q x，其中 x ∈ {0,1}^n, Q 为 n×n 的实数矩
     仿真模式仅依赖 numpy（始终可用）
 """
 
-import logging
 import math
 import os
 import random
@@ -28,6 +27,7 @@ from typing import Any
 import numpy as np
 import torch
 import torch.nn.functional as F
+from loguru import logger
 from torch import nn
 
 # ============================================================================
@@ -36,11 +36,6 @@ from torch import nn
 QUANTUM_ACCELERATION_ENABLED = os.environ.get(
     "QUANTUM_ACCELERATION_ENABLED", "0"
 ).strip().lower() in ("1", "true", "yes")
-
-# ============================================================================
-# 日志配置
-# ============================================================================
-logger = logging.getLogger(__name__)
 
 # 尝试导入 D-Wave Ocean SDK（真机模式所需）
 try:
@@ -1916,7 +1911,7 @@ def find_optimal_qubo_params(
 # 模块自测试
 # ============================================================================
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
+    # loguru 已在模块顶部导入，无需 basicConfig
 
     print("=" * 60)
     print("量子退火策略优化器 - 模块自测试")

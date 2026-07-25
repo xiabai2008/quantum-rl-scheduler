@@ -14,10 +14,9 @@ Scheduler Engine Core Module
 - QuantumTask: env.py 中的量子任务数据结构
 """
 
-import logging
 from typing import Any
 
-logger = logging.getLogger(__name__)
+from loguru import logger
 
 # 直接导入环境模块（不依赖 stable_baselines3）
 from src.scheduler.env import (

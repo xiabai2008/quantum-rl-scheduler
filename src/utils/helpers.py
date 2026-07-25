@@ -523,12 +523,12 @@ if __name__ == "__main__":
     # 测试归一化
     vector = [1.0, 2.0, 3.0, 4.0, 5.0]
     normalized = normalize_vector(vector)
-    print(f"归一化结果：{normalized}")
+    logger.info(f"归一化结果：{normalized}")
 
     # 测试独热编码
     categories = ["quantum", "classical", "hybrid"]
     encoding = one_hot_encode("quantum", categories)
-    print(f"独热编码：{encoding}")
+    logger.info(f"独热编码：{encoding}")
 
     # 测试评估指标
     reward = MetricsCalculator.calculate_reward(
@@ -536,4 +536,4 @@ if __name__ == "__main__":
         avg_wait_time=120.0,
         resource_utilization=0.75,
     )
-    print(f"综合奖励：{reward:.3f}")
+    logger.info(f"综合奖励：{reward:.3f}")

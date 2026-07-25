@@ -225,8 +225,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     needs: test  # 在测试通过后运行
-    # 仅在 main 分支推送时运行，PR 中跳过（耗时较长）
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    # 在 main 分支推送和 PR 时均运行（Issue #176: 扩展到 PR 检测测试质量退化）
+    if: github.event_name == 'push' || github.event_name == 'pull_request'
     steps:
       - uses: actions/checkout@v4
 
@@ -243,7 +243,6 @@ jobs:
 
       - name: Run mutation testing
         run: mutmut run
-        continue-on-error: true  # 初期允许失败，仅收集基线数据
 
       - name: Show mutation results
         run: mutmut results
@@ -260,7 +259,8 @@ jobs:
     needs: test
     permissions:
       contents: write
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    # Issue #176: 扩展到 PR 触发，检测性能退化
+    if: github.event_name == 'push' || github.event_name == 'pull_request'
     steps:
       - uses: actions/checkout@v4
         with:
@@ -293,7 +293,8 @@ jobs:
           python scripts/ci/visualize_benchmark_trend.py
 
       - name: Commit benchmark history
-        if: success()
+        # 仅在 main 分支推送时提交基准历史（PR 无写权限）
+        if: success() && github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"

@@ -4,8 +4,11 @@ WebSocket 端点处理
 提供 /ws WebSocket 实时推送端点：客户端连接后服务端推送初始化状态，
 并监听客户端心跳/指令消息。
 
-为兼容测试对 app 模块全局状态的 monkeypatch，本模块通过 ``_app`` 引用
-访问 app 模块上的共享状态（manager / system_status / task_queue / _PROJECT_ROOT）。
+共享状态访问（Issue #179）：
+    共享全局状态（``manager`` / ``system_status`` / ``task_queue``）从
+    ``state.py`` 直接导入。路径常量（``_PROJECT_ROOT``）仍通过 ``_app``
+    访问——该符号被测试通过 ``monkeypatch.setattr(app_module, "_PROJECT_ROOT", ...)``
+    替换，必须保留在 app 模块上。
 """
 
 import json
@@ -15,6 +18,7 @@ from fastapi import WebSocket, WebSocketDisconnect
 from loguru import logger
 
 import src.visualization.app as _app
+from src.visualization import state
 
 
 async def websocket_endpoint(websocket: WebSocket) -> None:
@@ -26,7 +30,7 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
     - 新任务通知（task_added）
     - 策略变更通知（strategy_changed）
     """
-    await _app.manager.connect(websocket)
+    await state.manager.connect(websocket)
     try:
         # 连接后立即发送当前状态 + PPO 数据
         ppo_stats: dict = {}
@@ -53,8 +57,8 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
         await websocket.send_json(
             {
                 "type": "init",
-                "status": _app.system_status,
-                "tasks": _app.task_queue,
+                "status": state.system_status,
+                "tasks": state.task_queue,
                 "ppo_stats": ppo_stats,
             }
         )
@@ -76,4 +80,4 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
             if msg.get("action") == "ping":
                 await websocket.send_json({"type": "pong"})
     except WebSocketDisconnect:
-        _app.manager.disconnect(websocket)
+        state.manager.disconnect(websocket)
