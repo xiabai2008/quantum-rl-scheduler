@@ -157,12 +157,10 @@ $Modules = @(
     @("gymnasium", "gymnasium"),
     @("stable_baselines3", "stable-baselines3"),
     @("torch", "PyTorch"),
-    @("qiskit", "Qiskit"),
     @("fastapi", "FastAPI"),
-    @("sqlalchemy", "SQLAlchemy"),
     @("loguru", "Loguru"),
     @("pytest", "pytest"),
-    @("black", "Black"),
+    @("ruff", "ruff"),
     @("mypy", "mypy")
 )
 
@@ -199,9 +197,11 @@ if (-not $NoVenv) {
 
 Write-Host "  Quick Start:" -ForegroundColor White
 Write-Host "    python -m pytest tests/ -v"
-Write-Host "    python scripts/quick_train.py"
+Write-Host "    python scripts/training/quick_train.py"
 Write-Host "    python -m uvicorn src.visualization.app:app --host 0.0.0.0 --port 8000"
-Write-Host "    python scripts/run_simulation.py"
+Write-Host "    python scripts/evaluation/run_simulation.py"
+Write-Host "    ruff format src/ scripts/ tests/"
+Write-Host "    ruff check src/ scripts/ tests/"
 Write-Host ""
 
 if ($DevMode) {

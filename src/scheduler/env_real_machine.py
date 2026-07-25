@@ -297,7 +297,7 @@ def compute_real_result_reward(
         quality = fidelity(measured, theoretical)
         reward = REAL_RESULT_REWARD_MIN + quality * (REAL_RESULT_REWARD_MAX - REAL_RESULT_REWARD_MIN)
 
-    线性映射：quality=0 → reward=0.5，quality=1 → reward=5.0。
+    线性映射：quality=0 → reward=0.0（失败不给奖励），quality=1 → reward=5.0。
     这使得真机测量结果的质量直接影响力学习，而非仅靠 completed 状态。
 
     Args:

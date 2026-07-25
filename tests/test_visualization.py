@@ -842,10 +842,11 @@ def test_get_ppo_model_loads_model(monkeypatch, tmp_path):
     monkeypatch.setattr("src.scheduler.env.QuantumSchedulingEnv", lambda **kw: fake_env)
     fake_model = MagicMock()
     monkeypatch.setattr("stable_baselines3.PPO.load", lambda *a, **k: fake_model)
-    # 在 tmp_path/models/ppo_seed_42_v4/ 下创建假的 best_model.zip
-    models_dir = tmp_path / "models" / "ppo_seed_42_v4"
-    models_dir.mkdir(parents=True)
-    (models_dir / "best_model.zip").write_bytes(b"fake")
+    # 在 tmp_path/deliverable_models/ 下创建假的 ppo_best_model_14dim.zip
+    # （与 app.py 中 _get_ppo_model 的优先路径一致）
+    deliverable_dir = tmp_path / "deliverable_models"
+    deliverable_dir.mkdir(parents=True)
+    (deliverable_dir / "ppo_best_model_14dim.zip").write_bytes(b"fake")
     monkeypatch.setattr(app_module, "_PROJECT_ROOT", str(tmp_path))
     result = app_module._get_ppo_model()
     assert result is fake_model

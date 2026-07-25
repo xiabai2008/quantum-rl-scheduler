@@ -76,7 +76,7 @@ def demo_train(args):
 def demo_simulation(args):
     """步骤2: 8种策略仿真对比"""
     step("2/4 8种策略仿真对比（200任务）")
-    cmd = "python scripts/evaluation/run_simulation.py --mock-mode --num-tasks 200 --output-dir ./results"
+    cmd = "python scripts/evaluation/run_simulation.py --episodes 50 --tasks-per-episode 200 --ppo-model-path deliverable_models/ppo_best_model_14dim.zip --model-path deliverable_models/dqn_best_model_14dim.zip --output-dir ./results"
     success = run_command(cmd)
     if success:
         print("  ✅ 仿真对比完成")

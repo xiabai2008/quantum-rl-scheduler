@@ -435,16 +435,16 @@ class TestSimulateSchedulerNoModel(unittest.IsolatedAsyncioTestCase):
 
 
 class TestSimulateSchedulerTaskMigration(unittest.IsolatedAsyncioTestCase):
-    """测试 simulate_scheduler 的任务状态迁移分支。"""
+    """测试 simulate_scheduler 的任务状态迁移分支。
 
-    async def test_task_completed_when_random_below_threshold(self):
-        """random.random < 0.35 时应将 pending 任务置为 completed。"""
+    注意：2026-07-25 v2修复后，随机任务完成/运行逻辑已删除。
+    无PPO模型时，任务状态不再随机迁移，队列长度从真实pending任务数读取。
+    """
+
+    async def test_no_random_task_completion_without_ppo(self):
+        """无PPO模型时，random.random不应触发任务完成。"""
         mock_app = _build_mock_app()
         mock_app._get_ppo_model.return_value = None
-        # 第一次 random.random 控制 PPO 路径（无 PPO 时仅在任务状态分支使用）
-        # 实际：random.random 第一次用于任务完成判断 (<0.35 触发)，第二次用于运行判断 (<0.25 触发)
-        # 这里让第一次返回 0.0（<0.35 触发完成），第二次返回 1.0（不触发 running）
-        random_returns = iter([0.0, 1.0])
 
         with (
             patch("src.visualization.simulator._app", mock_app),
@@ -453,27 +453,24 @@ class TestSimulateSchedulerTaskMigration(unittest.IsolatedAsyncioTestCase):
                 new=_make_sleep_raising_after(2),
             ),
             patch("src.visualization.simulator.random.uniform", lambda a, b: 0.0),
-            patch(
-                "src.visualization.simulator.random.random",
-                lambda: next(random_returns),
-            ),
+            patch("src.visualization.simulator.random.random", lambda: 0.0),
             patch("src.visualization.simulator.random.choice", lambda seq: seq[0]),
         ):
             with self.assertRaises(asyncio.CancelledError):
                 await simulate_scheduler()
 
+        # 无PPO模型时，任务不应被随机完成
         completed = [t for t in mock_app.task_queue if t["status"] == "completed"]
-        self.assertGreaterEqual(len(completed), 1)
-        self.assertEqual(mock_app.system_status["completed_tasks"], 1)
-        # queue_length 应相应减 1
-        self.assertEqual(mock_app.system_status["queue_length"], 1)
+        self.assertEqual(len(completed), 0)
+        self.assertEqual(mock_app.system_status["completed_tasks"], 0)
+        # 队列长度应等于pending任务数
+        pending_count = len([t for t in mock_app.task_queue if t["status"] == "pending"])
+        self.assertEqual(mock_app.system_status["queue_length"], pending_count)
 
-    async def test_task_running_when_random_below_threshold(self):
-        """random.random < 0.25 时应将 pending 任务置为 running（不增加 completed）。"""
+    async def test_no_random_task_running_without_ppo(self):
+        """无PPO模型时，random.random不应触发任务运行状态。"""
         mock_app = _build_mock_app()
         mock_app._get_ppo_model.return_value = None
-        # 第一次 1.0（不触发 completed），第二次 0.0（触发 running）
-        random_returns = iter([1.0, 0.0])
 
         with (
             patch("src.visualization.simulator._app", mock_app),
@@ -482,22 +479,20 @@ class TestSimulateSchedulerTaskMigration(unittest.IsolatedAsyncioTestCase):
                 new=_make_sleep_raising_after(2),
             ),
             patch("src.visualization.simulator.random.uniform", lambda a, b: 0.0),
-            patch(
-                "src.visualization.simulator.random.random",
-                lambda: next(random_returns),
-            ),
+            patch("src.visualization.simulator.random.random", lambda: 0.0),
             patch("src.visualization.simulator.random.choice", lambda seq: seq[0]),
         ):
             with self.assertRaises(asyncio.CancelledError):
                 await simulate_scheduler()
 
+        # 无PPO模型时，任务不应被随机设为running
         running = [t for t in mock_app.task_queue if t["status"] == "running"]
-        self.assertGreaterEqual(len(running), 1)
+        self.assertEqual(len(running), 0)
         # completed_tasks 不应增加
         self.assertEqual(mock_app.system_status["completed_tasks"], 0)
 
     async def test_no_task_migration_when_random_above_thresholds(self):
-        """random.random 均高于阈值时任务状态不应改变。"""
+        """无PPO模型时，任务状态不应随random值改变。"""
         mock_app = _build_mock_app()
         mock_app._get_ppo_model.return_value = None
 

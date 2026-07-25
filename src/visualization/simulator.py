@@ -154,18 +154,9 @@ async def simulate_scheduler() -> None:
                 # 文件 I/O 错误 / 数据格式错误 / 运行时错误
                 logger.error(f"[Web] 加载真机提交记录异常: {e}")
 
-        # 演示用模拟任务流（非PPO真实调度，仅用于前端任务卡片动画效果）
-        pending = [t for t in _app.task_queue if t["status"] == "pending"]
-        if pending and random.random() < 0.35:
-            task = random.choice(pending)
-            task["status"] = "completed"
-            _app.system_status["completed_tasks"] += 1
-            _app.system_status["queue_length"] = max(0, _app.system_status["queue_length"] - 1)
-
-        pending = [t for t in _app.task_queue if t["status"] == "pending"]
-        if pending and random.random() < 0.25:
-            task = random.choice(pending)
-            task["status"] = "running"
+        # 注意：PPO激活时，队列长度已在上面从new_obs[1]读取（第93-94行），
+        # 此处不再通过随机动画修改queue_length和completed_tasks，避免污染真实指标。
+        # 前端任务卡片的动画效果由前端Vue组件独立处理，不影响后端真实数据。
 
         # 记录资源利用率历史（Issue #22：资源利用率历史趋势图）
         _app._resource_history.append(

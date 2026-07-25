@@ -36,9 +36,24 @@
 
 ## 项目架构
 
+```mermaid
+graph TB
+    User[用户/评委] --> CLI[Click CLI 统一入口]
+    CLI --> Train[训练模块 training.py]
+    CLI --> Demo[Demo演示 demo.py]
+    CLI --> Serve[Web监控面板 app.py]
+    Train --> PPO[PPO / DQN / MAPPO]
+    PPO --> Env[Gymnasium 14维调度环境]
+    Env --> Annealing[量子退火优化器 QUBO]
+    Env --> Tianyan[天衍云API / 真机cqlib]
+    Serve --> FastAPI[FastAPI 后端]
+    FastAPI --> Vue[Vue3 + ECharts 前端]
+    Tianyan --> CircuitBreaker[熔断器 + 配额追踪]
+```
+
 ```
 quantum-rl-scheduler/
-├── src/                      # 源代码（22 文件）
+├── src/                      # 源代码（~57 文件）
 │   ├── exceptions.py         # 统一异常体系（8 类）
 │   ├── scheduler/            # RL调度引擎（env + agent + parser + marl + multi_objective_env）
 │   ├── api/                  # 天衍云API封装（Mock/真实/cqlib 三模式 + 熔断器）
@@ -234,14 +249,16 @@ TIANYAN_API_KEY=你的真实API密钥
 
 ## 比赛材料
 
-| 材料 | 文件 |
-|------|------|
-| 答辩PPT（15页） | `../答辩PPT_量子RL调度系统.pptx` |
-| 技术白皮书（10章） | `../技术白皮书_量子RL调度系统_v2.docx` |
-| 演示视频分镜脚本 | `演示视频分镜脚本.md` |
-| 答辩PPT大纲 | `答辩PPT大纲.md` |
-| 白皮书更新计划 | `技术白皮书_更新计划.md` |
-| B1 实验数据报告 | `results/reports/` 下 4 份报告 |
+> 以下材料位于仓库上级目录（比赛提交材料，非代码仓库的一部分）：
+
+| 材料 | 文件 | 版本 |
+|------|------|------|
+| 答辩PPT（17页） | `../答辩PPT_量子RL调度系统_v5.pptx` | v5 |
+| 技术白皮书（11章） | `../技术白皮书_量子RL调度系统_v5.docx` | v5 |
+| 演示视频分镜脚本 | `演示视频分镜脚本.md` | — |
+| 答辩PPT大纲 | `答辩PPT大纲.md` | — |
+| 白皮书更新计划 | `技术白皮书_更新计划.md` | — |
+| B1 实验数据报告 | `results/reports/` 下 18 份报告 | — |
 
 ## 最终提交包说明
 

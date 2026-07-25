@@ -18,6 +18,8 @@ echo ""
 python scripts/evaluation/run_simulation.py \
     --episodes 50 \
     --tasks-per-episode 100 \
+    --ppo-model-path deliverable_models/ppo_best_model_14dim.zip \
+    --model-path deliverable_models/dqn_best_model_14dim.zip \
     --output-dir ./results/ \
     --verbose &
 

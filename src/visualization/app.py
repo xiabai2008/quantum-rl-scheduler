@@ -211,20 +211,24 @@ def _get_ppo_model() -> Any:
 
             from src.scheduler.env import QuantumSchedulingEnv
 
-            _ppo_env = QuantumSchedulingEnv(max_qubits=20, seed=42)
-            model_path = os.path.join(_PROJECT_ROOT, "models", "ppo_seed_42_v4", "best_model.zip")
+            _ppo_env = QuantumSchedulingEnv(max_qubits=287, seed=42)
+            # 优先使用 deliverable_models/ 下的权威模型（入库模型，所有环境都有）
+            deliverable_dir = os.path.join(_PROJECT_ROOT, "deliverable_models")
+            model_path = os.path.join(deliverable_dir, "ppo_best_model_14dim.zip")
 
             if not os.path.exists(model_path):
-                # 自动发现：在 models/ 下找任意 ppo 开头的目录中的 best_model.zip
-                models_dir = os.path.join(_PROJECT_ROOT, "models")
-                for root, _dirs, files in os.walk(models_dir):
-                    if "ppo" in os.path.basename(root).lower():
-                        for f in files:
-                            if f.endswith(".zip"):
-                                model_path = os.path.join(root, f)
+                # 回退：自动发现 deliverable_models/ 或 models/ 下的 PPO 模型
+                for search_dir in [deliverable_dir, os.path.join(_PROJECT_ROOT, "models")]:
+                    if os.path.isdir(search_dir):
+                        for root, _dirs, files in os.walk(search_dir):
+                            for f in files:
+                                if f.endswith(".zip") and "ppo" in f.lower() and "14dim" in f:
+                                    model_path = os.path.join(root, f)
+                                    break
+                            if os.path.exists(model_path):
                                 break
-                        if os.path.exists(model_path):
-                            break
+                    if os.path.exists(model_path):
+                        break
 
             if os.path.exists(model_path):
                 _ppo_model = PPO.load(model_path, env=_ppo_env)
