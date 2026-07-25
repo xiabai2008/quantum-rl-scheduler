@@ -16,8 +16,10 @@ import json
 import math
 import sys
 import time
+from concurrent.futures import ProcessPoolExecutor
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 
@@ -28,13 +30,150 @@ if str(_PROJECT_ROOT) not in sys.path:
 # 复用 run_issue_38_67_experiments.py 的基础设施
 sys.path.insert(0, str(_PROJECT_ROOT / "scripts" / "evaluation"))
 from run_issue_38_67_experiments import (
+    BaseStrategy,
     SimulationEnv,
     SimulationTaskGenerator,
     build_strategies,
     make_env,
 )
 
+from src.scheduler.cache import SchedulerCache
 from src.utils.stats_significance import bootstrap_improvement_ci
+
+
+class CachedPPOStrategy(BaseStrategy):
+    """带决策缓存的 PPO 策略包装器。
+
+    在 PPO 模型推理前先查 SchedulerCache，相似状态（余弦相似度≥阈值）
+    直接返回缓存决策，跳过神经网络前向传播以降低推理延迟。
+
+    Args:
+        model: 已加载的 PPO 模型（SB3 PPO 实例）
+        cache: SchedulerCache 实例，用于缓存决策结果
+    """
+
+    name = "PPO"
+
+    def __init__(self, model: Any, cache: SchedulerCache) -> None:
+        """初始化带缓存的 PPO 策略。
+
+        Args:
+            model: 已加载的 SB3 PPO 模型实例
+            cache: 调度决策缓存实例
+        """
+        self.model = model
+        self.cache = cache
+
+    def select_action(self, obs: np.ndarray) -> int:
+        """选择调度动作，优先查缓存。
+
+        Args:
+            obs: 当前观测向量
+
+        Returns:
+            调度动作索引
+        """
+        cached = self.cache.get(obs)
+        if cached is not None:
+            return cached
+        action, _ = self.model.predict(obs, deterministic=True)
+        action_int = int(action.item())
+        self.cache.put(obs, action_int)
+        return action_int
+
+    def cache_stats(self) -> dict[str, int | float]:
+        """返回缓存统计信息。
+
+        Returns:
+            缓存统计字典
+        """
+        return self.cache.stats()
+
+
+def _run_single_seed(
+    seed: int,
+    seed_idx: int,
+    total_seeds: int,
+    ppo_model: str,
+    dqn_model: str | None,
+    obs_dim: int,
+    episodes_per_seed: int,
+    tasks_per_episode: int,
+    use_cache: bool = False,
+) -> tuple[int, dict[str, dict], dict[str, list[float]], float]:
+    """运行单个 seed 下所有策略×episodes 的评估。
+
+    此函数设计为可独立在 worker 进程中执行：内部调用 build_strategies()
+    加载模型，为每个策略创建独立环境并运行所有 episodes，
+    返回该 seed 的完整结果。
+
+    Args:
+        seed: 随机种子
+        seed_idx: seed 索引（用于进度打印）
+        total_seeds: 总 seed 数（用于进度打印）
+        ppo_model: PPO 模型路径
+        dqn_model: DQN 模型路径（None 表示不加载 DQN）
+        obs_dim: 观测空间维度
+        episodes_per_seed: 每 seed 的 episode 数
+        tasks_per_episode: 每 episode 的最大步数
+        use_cache: 是否启用 PPO 决策缓存
+
+    Returns:
+        (seed, seed_data, rewards_for_seed, elapsed) 元组：
+        - seed: 该 seed 值
+        - seed_data: {strategy_name: {mean_reward, std_reward, rewards}}
+        - rewards_for_seed: {strategy_name: [所有 episode 奖励]}
+        - elapsed: 该 seed 耗时（秒）
+    """
+    seed_start = time.time()
+
+    # 构建/加载策略模型
+    strategies = build_strategies(dqn_path=dqn_model, ppo_path=ppo_model)
+
+    seed_data: dict[str, dict] = {}
+    rewards_for_seed: dict[str, list[float]] = {s.name: [] for s in strategies}
+
+    # 如果启用缓存，将 PPO 策略替换为 CachedPPOStrategy
+    if use_cache:
+        for i, s in enumerate(strategies):
+            if s.name == "PPO" and not isinstance(s, CachedPPOStrategy):
+                strategies[i] = CachedPPOStrategy(s.model, SchedulerCache(max_size=500))
+
+    for strategy in strategies:
+        env = make_env(tasks_per_episode, seed=seed, obs_dim=obs_dim)
+        sim_env = SimulationEnv(
+            env=env,
+            task_generator=SimulationTaskGenerator(seed=seed),
+        )
+
+        ep_rewards = []
+        for ep in range(episodes_per_seed):
+            obs, info = sim_env.reset(seed=seed + ep)
+            ep_reward = 0.0
+            step = 0
+            while step < tasks_per_episode:
+                action = strategy.select_action(obs)
+                obs, reward, terminated, truncated, info = sim_env.step(action)
+                ep_reward += reward
+                step += 1
+                if terminated or truncated:
+                    break
+            ep_rewards.append(float(ep_reward))
+            sim_env.record_episode_stats(info)
+
+        rewards_for_seed[strategy.name].extend(ep_rewards)
+        seed_data[strategy.name] = {
+            "mean_reward": float(np.mean(ep_rewards)),
+            "std_reward": float(np.std(ep_rewards)),
+            "rewards": ep_rewards,
+        }
+
+        with contextlib.suppress(Exception):
+            env.close()
+
+    elapsed = time.time() - seed_start
+    print(f"  Seed {seed_idx + 1}/{total_seeds} (seed={seed}) 完成 ({elapsed:.1f}s)")
+    return seed, seed_data, rewards_for_seed, elapsed
 
 
 def run_multiseed(
@@ -45,8 +184,25 @@ def run_multiseed(
     dqn_model: str = "deliverable_models/dqn_best_model_14dim.zip",
     obs_dim: int = 14,
     alpha: float = 0.05,
+    n_workers: int = 1,
+    use_cache: bool = False,
 ) -> dict:
-    """运行多seed评估并生成统计显著性报告。"""
+    """运行多seed评估并生成统计显著性报告。
+
+    Args:
+        seeds: 随机种子数量
+        episodes_per_seed: 每个seed的episode数
+        tasks_per_episode: 每episode最大步数
+        ppo_model: PPO模型路径
+        dqn_model: DQN模型路径
+        obs_dim: 观测空间维度（10或14）
+        alpha: 显著性水平
+        n_workers: 并行worker进程数（1=串行，保持向后兼容）
+        use_cache: 是否启用PPO决策缓存
+
+    Returns:
+        包含奖励数据、统计摘要的结果字典
+    """
     print("=" * 70)
     print("  多 Seed 策略对比与统计显著性检验")
     print("=" * 70)
@@ -57,6 +213,8 @@ def run_multiseed(
     print(f"  PPO Model:       {ppo_model}")
     print(f"  DQN Model:       {dqn_model}")
     print(f"  Alpha:           {alpha}")
+    print(f"  Workers:         {n_workers}")
+    print(f"  Cache:           {'enabled' if use_cache else 'disabled'}")
     print("=" * 70)
 
     # 构建策略列表（加载模型）
@@ -75,57 +233,69 @@ def run_multiseed(
 
     start_time = time.time()
 
-    for seed_idx, seed in enumerate(seed_list):
-        print(f"\n--- Seed {seed_idx + 1}/{seeds} (seed={seed}) ---")
-        seed_start = time.time()
-        seed_data: dict[str, dict] = {}
+    if n_workers > 1:
+        # ------------------------------------------------------------------
+        # 并行模式：每个 worker 进程独立处理一个 seed
+        # ------------------------------------------------------------------
+        print(f"\n[并行] 使用 {n_workers} 个 worker 进程")
+        with ProcessPoolExecutor(max_workers=n_workers) as executor:
+            futures = []
+            for seed_idx, seed in enumerate(seed_list):
+                futures.append(
+                    executor.submit(
+                        _run_single_seed,
+                        seed=seed,
+                        seed_idx=seed_idx,
+                        total_seeds=seeds,
+                        ppo_model=ppo_model,
+                        dqn_model=dqn_path,
+                        obs_dim=obs_dim,
+                        episodes_per_seed=episodes_per_seed,
+                        tasks_per_episode=tasks_per_episode,
+                        use_cache=use_cache,
+                    )
+                )
 
-        for strategy in strategies:
-            # 为每个策略创建独立环境（用相同seed保证任务序列一致，公平对比）
-            env = make_env(tasks_per_episode, seed=seed, obs_dim=obs_dim)
-            sim_env = SimulationEnv(
-                env=env,
-                task_generator=SimulationTaskGenerator(seed=seed),
+            for future in futures:
+                seed, seed_data, rewards_for_seed, seed_elapsed = future.result()
+                seed_details[str(seed)] = seed_data
+                for sname, rewards in rewards_for_seed.items():
+                    all_episode_rewards[sname].extend(rewards)
+
+                # 打印当前seed摘要
+                ppo_mean = seed_data.get("PPO", {}).get("mean_reward", 0)
+                fcfs_mean = seed_data.get("FCFS", {}).get("mean_reward", 0)
+                imp = (ppo_mean - fcfs_mean) / abs(fcfs_mean) * 100 if fcfs_mean != 0 else 0
+                print(f"  PPO={ppo_mean:.1f}, FCFS={fcfs_mean:.1f}, Δ={imp:+.1f}%")
+    else:
+        # ------------------------------------------------------------------
+        # 串行模式（n_workers=1，保持向后兼容）
+        # ------------------------------------------------------------------
+        for seed_idx, seed in enumerate(seed_list):
+            print(f"\n--- Seed {seed_idx + 1}/{seeds} (seed={seed}) ---")
+            seed, seed_data, rewards_for_seed, seed_elapsed = _run_single_seed(
+                seed=seed,
+                seed_idx=seed_idx,
+                total_seeds=seeds,
+                ppo_model=ppo_model,
+                dqn_model=dqn_path,
+                obs_dim=obs_dim,
+                episodes_per_seed=episodes_per_seed,
+                tasks_per_episode=tasks_per_episode,
+                use_cache=use_cache,
             )
+            seed_details[str(seed)] = seed_data
+            for sname, rewards in rewards_for_seed.items():
+                all_episode_rewards[sname].extend(rewards)
 
-            # 逐episode收集奖励
-            ep_rewards = []
-            for ep in range(episodes_per_seed):
-                obs, info = sim_env.reset(seed=seed + ep)
-                ep_reward = 0.0
-                step = 0
-                while step < tasks_per_episode:
-                    action = strategy.select_action(obs)
-                    obs, reward, terminated, truncated, info = sim_env.step(action)
-                    ep_reward += reward
-                    step += 1
-                    if terminated or truncated:
-                        break
-                ep_rewards.append(float(ep_reward))
-                sim_env.record_episode_stats(info)
-
-            all_episode_rewards[strategy.name].extend(ep_rewards)
-            seed_data[strategy.name] = {
-                "mean_reward": float(np.mean(ep_rewards)),
-                "std_reward": float(np.std(ep_rewards)),
-                "rewards": ep_rewards,
-            }
-
-            # 关闭环境
-            with contextlib.suppress(Exception):
-                env.close()
-
-        seed_elapsed = time.time() - seed_start
-        seed_details[str(seed)] = seed_data
-
-        # 打印当前seed摘要
-        ppo_mean = seed_data.get("PPO", {}).get("mean_reward", 0)
-        fcfs_mean = seed_data.get("FCFS", {}).get("mean_reward", 0)
-        imp = (ppo_mean - fcfs_mean) / abs(fcfs_mean) * 100 if fcfs_mean != 0 else 0
-        print(
-            f"  完成 ({seed_elapsed:.1f}s) | PPO={ppo_mean:.1f}, FCFS={fcfs_mean:.1f}, "
-            f"Δ={imp:+.1f}%"
-        )
+            # 打印当前seed摘要
+            ppo_mean = seed_data.get("PPO", {}).get("mean_reward", 0)
+            fcfs_mean = seed_data.get("FCFS", {}).get("mean_reward", 0)
+            imp = (ppo_mean - fcfs_mean) / abs(fcfs_mean) * 100 if fcfs_mean != 0 else 0
+            print(
+                f"  完成 ({seed_elapsed:.1f}s) | PPO={ppo_mean:.1f}, FCFS={fcfs_mean:.1f}, "
+                f"Δ={imp:+.1f}%"
+            )
 
     total_elapsed = time.time() - start_time
     n_total = seeds * episodes_per_seed
@@ -150,6 +320,8 @@ def run_multiseed(
             "wrapper": "原生 14 维环境" if obs_dim == 14 else "Obs10Wrapper (14→10，公平对比)",
             "arrival_lambda": 0.5,
             "quantum_ratio": 0.7,
+            "n_workers": n_workers,
+            "use_cache": use_cache,
             "timestamp": timestamp,
         },
         "rewards": {k: [float(r) for r in v] for k, v in all_episode_rewards.items()},
@@ -351,6 +523,18 @@ def main():
         "--obs-dim", type=int, default=14, choices=[10, 14], help="观测空间维度：10 或 14（默认14）"
     )
     parser.add_argument("--alpha", type=float, default=0.05, help="显著性水平")
+    parser.add_argument(
+        "--n-workers",
+        type=int,
+        default=1,
+        help="并行worker进程数（默认1=串行，保持向后兼容）",
+    )
+    parser.add_argument(
+        "--use-cache",
+        action="store_true",
+        default=False,
+        help="启用PPO决策缓存（余弦相似度≥0.95时复用决策）",
+    )
     args = parser.parse_args()
 
     run_multiseed(
@@ -361,6 +545,8 @@ def main():
         dqn_model=args.dqn_model,
         obs_dim=args.obs_dim,
         alpha=args.alpha,
+        n_workers=args.n_workers,
+        use_cache=args.use_cache,
     )
 
 

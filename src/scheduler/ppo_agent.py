@@ -22,6 +22,7 @@ from stable_baselines3.common.callbacks import (
 from stable_baselines3.common.monitor import Monitor
 
 from src.quantum.annealing import QuantumAnnealingOptimizer
+from src.scheduler.cache import SchedulerCache
 from src.scheduler.callbacks import (
     AnnealingCallback,
     RealMachineCallback,
@@ -100,6 +101,20 @@ class PPOAgent:
             logger.info(
                 f"[PPOAgent] 量子退火器已启用（{sim_tag}模式），退火间隔={self.anneal_interval}步"
             )
+
+        # 决策缓存（可选功能，Issue #140）
+        # 启用后 predict() 会先查缓存，相似状态直接返回缓存决策
+        # 支持两种启用方式：传入已构造的 cache 对象，或 use_cache=True 自动创建
+        self.cache: SchedulerCache | None = kwargs.get("cache")
+        if self.cache is None and kwargs.get("use_cache", False):
+            self.cache = SchedulerCache(
+                max_size=kwargs.get("cache_max_size", 1000),
+                similarity_threshold=kwargs.get("cache_similarity_threshold", 0.95),
+                ttl_seconds=kwargs.get("cache_ttl_seconds", 300.0),
+            )
+        self.use_cache = self.cache is not None
+        if self.use_cache:
+            logger.info("[PPOAgent] 决策缓存已启用（余弦相似度阈值=0.95）")
 
     def _build_model(self) -> PPO | RecurrentPPO:
         """
@@ -274,6 +289,10 @@ class PPOAgent:
         """
         使用训练好的模型进行调度决策。
 
+        若启用了决策缓存（self.cache 非 None），优先查缓存：
+        - 命中（余弦相似度≥0.95）：直接返回缓存的 action，跳过神经网络前向传播
+        - 未命中：执行正常推理后将结果写入缓存
+
         Args:
             state: 当前环境状态向量
             deterministic: 是否使用确定性策略
@@ -284,11 +303,32 @@ class PPOAgent:
         if self.model is None:
             raise RuntimeError("模型尚未训练！请先调用 train() 方法或使用 load() 加载已训练模型。")
 
-        if state.ndim == 1:
-            state = state.reshape(1, -1)
+        # 决策缓存：相似状态直接返回缓存决策
+        if self.cache is not None:
+            cached = self.cache.get(state)
+            if cached is not None:
+                return cached
 
-        action, _ = self.model.predict(state, deterministic=deterministic)
-        return int(action.item())
+        model_state = state.reshape(1, -1) if state.ndim == 1 else state
+        action, _ = self.model.predict(model_state, deterministic=deterministic)
+        action_int = int(action.item())
+
+        # 写入缓存供后续相似状态复用
+        if self.cache is not None:
+            self.cache.put(state, action_int)
+
+        return action_int
+
+    def cache_stats(self) -> dict[str, int | float]:
+        """
+        返回决策缓存统计信息。
+
+        Returns:
+            缓存统计字典（未启用缓存时返回空字典）
+        """
+        if self.cache is None:
+            return {}
+        return self.cache.stats()
 
     def evaluate(
         self,
@@ -380,6 +420,7 @@ class PPOAgent:
             "vf_coef": self.vf_coef,
             "max_grad_norm": self.max_grad_norm,
             "architecture": "PPO",
+            "use_cache": self.use_cache,
         }
 
     def __repr__(self) -> str:
