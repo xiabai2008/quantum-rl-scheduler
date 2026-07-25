@@ -17,7 +17,7 @@
 - `Cohen's d=-1.73` → 实际是 PPO vs Random 的效应量
 
 **正确数字**（来源: AGENTS.md 权威锁定 + strategy_comparison.md）：
-- PPO vs FCFS: Welch t p=1.032e-42, rank-biserial=-0.71（AGENTS.md 口径）
+- PPO vs FCFS: Mann-Whitney U p=1.032e-42, rank-biserial=-0.71（AGENTS.md 口径）
 - 或 Mann-Whitney U p=1.03e-42, rank-biserial r=-0.708（strategy_comparison.md 口径）
 
 **影响**: 答辩时被问到统计数字来源，如果与 AGENTS.md 不一致会被质疑数据可信度。
@@ -113,6 +113,6 @@
 ## 关联
 
 项目权威数字（不可篡改）：
-- 50seed仿真：PPO=2746.94±1121.19 vs FCFS=1458.77±55.85, 提升+88.3%, Welch t检验 p=1.032e-42, rank-biserial=-0.71
+- 50seed仿真：PPO=2746.94±1160.72 vs FCFS=1458.77±60.47, 提升+88.3%, Mann-Whitney U检验 p=1.032e-42, rank-biserial=-0.71
 - 多seed真机：PPO=1665.22±324.51 vs FCFS=353.22±53.33, Cohen's d=5.64, p=6.83e-04（Bonferroni校正后显著）
 - 所有实验数据和PR必须与以上数字一致
