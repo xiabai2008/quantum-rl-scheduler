@@ -45,7 +45,7 @@ jobs:
       - name: Install lint dependencies
         run: |
           pip install --upgrade pip
-          pip install "ruff>=0.15.0" "bandit>=1.7.0"
+          pip install "ruff>=0.15.0" "bandit>=1.7.0" "pyyaml>=6.0"
 
       - name: Check code formatting (ruff format)
         run: ruff format --check src/ scripts/ tests/
@@ -55,6 +55,9 @@ jobs:
 
       - name: Security scan (bandit)
         run: bandit -c pyproject.toml -r src/ -ll
+
+      - name: Check statistics consistency (Issue #141)
+        run: python scripts/ci/check_stats_consistency.py --strict
 
   # ---------------------------------------------------------------------------
   # Job 2: 单元测试 + 覆盖率（跨平台 × Python 多版本矩阵）
