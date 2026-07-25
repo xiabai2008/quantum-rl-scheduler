@@ -46,13 +46,18 @@ python scripts/demo/demo_multi_machine.py --ppo-model deliverable_models/ppo_bes
 
 ## 最终权威指标（答辩统一口径）
 
+> **统计口径权威源**: `config/statistics.yaml`（Issue #141 建立单一权威统计源）
+> 所有文档中的统计数字必须可追溯至该源，由 `scripts/ci/check_stats_consistency.py` 验证一致性。
+
 | 指标 | 数值 | 统计检验 |
 |:--|:--|:--|
-| PPO vs FCFS 提升 | **+88.3%** | Welch t, p=3.04×10⁻¹¹, d=1.70 |
+| PPO vs FCFS 提升 | **+88.3%** | Mann-Whitney U, p=1.032e-42, rank-biserial=-0.7081（权威源: config/statistics.yaml） |
 | PPO 平均奖励 | 2746.94（SD=1160.72，SE=73.41，N=250：50 seeds × 5 episodes） | — |
 | FCFS 平均奖励 | 1458.77 ± 60.47（SE=10） | 基线 |
 | 多机器 MAPPO | +86.3% vs 单机 PPO | — |
 | 真机验证 | 32 任务 100% 成功率 | 可用性验证 |
+
+> **历史p值说明**: p=3.04×10⁻¹¹（Welch t, d=1.70）为早期实验参考值，已被8策略50seed权威实验（Mann-Whitney U, p=1.032e-42）取代。详见 `config/statistics.yaml` 中 `deprecated` 章节。
 
 ## 注意事项
 
