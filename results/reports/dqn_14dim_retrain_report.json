@@ -71,9 +71,9 @@
   "degradation_fixed": true,
   "authoritative_reference": {
     "ppo_mean": 2746.94,
-    "ppo_std": 1121.19,
+    "ppo_std": 1160.72,
     "fcfs_mean": 1458.77,
-    "fcfs_std": 55.85,
+    "fcfs_std": 60.47,
     "improvement": 88.3,
     "note": "本报告DQN数据为14维环境独立评估，与权威数字（10维Obs10Wrapper环境）不可直接数值对比，仅用于验证DQN > Random（退化已修复）"
   },
