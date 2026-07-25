@@ -8,12 +8,14 @@
 
 | 指标 | 出现次数 |
 |------|----------|
-| Cohen's d | 9 |
+| Cohen's d | 8 |
+| rank-biserial | 1 |
 | FCFS 平均奖励 | 18 |
 | N=250 样本量 | 35 |
 | PPO 平均奖励 | 28 |
 | PPO 相对 FCFS 提升 | 69 |
-| Welch t 检验 p 值 | 3 |
+| Mann-Whitney U 检验 p 值 | 1 |
+| Welch t 检验 p 值 | 2 |
 
 ## 2. 权威数字溯源表（commit → 数字 → 报告）
 
@@ -23,8 +25,8 @@
 | PPO 相对 FCFS 提升 | `AGENTS.md` | 234 | `22e13f4627d8` | 胡展瑞 | 2026-07-20 |
 | N=250 样本量 | `AGENTS.md` | 236 | `22e13f4627d8` | 胡展瑞 | 2026-07-20 |
 | N=250 样本量 | `AGENTS.md` | 238 | `22e13f4627d8` | 胡展瑞 | 2026-07-20 |
-| Cohen's d | `AGENTS.md` | 239 | `69a9fcc51a02` | xiabai2004 | 2026-07-11 |
-| Welch t 检验 p 值 | `AGENTS.md` | 239 | `69a9fcc51a02` | xiabai2004 | 2026-07-11 |
+| rank-biserial | `AGENTS.md` | 239 | `69a9fcc51a02` | xiabai2004 | 2026-07-11 |
+| Mann-Whitney U 检验 p 值 | `AGENTS.md` | 239 | `69a9fcc51a02` | xiabai2004 | 2026-07-11 |
 | PPO 平均奖励 | `AGENTS.md` | 243 | `22e13f4627d8` | 胡展瑞 | 2026-07-20 |
 | PPO 相对 FCFS 提升 | `AGENTS.md` | 243 | `22e13f4627d8` | 胡展瑞 | 2026-07-20 |
 | FCFS 平均奖励 | `AGENTS.md` | 245 | `22e13f4627d8` | 胡展瑞 | 2026-07-20 |

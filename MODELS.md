@@ -13,7 +13,7 @@
 
 | 策略 | 提交路径（可复现） | 训练说明 | 体积 | 复现指标 |
 |------|-------------------|----------|------|----------|
-| **PPO（14维）** | `deliverable_models/ppo_best_model_14dim.zip` | 14维原生环境，50000 steps，seed=42 | ~267 KB | PPO 奖励 **2746.94**（50 seed × 5 ep，+88.3% vs FCFS，d=1.70） |
+| **PPO（14维）** | `deliverable_models/ppo_best_model_14dim.zip` | 14维原生环境，50000 steps，seed=42 | ~267 KB | PPO 奖励 **2746.94**（50 seed × 5 ep，+88.3% vs FCFS，rank-biserial=-0.71） |
 | **DQN（14维）** | `deliverable_models/dqn_best_model_14dim.zip` | 14维原生环境，50000 steps，Double DQN + reward clip | ~216 KB | DQN 奖励 **1527.65**（排名 6/8，在14维环境退化为近Quantum-Only） |
 | **DQN（10维）** | `deliverable_models/dqn_best_model_10dim.zip` | 10维环境（Obs10Wrapper），50000 steps | ~216 KB | DQN 奖励 **1527.65**（排名 6/8，在14维环境退化为近Quantum-Only） |
 

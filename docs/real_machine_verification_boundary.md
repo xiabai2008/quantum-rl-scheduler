@@ -113,7 +113,7 @@ p=0.344 来自 Issue #164 真机闭环训练实验中的 mixed_real（混合真�
 | 样本量 | N=250（50 seeds × 5 episodes） | N=5-15 |
 | 观测维度 | 14维（原生环境） | 14维（原生） |
 | 任务规模 | 200 tasks/episode, 多种类型 | 1-3 qubit 单比特门 |
-| 统计检验 | Welch t, p=1.032e-42, rank-biserial=-0.71 | Welch t, p=0.344 (mixed vs sim) |
+| 统计检验 | Mann-Whitney U, p=1.032e-42, rank-biserial=-0.71 | Welch t, p=0.344 (mixed vs sim) |
 | PPO vs FCFS | +88.3%, p<0.001 | +371.4%*, p=6.83e-04* |
 | 结论级别 | **性能验证** | **可用性验证**（+ 小样本策略对比） |
 
