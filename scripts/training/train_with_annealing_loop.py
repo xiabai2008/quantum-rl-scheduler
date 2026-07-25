@@ -58,6 +58,13 @@ def parse_args() -> argparse.Namespace:
         help="使用模拟退火（默认 True）",
     )
     parser.add_argument(
+        "--annealing-mode",
+        type=str,
+        default="head_only",
+        choices=["head_only", "hierarchical"],
+        help="退火模式：head_only（仅优化头部网络）或 hierarchical（全量分层退火），默认 head_only",
+    )
+    parser.add_argument(
         "--seed",
         type=int,
         default=42,
@@ -130,6 +137,7 @@ def main() -> None:
         max_interval=20000,
         improvement_threshold=0.0,
         log_path="results/annealing_loop_log.json",
+        annealing_mode=args.annealing_mode,
     )
 
     # 评估回调：周期性保存最优模型

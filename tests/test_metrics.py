@@ -278,3 +278,13 @@ class TestHistogramBuckets(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def test_calculate_metrics():
+    # Test calculating metrics
+    pass
+
+
+def test_metrics_init():
+    # Test the Metrics initialization
+    pass

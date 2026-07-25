@@ -62,6 +62,7 @@ class AsyncAnnealingLoop:
         retry_delays: list[float] | None = None,
         log_path: str = "results/annealing_loop_log.json",
         queue_maxsize: int = 1,
+        annealing_mode: str = "head_only",
     ):
         """
         初始化异步退火闭环
@@ -78,6 +79,7 @@ class AsyncAnnealingLoop:
             retry_delays        : 真机失败重试等待时间列表，默认 [5.0, 15.0]
             log_path            : 效果日志保存路径
             queue_maxsize       : 任务队列最大长度，默认 1（避免堆积）
+            annealing_mode      : 退火模式，"head_only"（仅优化头部网络）或 "hierarchical"（全量分层退火），默认 "head_only"
         """
         self.optimizer = optimizer
         self.validation_env = validation_env
@@ -88,6 +90,7 @@ class AsyncAnnealingLoop:
         self.improvement_threshold = float(improvement_threshold)
         self.retry_delays = retry_delays if retry_delays is not None else [5.0, 15.0]
         self.log_path = str(log_path)
+        self.annealing_mode = str(annealing_mode)
 
         self._current_interval = int(initial_interval)
         self._consecutive_good = 0
@@ -233,6 +236,10 @@ class AsyncAnnealingLoop:
         """
         执行退火优化，并处理真机失败重试与降级
 
+        退火模式路由：
+            - "head_only": 仅优化网络头部（action_net + value_net，约260参数）
+            - "hierarchical": 全量分层退火，按张量分块优化所有参数（约2000+参数）
+
         重试策略：
             - 第一次在真机模式下失败，等待 retry_delays[0] 秒后重试
             - 第二次失败，等待 retry_delays[1] 秒后重试
@@ -246,9 +253,19 @@ class AsyncAnnealingLoop:
         Returns:
             优化后的 agent_wrapper
         """
+        def _optimize() -> Any:
+            if self.annealing_mode == "hierarchical":
+                return self.optimizer.optimize_policy_hierarchical(
+                    agent_wrapper,
+                    max_params_per_block=200,
+                    block_strategy="tensor_wise",
+                )
+            else:
+                return self.optimizer.optimize_policy(agent_wrapper, head_only=True)
+
         for attempt, delay in enumerate(self.retry_delays):
             try:
-                return self.optimizer.optimize_policy(agent_wrapper, head_only=True)
+                return _optimize()
             except Exception as e:
                 # 优化器内部涉及退火与权重更新，异常类型无法穷举，保留宽捕获并记录日志
                 if getattr(self.optimizer, "simulation_mode", True):
@@ -263,7 +280,7 @@ class AsyncAnnealingLoop:
         try:
             logger.warning(f"[退火闭环] 步数 {step}: 真机退火重试耗尽，降级为仿真退火")
             self.optimizer.simulation_mode = True
-            return self.optimizer.optimize_policy(agent_wrapper, head_only=True)
+            return _optimize()
         except Exception as e:
             # 仿真退火仍可能失败（权重更新/张量运算），保留宽捕获并记录日志
             logger.error(f"[退火闭环] 步数 {step}: 仿真退火也失败 ({type(e).__name__}: {e})")

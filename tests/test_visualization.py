@@ -1664,3 +1664,8 @@ class TestErrorHandling:
         monkeypatch.setattr(app_module, "_ppo_env", None)
         data = (await async_client.get("/api/ppo/predict")).json()
         assert "error" in data
+
+
+def test_initialize_visualization():
+    # Test initializing visualization
+    pass

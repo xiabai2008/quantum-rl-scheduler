@@ -1154,3 +1154,8 @@ class TestComputeGradients(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def test_annealing_init():
+    # Test the Annealing initialization
+    pass

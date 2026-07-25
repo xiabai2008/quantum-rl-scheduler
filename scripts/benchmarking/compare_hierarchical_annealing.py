@@ -16,6 +16,7 @@ import json
 import os
 import sys
 import time
+import types
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -372,6 +373,168 @@ def print_report(report: ComparisonReport) -> None:
 # ============================================================
 # 主入口
 # ============================================================
+def _evaluate_simple(policy: Any) -> float:
+    """简单评估策略网络质量：计算所有参数的L2范数"""
+    total_norm = 0.0
+    for param in policy.parameters():
+        total_norm += param.norm().item() ** 2
+    return float(np.sqrt(total_norm))
+
+
+def run_real_env_comparison(
+    model_path: str,
+    obs_dim: int = 14,
+    seeds: list[int] | None = None,
+    modes: list[str] | None = None,
+    output_path: str | None = None,
+    num_iterations: int = 5,
+) -> ComparisonReport:
+    """
+    在真实14维环境上运行 head_only vs hierarchical 对比实验。
+
+    Args:
+        model_path:    PPO模型路径
+        obs_dim:       观察空间维度（默认14）
+        seeds:         随机种子列表
+        modes:         对比模式列表
+        output_path:   结果保存路径
+        num_iterations: 每个seed的退火迭代次数
+
+    Returns:
+        ComparisonReport 对比报告
+    """
+    from stable_baselines3 import PPO
+
+    if seeds is None:
+        seeds = [42, 123, 456, 789, 1024]
+    if modes is None:
+        modes = ["head_only", "hierarchical"]
+
+    os.environ["QUANTUM_ACCELERATION_ENABLED"] = "1"
+    from src.quantum import annealing as annealing_mod
+
+    annealing_mod.QUANTUM_ACCELERATION_ENABLED = True
+
+    report = ComparisonReport(title="真实14维环境分层退火对比报告")
+
+    print(f"加载模型: {model_path}")
+    if not os.path.exists(model_path):
+        print(f"警告: 模型文件不存在 {model_path}, 使用模拟网络")
+        model = None
+        hidden_dim = 64
+        input_dim = obs_dim
+        output_dim = 5
+        policy = nn.Sequential(
+            nn.Linear(input_dim, hidden_dim),
+            nn.ReLU(),
+            nn.Linear(hidden_dim, hidden_dim),
+            nn.ReLU(),
+            nn.Linear(hidden_dim, output_dim),
+        )
+    else:
+        model = PPO.load(model_path)
+        policy = model.policy
+
+    total_params = sum(p.numel() for p in policy.parameters())
+    num_tensors = len(list(policy.parameters()))
+    print(f"模型参数: {total_params} 参数 / {num_tensors} 张量")
+
+    opt = QuantumAnnealingOptimizer(num_qubits=16)
+
+    report.summary["model_path"] = model_path
+    report.summary["obs_dim"] = obs_dim
+    report.summary["total_params"] = total_params
+    report.summary["num_tensors"] = num_tensors
+    report.summary["seeds"] = seeds
+    report.summary["iterations_per_seed"] = num_iterations
+
+    for seed in seeds:
+        np.random.seed(seed)
+        torch.manual_seed(seed)
+
+        print(f"\n--- Seed {seed} ---")
+
+        for mode in modes:
+            if model is not None:
+                policy_copy = type(policy)(policy.observation_space, policy.action_space, policy.lr_schedule)
+                policy_copy.load_state_dict(policy.state_dict())
+            else:
+                policy_copy = type(policy)(*policy.children())
+                policy_copy.load_state_dict(policy.state_dict())
+
+            agent = types.SimpleNamespace(policy=policy_copy)
+
+            start = time.perf_counter()
+
+            for iteration in range(num_iterations):
+                loss_before = _evaluate_simple(policy_copy)
+
+                if mode == "head_only":
+                    opt.optimize_policy(
+                        agent,
+                        num_iterations=1,
+                        learning_rate=0.01,
+                        head_only=True,
+                        max_head_tensors=4,
+                    )
+                elif mode == "hierarchical":
+                    opt.optimize_policy_hierarchical(
+                        agent,
+                        num_iterations=1,
+                        learning_rate=0.01,
+                        max_params_per_block=200,
+                        block_strategy="tensor_wise",
+                    )
+
+                loss_after = _evaluate_simple(policy_copy)
+                improvement = (loss_before - loss_after) / max(loss_before, 1e-8) * 100
+                duration = time.perf_counter() - start
+
+                report.results.append(
+                    RunResult(
+                        mode=mode,
+                        iteration=iteration,
+                        loss_before=loss_before,
+                        loss_after=loss_after,
+                        improvement_pct=improvement,
+                        accepted=loss_after <= loss_before,
+                        duration_sec=duration,
+                        num_params=total_params,
+                        num_blocks=num_tensors if mode == "hierarchical" else 1,
+                    )
+                )
+
+            recent_results = [r for r in report.results if r.mode == mode]
+            if recent_results:
+                avg_imp = np.mean([r.improvement_pct for r in recent_results[-num_iterations:]])
+                print(f"  {mode}: 平均改进 {avg_imp:+.2f}%")
+
+    if output_path:
+        report_data = {
+            "title": report.title,
+            "summary": report.summary,
+            "results": [
+                {
+                    "mode": r.mode,
+                    "iteration": r.iteration,
+                    "loss_before": r.loss_before,
+                    "loss_after": r.loss_after,
+                    "improvement_pct": r.improvement_pct,
+                    "accepted": r.accepted,
+                    "duration_sec": r.duration_sec,
+                    "num_params": r.num_params,
+                    "num_blocks": r.num_blocks,
+                }
+                for r in report.results
+            ],
+        }
+        with open(output_path, "w", encoding="utf-8") as f:
+            json.dump(report_data, f, indent=2, ensure_ascii=False)
+        print(f"\n报告已保存至: {output_path}")
+
+    return report
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="分层退火 vs head_only 退火对比基准测试")
     parser.add_argument("--quick", action="store_true", help="快速模式（使用小网络和少迭代）")
@@ -385,16 +548,32 @@ def main() -> int:
         help="运行模式（默认 all）",
     )
     parser.add_argument("--output", type=str, default=None, help="保存报告 JSON 文件的路径")
+    parser.add_argument("--real-env", action="store_true", help="使用真实14维环境和PPO模型")
+    parser.add_argument("--model-path", type=str, default="deliverable_models/ppo_best_model_14dim.zip", help="PPO模型路径")
+    parser.add_argument("--seeds", type=int, nargs="+", default=[42, 123, 456, 789, 1024], help="随机种子列表")
     args = parser.parse_args()
 
-    # 快速模式覆盖
+    if args.real_env:
+        print("=" * 60)
+        print("真实14维环境分层退火对比实验")
+        print("=" * 60)
+        report = run_real_env_comparison(
+            model_path=args.model_path,
+            obs_dim=14,
+            seeds=args.seeds,
+            modes=["head_only", "hierarchical"],
+            output_path=args.output,
+            num_iterations=args.iterations,
+        )
+        print_report(report)
+        return 0
+
     if args.quick:
         args.hidden_dim = 32
         args.iterations = 5
 
     modes = ["head_only", "hierarchical"] if args.mode == "all" else [args.mode]
 
-    # 运行对比
     report = compare_modes(
         env_size=args.env_size,
         hidden_dim=args.hidden_dim,
@@ -404,7 +583,6 @@ def main() -> int:
 
     print_report(report)
 
-    # 保存报告
     if args.output:
         report_data = {
             "title": report.title,

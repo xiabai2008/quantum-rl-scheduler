@@ -77,3 +77,7 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
                 await websocket.send_json({"type": "pong"})
     except WebSocketDisconnect:
         _app.manager.disconnect(websocket)
+
+    # Ensure the message is processed and sent back to the client if needed
+    # For example, sending processed data to the client
+    # ws.send(processed_data)

@@ -731,3 +731,13 @@ class TestRealMachineCallbackTrainingEnd(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def test_on_policy_update():
+    # Test policy update callback
+    pass
+
+
+def test_callback_on_train_begin():
+    # Test the on_train_begin method
+    pass

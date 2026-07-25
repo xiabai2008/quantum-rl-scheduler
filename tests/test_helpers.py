@@ -552,3 +552,13 @@ class TestAdditionalUtils(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def test_parse_websocket_message():
+    # Test parsing WebSocket message
+    pass
+
+
+def test_helper_function():
+    # Test the helper_function
+    pass

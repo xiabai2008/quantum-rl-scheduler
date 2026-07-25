@@ -263,3 +263,8 @@ __all__ = [
     "find_latest_checkpoint",
     "resume_training",
 ]
+
+
+def bind_data_to_chart(chart: Any, data: Any) -> None:
+    # Bind real-time data to the chart for dynamic updates
+    pass

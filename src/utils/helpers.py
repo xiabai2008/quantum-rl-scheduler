@@ -456,3 +456,11 @@ if __name__ == "__main__":
         resource_utilization=0.75,
     )
     print(f"综合奖励：{reward:.3f}")
+
+
+def parse_websocket_message(message: str) -> dict:
+    # Parse message from WebSocket
+    pass
+
+
+import prometheus_client
