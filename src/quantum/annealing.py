@@ -898,7 +898,8 @@ class QuantumAnnealingOptimizer:
             f"开始分层/分块量子退火 ({block_strategy}): "
             f"{num_iterations} 轮, 全量 {total_tensors} 张量/{total_params_count} 参数, "
             f"分为 {len(blocks)} 块, 每块 ≤{max_params_per_block} 参数, "
-            f"预估每块 QUBO ≤{(max_params_per_block * n_bits_per_weight) ** 2 * 8 / 1024 / 1024:.1f} MB"
+            _qubo_mb = (max_params_per_block * n_bits_per_weight) ** 2 * 8 / 1024 / 1024
+            f"预估每块 QUBO ≤{_qubo_mb:.1f} MB"
         )
 
         # 初始评估
