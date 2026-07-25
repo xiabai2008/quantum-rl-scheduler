@@ -103,7 +103,8 @@ def random_sample_qubo(qubo_matrix: np.ndarray, num_samples: int = 1000) -> str:
     best_bits = np.zeros(n, dtype=np.float64)
     for _ in range(num_samples):
         bits = np.random.randint(0, 2, n).astype(np.float64)
-        energy = QuantumAnnealingOptimizer._compute_qubo_energy(  # type: ignore[attr-defined]  依赖内部实现，后续重构时需同步更新
+        energy = QuantumAnnealingOptimizer._compute_qubo_energy(
+            # type: ignore[attr-defined]  依赖内部实现，后续重构时需同步更新
             bits, qubo_matrix
         )
         if energy < best_energy:
@@ -151,7 +152,9 @@ class _AnnealingCallbackProxy(BaseCallback):
                     # monkey-patch 不会设置 _last_solver，手动修正
                     self.optimizer._last_solver = "random"  # type: ignore[attr-defined]
                     if hasattr(self.optimizer, "_last_anneal_stats"):
-                        self.optimizer._last_anneal_stats["solver"] = "random"  # type: ignore[attr-defined]
+                        self.optimizer._last_anneal_stats[
+                            "solver"
+                        ] = "random"  # type: ignore[attr-defined]
                 else:
                     self.optimizer.optimize_policy(self.model, head_only=True)
             except Exception as e:
@@ -288,7 +291,8 @@ def evaluate_qubo_solvers(
         energy_a = None
 
     # B: numpy SA
-    bitstring_b = optimizer._numpy_simulated_annealing(  # type: ignore[attr-defined]  依赖内部实现，后续重构时需同步更新
+    bitstring_b = optimizer._numpy_simulated_annealing(
+        # type: ignore[attr-defined]  依赖内部实现，后续重构时需同步更新
         qubo
     )
     bits_b = np.array([int(b) for b in bitstring_b], dtype=np.float64)
@@ -458,7 +462,8 @@ def _generate_markdown(report: dict[str, Any], path: str) -> None:
     # QUBO 表格
     lines.extend(
         [
-            "| Seed | QUBO 大小 | A (neal) 能量 | A gap | B (numpy SA) 能量 | B gap | C (random) 能量 | C gap |",
+            "| Seed | QUBO 大小 | A (neal) 能量 |"
+            " A gap | B (numpy SA) 能量 | B gap |" C (random) 能量 | C gap |",
             "|------|-----------|---------------|-------|-------------------|-------|-----------------|-------|",
         ]
     )
@@ -703,7 +708,8 @@ def run_experiment(seeds: list[int], total_timesteps: int) -> dict[str, Any]:
         print(f"        最终 reward={final_r:.1f}  耗时={r_d['train_time_s']:.0f}s")
 
         # 用 D 的策略网络构建 QUBO 问题
-        policy_net_d = QuantumAnnealingOptimizer._get_full_policy(  # type: ignore[attr-defined]  依赖内部实现，后续重构时需同步更新
+        policy_net_d = QuantumAnnealingOptimizer._get_full_policy(
+            # type: ignore[attr-defined]  依赖内部实现，后续重构时需同步更新
             agent_d.model
         )
         optimizer = QuantumAnnealingOptimizer(num_qubits=ANNEAL_QUBITS)
