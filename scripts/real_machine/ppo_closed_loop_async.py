@@ -358,12 +358,20 @@ class TrainingRecordCallback:
 
     在 PPO 训练完成每个 step 后被调用，记录当前真机状态统计、
     奖励分布和已完成的真机任务数。
+
+    Issue #134 修复：
+    - 新增 ``real_task_records`` 单独记录每个真机任务（成功/失败）的完整信息
+    - 失败任务记录具体错误原因和分类（timeout/run_failure/network/unknown）
+    - 降级触发时记录降级原因和触发任务
+    - ``save()`` 输出包含 ``records`` (训练步) 和 ``real_task_records`` (真机任务) 两部分
     """
 
     def __init__(self, output_dir: Path):
         self.output_dir = output_dir
         self.output_dir.mkdir(parents=True, exist_ok=True)
         self.records: list[dict[str, Any]] = []
+        # Issue #134: 真机任务单独记录，确保每个任务（成功/失败）都有完整信息
+        self.real_task_records: list[dict[str, Any]] = []
         self.start_time = time.perf_counter()
 
     def on_step(self, timestep: int, env: QuantumSchedulingEnv, reward: float) -> None:
@@ -383,10 +391,98 @@ class TrainingRecordCallback:
         }
         self.records.append(record)
 
+    def on_real_task_completed(
+        self,
+        task_id_str: str,
+        status: dict[str, Any],
+        machine_name: str = "unknown",
+    ) -> None:
+        """Issue #134: 记录一个真机任务完成（成功）的完整信息。
+
+        Args:
+            task_id_str: 环境内部任务 ID
+            status: cqlib 返回的任务状态字典
+            machine_name: 提交的机器名
+        """
+        elapsed = time.perf_counter() - self.start_time
+        self.real_task_records.append(
+            {
+                "task_id_str": task_id_str,
+                "machine_name": machine_name,
+                "outcome": "success",
+                "result_status": status.get("resultStatus", ""),
+                "elapsed_sec": round(elapsed, 2),
+                "raw_status_keys": list(status.keys()) if isinstance(status, dict) else [],
+            }
+        )
+
+    def on_real_task_failed(
+        self,
+        task_id_str: str,
+        reason: str,
+        machine_name: str = "unknown",
+    ) -> None:
+        """Issue #134: 记录一个真机任务失败的完整信息（含原因分类）。
+
+        失败原因分类：
+        - ``timeout``: 轮询超时（max_wait_seconds 内未拿到结果）
+        - ``run_failure``: 真机运行失败（cqlib 返回"运行失败"）
+        - ``network``: 网络/HTTP 错误
+        - ``unknown``: 其他原因
+
+        Args:
+            task_id_str: 环境内部任务 ID
+            reason: 失败原因描述
+            machine_name: 提交的机器名
+        """
+        elapsed = time.perf_counter() - self.start_time
+        # 失败原因分类
+        reason_lower = reason.lower() if reason else ""
+        if "超时" in reason or "timeout" in reason_lower:
+            failure_category = "timeout"
+        elif "运行失败" in reason or "run failure" in reason_lower:
+            failure_category = "run_failure"
+        elif "network" in reason_lower or "http" in reason_lower or "connection" in reason_lower:
+            failure_category = "network"
+        else:
+            failure_category = "unknown"
+
+        self.real_task_records.append(
+            {
+                "task_id_str": task_id_str,
+                "machine_name": machine_name,
+                "outcome": "failed",
+                "failure_category": failure_category,
+                "failure_reason": reason,
+                "elapsed_sec": round(elapsed, 2),
+            }
+        )
+
+    def on_degraded(self, trigger_reason: str, trigger_task_id: str = "") -> None:
+        """Issue #134: 记录降级触发事件。"""
+        elapsed = time.perf_counter() - self.start_time
+        self.real_task_records.append(
+            {
+                "event": "degraded",
+                "trigger_reason": trigger_reason,
+                "trigger_task_id": trigger_task_id,
+                "elapsed_sec": round(elapsed, 2),
+            }
+        )
+
     def save(self, prefix: str = "training") -> Path:
-        """保存训练记录到 JSON。"""
+        """保存训练记录到 JSON。
+
+        Issue #134: 输出包含两部分：
+        - ``records``: 训练步记录（每步统计快照）
+        - ``real_task_records``: 真机任务记录（每个任务的完整信息，含失败原因）
+        """
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         filepath = self.output_dir / f"{prefix}_record_{timestamp}.json"
+        # 统计汇总
+        success_count = sum(1 for r in self.real_task_records if r.get("outcome") == "success")
+        failed_count = sum(1 for r in self.real_task_records if r.get("outcome") == "failed")
+        degraded_count = sum(1 for r in self.real_task_records if r.get("event") == "degraded")
         with open(filepath, "w", encoding="utf-8") as f:
             json.dump(
                 {
@@ -394,6 +490,23 @@ class TrainingRecordCallback:
                     "timestamp": datetime.now().astimezone().isoformat(),
                     "total_elapsed_sec": round(time.perf_counter() - self.start_time, 2),
                     "records": self.records,
+                    # Issue #134: 真机任务记录，确保每个任务都有完整信息
+                    "real_task_records": self.real_task_records,
+                    # 汇总统计
+                    "summary": {
+                        "total_real_tasks": success_count + failed_count,
+                        "success_count": success_count,
+                        "failed_count": failed_count,
+                        "degraded_events": degraded_count,
+                        "failure_categories": {
+                            cat: sum(
+                                1
+                                for r in self.real_task_records
+                                if r.get("failure_category") == cat
+                            )
+                            for cat in ["timeout", "run_failure", "network", "unknown"]
+                        },
+                    },
                 },
                 f,
                 indent=2,
@@ -430,7 +543,15 @@ def main() -> None:
     )
     parser.add_argument("--poll-interval", type=float, default=5.0, help="后台轮询间隔（秒）")
     parser.add_argument("--max-wait", type=float, default=120.0, help="单任务最大等待时间（秒）")
-    parser.add_argument("--degrade-threshold", type=int, default=5, help="连续失败多少次降级")
+    parser.add_argument(
+        "--degrade-threshold",
+        type=int,
+        default=8,
+        # Issue #134: 从 5 提高到 8，避免真机队列短暂积压时过早降级。
+        # 原阈值 5 在 2000 步训练中 10/38 失败即触发降级，导致后半程完全无真机。
+        # 8 次阈值给予更多恢复机会，配合失败原因记录可区分"短暂抖动"和"持续故障"。
+        help="连续失败多少次降级（默认 8，原 5 过于敏感）",
+    )
     parser.add_argument(
         "--max-workers", type=int, default=5, help="后台轮询并行查询线程数（默认 5）"
     )
@@ -502,6 +623,10 @@ def main() -> None:
     # ── 步骤 2: 绑定真机客户端 ──
     print("\n--- [2/5] 绑定真机客户端 ---")
     async_poller: AsyncResultPoller | None = None
+    # Issue #134: 提前创建训练记录回调，确保从第一个真机任务开始就有完整记录。
+    # 原代码在步骤4才创建，导致步骤2a 的回调无法引用（nonlocal 失败），
+    # 且早期完成的真机任务记录丢失。
+    record_cb = TrainingRecordCallback(output_dir)
 
     if not args.mock:
         api_key = os.environ.get("TIANYAN_API_KEY", "")
@@ -615,19 +740,23 @@ def main() -> None:
         env._poll_pending_real_tasks = types.MethodType(_async_patched_poll, env)  # type: ignore[method-assign]
 
         # ── 步骤 2a: 创建并启动异步轮询器 ──
-        from src.scheduler.env_real_machine import (
-            _update_task_duration,
-            record_real_failure,
-        )
+        # Issue #134: 仅导入 _update_task_duration，不再导入 record_real_failure。
+        # 原因：record_real_failure 内部会再次 +1 fail_count 和 consecutive_failures，
+        # 与 _on_real_failed 中的手动 +1 重复，导致 fail_count 双倍计数。
+        # 现在由 _on_real_failed 完整接管计数和降级判断，使用 args.degrade_threshold
+        # 而非 env_real_machine.py 中硬编码的 REAL_MACHINE_DEGRADE_FAIL_THRESHOLD=3。
+        from src.scheduler.env_real_machine import _update_task_duration
 
         def _on_real_completed(task_id_str: str, status: dict[str, Any]) -> None:
             """真机任务完成回调：更新环境统计和奖励。"""
-            nonlocal env
+            nonlocal env, record_cb
             env._real_success_count += 1
             env._real_consecutive_failures = 0
             actual_duration = status.get("raw", {}).get("executionTime", None)
             _update_task_duration(env, task_id_str, actual_duration)
             total_real = env._real_success_count + env._real_fail_count
+            # Issue #134: 记录真机任务完成信息
+            record_cb.on_real_task_completed(task_id_str, status, args.machine)
             print(
                 f"  [真机OK] 任务 {task_id_str} 完成! "
                 f"total_success={env._real_success_count} "
@@ -639,16 +768,28 @@ def main() -> None:
                 env._real_machine_degraded = True
                 if async_poller:
                     async_poller.set_degraded(True)
+                record_cb.on_degraded(
+                    trigger_reason=f"真机任务达上限 {args.max_real_tasks}",
+                    trigger_task_id=task_id_str,
+                )
                 print(
                     f"  [限流] 真机任务已达上限 {args.max_real_tasks}，自动切换仿真模式", flush=True
                 )
 
         def _on_real_failed(task_id_str: str, reason: str) -> None:
-            """真机任务失败回调：更新环境统计，触发降级检查。"""
-            nonlocal env
+            """真机任务失败回调：更新环境统计，触发降级检查。
+
+            Issue #134 修复：
+            - 不再调用 record_real_failure（避免 fail_count 双倍计数）
+            - 完整接管计数和降级判断，使用 args.degrade_threshold
+            - 记录失败任务详情到 record_cb.real_task_records
+            - 降级触发时记录降级原因
+            """
+            nonlocal env, record_cb
             env._real_fail_count += 1
             env._real_consecutive_failures += 1
-            record_real_failure(env, args.machine, reason)
+            # Issue #134: 记录失败任务详情（含原因分类）
+            record_cb.on_real_task_failed(task_id_str, reason, args.machine)
             total_real = env._real_success_count + env._real_fail_count
             print(
                 f"  [真机FAIL] 任务 {task_id_str} 失败: {reason} "
@@ -658,6 +799,12 @@ def main() -> None:
             # 降级条件 1：连续失败超阈值
             if env._real_consecutive_failures >= args.degrade_threshold:
                 env._real_machine_degraded = True
+                # Issue #134: 记录降级触发事件
+                record_cb.on_degraded(
+                    trigger_reason=f"连续失败 {env._real_consecutive_failures} 次 "
+                    f"(阈值={args.degrade_threshold})",
+                    trigger_task_id=task_id_str,
+                )
                 logger.warning(
                     f"[异步回调] 连续失败 {env._real_consecutive_failures} 次，自动降级为仿真模式"
                 )
@@ -670,6 +817,10 @@ def main() -> None:
                 env._real_machine_degraded = True
                 if async_poller:
                     async_poller.set_degraded(True)
+                record_cb.on_degraded(
+                    trigger_reason=f"真机任务达上限 {args.max_real_tasks}",
+                    trigger_task_id=task_id_str,
+                )
                 print(
                     f"  [限流] 真机任务已达上限 {args.max_real_tasks}，自动切换仿真模式", flush=True
                 )
@@ -746,15 +897,38 @@ def main() -> None:
 
     # ── 步骤 4: 开始训练 ──
     print("\n--- [4/5] 开始训练 ---")
-    record_cb = TrainingRecordCallback(output_dir)
+    # Issue #134: record_cb 已在步骤2提前创建（确保真机回调能引用）
 
     t0 = time.perf_counter()
+
+    # Issue #134: 创建 SB3 BaseCallback 包装，确保 record_cb.on_step() 被调用。
+    # 原代码 TrainingRecordCallback.on_step() 从未被调用，导致 records 字段为空。
+    from stable_baselines3.common.callbacks import BaseCallback
+
+    class _StepRecorder(BaseCallback):
+        """SB3 回调包装：每个 n_steps 调用 record_cb.on_step() 记录训练步信息。"""
+
+        def __init__(self, cb: TrainingRecordCallback, env: QuantumSchedulingEnv) -> None:
+            super().__init__(verbose=0)
+            self._cb = cb
+            self._env = env
+
+        def _on_step(self) -> bool:
+            # self.num_timesteps 是 SB3 维护的全局步数
+            # self.locals["rewards"] 是当前 batch 的奖励数组
+            rewards = self.locals.get("rewards", [])
+            avg_reward = float(sum(rewards) / len(rewards)) if len(rewards) > 0 else 0.0
+            self._cb.on_step(self.num_timesteps, self._env, avg_reward)
+            return True
+
+    step_recorder = _StepRecorder(record_cb, env)
 
     try:
         agent.train(
             total_timesteps=args.timesteps,
             eval_freq=max(1, args.save_interval // 2),
             n_eval_episodes=5,
+            extra_callbacks=[step_recorder],
         )
     except KeyboardInterrupt:
         print("\n[INFO] 训练被用户中断", flush=True)
