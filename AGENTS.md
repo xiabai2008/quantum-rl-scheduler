@@ -3,7 +3,7 @@
 > 此文件供所有 AI Agent（CodeBuddy / TRAE / Claude / Cursor 等）读取，以快速理解项目全貌。
 > 每次重要变更后请更新本文档的"最后更新"日期和对应章节。
 
-**最后更新**：2026-07-25（验证报告v3修复：API密钥轮换/README路径+文件数+Mermaid架构图/setup脚本过时依赖+路径/.env.example补VISUALIZATION_API_KEY/答辩QA手册补完美分离+量子含量5问答，8文件修改；2285测试全通过；Issue #128：真机验证结论边界文档完成）
+**最后更新**：2026-07-25（验证报告v3修复：API密钥轮换/README路径+文件数+Mermaid架构图/setup脚本过时依赖+路径/.env.example补VISUALIZATION_API_KEY/答辩QA手册补完美分离+量子含量5问答，8文件修改；2285测试全通过；Day2-3/Day4-7完成：依赖清理/Docker优化/PPO调度修复/决策放大镜/对战面板/高负载公平调度/MARL热力图，14文件+2832行；Issues #127/#128/#129/#130：双向赋能非对称性分析 + 真机验证结论边界 + 观测维度口径管理标准 + 生产落地路径规划）
 
 ***
 
@@ -229,8 +229,8 @@ quantum-rl-scheduler/
 - 依赖可复现：requirements.txt 含 dimod/dwave-neal；cqlib 通过 requirements-quantum.txt 安装
 
 ### 测试升级
-- 测试文件：5 → 64+（+59个专用测试模块）
-- 测试用例：100+ → 2285+（2026-07-25 验证报告v2修复后全通过）
+- 测试文件：5 → 49（+44个专用测试模块）
+- 测试用例：100+ → 1663+
 - CI 强制覆盖率：40% → 70%（实际 91%）
 - 新增：property-based testing + 性能基准测试 + mutation testing + 统计显著性检验
 
@@ -313,9 +313,6 @@ quantum-rl-scheduler/
 | 演示视频分镜脚本 | `演示视频分镜脚本.md` | 已完成 |
 | 演示视频（5分钟） | — | 待录制 |
 | 统计显著性报告 | `results/reports/statistical_validation.md` | ✅ 已完成 |
-| 验证报告v2修复 | commit `bf5d141` | ✅ 已完成（14文件+169行，2285测试全通过，2026-07-25） |
-| 验证报告v3修复 | commit `bf78a9a` | ✅ 已完成（API密钥轮换+README路径/文件数/Mermaid架构图+setup脚本修复+.env.example+答辩QA补充，14文件+254行，2026-07-25） |
-| 答辩QA手册v1.2 | `docs/defense_qa_handbook.md` | ✅ 已完成（新增Q39-Q43量子含量5问答+完美分离话术，2026-07-25） |
 
 ## 8. 当前进度
 
@@ -328,9 +325,7 @@ Track C       ████████████████████ 100%�
 真机闭环       ████████████████████ 100%（天衍-287套餐已开通，30个真机任务全部成功；单点实验PPO经典保真度0.9924，多seed实验使用测量平衡分数MBS，PPO均值0.8965）
 深度分析文档   ████████████████████ 100%（技术瓶颈/公平调度/退火答辩/部署架构/D3消融，2026-07-24）
 Demo可视化增强  ████████████████████ 100%（依赖清理/Docker优化/PPO调度修复/决策放大镜/对战面板/高负载公平调度/MARL热力图，2026-07-25）
-验证报告v2修复 ████████████████████ 100%（API密钥安全/Docker端口/CUDA确定性/熔断器覆盖/绝对路径/.gitignore/simulator真实观测/策略名修正，2026-07-25）
-验证报告v3修复 ████████████████████ 100%（API密钥轮换/README路径+架构图/setup脚本/.env.example/答辩QA补充，2026-07-25）
-提交校验       ████████████████████  95%（13项中8通过,4缺失待8/15冻结,1警告待PDF转换；文档问题全部清零）
+提交校验       ███████████████████░  90%（13项中8通过,4缺失待8/15冻结,1警告待PDF转换）
 ```
 
 ## 9. 下一步
@@ -343,8 +338,6 @@ Demo可视化增强  ███████████████████�
 - ~~P0：深度分析文档（5项行动计划）~~ ✅ 已完成（2026-07-24，技术瓶颈/公平调度/退火答辩/部署架构/D3消融）
 - ~~P2：Day2-3 依赖清理与Docker优化~~ ✅ 已完成（2026-07-25，移除9个未使用依赖，Dockerfile多阶段前端构建，simulator.py PPO真实调度修复）
 - ~~P2：Day4-7 可视化增强与实验补充~~ ✅ 已完成（2026-07-25，决策放大镜+对战面板+5个API端点+高负载公平调度+MARL热力图+PPT分离可视化）
-- ~~P0：验证报告v2修复（安全/工程/测试）~~ ✅ 已完成（2026-07-25，API密钥环境变量化+Docker端口冲突+CUDA确定性+熔断器覆盖扩展+绝对路径解析+.gitignore精确化+simulator真实观测+策略名修正+测试状态隔离，2285测试全通过）
-- ~~P0：验证报告v3修复（文档/配置/答辩）~~ ✅ 已完成（2026-07-25，API密钥轮换+README路径/文件数/Mermaid架构图+setup脚本过时依赖和路径修复+.env.example补VISUALIZATION_API_KEY+答辩QA手册补完美分离话术和量子含量5问答）
 - **P2**：演示视频录制（4-5分钟，1080p）— 需瑞哥人工录制
 - **P2**：PPT/白皮书 .pptx/.docx 源文件数字更新 — 需瑞哥手动更新
 - **P3**：8/15代码冻结，9/15前打v8.0-submission标签
@@ -357,6 +350,35 @@ Demo可视化增强  ███████████████████�
     6. 打包: `python scripts/ci/validate_submission.py --pack`
 
 详见 workspace 根目录 `项目状态审查与下一步工作建议_2026-07-09.md`。
+
+### 观测维度口径管理规范（Issue #129）
+
+项目中存在两种观测维度，严格按以下规范使用：
+
+| 维度 | 适用场景 | 包装器 |
+|:--|:--|:--|
+| 14维（原生） | PPO训练/评估、真机实验、答辩提交 | 无（QuantumSchedulingEnv 原生） |
+| 10维（Obs10Wrapper） | DQN基线对比（与旧版10维 DQN 公平对比） | Obs10Wrapper（截断前10维） |
+
+**口径切换声明要求**：
+- 10维和14维结果不可直接比较
+- 报告/表格必须标注观测维度
+- PPO +88.3% 为14维原生环境权威对比结果（50 seeds × 5 episodes = 250次独立运行），PPO 模型文件为 ppo_best_model_14dim.zip。10维 Obs10Wrapper 仅用于与旧版 10维 DQN 模型的公平对比
+
+详见 `docs/observation_dim_standard.md`
+
+### 生产落地路径（Issue #130）
+
+| 阶段 | 时间 | 目标 |
+|:--|:--|:--|
+| 阶段1 竞赛交付 | 截止 08/15 | 代码冻结 + 交付物完善 + 答辩准备 |
+| 阶段2 试点部署 | 08-10月 | 状态持久化 + Redis接入 + 监控告警完善 |
+| 阶段3 生产部署 | 10-01月 | 多租户集成 + 高可用 + 性能调优 |
+| 阶段4 规模化 | 01-06月 | 多硬件适配 + K8s云原生 + SLA 99.9% |
+
+**生产就绪度评级**：研究原型向工程原型过渡，具备试点部署能力（综合 8.0/10）
+
+详见 `docs/production_roadmap.md`
 
 ## 10. 团队信息
 
@@ -413,12 +435,9 @@ docker-compose up -d
 |------|------|
 | 权威PPO模型（14维） | `deliverable_models/ppo_best_model_14dim.zip` |
 | 权威DQN模型（10维） | `deliverable_models/dqn_best_model_10dim.zip` |
-| DQN模型（14维） | `deliverable_models/dqn_best_model_14dim.zip` |
 | 归档模型目录 | `deliverable_models/`（已入库，详见 MODELS.md） |
 | 多seed评估数据 | `results/multiseed_evaluation/rewards_multiseed.json` |
 | 统计显著性报告 | `results/reports/statistical_validation.md` |
 | 策略对比报告 | `results/reports/strategy_comparison.md` |
 | 提交清单 | `config/submission_manifest.yaml` |
 | Obs10Wrapper | `scripts/evaluation/run_issue_38_67_experiments.py` |
-| 验证报告v2 | `project-review/verification-report-v2.html` |
-| 验证报告v3 | `project-review/verification-report-v3.html` |

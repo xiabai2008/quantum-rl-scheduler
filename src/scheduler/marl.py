@@ -158,10 +158,7 @@ class MultiAgentEnvWrapper:
             形状 (local_obs_dim * num_agents,) 的 float32 向量
         """
         local_obs = self.get_local_observations()
-        result: np.ndarray = np.concatenate(
-            [local_obs[name] for name in self.machine_names]
-        ).astype(np.float32)
-        return result
+        return np.concatenate([local_obs[name] for name in self.machine_names]).astype(np.float32)
 
     # ------------------------------------------------------------------
     # 动作聚合与路由
@@ -920,8 +917,8 @@ class MultiAgentPPO:
         # 标准化优势（提升训练稳定性）
         advantages_shared = advantages_per_agent[0]
         adv_mean = advantages_shared.mean()
-        adv_std = advantages_shared.std()
-        adv_std = max(adv_std, 1e-8)
+        adv_std: float = float(advantages_shared.std())
+        adv_std = float(np.maximum(adv_std, 1e-8))
         norm_advantages = (advantages_shared - adv_mean) / adv_std
 
         total_actor_loss = 0.0
