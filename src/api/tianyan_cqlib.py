@@ -51,6 +51,8 @@ class CqlibTianyanClient:
         machine_name: str = "tianyan_s",
         auto_retry_machine: bool = True,
         quota_tracker: "QuotaTracker | None" = None,
+        api_secret: str | None = None,
+        app_id: str | None = None,
     ):
         """初始化 cqlib 客户端
 
@@ -60,6 +62,8 @@ class CqlibTianyanClient:
             auto_retry_machine: 当前机器不可用时是否自动切换
             quota_tracker: 真机配额追踪器（可选，传入后提交前做配额预检，
                           提交成功后记录消耗；为 None 时不做配额控制）
+            api_secret: API Secret（可选，当 SDK 支持时透传给 TianYanPlatform）
+            app_id: App ID（可选，当 SDK 支持时透传给 TianYanPlatform）
         """
         import cqlib
 
@@ -69,6 +73,11 @@ class CqlibTianyanClient:
         self.auto_retry_machine = auto_retry_machine
         self._platform = None
         self._quota_tracker = quota_tracker
+        self._api_secret = api_secret
+        self._app_id = app_id
+
+        if api_secret or app_id:
+            logger.info("[Cqlib] 额外凭证已加载（api_secret/app_id），将在平台初始化时透传")
 
         logger.info(f"[Cqlib] 客户端初始化，默认机器={machine_name}")
 
@@ -76,10 +85,15 @@ class CqlibTianyanClient:
     def platform(self) -> Any:
         """懒加载平台连接"""
         if self._platform is None:
-            self._platform = self.cqlib.TianYanPlatform(
-                login_key=self.login_key,
-                machine_name=self.machine_name,
-            )
+            kwargs: dict[str, Any] = {
+                "login_key": self.login_key,
+                "machine_name": self.machine_name,
+            }
+            if self._api_secret:
+                kwargs["api_secret"] = self._api_secret
+            if self._app_id:
+                kwargs["app_id"] = self._app_id
+            self._platform = self.cqlib.TianYanPlatform(**kwargs)
         return self._platform
 
     def authenticate(self) -> bool:
@@ -315,10 +329,15 @@ class CqlibTianyanClient:
                 continue
             try:
                 logger.info(f"[Cqlib] 尝试备用机器: {machine}")
-                alt = self.cqlib.TianYanPlatform(
-                    login_key=self.login_key,
-                    machine_name=machine,
-                )
+                alt_kwargs: dict[str, Any] = {
+                    "login_key": self.login_key,
+                    "machine_name": machine,
+                }
+                if self._api_secret:
+                    alt_kwargs["api_secret"] = self._api_secret
+                if self._app_id:
+                    alt_kwargs["app_id"] = self._app_id
+                alt = self.cqlib.TianYanPlatform(**alt_kwargs)
                 result = alt.submit_experiment(
                     circuit=qcis,
                     name=task_name,
@@ -501,6 +520,8 @@ class MultiMachineCqlibCoordinator:
         machine_names: list[str],
         auto_retry_machine: bool = False,
         quota_tracker: "QuotaTracker | None" = None,
+        api_secret: str | None = None,
+        app_id: str | None = None,
     ):
         """初始化多机器协调器。
 
@@ -511,11 +532,15 @@ class MultiMachineCqlibCoordinator:
                                多机器场景下由调度器决定路由，通常关闭单机重试）
             quota_tracker    : 真机配额追踪器（可选，传入后 submit_to_machine
                               成功时记录消耗；为 None 时不做配额记录）
+            api_secret       : API Secret（可选，透传给各机器的 CqlibTianyanClient）
+            app_id           : App ID（可选，透传给各机器的 CqlibTianyanClient）
         """
         self.login_key = login_key
         self.machine_names = list(machine_names)
         self.auto_retry_machine = auto_retry_machine
         self._quota_tracker = quota_tracker
+        self._api_secret = api_secret
+        self._app_id = app_id
         self._clients: dict[str, CqlibTianyanClient] = {}
         self._submit_count: dict[str, int] = dict.fromkeys(self.machine_names, 0)
         self._fail_count: dict[str, int] = dict.fromkeys(self.machine_names, 0)
@@ -531,6 +556,8 @@ class MultiMachineCqlibCoordinator:
                 login_key=self.login_key,
                 machine_name=machine_name,
                 auto_retry_machine=self.auto_retry_machine,
+                api_secret=self._api_secret,
+                app_id=self._app_id,
             )
         return self._clients[machine_name]
 

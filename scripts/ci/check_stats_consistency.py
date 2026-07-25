@@ -298,10 +298,43 @@ def main() -> int:
 
     # 收集所有Markdown文件（使用 os.walk 跳过 node_modules 等目录）
     md_files = set()
-    exclude_dirs = {"node_modules", ".git", "__pycache__", ".venv", "venv", "mutants"}
+    # Issue #174: 排除非交付目录（AI 工作目录、数据转储、临时文件等），
+    # 这些目录可能包含历史数字/草稿，不应参与口径审计，避免假失败
+    exclude_dirs = {
+        "node_modules",
+        ".git",
+        "__pycache__",
+        ".venv",
+        "venv",
+        "mutants",
+        ".pytest_cache",
+        ".mypy_cache",
+        ".ruff_cache",
+        ".hypothesis",
+        # 非交付目录：AI 工作目录、数据转储、临时文件等
+        ".workbuddy",
+        ".trae",
+        ".trae-cn",
+        "project-review",
+        ".trae-html-share-packages",
+        "tmp",
+        "temp",
+        "data",
+        "datasets",
+        "build",
+        "dist",
+        "downloads",
+    }
     for root, dirs, files in os.walk(_PROJECT_ROOT, topdown=True):
         # 原地修改 dirs 跳过排除目录，阻止 os.walk 递归进入
-        dirs[:] = [d for d in dirs if d not in exclude_dirs]
+        # 同时跳过所有 .venv* 开头的目录（各种虚拟环境）和 site-packages
+        dirs[:] = [
+            d
+            for d in dirs
+            if d not in exclude_dirs
+            and not d.startswith(".venv")
+            and d not in ("site-packages", "lib", "lib64")
+        ]
         for fname in files:
             if not fname.endswith(".md"):
                 continue

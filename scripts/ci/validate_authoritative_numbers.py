@@ -97,6 +97,21 @@ SKIP_DIRS = {
     "gradient_stress",
     "ablation_d3_training",
     "models",
+    # Issue #174: 非交付目录 — AI 工作目录、数据转储、临时文件等
+    # 这些目录可能包含历史数字/草稿/数据转储，不应参与口径审计，避免假失败
+    ".workbuddy",  # AI agent 工作目录
+    ".trae",  # TRAE 工作目录
+    ".trae-cn",  # TRAE 工作目录（中文版）
+    ".hypothesis",  # property-based testing 数据库（生成的样例）
+    "project-review",  # 项目评审临时文件
+    ".trae-html-share-packages",  # HTML 分享包临时目录
+    "tmp",  # 临时文件
+    "temp",  # 临时文件
+    "data",  # 数据转储
+    "datasets",  # 数据集
+    "build",  # 构建产物
+    "dist",  # 发布产物
+    "downloads",  # 下载目录
 }
 
 # 排除的文件（权威数据源本身，不检查自身）

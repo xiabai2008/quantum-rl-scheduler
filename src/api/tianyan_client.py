@@ -377,6 +377,8 @@ class TianyanClient:
         # 加载 API 凭证（必需，缺失则抛出 ValueError）
         creds = self._load_credentials(api_key=api_key)
         self.api_key = creds["api_key"]
+        self._api_secret = creds.get("api_secret")
+        self._app_id = creds.get("app_id")
         # 仅记录脱敏后的密钥，避免敏感信息泄露到日志
         logger.info(f"已加载 API 密钥: {mask_token(self.api_key)}")
 
@@ -393,6 +395,8 @@ class TianyanClient:
                 login_key=self.api_key,
                 machine_name=machine_name,
                 auto_retry_machine=True,
+                api_secret=self._api_secret,
+                app_id=self._app_id,
             )
             logger.info(f"✅ 真实模式委托 cqlib（机器={machine_name}）")
         except Exception as e:

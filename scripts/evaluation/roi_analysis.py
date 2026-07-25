@@ -4,7 +4,7 @@
 从实验数据自动计算商业价值指标，生成可追溯的 ROI 报告。
 
 数据来源：
-  - 仿真权威数字（AGENTS.md 锁定）：PPO=2746.94±1121.19 vs FCFS=1458.77±55.85
+  - 仿真权威数字（AGENTS.md 锁定）：PPO=2746.94±1160.72 vs FCFS=1458.77±60.47
   - 真机多seed数据：results/real_machine/tianyan287_multiseed/multiseed_data_20260724_105757.json
 
 用法：
@@ -27,11 +27,11 @@ from typing import Any
 
 # 50-seed 仿真权威数字（AGENTS.md 锁定）
 SIM_PPO_MEAN = 2746.94
-SIM_PPO_STD = 1121.19
+SIM_PPO_STD = 1160.72
 SIM_FCFS_MEAN = 1458.77
-SIM_FCFS_STD = 55.85
-SIM_P_VALUE = 3.04e-11  # Welch t 检验
-SIM_COHEN_D = -1.70
+SIM_FCFS_STD = 60.47
+SIM_P_VALUE = 1.032e-42  # Mann-Whitney U 检验
+SIM_EFFECT_SIZE = -0.71  # rank-biserial（大效应量）
 SIM_N = 250  # 50 seeds × 5 episodes
 
 # 多seed真机权威数字（multiseed_real_machine_report_20260724.md）
@@ -206,7 +206,7 @@ def generate_report(
         "",
         "| 指标 | PPO | FCFS | 提升 | 统计检验 |",
         "|:--|:--:|:--:|:--:|:--:|",
-        f"| 平均奖励 | {SIM_PPO_MEAN:.2f}±{SIM_PPO_STD:.2f} | {SIM_FCFS_MEAN:.2f}±{SIM_FCFS_STD:.2f} | +{sim_improvement * 100:.1f}% | Welch t p={SIM_P_VALUE:.2e}, d={SIM_COHEN_D} |",
+        f"| 平均奖励 | {SIM_PPO_MEAN:.2f}±{SIM_PPO_STD:.2f} | {SIM_FCFS_MEAN:.2f}±{SIM_FCFS_STD:.2f} | +{sim_improvement * 100:.1f}% | Mann-Whitney U p={SIM_P_VALUE:.2e}, rank-biserial={SIM_EFFECT_SIZE} |",
         f"| 样本量 | N={SIM_N} | N={SIM_N} | — | 50 seeds × 5 episodes |",
         "",
         "### 1.2 多seed真机验证（来源: 天衍-287 真机实验）",
@@ -317,12 +317,12 @@ def generate_report(
             "|:--|:--:|:--|:--:|",
             f"| PPO 仿真均值 | {SIM_PPO_MEAN} | AGENTS.md | ✅ 锁定 |",
             f"| FCFS 仿真均值 | {SIM_FCFS_MEAN} | AGENTS.md | ✅ 锁定 |",
-            f"| 仿真 p 值（Welch t 检验） | {SIM_P_VALUE} | 仿真统计验证 | ✅ 锁定 |",
+            f"| 仿真 p 值（Mann-Whitney U 检验） | {SIM_P_VALUE} | 仿真统计验证 | ✅ 锁定 |",
             f"| PPO 真机均值 | {REAL_PPO_MEAN} | multiseed_real_machine_report_20260724.md | {'✅ 验证通过' if verification_passed else '⚠️ 待验证'} |",
             f"| FCFS 真机均值 | {REAL_FCFS_MEAN} | multiseed_real_machine_report_20260724.md | {'✅ 验证通过' if verification_passed else '⚠️ 待验证'} |",
             f"| 真机 p 值 | {REAL_P_VALUE} | multiseed_real_machine_report_20260724.md | ✅ 锁定 |",
             "",
-            "> 注：AGENTS.md 权威口径使用 Mann-Whitney U 检验（p=1.032e-42），两者均为正确检验方法，结论一致。",
+            "> 注：仿真 p 值使用 Mann-Whitney U 检验（p=1.032e-42），与 AGENTS.md 权威口径一致。",
             "",
             "---",
             "",

@@ -382,6 +382,87 @@ def load_json(filepath: str) -> Any:
         return None
 
 
+# ---------------------------------------------------------------------------
+# 观测维度校验（Issue #182）
+# ---------------------------------------------------------------------------
+
+
+def validate_observation_dim(
+    model_obs_dim: int,
+    env_obs_dim: int,
+    model_name: str = "model",
+) -> bool:
+    """校验模型观测维度与环境观测维度是否匹配。
+
+    当维度不匹配时发出明确警告，防止模型静默退化为随机策略。
+
+    Args:
+        model_obs_dim: 模型期望的观测维度
+        env_obs_dim: 环境实际输出的观测维度
+        model_name: 模型名称（用于日志标识）
+
+    Returns:
+        True 如果维度匹配，False 如果不匹配
+
+    Raises:
+        ValueError: 当维度不匹配且 model_obs_dim < env_obs_dim 时
+                   （模型无法处理更高维度的输入，必须使用包装器）
+    """
+    if model_obs_dim == env_obs_dim:
+        return True
+
+    if model_obs_dim < env_obs_dim:
+        msg = (
+            f"观测维度不匹配：{model_name} 期望 {model_obs_dim} 维，"
+            f"但环境输出 {env_obs_dim} 维。"
+            f"请使用 Obs10Wrapper 截断观测空间，否则模型将静默退化为随机策略。"
+        )
+        logger.error(msg)
+        raise ValueError(msg)
+
+    # model_obs_dim > env_obs_dim：模型期望更高维度，环境输出较低维度
+    msg = (
+        f"观测维度不匹配：{model_name} 期望 {model_obs_dim} 维，"
+        f"但环境仅输出 {env_obs_dim} 维。"
+        f"模型可能无法正常工作，请检查环境配置。"
+    )
+    logger.warning(msg)
+    return False
+
+
+def check_model_env_compatibility(
+    model: Any,
+    env_obs_space: Any,
+    model_name: str = "model",
+) -> bool:
+    """检查模型与环境观测空间的兼容性。
+
+    Args:
+        model: SB3 模型对象（需有 observation_space 属性）
+        env_obs_space: 环境的观测空间（gym.spaces.Box）
+        model_name: 模型名称（用于日志标识）
+
+    Returns:
+        True 如果兼容，False 或 raise 如果不兼容
+    """
+    model_obs_space = getattr(model, "observation_space", None)
+    if model_obs_space is None:
+        logger.warning(f"{model_name} 无 observation_space 属性，跳过维度校验")
+        return True
+
+    model_dim = getattr(model_obs_space, "shape", None)
+    env_dim = getattr(env_obs_space, "shape", None)
+
+    if model_dim is None or env_dim is None:
+        logger.warning(f"{model_name} 或环境无 shape 属性，跳过维度校验")
+        return True
+
+    model_obs_dim = model_dim[0] if len(model_dim) > 0 else 0
+    env_obs_dim = env_dim[0] if len(env_dim) > 0 else 0
+
+    return validate_observation_dim(model_obs_dim, env_obs_dim, model_name)
+
+
 # 评估指标
 class MetricsCalculator:
     """评估指标计算器"""
