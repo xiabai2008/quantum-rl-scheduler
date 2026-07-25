@@ -19,6 +19,9 @@ Unit Tests for src/scheduler/dag_scheduler.py
 import os
 import sys
 import unittest
+from typing import Any
+
+import numpy as np
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
@@ -842,6 +845,149 @@ class TestDAGCoverageFiller(unittest.TestCase):
         # big 应排在最后（串行）
         big_entry = next(s for s in schedule if s["task_id"] == "big")
         self.assertGreaterEqual(big_entry["start_time"], 0.0)
+
+
+# ============================================================
+# 量子退火辅助调度测试（Issue #149）
+# 验证 build_assignment_qubo_matrix / solve_task_assignment /
+# DAGScheduler.schedule_with_quantum_assist 的核心行为
+# ============================================================
+class TestQuantumAssistScheduling(unittest.TestCase):
+    """测试量子退火辅助 DAG 调度。"""
+
+    def test_build_assignment_qubo_matrix_shape(self) -> None:
+        """测试 QUBO 矩阵形状为 (n_tasks * n_machines, n_tasks * n_machines)。"""
+        from src.quantum.annealing import build_assignment_qubo_matrix
+
+        tasks = [
+            {"task_id": "t1", "qubits_required": 2, "estimated_time": 5.0, "priority": 3},
+            {"task_id": "t2", "qubits_required": 3, "estimated_time": 4.0, "priority": 2},
+            {"task_id": "t3", "qubits_required": 1, "estimated_time": 2.0, "priority": 4},
+        ]
+        machines = [
+            {"machine_id": "m0", "capacity": 10},
+            {"machine_id": "m1", "capacity": 10},
+        ]
+        qubo = build_assignment_qubo_matrix(tasks, machines, penalty=10.0)
+        # 3 tasks * 2 machines = 6 变量
+        self.assertEqual(qubo.shape, (6, 6))
+
+    def test_build_assignment_qubo_matrix_constraints(self) -> None:
+        """测试 QUBO 对角项与约束项系数正确。"""
+        from src.quantum.annealing import build_assignment_qubo_matrix
+
+        tasks = [
+            {"task_id": "t1", "qubits_required": 2, "estimated_time": 5.0, "priority": 3},
+            {"task_id": "t2", "qubits_required": 3, "estimated_time": 4.0, "priority": 2},
+        ]
+        machines = [
+            {"machine_id": "m0", "capacity": 10},
+            {"machine_id": "m1", "capacity": 10},
+        ]
+        penalty = 10.0
+        qubo = build_assignment_qubo_matrix(tasks, machines, penalty=penalty)
+        # 变量排列：t1m0=0, t1m1=1, t2m0=2, t2m1=3
+        # 对角项 = priority * time - penalty
+        self.assertAlmostEqual(qubo[0, 0], 3 * 5.0 - penalty)  # t1m0
+        self.assertAlmostEqual(qubo[2, 2], 2 * 4.0 - penalty)  # t2m0
+        # 约束1：同任务不同机器非对角 = 2 * penalty
+        self.assertAlmostEqual(qubo[0, 1], 2.0 * penalty)  # t1m0 vs t1m1
+        self.assertAlmostEqual(qubo[1, 0], 2.0 * penalty)  # 对称
+        # 约束2：同机器不同任务非对角 = penalty * qubits[i] * qubits[i']
+        expected_coupling = penalty * 2 * 3
+        self.assertAlmostEqual(qubo[0, 2], expected_coupling)  # t1m0 vs t2m0
+        self.assertAlmostEqual(qubo[2, 0], expected_coupling)  # 对称
+
+    def test_build_assignment_qubo_matrix_validates_fields(self) -> None:
+        """测试字段缺失或空输入抛出 ValueError。"""
+        from src.quantum.annealing import build_assignment_qubo_matrix
+
+        with self.assertRaises(ValueError):
+            build_assignment_qubo_matrix([], [{"machine_id": "m0", "capacity": 10}])
+        with self.assertRaises(ValueError):
+            build_assignment_qubo_matrix(
+                [{"task_id": "t1"}], [{"machine_id": "m0", "capacity": 10}]
+            )
+        with self.assertRaises(ValueError):
+            build_assignment_qubo_matrix(
+                [{"task_id": "t1", "qubits_required": 1, "estimated_time": 1.0, "priority": 1}],
+                [{"machine_id": "m0"}],
+            )
+
+    def test_solve_task_assignment_basic(self) -> None:
+        """测试小规模任务分配（3任务×2机器）返回有效分配方案。"""
+        from src.quantum.annealing import solve_task_assignment
+
+        tasks = [
+            {"task_id": "t1", "qubits_required": 2, "estimated_time": 5.0, "priority": 3},
+            {"task_id": "t2", "qubits_required": 3, "estimated_time": 4.0, "priority": 2},
+            {"task_id": "t3", "qubits_required": 1, "estimated_time": 2.0, "priority": 4},
+        ]
+        machines = [
+            {"machine_id": "m0", "capacity": 10},
+            {"machine_id": "m1", "capacity": 10},
+        ]
+        assignment, energy = solve_task_assignment(tasks, machines, penalty=10.0)
+        # 返回类型
+        self.assertIsInstance(assignment, dict)
+        self.assertIsInstance(energy, float)
+        # 所有任务都被分配
+        self.assertEqual(set(assignment.keys()), {"t1", "t2", "t3"})
+        # 分配到合法机器
+        valid_machines = {"m0", "m1"}
+        for mid in assignment.values():
+            self.assertIn(mid, valid_machines)
+
+    def test_schedule_with_quantum_assist_fallback(self) -> None:
+        """测试退火失败时回退到 schedule_with_resources。"""
+
+        class FailingOptimizer:
+            """模拟退火失败的优化器。"""
+
+            def anneal(self, qubo_matrix: np.ndarray) -> str:
+                raise RuntimeError("annealing failed")
+
+        scheduler = DAGScheduler()
+        scheduler.add_task(DAGTask(task_id="a", qubits_required=2, estimated_time=5.0))
+        scheduler.add_task(DAGTask(task_id="b", qubits_required=2, estimated_time=3.0))
+        schedule = scheduler.schedule_with_quantum_assist(
+            available_qubits=10, available_machines=2, optimizer=FailingOptimizer()
+        )
+        # 回退后仍返回有效调度
+        self.assertEqual(len(schedule), 2)
+        for item in schedule:
+            self.assertIn("task_id", item)
+            self.assertIn("start_time", item)
+            self.assertIn("machine_id", item)
+            self.assertIn("estimated_finish", item)
+
+    def test_schedule_with_quantum_assist_returns_valid_format(self) -> None:
+        """测试量子退火辅助调度返回格式与 schedule_with_resources 一致。"""
+        scheduler = DAGScheduler()
+        scheduler.add_task(DAGTask(task_id="a", qubits_required=2, estimated_time=5.0))
+        scheduler.add_task(
+            DAGTask(task_id="b", qubits_required=2, estimated_time=3.0, dependencies=["a"])
+        )
+        schedule = scheduler.schedule_with_quantum_assist(available_qubits=10, available_machines=2)
+        # 返回结构
+        self.assertEqual(len(schedule), 2)
+        required_fields = {"task_id", "start_time", "machine_id", "estimated_finish"}
+        for item in schedule:
+            self.assertEqual(set(item.keys()), required_fields)
+        # 依赖约束：b 必须在 a 完成后开始
+        by_id: dict[str, dict[str, Any]] = {item["task_id"]: item for item in schedule}
+        self.assertGreaterEqual(by_id["b"]["start_time"], by_id["a"]["estimated_finish"])
+        # machine_id 在合法范围
+        for item in schedule:
+            self.assertIn(item["machine_id"], {0, 1})
+
+    def test_schedule_with_quantum_assist_empty(self) -> None:
+        """测试空图量子退火辅助调度返回空列表。"""
+        scheduler = DAGScheduler()
+        self.assertEqual(
+            scheduler.schedule_with_quantum_assist(available_qubits=10, available_machines=2),
+            [],
+        )
 
 
 if __name__ == "__main__":

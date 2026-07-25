@@ -372,6 +372,110 @@ class DAGScheduler:
         schedule.sort(key=lambda x: (x["start_time"], x["machine_id"], x["task_id"]))
         return schedule
 
+    # ----------------------------------------------------------
+    # 量子退火辅助调度
+    # ----------------------------------------------------------
+
+    def schedule_with_quantum_assist(
+        self,
+        available_qubits: int,
+        available_machines: int = 1,
+        optimizer: Any = None,
+    ) -> list[dict[str, Any]]:
+        """量子退火辅助的多机任务调度。
+
+        在满足依赖关系的前提下，调用量子退火求解多机任务分配 QUBO 问题，
+        将任务分配到具体机器，再基于分配结果计算开始时间与预估完成时间。
+
+        退火失败或异常时回退到 :meth:`schedule_with_resources`，保证调度可用。
+
+        Args:
+            available_qubits: 每台机器可用量子比特数（容量）。
+            available_machines: 可用机器数，默认 1。
+            optimizer: 量子退火优化器实例；为 None 时由退火模块创建默认仿真器。
+
+        Returns:
+            调度结果列表，每项为
+            ``{task_id, start_time, machine_id, estimated_finish}``，
+            格式与 :meth:`schedule_with_resources` 一致，
+            按开始时间、机器 ID、任务 ID 升序排列。
+        """
+        # 延迟导入，避免 dag_scheduler 模块加载时引入 annealing 的 torch 依赖
+        try:
+            from src.quantum.annealing import solve_task_assignment
+        except ImportError:
+            return self.schedule_with_resources(available_qubits, available_machines)
+
+        # 空图直接返回
+        if not self.tasks:
+            return []
+
+        n_machines = max(1, available_machines)
+        tasks_list: list[dict[str, Any]] = [
+            {
+                "task_id": tid,
+                "qubits_required": max(0, task.qubits_required),
+                "estimated_time": max(0.0, task.estimated_time),
+                "priority": task.priority,
+            }
+            for tid, task in self.tasks.items()
+        ]
+        machines_list: list[dict[str, Any]] = [
+            {"machine_id": str(m), "capacity": available_qubits} for m in range(n_machines)
+        ]
+
+        try:
+            assignment, _energy = solve_task_assignment(
+                tasks_list, machines_list, optimizer=optimizer
+            )
+        except Exception:
+            # 退火异常时回退到经典资源约束调度，保证调度可用
+            return self.schedule_with_resources(available_qubits, available_machines)
+
+        # 机器 ID → 索引映射
+        machine_id_to_idx: dict[str, int] = {
+            machines_list[m]["machine_id"]: m for m in range(n_machines)
+        }
+
+        order = self.topological_sort()
+        machines_intervals: list[list[tuple[float, float, int]]] = [[] for _ in range(n_machines)]
+        finish_time: dict[str, float] = {}
+        schedule: list[dict[str, Any]] = []
+
+        for tid in order:
+            task = self.tasks[tid]
+            # 最早开始时间 = 依赖中最大完成时间
+            est = 0.0
+            for dep in task.dependencies:
+                if dep in finish_time:
+                    est = max(est, finish_time[dep])
+            qubits_needed = max(0, task.qubits_required)
+            duration = max(0.0, task.estimated_time)
+
+            # 量子退火分配的机器索引
+            assigned_mid_str = assignment.get(tid, "0")
+            mid = machine_id_to_idx.get(assigned_mid_str, 0)
+            if mid < 0 or mid >= n_machines:
+                mid = 0
+
+            start = self._earliest_slot(
+                machines_intervals[mid], est, qubits_needed, duration, available_qubits
+            )
+            finish = start + duration
+            machines_intervals[mid].append((start, finish, qubits_needed))
+            finish_time[tid] = finish
+            schedule.append(
+                {
+                    "task_id": tid,
+                    "start_time": start,
+                    "machine_id": mid,
+                    "estimated_finish": finish,
+                }
+            )
+
+        schedule.sort(key=lambda x: (x["start_time"], x["machine_id"], x["task_id"]))
+        return schedule
+
     @staticmethod
     def _earliest_slot(
         intervals: list[tuple[float, float, int]],
