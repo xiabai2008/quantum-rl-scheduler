@@ -112,7 +112,7 @@ class QuantumAnnealingOptimizer:
             logger.warning(
                 f"量子比特数 {num_qubits} 较低，每权重仅 {n_bits_per_weight} bit 编码 "
                 f"（1 符号位 + {n_bits_per_weight - 1} 数值位），精度可能不足。"
-                f"建议 num_qubits ≥ 16 以获得更好的优化效果。"
+                "建议 num_qubits ≥ 16 以获得更好的优化效果。"
             )
 
         # 自动选择求解器：
@@ -797,7 +797,7 @@ class QuantumAnnealingOptimizer:
         diff_max = float(np.max(np.abs(weight_diff))) if weight_diff.size else 0.0
         diff_relative = diff_l2 / (initial_l2_norm + 1e-12)
         logger.info(
-            f"[退火] 退火前后权重差异汇总: "
+            "[退火] 退火前后权重差异汇总: "
             f"初始 L2={initial_l2_norm:.6f}, 最终 L2={final_l2_norm:.6f}, "
             f"差异 L2={diff_l2:.6e}, 相对差异={diff_relative:.6e} ({diff_relative * 100:.4f}%), "
             f"最大绝对差={diff_max:.6e}"
@@ -1532,7 +1532,7 @@ def build_qubo_matrix(
 
     if task_priorities.shape != task_times.shape:
         raise ValueError(
-            f"task_priorities 与 task_times 形状不一致: "
+            "task_priorities 与 task_times 形状不一致: "
             f"{task_priorities.shape} vs {task_times.shape}"
         )
     if task_priorities.ndim != 1:
@@ -1597,7 +1597,7 @@ def build_qubo_matrix_optimized(
 
     if task_priorities.shape != task_times.shape:
         raise ValueError(
-            f"task_priorities 与 task_times 形状不一致: "
+            "task_priorities 与 task_times 形状不一致: "
             f"{task_priorities.shape} vs {task_times.shape}"
         )
     if task_priorities.ndim != 1:
