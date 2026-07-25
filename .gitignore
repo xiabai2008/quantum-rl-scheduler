@@ -97,6 +97,8 @@ tensorboard_logs/
 results/**/*.json
 # 3) 但 results/reports/ 下的 JSON 报告文件允许入库（覆盖上方 results/**/*.json）
 !results/reports/**/*.json
+# 4) Pareto 前沿分析图（Issue #142），白皮书/PPT 引用图，体积小
+!results/completion_reward_pareto.png
 results/raw/
 results/fair_comparison/
 results/issue_experiments/
