@@ -3,7 +3,7 @@
 > 此文件供所有 AI Agent（CodeBuddy / TRAE / Claude / Cursor 等）读取，以快速理解项目全貌。
 > 每次重要变更后请更新本文档的"最后更新"日期和对应章节。
 
-**最后更新**：2026-07-25（Day2-3/Day4-7完成：依赖清理/Docker优化/PPO调度修复/决策放大镜/对战面板/高负载公平调度/MARL热力图，14文件+2832行）
+**最后更新**：2026-07-25（验证报告v2修复：API密钥安全/Docker端口/CUDA确定性/熔断器覆盖/绝对路径/.gitignore精确化/simulator真实观测/策略名修正/测试状态隔离，14文件+169行；2285测试全通过）
 
 ***
 
@@ -229,8 +229,8 @@ quantum-rl-scheduler/
 - 依赖可复现：requirements.txt 含 dimod/dwave-neal；cqlib 通过 requirements-quantum.txt 安装
 
 ### 测试升级
-- 测试文件：5 → 49（+44个专用测试模块）
-- 测试用例：100+ → 1663+
+- 测试文件：5 → 64+（+59个专用测试模块）
+- 测试用例：100+ → 2285+（2026-07-25 验证报告v2修复后全通过）
 - CI 强制覆盖率：40% → 70%（实际 91%）
 - 新增：property-based testing + 性能基准测试 + mutation testing + 统计显著性检验
 
@@ -303,6 +303,7 @@ quantum-rl-scheduler/
 | 演示视频分镜脚本 | `演示视频分镜脚本.md` | 已完成 |
 | 演示视频（5分钟） | — | 待录制 |
 | 统计显著性报告 | `results/reports/statistical_validation.md` | ✅ 已完成 |
+| 验证报告v2修复 | commit `bf5d141` | ✅ 已完成（14文件+169行，2285测试全通过，2026-07-25） |
 
 ## 8. 当前进度
 
@@ -315,6 +316,7 @@ Track C       ████████████████████ 100%�
 真机闭环       ████████████████████ 100%（天衍-287套餐已开通，30个真机任务全部成功；单点实验PPO经典保真度0.9924，多seed实验使用测量平衡分数MBS，PPO均值0.8965）
 深度分析文档   ████████████████████ 100%（技术瓶颈/公平调度/退火答辩/部署架构/D3消融，2026-07-24）
 Demo可视化增强  ████████████████████ 100%（依赖清理/Docker优化/PPO调度修复/决策放大镜/对战面板/高负载公平调度/MARL热力图，2026-07-25）
+验证报告v2修复 ████████████████████ 100%（API密钥安全/Docker端口/CUDA确定性/熔断器覆盖/绝对路径/.gitignore/simulator真实观测/策略名修正，2026-07-25）
 提交校验       ███████████████████░  90%（13项中8通过,4缺失待8/15冻结,1警告待PDF转换）
 ```
 
@@ -328,6 +330,7 @@ Demo可视化增强  ███████████████████�
 - ~~P0：深度分析文档（5项行动计划）~~ ✅ 已完成（2026-07-24，技术瓶颈/公平调度/退火答辩/部署架构/D3消融）
 - ~~P2：Day2-3 依赖清理与Docker优化~~ ✅ 已完成（2026-07-25，移除9个未使用依赖，Dockerfile多阶段前端构建，simulator.py PPO真实调度修复）
 - ~~P2：Day4-7 可视化增强与实验补充~~ ✅ 已完成（2026-07-25，决策放大镜+对战面板+5个API端点+高负载公平调度+MARL热力图+PPT分离可视化）
+- ~~P0：验证报告v2修复（安全/工程/测试）~~ ✅ 已完成（2026-07-25，API密钥环境变量化+Docker端口冲突+CUDA确定性+熔断器覆盖扩展+绝对路径解析+.gitignore精确化+simulator真实观测+策略名修正+测试状态隔离，2285测试全通过）
 - **P2**：演示视频录制（4-5分钟，1080p）— 需瑞哥人工录制
 - **P2**：PPT/白皮书 .pptx/.docx 源文件数字更新 — 需瑞哥手动更新
 - **P3**：8/15代码冻结，9/15前打v8.0-submission标签
@@ -396,9 +399,11 @@ docker-compose up -d
 |------|------|
 | 权威PPO模型（14维） | `deliverable_models/ppo_best_model_14dim.zip` |
 | 权威DQN模型（10维） | `deliverable_models/dqn_best_model_10dim.zip` |
+| DQN模型（14维） | `deliverable_models/dqn_best_model_14dim.zip` |
 | 归档模型目录 | `deliverable_models/`（已入库，详见 MODELS.md） |
 | 多seed评估数据 | `results/multiseed_evaluation/rewards_multiseed.json` |
 | 统计显著性报告 | `results/reports/statistical_validation.md` |
 | 策略对比报告 | `results/reports/strategy_comparison.md` |
 | 提交清单 | `config/submission_manifest.yaml` |
 | Obs10Wrapper | `scripts/evaluation/run_issue_38_67_experiments.py` |
+| 验证报告v2 | `project-review/verification-report-v2.html` |

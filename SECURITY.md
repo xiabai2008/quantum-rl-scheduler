@@ -3,7 +3,7 @@
 > 本文件定义 **量子RL驱动的天衍云平台智能调度系统** 的安全规范与漏洞报告流程。
 > GitHub 会在仓库 Security tab 自动展示此文件内容。
 
-**最后更新**：2026-07-20
+**最后更新**：2026-07-25（验证报告v2：修复 test_cqlib.py API密钥硬编码，改用环境变量；.gitignore 精确化敏感JSON模式）
 
 ---
 
@@ -93,7 +93,16 @@
 - `.env.example` — 环境变量模板（不含真实值）
 - `src/config/settings.py` — 配置加载（从环境变量读取）
 - `src/api/tianyan_cqlib.py` — 真机 API 客户端（使用凭证）
+- `src/api/tianyan_client.py` — 主客户端（熔断器保护 + 环境变量认证）
 - `src/api/quota_tracker.py` — 配额追踪（防止资源滥用）
+- `scripts/testing/test_cqlib.py` — 真机测试脚本（2026-07-25 修复：移除硬编码密钥，改用 `TIANYAN_API_KEY` 环境变量）
+
+### 3.5 已修复的安全问题
+
+| 日期 | 问题 | 修复 | 提交 |
+|------|------|------|------|
+| 2026-07-25 | `scripts/testing/test_cqlib.py` 硬编码 API 密钥 | 移除硬编码，改用 `os.environ.get("TIANYAN_API_KEY")` + 缺失校验 | `bf5d141` |
+| 2026-07-25 | `.gitignore` 全局 `*.json` 模式过宽 | 替换为精确敏感文件模式（`config/secrets.json` 等） | `bf5d141` |
 
 ---
 
@@ -157,12 +166,12 @@
 
 在 2026-08-15 代码冻结前，需确认：
 
-- [ ] `.env` 不在版本控制中（`.gitignore` 已配置）
-- [ ] 源代码中无硬编码凭证（Bandit 扫描通过）
+- [x] `.env` 不在版本控制中（`.gitignore` 已配置）
+- [x] 源代码中无硬编码凭证（Bandit 扫描通过，2026-07-25 修复 test_cqlib.py）
 - [ ] `requirements.txt` 依赖无已知漏洞（pip-audit 通过）
-- [ ] 所有 API 调用都通过熔断器保护
-- [ ] 所有真机调用都通过配额追踪
-- [ ] `SECURITY.md` 已就位（本文件）
+- [x] 所有 API 调用都通过熔断器保护（2026-07-25 扩展至 submit_quantum_task）
+- [x] 所有真机调用都通过配额追踪
+- [x] `SECURITY.md` 已就位（本文件）
 
 ### 6.2 提交清单对应
 

@@ -22,8 +22,8 @@
 | 指标 | 数值 |
 |------|------|
 | 核心代码量 | 约 1.1 万行 Python（src/ 57 文件） |
-| 测试文件 | 49 个文件，2278+ 测试用例 |
-| CI 强制覆盖率 | 70%（实际 96%） |
+| 测试文件 | 64+ 个文件，2285+ 测试用例 |
+| CI 强制覆盖率 | 70%（实际 91%） |
 | 真机可用性验证 | 284 次量子任务成功提交天衍云（100%成功率，平台接入验证，非性能验证） |
 | PPO vs FCFS（仿真） | 综合奖励提升 88.3%（14维模型，N=250，Mann-Whitney U 检验 p=1.032e-42，rank-biserial=-0.71） |
 | PPO vs FCFS（真机） | PPO=1665.22±324.51 vs FCFS=353.22±53.33，Cohen's d=5.64，p=6.83e-04（Bonferroni校正后显著） |
@@ -32,7 +32,7 @@
 | 压力测试 | 4 种极限场景 PPO 综合稳定性最佳（4 场景中 2 次第一） |
 | 工程韧性 | 熔断器 + 8类异常体系 + Prometheus 可观测性 |
 | 代码质量 | ruff(10类规则) + mypy(8项收紧) + bandit 安全扫描 |
-| 比赛材料 | PPT 15页 + 白皮书 10章 + 视频分镜脚本 6段 |
+| 比赛材料 | PPT 17页 + 白皮书 11章 + 视频分镜脚本 6段 |
 
 ## 项目架构
 
@@ -45,16 +45,16 @@ quantum-rl-scheduler/
 │   ├── quantum/              # 量子退火加速模块（QUBO + 异步闭环）
 │   ├── visualization/        # FastAPI + Vue3 + Echarts 监控面板
 │   └── utils/                # 工具函数 + Prometheus 指标
-├── tests/                    # 14 个测试文件，100+ 用例
+├── tests/                    # 64+ 个测试文件，2285+ 用例
 │   └── benchmarks/           # 性能基准测试
 ├── scripts/                  # 按功能分区（training/evaluation/demo/testing/benchmarking/reporting）
 │   └── cli.py                # Click 统一命令行入口
 ├── docs/                     # 团队文档（上手指南、Git规范、分工、协同开发）
 ├── config/                   # 系统配置（config.yaml + .env.example）
-├── results/reports/          # 实验数据固化报告（9份）
+├── results/reports/          # 实验数据固化报告（18份）
 ├── .github/workflows/        # CI/CD 4 Job 流水线 + PR 自动化
 ├── .devcontainer/            # VS Code 开发容器
-├── pyproject.toml            # 统一配置（Black/ruff/bandit/mypy/pytest/coverage/mutmut）
+├── pyproject.toml            # 统一配置（ruff/mypy/bandit/pytest/coverage）
 ├── mypy.ini                  # 类型检查（8项严格配置）
 ├── .pre-commit-config.yaml   # Git commit 自动检查
 └── Dockerfile + compose      # 一键 Docker 部署
