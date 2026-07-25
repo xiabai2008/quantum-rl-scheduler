@@ -148,8 +148,7 @@ class _AnnealingCallbackProxy(BaseCallback):
                     # monkey-patch 不会设置 _last_solver，手动修正
                     self.optimizer._last_solver = "random"  # type: ignore[attr-defined]
                     if hasattr(self.optimizer, "_last_anneal_stats"):
-                        self.optimizer._last_anneal_stats["solver"] = "random""
-                                " # type: ignore[attr-defined]
+                        self.optimizer._last_anneal_stats["solver"] = "random"  # type: ignore[attr-defined]
                 else:
                     self.optimizer.optimize_policy(self.model, head_only=True)
             except Exception as e:
