@@ -26,7 +26,6 @@ services:
     restart: unless-stopped
     ports:
       - "8000:8000"  # FastAPI Web 监控面板
-      - "6006:6006"  # TensorBoard（可选，需 --profile monitoring）
     environment:
       - PYTHONUNBUFFERED=1
       - LOG_LEVEL=INFO

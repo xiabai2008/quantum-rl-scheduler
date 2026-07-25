@@ -93,11 +93,39 @@ def _make_sleep_raising_after(n: int):
     return fake_sleep
 
 
+def _make_mock_ppo_env(obs_dim: int = 14):
+    """构造一个正确配置的 mock PPO 环境，支持 reset()/step() 解包。
+
+    旧测试使用 ``MagicMock()`` 作为 _ppo_env，其 reset()/step() 返回值无法解包，
+    导致测试依赖全局状态泄漏才能通过。本函数返回配置了正确返回值的 mock 环境。
+
+    Args:
+        obs_dim: 观测空间维度，默认 14
+
+    Returns:
+        MagicMock：reset.return_value = (obs, {})，
+        step.return_value = (obs, reward, False, False, {})
+    """
+    env = MagicMock()
+    obs = np.array([0.5] * obs_dim, dtype=np.float32)
+    env.reset.return_value = (obs, {})
+    env.step.return_value = (obs, 5.0, False, False, {})
+    return env
+
+
 class TestSimulateSchedulerPpoPath(unittest.IsolatedAsyncioTestCase):
     """测试 simulate_scheduler 在 PPO 模型可用时的推理路径。"""
 
+    def setUp(self):
+        """每个测试前重置 simulator 模块全局状态，避免测试间状态泄漏。"""
+        import src.visualization.simulator as sim
+
+        sim._ppo_current_obs = None
+        sim._ppo_episode_reward = 0.0
+        sim._ppo_episode_step = 0
+
     async def test_ppo_model_available_updates_qubit_utilization(self):
-        """PPO 模型可用且推理成功时应根据动作更新 qubit_utilization。"""
+        """PPO 模型可用且推理成功时应从环境观测值更新 qubit_utilization。"""
         mock_app = _build_mock_app()
         # 构造 mock PPO 模型 — 返回 action=1（量子）
         mock_model = MagicMock()
@@ -105,7 +133,7 @@ class TestSimulateSchedulerPpoPath(unittest.IsolatedAsyncioTestCase):
         mock_model.env.reset.return_value = ([0.1] * 14, {})
         mock_model.predict.return_value = (1, None)
         mock_app._get_ppo_model.return_value = mock_model
-        mock_app._ppo_env = MagicMock()  # 非 None
+        mock_app._ppo_env = _make_mock_ppo_env()  # 正确配置 reset()/step()
         mock_app._ppo_model = mock_model  # 用于 broadcast 时 ppo_active 判断
 
         with (
@@ -120,8 +148,8 @@ class TestSimulateSchedulerPpoPath(unittest.IsolatedAsyncioTestCase):
             with self.assertRaises(asyncio.CancelledError):
                 await simulate_scheduler()
 
-        # PPO 推理分支：action=1 → target=0.45，更新后利用率应为 0.5*0.7 + 0.45*0.3 = 0.485
-        self.assertAlmostEqual(mock_app.system_status["qubit_utilization"], 0.485, places=4)
+        # PPO 推理成功：qubit_utilization 从 new_obs[0] 读取 = 0.5
+        self.assertAlmostEqual(mock_app.system_status["qubit_utilization"], 0.5, places=4)
         # current_step 应递增
         self.assertEqual(mock_app.system_status["current_step"], 1)
         # 决策日志应记录 PPO 动作
@@ -143,7 +171,7 @@ class TestSimulateSchedulerPpoPath(unittest.IsolatedAsyncioTestCase):
         mock_model.env.reset.return_value = ([0.1] * 14, {})
         mock_model.predict.return_value = (0, None)
         mock_app._get_ppo_model.return_value = mock_model
-        mock_app._ppo_env = MagicMock()
+        mock_app._ppo_env = _make_mock_ppo_env()
         mock_app._ppo_model = mock_model
 
         with (
@@ -161,14 +189,14 @@ class TestSimulateSchedulerPpoPath(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(mock_app._decision_log[0]["action_label"], "经典")
 
     async def test_ppo_action_hybrid_label(self):
-        """PPO action=2 时 action_label 应为 '混合'，且 qubit_utilization 走 0.40 分支。"""
+        """PPO action=2 时 action_label 应为 '混合'，且 qubit_utilization 从观测值读取。"""
         mock_app = _build_mock_app()
         mock_model = MagicMock()
         mock_model.env = MagicMock()
         mock_model.env.reset.return_value = ([0.1] * 14, {})
         mock_model.predict.return_value = (2, None)
         mock_app._get_ppo_model.return_value = mock_model
-        mock_app._ppo_env = MagicMock()
+        mock_app._ppo_env = _make_mock_ppo_env()
         mock_app._ppo_model = mock_model
 
         with (
@@ -184,8 +212,8 @@ class TestSimulateSchedulerPpoPath(unittest.IsolatedAsyncioTestCase):
                 await simulate_scheduler()
 
         self.assertEqual(mock_app._decision_log[0]["action_label"], "混合")
-        # action=2 → target=0.40，0.5*0.7 + 0.40*0.3 = 0.47
-        self.assertAlmostEqual(mock_app.system_status["qubit_utilization"], 0.47, places=4)
+        # PPO 推理成功：qubit_utilization 从 new_obs[0] 读取 = 0.5
+        self.assertAlmostEqual(mock_app.system_status["qubit_utilization"], 0.5, places=4)
 
     async def test_ppo_predict_exception_fallback_to_random(self):
         """PPO predict 抛 ValueError 时应回退到随机更新路径。"""
@@ -195,7 +223,7 @@ class TestSimulateSchedulerPpoPath(unittest.IsolatedAsyncioTestCase):
         mock_model.env.reset.return_value = ([0.1] * 14, {})
         mock_model.predict.side_effect = ValueError("infer fail")
         mock_app._get_ppo_model.return_value = mock_model
-        mock_app._ppo_env = MagicMock()
+        mock_app._ppo_env = _make_mock_ppo_env()
         mock_app._ppo_model = mock_model
 
         with (
@@ -223,7 +251,7 @@ class TestSimulateSchedulerPpoPath(unittest.IsolatedAsyncioTestCase):
         mock_model.env.reset.return_value = ([0.1] * 14, {})
         mock_model.predict.side_effect = RuntimeError("runtime fail")
         mock_app._get_ppo_model.return_value = mock_model
-        mock_app._ppo_env = MagicMock()
+        mock_app._ppo_env = _make_mock_ppo_env()
         mock_app._ppo_model = mock_model
 
         with (
@@ -249,7 +277,7 @@ class TestSimulateSchedulerPpoPath(unittest.IsolatedAsyncioTestCase):
         mock_model.env.reset.return_value = ([0.1] * 14, {})
         mock_model.predict.side_effect = OSError("os err")
         mock_app._get_ppo_model.return_value = mock_model
-        mock_app._ppo_env = MagicMock()
+        mock_app._ppo_env = _make_mock_ppo_env()
         mock_app._ppo_model = mock_model
 
         with (
@@ -325,7 +353,7 @@ class TestSimulateSchedulerNoModel(unittest.IsolatedAsyncioTestCase):
         mock_model = MagicMock()
         mock_model.env = None  # model.env 为 None
         mock_app._get_ppo_model.return_value = mock_model
-        mock_app._ppo_env = MagicMock()
+        mock_app._ppo_env = _make_mock_ppo_env()
         mock_app._ppo_model = mock_model
 
         with (
@@ -766,7 +794,7 @@ class TestSimulateSchedulerHistoryAndLog(unittest.IsolatedAsyncioTestCase):
         mock_model.env.reset.return_value = ([0.1] * 14, {})
         mock_model.predict.return_value = (1, None)
         mock_app._get_ppo_model.return_value = mock_model
-        mock_app._ppo_env = MagicMock()
+        mock_app._ppo_env = _make_mock_ppo_env()
         mock_app._ppo_model = mock_model
         # 预填充 199 条决策日志
         mock_app._decision_log = [
@@ -808,7 +836,7 @@ class TestSimulateSchedulerHistoryAndLog(unittest.IsolatedAsyncioTestCase):
         mock_model.env.reset.return_value = ([0.1] * 14, {})
         mock_model.predict.return_value = (1, None)
         mock_app._get_ppo_model.return_value = mock_model
-        mock_app._ppo_env = MagicMock()
+        mock_app._ppo_env = _make_mock_ppo_env()
         mock_app._ppo_model = mock_model
 
         with (
@@ -879,7 +907,7 @@ class TestSimulateSchedulerBroadcast(unittest.IsolatedAsyncioTestCase):
         mock_model.env.reset.return_value = ([0.1] * 14, {})
         mock_model.predict.return_value = (0, None)
         mock_app._get_ppo_model.return_value = mock_model
-        mock_app._ppo_env = MagicMock()
+        mock_app._ppo_env = _make_mock_ppo_env()
         mock_app._ppo_model = mock_model  # 非 None
 
         with (

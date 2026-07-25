@@ -21,7 +21,7 @@ quantum:
   shots: 1024
   simulator: qiskit-aer
 scheduler:
-  algorithm: DQN
+  algorithm: PPO
   batch_size: 64
   epsilon_decay: 0.995
   epsilon_end: 0.01

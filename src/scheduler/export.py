@@ -31,6 +31,9 @@ except ImportError:  # pragma: no cover
 
     logger = logging.getLogger(__name__)  # type: ignore[assignment]
 
+# 项目根目录（本文件位于 <root>/src/scheduler/export.py）
+_PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 __all__ = ["ModelExporter", "export_model"]
 
 # 默认输入形状（对应 14 维调度状态空间）
@@ -102,11 +105,16 @@ class ModelExporter:
         """
         初始化模型导出器。
 
+        相对路径的 ``output_dir`` 会基于项目根目录解析为绝对路径，避免依赖 CWD。
+
         Args:
             model_path: SB3 模型文件路径（.zip 格式）
             output_dir: 导出文件保存目录，默认 "models/exported"
         """
         self.model_path = model_path
+        # 相对路径基于项目根目录解析，确保 CWD 无关性
+        if not os.path.isabs(output_dir):
+            output_dir = os.path.join(_PROJECT_ROOT, output_dir)
         self.output_dir = output_dir
         os.makedirs(output_dir, exist_ok=True)
 

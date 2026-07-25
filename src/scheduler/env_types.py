@@ -100,7 +100,7 @@ REAL_FEEDBACK_MODES = (
 # result_aware 模式下的最大奖励上限（防止高保真度任务奖励爆炸）
 REAL_RESULT_REWARD_MAX = 5.0
 # result_aware 模式下的最小奖励下限（即使质量为 0 也给少量完成奖励）
-REAL_RESULT_REWARD_MIN = 0.5
+REAL_RESULT_REWARD_MIN = 0.0  # 测量解析失败时给 0 奖励（不鼓励失败）
 
 
 # ---------------------------------------------------------------------------

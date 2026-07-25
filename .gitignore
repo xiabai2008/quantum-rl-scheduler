@@ -49,7 +49,12 @@ logs/
 # 环境变量（包含敏感信息，绝对不能提交！）
 config/.env
 .env
-*.json
+# 敏感 JSON 配置（避免全局 *.json 误伤合法 JSON 文件，如前端 package.json、测试 fixture 等）
+config/secrets.json
+config/credentials.json
+config/api_keys.json
+*_secret.json
+*_credentials.json
 
 # 测试覆盖率
 .coverage

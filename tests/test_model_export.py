@@ -182,12 +182,14 @@ class TestModelExporterBasic(_ExportTestBase):
         self.assertEqual(exporter.output_dir, output_dir)
 
     def test_default_output_dir(self) -> None:
-        """未指定 output_dir 时使用默认值。"""
+        """未指定 output_dir 时使用默认值（基于项目根目录的绝对路径）。"""
         exporter = ModelExporter(model_path=os.path.join(self.tmpdir, "fake.zip"))
-        self.assertEqual(exporter.output_dir, "models/exported")
-        self.assertTrue(os.path.isdir("models/exported"))
+        # 默认 output_dir 解析为项目根目录下的绝对路径
+        self.assertTrue(exporter.output_dir.endswith("models/exported"))
+        self.assertTrue(os.path.isabs(exporter.output_dir))
+        self.assertTrue(os.path.isdir(exporter.output_dir))
         # 清理默认目录
-        shutil.rmtree("models/exported", ignore_errors=True)
+        shutil.rmtree(exporter.output_dir, ignore_errors=True)
 
     def test_init_does_not_load_model(self) -> None:
         """__init__ 不应立即加载模型（延迟加载）。"""

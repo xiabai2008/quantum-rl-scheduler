@@ -18,7 +18,6 @@ manager / _get_ppo_model 等），确保运行时看到的总是 app 模块当�
 import asyncio
 import random
 from datetime import datetime
-from typing import Optional
 
 import numpy as np
 from loguru import logger
@@ -32,7 +31,7 @@ from src.scheduler.explainability import DecisionExplainer
 _explainer = DecisionExplainer()
 
 # PPO 推理持久化状态
-_ppo_current_obs: Optional[np.ndarray] = None  # 当前观测向量（episode 内持续更新）
+_ppo_current_obs: np.ndarray | None = None  # 当前观测向量（episode 内持续更新）
 _ppo_episode_reward = 0.0  # 当前 episode 累积奖励
 _ppo_episode_step = 0  # 当前 episode 步数
 
@@ -91,6 +90,8 @@ async def simulate_scheduler() -> None:
                 _app.system_status["average_wait_time"] = round(
                     float(new_obs[2]) * 100, 1
                 )  # 真实平均等待时间（反归一化）
+                # 队列长度从真实环境观测读取（obs[1] = queue_length / MAX_QUEUE_SIZE=30）
+                _app.system_status["queue_length"] = round(float(new_obs[1]) * 30)
 
                 # 检查 episode 是否结束
                 if terminated or truncated:
@@ -127,10 +128,11 @@ async def simulate_scheduler() -> None:
                 4,
             )
 
-        _app.system_status["queue_length"] = len(
-            [t for t in _app.task_queue if t["status"] == "pending"]
-        )
+        # 无 PPO 模型时，队列长度从 Web 任务队列读取
         if model is None:
+            _app.system_status["queue_length"] = len(
+                [t for t in _app.task_queue if t["status"] == "pending"]
+            )
             _app.system_status["average_wait_time"] = round(
                 max(0.5, _app.system_status["average_wait_time"] + random.uniform(-0.5, 0.5)), 1
             )
@@ -152,7 +154,7 @@ async def simulate_scheduler() -> None:
                 # 文件 I/O 错误 / 数据格式错误 / 运行时错误
                 logger.error(f"[Web] 加载真机提交记录异常: {e}")
 
-        # PPO-Balanced 策略：平衡量子/经典资源分配
+        # 演示用模拟任务流（非PPO真实调度，仅用于前端任务卡片动画效果）
         pending = [t for t in _app.task_queue if t["status"] == "pending"]
         if pending and random.random() < 0.35:
             task = random.choice(pending)

@@ -15,6 +15,7 @@ Real-Machine Closed-Loop for Quantum-Classical Hybrid Task Scheduling Environmen
 _real_clients 等），从而避免循环导入。
 """
 
+import math
 import random
 from typing import TYPE_CHECKING, Any
 
@@ -53,7 +54,11 @@ _MAX_REAL_QUBITS = 287
 
 # 免费机时包最大量子比特数（天衍云免费额度限制）
 # 超过此限制的电路会触发"您的机时包最大比特数不支持本任务"错误
-FREE_TIER_MAX_QUBITS = 1  # 天衍-176 真机仅 1-qubit 电路稳定，多量子比特频繁"运行失败"
+# .. note::
+#   当前真机验证阶段使用 1 比特电路（受天衍云免费套餐限制），
+#   验证的是端到端调度闭环而非大规模量子计算能力。
+#   多比特电路实验是下一阶段工作（需付费套餐额度）。
+FREE_TIER_MAX_QUBITS = 1  # 天衍云免费套餐仅支持 1-qubit 电路
 
 
 def generate_qcis_circuit(
@@ -104,7 +109,7 @@ def generate_qcis_circuit(
         gate = rng.choice(_SINGLE_QUBIT_GATES)
         if gate in ("RX", "RY", "RZ"):
             # 参数化旋转门：随机角度
-            angle = round(rng.uniform(0, 2 * 3.14159), 4)
+            angle = round(rng.uniform(0, 2 * math.pi), 4)
             lines.append(f"{gate} Q{q},{angle}")
         else:
             lines.append(f"{gate} Q{q}")
@@ -199,13 +204,16 @@ def parse_measurement_result(status: dict[str, Any]) -> dict[str, float]:
 def compute_theoretical_distribution(qcis: str) -> dict[str, float]:
     """根据 QCIS 电路计算理论概率分布（用于保真度对比）。
 
-    对于简单电路（仅 H 门 + 测量），理论分布为均匀分布。
-    对于无 H 门的电路（如 X 门），理论分布为确定态。
-
-    当前支持的电路模式：
+    当前版本仅支持 H 门和 X 门的精确理论分布：
     - 仅 H 门：均匀分布 {"0": 0.5, "1": 0.5}
     - 含 X 门：确定态 {"1": 1.0}
-    - 其他/复杂电路：均匀分布（保守估计）
+    - 其他/复杂电路（含 RX/RY/RZ/CNOT/CZ 等）：使用均匀分布近似
+
+    .. warning::
+        当前版本对 RX/RY/RZ 旋转门和 CNOT/CZ 两比特纠缠门**不做精确计算**，
+        一律返回均匀分布作为保守近似。因此基于此函数计算的保真度数值
+        **仅供参考**，不适用于包含旋转门/纠缠门的复杂电路。
+        1-2 比特电路的精确状态向量模拟是后续改进方向。
 
     Args:
         qcis: QCIS 格式电路字符串

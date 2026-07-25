@@ -56,6 +56,10 @@ def set_seed(seed: int = 42) -> int:
 
         torch.manual_seed(seed)
         torch.cuda.manual_seed_all(seed)
+        # CUDA 确定性设置，保证多seed实验可复现
+        if hasattr(torch.backends, "cudnn"):
+            torch.backends.cudnn.deterministic = True
+            torch.backends.cudnn.benchmark = False
     except ImportError:
         logger.debug("PyTorch 未安装，跳过 torch.manual_seed 设置")
 

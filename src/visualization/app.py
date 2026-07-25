@@ -77,7 +77,7 @@ system_status: dict = {
     "average_wait_time": 12.3,  # 平均等待时间(秒)
     "completed_tasks": 42,  # 已完成任务数
     "current_step": 1024,  # 当前调度步数
-    "current_strategy": "PPO-Balanced",  # 当前调度策略
+    "current_strategy": "PPO",  # 当前调度策略
     "strategy_options": [  # 可选策略列表
         "PPO",
         "DQN",

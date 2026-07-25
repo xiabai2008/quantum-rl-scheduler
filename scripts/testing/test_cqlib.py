@@ -1,11 +1,20 @@
 """查询天衍云真机任务结果"""
 
+import os
 import time
 
 import cqlib
 
-API_KEY = "u9ViyEDXlTzYmYkSpzdP+WZ68JavOEkH+PWuy0GwTxKsM66Y8Ud1nelj+ebKcQQUyBRazg=="
-TASK_ID = "2071927047586058241"
+API_KEY = os.environ.get("TIANYAN_API_KEY", "")
+TASK_ID = os.environ.get("TIANYAN_TASK_ID", "")
+
+if not API_KEY:
+    raise RuntimeError(
+        "请设置环境变量 TIANYAN_API_KEY 后再运行此脚本，禁止硬编码API密钥。\n"
+        "示例: $env:TIANYAN_API_KEY='your_key_here'; python scripts/testing/test_cqlib.py"
+    )
+if not TASK_ID:
+    raise RuntimeError("请设置环境变量 TIANYAN_TASK_ID（要查询的任务ID）")
 
 platform = cqlib.TianYanPlatform(login_key=API_KEY, machine_name="tianyan_s")
 

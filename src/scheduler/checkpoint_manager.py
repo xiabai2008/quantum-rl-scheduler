@@ -30,6 +30,9 @@ from typing import Any, ClassVar
 
 from loguru import logger
 
+# 项目根目录（本文件位于 <root>/src/scheduler/checkpoint_manager.py）
+_PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 
 @dataclass
 class CheckpointMeta:
@@ -120,10 +123,17 @@ class CheckpointManager:
     ) -> None:
         """初始化检查点管理器，确保检查点目录存在。
 
+        相对路径会基于项目根目录解析为绝对路径，避免依赖 CWD。
+
         Args:
             checkpoint_dir: 检查点文件存放目录。
             meta_file: 元数据 JSON 文件路径。
         """
+        # 相对路径基于项目根目录解析，确保 CWD 无关性
+        if not os.path.isabs(checkpoint_dir):
+            checkpoint_dir = os.path.join(_PROJECT_ROOT, checkpoint_dir)
+        if not os.path.isabs(meta_file):
+            meta_file = os.path.join(_PROJECT_ROOT, meta_file)
         self.checkpoint_dir = checkpoint_dir
         self.meta_file = meta_file
         os.makedirs(checkpoint_dir, exist_ok=True)

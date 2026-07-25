@@ -697,6 +697,7 @@ class TianyanClient:
         """提交量子计算任务
 
         真实模式委托 cqlib（接受 QCIS 格式）；Mock 模式委托 Mock 客户端（QASM 格式）。
+        熔断器保护：提交任务为核心路径，熔断器 OPEN 时直接拒绝请求（Issue #149）。
 
         Args:
             circuit_qasm: QASM 格式量子电路字符串（Mock 模式用；真实模式建议用 qcis）
@@ -708,36 +709,61 @@ class TianyanClient:
         Returns:
             任务 ID（task_id）字符串
         """
-        # Mock 模式委托
-        if self.mock_mode and hasattr(self, "_mock_client") and self._mock_client:
-            with self._observe_api_call("submit_quantum_task", "quantum_task"):
-                return cast(
-                    str,
-                    self._mock_client.submit_quantum_task(
-                        circuit_qasm=circuit_qasm, shots=shots, backend=backend
-                    ),
-                )
+        # 熔断器前置检查（核心路径保护，Issue #149）
+        if self._circuit_breaker:
+            self._circuit_breaker.before_request()
 
-        # 真实模式委托 cqlib
-        if self._cqlib is not None:
-            qcis_str = qcis or circuit_qasm
-            if not qcis_str:
-                raise ValueError("真实模式需提供 qcis 或 circuit_qasm")
-            with self._observe_api_call("submit_quantum_task", "quantum_task"):
-                task_id = self._call_with_retry(
-                    self._cqlib.submit_quantum_task,
-                    qcis=qcis_str,
-                    shots=shots,
-                    task_name=task_name,
-                )
-                if task_id is None:
-                    raise TianyanAPIError(500, "cqlib did not return a task_id")
-                return task_id
+        try:
+            # Mock 模式委托
+            if self.mock_mode and hasattr(self, "_mock_client") and self._mock_client:
+                with self._observe_api_call("submit_quantum_task", "quantum_task"):
+                    task_id = cast(
+                        str,
+                        self._mock_client.submit_quantum_task(
+                            circuit_qasm=circuit_qasm, shots=shots, backend=backend
+                        ),
+                    )
+                    if self._circuit_breaker:
+                        self._circuit_breaker.on_success()
+                    return task_id
 
-        raise TianyanAPIError(
-            status_code=500,
-            message="未配置有效 API 密钥或 cqlib 客户端，无法提交量子任务",
-        )
+            # 真实模式委托 cqlib
+            if self._cqlib is not None:
+                qcis_str = qcis or circuit_qasm
+                if not qcis_str:
+                    raise ValueError("真实模式需提供 qcis 或 circuit_qasm")
+                with self._observe_api_call("submit_quantum_task", "quantum_task"):
+                    real_task_id: str | None = self._call_with_retry(
+                        self._cqlib.submit_quantum_task,
+                        qcis=qcis_str,
+                        shots=shots,
+                        task_name=task_name,
+                    )
+                    if real_task_id is None:
+                        raise TianyanAPIError(500, "cqlib did not return a task_id")
+                    if self._circuit_breaker:
+                        self._circuit_breaker.on_success()
+                    return real_task_id
+
+            raise TianyanAPIError(
+                status_code=500,
+                message="未配置有效 API 密钥或 cqlib 客户端，无法提交量子任务",
+            )
+        except Exception as e:
+            # 429 限流：转换为 RateLimitError，不计入熔断器失败计数（Issue #84）
+            if self._is_rate_limited(e):
+                if not isinstance(e, RateLimitError):
+                    e = RateLimitError(
+                        f"API 限流（429）: {e}",
+                        retry_after=getattr(e, "retry_after", None),
+                    )
+                logger.debug(f"submit_quantum_task 限流触发，不计入熔断器: {e}")
+                raise e
+            # 其他异常计入熔断器失败计数，原异常重新抛出由上层处理
+            logger.debug(f"submit_quantum_task 失败，已触发熔断器失败计数: {type(e).__name__}: {e}")
+            if self._circuit_breaker:
+                self._circuit_breaker.on_failure()
+            raise
 
     # ------------------------------------------------------------------
     # 3. 查询任务状态
