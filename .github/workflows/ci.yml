@@ -96,6 +96,8 @@ jobs:
         run: |
           pip install --upgrade pip
           pip install -r requirements.txt
+          # Test dependencies (not in requirements.txt to keep prod image lean)
+          pip install pytest pytest-cov pytest-xdist pytest-timeout
 
       - name: Install ffmpeg (Linux)
         if: runner.os == 'Linux'
@@ -142,7 +144,7 @@ jobs:
   typecheck:
     name: "Type Check (mypy)"
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
     needs: lint
     steps:
       - uses: actions/checkout@v4
@@ -152,10 +154,22 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Install mypy
+      - name: Cache pip packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-mypy-${{ hashFiles('requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-mypy-
+
+      - name: Install dependencies for mypy type resolution
         run: |
           pip install --upgrade pip
           pip install mypy>=1.5.0
+          # Install project deps so mypy can resolve third-party types
+          # (without deps, ignore_missing_imports treats all as Any,
+          #  making # type: ignore comments "unused" → false failures)
+          pip install -r requirements.txt
 
       - name: Run mypy (strict mode, config from mypy.ini)
         run: |
