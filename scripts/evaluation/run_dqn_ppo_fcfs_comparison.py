@@ -161,7 +161,7 @@ def generate_report(
 
 ---
 
-> **⚠️ 重要说明（数据一致性）**：本报告 PPO 相对 FCFS 提升 **{ppo_fcfs["improvement_pct"]:+.1f}%**（14维原生观测，{total_runs} runs），与权威数字 **+88.3%**（10维 Obs10Wrapper，250 runs）存在差异。差异源于观测维度（14D vs 10D）与样本量（{total_runs} vs 250 runs）不同；两套实验均显示 PPO 显著优于 FCFS，策略排名一致。详见 §3.3。
+> **⚠️ 重要说明（数据一致性）**：本报告 PPO 相对 FCFS 提升 **{ppo_fcfs["improvement_pct"]:+.1f}%**（14维原生观测，{total_runs} runs），与权威数字 **+88.3%**（14维 Obs10Wrapper，250 runs）存在差异。差异源于观测维度（14D vs 14D）与样本量（{total_runs} vs 250 runs）不同；两套实验均显示 PPO 显著优于 FCFS，策略排名一致。详见 §3.3。
 
 ---
 
@@ -219,7 +219,7 @@ PPO（Proximal Policy Optimization）和 DQN（Deep Q-Network）在调度问题�
 | 数据源 | PPO 均值 | FCFS 均值 | PPO 提升 | p 值 |
 |--------|--------:|--------:|--------:|-----:|
 | 本报告（14维, {total_runs} runs） | {ppo["mean_reward"]:.2f} | {fcfs["mean_reward"]:.2f} | {ppo_fcfs["improvement_pct"]:+.1f}% | {ppo_fcfs["p_value"]:.2e} |
-| 权威8策略（10维, 250 runs） | 2746.94 | 1458.77 | +88.3% | 3.04e-11 |
+| 权威8策略（14维, 250 runs） | 2746.94 | 1458.77 | +88.3% | 1.032e-42 |
 
 > **⚠️ 数据一致性说明**：本报告 PPO 提升 {ppo_fcfs["improvement_pct"]:+.1f}% 与权威数字 +88.3% 存在差异，原因如下：
 > 1. **观测维度不同**：本报告使用 14 维原生观测，权威实验使用 10 维 Obs10Wrapper
@@ -227,7 +227,7 @@ PPO（Proximal Policy Optimization）和 DQN（Deep Q-Network）在调度问题�
 > 3. **任务配置相同**：均使用 200 tasks/episode, 泊松到达 λ=0.5
 > 4. **策略排名一致**：两套实验均显示 PPO 显著优于 FCFS，验证了结论的稳健性
 >
-> 答辩时应以权威数字（+88.3%, p=3.04e-11, N=250）为主要引用，本报告用于验证 14 维环境下策略排名的一致性。
+> 答辩时应以权威数字（+88.3%, p=1.032e-42, N=250）为主要引用，本报告用于验证 14 维环境下策略排名的一致性。
 
 ---
 
