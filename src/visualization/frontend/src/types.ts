@@ -91,6 +91,10 @@ export interface DecisionRecord {
   q_value?: number
   confidence?: number
   timestamp?: string
+  /** 各特征对决策的贡献度（归一化，和为 1），来自 /api/explainability */
+  feature_contributions?: Record<string, number>
+  /** 决策解释文本，来自 /api/explainability */
+  explanation_text?: string
 }
 
 /** 多机器对比项（来自即将新增的 /api/machines-comparison） */
