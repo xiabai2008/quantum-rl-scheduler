@@ -21,6 +21,11 @@ SKIP_DIRS = {
     ".venv",
     ".venv-mutmut",
     "node_modules",
+    # 追加：工具/缓存/数据转储目录，避免巧合数字触发误报（#174）
+    ".workbuddy",
+    ".devcontainer",
+    "logs",
+    "deliverables",
     # 实验数据目录：带时间戳的历史快照，记录当时真实数据，
     # 不应被强制更新为当前权威数字，不参与口径审计
     "fair_comparison",
@@ -31,6 +36,16 @@ SKIP_DIRS = {
     "ablation_d3_training",
     "models",
 }
+
+# 白名单：仅审计这些文档化交付路径，避免全仓裸扫导致的误报（#174）。
+# SKIP_DIRS 作为兜底仍排除缓存/数据转储等目录。
+WHITELIST_DIRS = {"results/reports", "docs"}
+WHITELIST_FILES = {"README.md", "参赛总结报告-草案.md"}
+
+# 上下文关键词：仅当禁用数字附近（同一行内前后各 30 字符）出现这些关键词之一，
+# 才判定为"旧指标"误用，避免同名合法数字（如 duration_sec = 2864 秒）误报（#173）。
+CONTEXT_RE = re.compile(r"(?i)(PPO奖励|PPO|旧版|旧|提升|奖励|reward|基线|baseline)")
+CONTEXT_WINDOW = 30
 SELF_EXCLUDES = {
     Path("scripts/ci/audit_authoritative_metrics.py"),
     Path("tests/test_metric_audit.py"),
@@ -60,19 +75,36 @@ CANONICAL_RANKING = (
 )
 
 
-def find_forbidden(text: str) -> list[tuple[int, str, str]]:
+def _has_context(line: str, start: int, end: int, window: int = CONTEXT_WINDOW) -> bool:
+    """判断匹配位置前后窗口内是否存在旧指标上下文关键词。"""
+    lo = max(0, start - window)
+    hi = min(len(line), end + window)
+    return bool(CONTEXT_RE.search(line[lo:hi]))
+
+
+def find_forbidden(
+    text: str, require_context: bool = True
+) -> list[tuple[int, str, str]]:
     """返回文本中的旧数字及其行号。
 
     带有 ``<!-- audit-exempt: ... -->`` 标记的行被视为明确豁免的历史数据行，
     跳过该行的禁止模式检查。豁免仅对当前行生效，不影响其他行或文件，
     不会降低当前权威指标审计的严格性。
+
+    当 ``require_context`` 为 ``True``（默认，用于仓库审计）时，仅当禁用数字
+    附近存在旧指标上下文关键词（如 PPO/奖励/提升/旧版 等）才判定为误用，
+    避免同名合法数字误报（#173）。设为 ``False`` 时返回所有原始匹配，
+    用于单元测试验证 ``finditer`` 多匹配收集能力（#188）。
     """
     findings: list[tuple[int, str, str]] = []
     for line_number, line in enumerate(text.splitlines(), start=1):
         if AUDIT_EXEMPT_MARKER in line:
             continue
         for label, pattern in FORBIDDEN_PATTERNS:
-            if match := pattern.search(line):
+            # 使用 finditer 收集一行内同一禁用值的全部匹配（#188）
+            for match in pattern.finditer(line):
+                if require_context and not _has_context(line, match.start(), match.end()):
+                    continue
                 findings.append((line_number, label, match.group(0)))
     return findings
 
@@ -124,8 +156,20 @@ def extract_office_text(path: Path) -> str:
     return "\n".join(chunks)
 
 
+def _in_whitelist(root: Path, path: Path) -> bool:
+    """判断文件是否位于白名单目录或显式白名单文件中（#174）。"""
+    relative = path.relative_to(root).as_posix()
+    if relative in WHITELIST_FILES:
+        return True
+    return any(relative == wd or relative.startswith(wd + "/") for wd in WHITELIST_DIRS)
+
+
 def iter_audited_files(root: Path):
     """遍历参与数字审计的文本和 Office 文件。
+
+    优先使用白名单（WHITELIST_DIRS / WHITELIST_FILES）限定审计范围，
+    仅扫描文档化交付路径，避免全仓裸扫导致误报（#174）；SKIP_DIRS 作为兜底，
+    仍然排除缓存/数据转储等目录。
 
     使用 os.walk 而非 Path.rglob，以便在遍历时直接跳过 SKIP_DIRS，
     避免进入损坏的符号链接目录（如 Windows 上的 .venv-mutmut/lib64）。
@@ -145,6 +189,8 @@ def iter_audited_files(root: Path):
         ]
         for filename in filenames:
             path = Path(dirpath) / filename
+            if not _in_whitelist(root, path):
+                continue
             relative = path.relative_to(root)
             if relative in SELF_EXCLUDES:
                 continue
