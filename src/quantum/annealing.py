@@ -1583,6 +1583,167 @@ def build_qubo_matrix_optimized(
     return qubo
 
 
+# ============================================================================
+# 多机任务分配 QUBO 构建（变量 x[i][m]，面向 DAG 调度器决策层）
+# 与上方单机任务选择 QUBO（变量 x[i]）不同：此处用于将任务分配到多台机器。
+# ---------------------------------------------------------------------------
+
+
+def build_assignment_qubo_matrix(
+    tasks: list[dict[str, Any]],
+    machines: list[dict[str, Any]],
+    penalty: float = 10.0,
+) -> np.ndarray:
+    """
+    构建多机任务分配 QUBO 矩阵
+
+    变量定义：``x[i][m]`` 表示任务 i 是否分配到机器 m，变量总数
+    ``N = n_tasks × n_machines``，按 (i, m) 行优先展平为
+    ``index = i * n_machines + m``。
+
+    目标与约束：
+        - 对角项（选中代价）：
+          ``Q[(i,m),(i,m)] = priority[i] * estimated_time[i] - penalty``
+          （``-penalty`` 来自约束1对角展开，鼓励每任务至少选一台机器）
+        - 约束1（每任务恰好分一台机器）：
+          ``penalty * (Σ_m x[i][m] - 1)^2`` 展开后的非对角部分，
+          贡献同任务不同机器变量对 ``2 * penalty``，惩罚多选
+        - 约束2（机器容量软约束）：近似
+          ``penalty * (Σ_i qubits[i] * x[i][m])^2`` 的非对角部分，
+          贡献同机器不同任务变量对 ``penalty * qubits[i] * qubits[i']``，
+          当同机器任务总比特超过容量时惩罚增大（QUBO 无法精确表达
+          ``max(0, .)^2``，此处采用标准二次松弛）
+
+    矩阵对称；变量排列顺序确保两类约束作用于不同的变量对，互不干扰。
+
+    Args:
+        tasks: 任务字典列表，每项需含 ``task_id``、``qubits_required``、
+               ``estimated_time``、``priority`` 字段
+        machines: 机器字典列表，每项需含 ``machine_id``、``capacity`` 字段
+        penalty: 约束违反惩罚系数，默认 10.0
+
+    Returns:
+        Q: ``(N, N)`` 对称 QUBO 矩阵，``N = n_tasks * n_machines``
+
+    Raises:
+        ValueError: 当 tasks 或 machines 为空，或字段缺失时
+    """
+    if not tasks:
+        raise ValueError("tasks 不能为空")
+    if not machines:
+        raise ValueError("machines 不能为空")
+
+    # 校验字段存在性
+    for t in tasks:
+        for key in ("task_id", "qubits_required", "estimated_time", "priority"):
+            if key not in t:
+                raise ValueError(f"任务字典缺少字段 '{key}': {t}")
+    for m in machines:
+        for key in ("machine_id", "capacity"):
+            if key not in m:
+                raise ValueError(f"机器字典缺少字段 '{key}': {m}")
+
+    n_tasks = len(tasks)
+    n_machines = len(machines)
+    n_vars = n_tasks * n_machines
+    qubo = np.zeros((n_vars, n_vars), dtype=np.float64)
+
+    # 提取属性数组（强制浮点，避免整数除法等副作用）
+    priorities = np.array([float(t["priority"]) for t in tasks], dtype=np.float64)
+    times = np.array([float(t["estimated_time"]) for t in tasks], dtype=np.float64)
+    qubits = np.array([float(t["qubits_required"]) for t in tasks], dtype=np.float64)
+
+    for i in range(n_tasks):
+        for m in range(n_machines):
+            idx_im = i * n_machines + m
+
+            # 对角项：选中代价 + 约束1对角（-penalty 鼓励选择）
+            qubo[idx_im, idx_im] = priorities[i] * times[i] - penalty
+
+            # 约束1非对角：同任务不同机器（惩罚多选）
+            for m2 in range(m + 1, n_machines):
+                idx_im2 = i * n_machines + m2
+                qubo[idx_im, idx_im2] = 2.0 * penalty
+                qubo[idx_im2, idx_im] = 2.0 * penalty
+
+            # 约束2非对角：同机器不同任务（容量软约束）
+            for i2 in range(i + 1, n_tasks):
+                idx_i2m = i2 * n_machines + m
+                coupling = penalty * qubits[i] * qubits[i2]
+                qubo[idx_im, idx_i2m] = coupling
+                qubo[idx_i2m, idx_im] = coupling
+
+    return qubo
+
+
+def solve_task_assignment(
+    tasks: list[dict[str, Any]],
+    machines: list[dict[str, Any]],
+    optimizer: QuantumAnnealingOptimizer | None = None,
+    penalty: float = 10.0,
+) -> tuple[dict[str, str], float]:
+    """
+    量子退火求解多机任务分配问题
+
+    构建任务分配 QUBO 矩阵，调用量子退火（或仿真模拟退火）求解，
+    解码比特串为 ``{task_id: machine_id}`` 分配方案。
+
+    解码规则：每个任务对应 ``n_machines`` 个比特，取第一个为 ``"1"`` 的
+    机器作为分配目标；若全为 ``"0"`` 或比特串长度不足，回退到机器 0。
+
+    Args:
+        tasks: 任务字典列表，字段同 :func:`build_assignment_qubo_matrix`
+        machines: 机器字典列表，字段同 :func:`build_assignment_qubo_matrix`
+        optimizer: 量子退火优化器实例；为 None 时使用默认仿真优化器
+        penalty: 约束违反惩罚系数，默认 10.0
+
+    Returns:
+        tuple (assignment, energy):
+            - assignment: ``{task_id: machine_id}`` 分配方案字典，
+              machine_id 以字符串形式返回
+            - energy: QUBO 能量值 ``x^T Q x``，越低越优；比特串长度
+              不匹配时返回 ``+inf``
+    """
+    qubo = build_assignment_qubo_matrix(tasks, machines, penalty=penalty)
+    n_tasks = len(tasks)
+    n_machines = len(machines)
+
+    if optimizer is None:
+        optimizer = QuantumAnnealingOptimizer(
+            num_qubits=n_tasks * n_machines,
+            simulation_mode=True,
+        )
+
+    bitstring = optimizer.anneal(qubo)
+    bits = bitstring.strip()
+
+    # 解码比特串为分配方案
+    assignment: dict[str, str] = {}
+    for i, task in enumerate(tasks):
+        # 取该任务对应的机器变量段
+        if len(bits) < (i + 1) * n_machines:
+            # 比特串长度不足，回退到机器 0
+            assignment[task["task_id"]] = str(machines[0]["machine_id"])
+            continue
+        segment = bits[i * n_machines : (i + 1) * n_machines]
+        # 选择第一个为 "1" 的机器；若全为 "0"，选择机器 0
+        selected = 0
+        for m, b in enumerate(segment):
+            if b == "1":
+                selected = m
+                break
+        assignment[task["task_id"]] = str(machines[selected]["machine_id"])
+
+    # 计算 QUBO 能量 x^T Q x
+    if len(bits) != qubo.shape[0]:
+        energy = float("inf")
+    else:
+        x = np.array([float(b) for b in bits], dtype=np.float64)
+        energy = float(x @ qubo @ x)
+
+    return assignment, energy
+
+
 def profile_qubo_construction(n_tasks: int = 10, n_iterations: int = 100) -> dict:
     """
     剖析 QUBO 矩阵构建性能
