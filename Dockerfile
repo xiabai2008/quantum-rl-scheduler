@@ -19,8 +19,10 @@ FROM node:20-slim AS frontend-builder
 WORKDIR /frontend
 
 # 先复制 package 文件以利用 Docker 层缓存
+# 注意：src/visualization/frontend/ 现已落地正式 package.json + package-lock.json（Issue #177 修复）
 COPY src/visualization/frontend/package*.json ./
-RUN npm ci --production=false
+# npm ci 默认即安装 devDependencies（vite / @vitejs/plugin-vue / typescript 等构建所需）
+RUN npm ci
 
 # 复制前端源码并构建
 COPY src/visualization/frontend/ ./
