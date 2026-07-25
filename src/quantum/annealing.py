@@ -130,6 +130,9 @@ class QuantumAnnealingOptimizer:
         self._sim_cooling_rate = 0.995  # 降温系数
         self._sim_num_sweeps = 200  # 扫描次数（减少以适应 QUBO 规模）
 
+        # 记录最后一次 anneal 实际使用的求解器（供外部诊断）
+        self._last_solver: str = "none"
+
     # ------------------------------------------------------------------
     # 方法 2: network_to_qubo
     # ------------------------------------------------------------------
@@ -379,7 +382,11 @@ class QuantumAnnealingOptimizer:
         # ---- 路径 2/3：仿真退火 ----
         if self.use_dw:
             # ---- 使用 D-Wave neal 求解器 ----
-            logger.debug(f"anneal: 使用 D-Wave neal 求解器, QUBO 规模 {n}x{n}")
+            self._last_solver = "neal"
+            logger.info(
+                f"[退火] 使用 D-Wave neal 求解器, QUBO 规模 {n}x{n}, "
+                f"shots={self.shots}, annealing_time={self.annealing_time}μs"
+            )
             qubo_dict = self._matrix_to_qubo_dict(qubo_matrix)
             sampler = neal.SimulatedAnnealingSampler()
             sampleset = sampler.sample_qubo(
@@ -392,7 +399,10 @@ class QuantumAnnealingOptimizer:
             best_bitstring = "".join(str(best_sample[i]) for i in range(n))
         else:
             # ---- 使用内置 numpy 模拟退火 ----
-            logger.debug(f"anneal: 使用内置 numpy 模拟退火, QUBO 规模 {n}x{n}")
+            self._last_solver = "numpy_sa"
+            logger.info(
+                f"[退火] 使用内置 numpy 模拟退火, QUBO 规模 {n}x{n}, sweeps={self._sim_num_sweeps}"
+            )
             best_bitstring = self._numpy_simulated_annealing(qubo_matrix)
 
         logger.debug(f"anneal: 最优比特串 = {best_bitstring[:32]}{'...' if n > 32 else ''}")
@@ -605,6 +615,9 @@ class QuantumAnnealingOptimizer:
         best_loss = float("inf")
         best_weights = None
         history = []
+        # 统计退火接受/拒绝次数（供外部诊断为何不同策略训练结果相同）
+        anneal_accepted = 0
+        anneal_rejected = 0
 
         # 初始评估
         initial_loss = self._evaluate_network_quality(policy_net)
@@ -712,6 +725,7 @@ class QuantumAnnealingOptimizer:
             if new_loss <= best_loss or loss_improvement > -accept_threshold:
                 # 接受更新
                 accepted = True
+                anneal_accepted += 1
                 if new_loss < best_loss:
                     best_loss = new_loss
                     best_weights, _ = self._extract_weights(policy_net)
@@ -723,6 +737,7 @@ class QuantumAnnealingOptimizer:
                 else:
                     self._set_weights(policy_net, old_weights)
                 accepted = False
+                anneal_rejected += 1
 
             history.append((iteration, current_loss, new_loss, accepted))
 
@@ -735,6 +750,21 @@ class QuantumAnnealingOptimizer:
 
             if callback is not None:
                 callback(iteration, new_loss)
+
+        # 退火接受/拒绝汇总（诊断 A/B 策略结果为何相同）
+        total_anneals = anneal_accepted + anneal_rejected
+        accept_rate = anneal_accepted / total_anneals if total_anneals > 0 else 0.0
+        self._last_anneal_stats = {
+            "accepted": anneal_accepted,
+            "rejected": anneal_rejected,
+            "total": total_anneals,
+            "accept_rate": accept_rate,
+            "solver": self._last_solver,
+        }
+        logger.info(
+            f"[退火] 接受/拒绝统计: 接受={anneal_accepted}, 拒绝={anneal_rejected}, "
+            f"接受率={accept_rate:.1%}, 求解器={self._last_solver}"
+        )
 
         # 恢复到最佳权重
         if best_weights is not None:
