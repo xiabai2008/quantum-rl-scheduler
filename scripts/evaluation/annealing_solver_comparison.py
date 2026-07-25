@@ -77,13 +77,12 @@ STRATEGY_COLORS = {
 
 
 # Check if neal is actually available (not falling back to numpy SA)
-try:
-    import neal
+import importlib.util
 
-    NEAL_AVAILABLE = True
+NEAL_AVAILABLE = importlib.util.find_spec("neal") is not None
+if NEAL_AVAILABLE:
     logging.info("neal package is available and will be used for Strategy A")
-except ImportError:
-    NEAL_AVAILABLE = False
+else:
     logging.warning(
         "neal package not available - Strategy A will fall back to numpy SA"
     )
