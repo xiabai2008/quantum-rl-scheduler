@@ -112,7 +112,7 @@ class QuantumAnnealingOptimizer:
             logger.warning(
                 f"量子比特数 {num_qubits} 较低，每权重仅 {n_bits_per_weight} bit 编码 "
                 f"（1 符号位 + {n_bits_per_weight - 1} 数值位），精度可能不足。"
-                f"建议 num_qubits ≥ 16 以获得更好的优化效果。"
+                "建议 num_qubits ≥ 16 以获得更好的优化效果。"
             )
 
         # 自动选择求解器：
@@ -129,6 +129,9 @@ class QuantumAnnealingOptimizer:
         self._sim_initial_temp = 2.0  # 初始温度
         self._sim_cooling_rate = 0.995  # 降温系数
         self._sim_num_sweeps = 200  # 扫描次数（减少以适应 QUBO 规模）
+
+        # 记录最后一次 anneal 实际使用的求解器（供外部诊断）
+        self._last_solver: str = "none"
 
     # ------------------------------------------------------------------
     # 方法 2: network_to_qubo
@@ -379,7 +382,11 @@ class QuantumAnnealingOptimizer:
         # ---- 路径 2/3：仿真退火 ----
         if self.use_dw:
             # ---- 使用 D-Wave neal 求解器 ----
-            logger.debug(f"anneal: 使用 D-Wave neal 求解器, QUBO 规模 {n}x{n}")
+            self._last_solver = "neal"
+            logger.info(
+                f"[退火] 使用 D-Wave neal 求解器, QUBO 规模 {n}x{n}, "
+                f"shots={self.shots}, annealing_time={self.annealing_time}μs"
+            )
             qubo_dict = self._matrix_to_qubo_dict(qubo_matrix)
             sampler = neal.SimulatedAnnealingSampler()
             sampleset = sampler.sample_qubo(
@@ -392,7 +399,10 @@ class QuantumAnnealingOptimizer:
             best_bitstring = "".join(str(best_sample[i]) for i in range(n))
         else:
             # ---- 使用内置 numpy 模拟退火 ----
-            logger.debug(f"anneal: 使用内置 numpy 模拟退火, QUBO 规模 {n}x{n}")
+            self._last_solver = "numpy_sa"
+            logger.info(
+                f"[退火] 使用内置 numpy 模拟退火, QUBO 规模 {n}x{n}, sweeps={self._sim_num_sweeps}"
+            )
             best_bitstring = self._numpy_simulated_annealing(qubo_matrix)
 
         logger.debug(f"anneal: 最优比特串 = {best_bitstring[:32]}{'...' if n > 32 else ''}")
@@ -605,6 +615,9 @@ class QuantumAnnealingOptimizer:
         best_loss = float("inf")
         best_weights = None
         history = []
+        # 统计退火接受/拒绝次数（供外部诊断为何不同策略训练结果相同）
+        anneal_accepted = 0
+        anneal_rejected = 0
 
         # 初始评估
         initial_loss = self._evaluate_network_quality(policy_net)
@@ -712,6 +725,7 @@ class QuantumAnnealingOptimizer:
             if new_loss <= best_loss or loss_improvement > -accept_threshold:
                 # 接受更新
                 accepted = True
+                anneal_accepted += 1
                 if new_loss < best_loss:
                     best_loss = new_loss
                     best_weights, _ = self._extract_weights(policy_net)
@@ -723,6 +737,7 @@ class QuantumAnnealingOptimizer:
                 else:
                     self._set_weights(policy_net, old_weights)
                 accepted = False
+                anneal_rejected += 1
 
             history.append((iteration, current_loss, new_loss, accepted))
 
@@ -735,6 +750,21 @@ class QuantumAnnealingOptimizer:
 
             if callback is not None:
                 callback(iteration, new_loss)
+
+        # 退火接受/拒绝汇总（诊断 A/B 策略结果为何相同）
+        total_anneals = anneal_accepted + anneal_rejected
+        accept_rate = anneal_accepted / total_anneals if total_anneals > 0 else 0.0
+        self._last_anneal_stats = {
+            "accepted": anneal_accepted,
+            "rejected": anneal_rejected,
+            "total": total_anneals,
+            "accept_rate": accept_rate,
+            "solver": self._last_solver,
+        }
+        logger.info(
+            f"[退火] 接受/拒绝统计: 接受={anneal_accepted}, 拒绝={anneal_rejected}, "
+            f"接受率={accept_rate:.1%}, 求解器={self._last_solver}"
+        )
 
         # 恢复到最佳权重
         if best_weights is not None:
@@ -754,7 +784,7 @@ class QuantumAnnealingOptimizer:
         diff_max = float(np.max(np.abs(weight_diff))) if weight_diff.size else 0.0
         diff_relative = diff_l2 / (initial_l2_norm + 1e-12)
         logger.info(
-            f"[退火] 退火前后权重差异汇总: "
+            "[退火] 退火前后权重差异汇总: "
             f"初始 L2={initial_l2_norm:.6f}, 最终 L2={final_l2_norm:.6f}, "
             f"差异 L2={diff_l2:.6e}, 相对差异={diff_relative:.6e} ({diff_relative * 100:.4f}%), "
             f"最大绝对差={diff_max:.6e}"
@@ -849,11 +879,12 @@ class QuantumAnnealingOptimizer:
 
         blocks = self._create_param_blocks(all_params, block_strategy, max_params_per_block)
 
+        _qubo_mb = (max_params_per_block * n_bits_per_weight) ** 2 * 8 / 1024 / 1024
         logger.info(
             f"开始分层/分块量子退火 ({block_strategy}): "
             f"{num_iterations} 轮, 全量 {total_tensors} 张量/{total_params_count} 参数, "
             f"分为 {len(blocks)} 块, 每块 ≤{max_params_per_block} 参数, "
-            f"预估每块 QUBO ≤{(max_params_per_block * n_bits_per_weight) ** 2 * 8 / 1024 / 1024:.1f} MB"
+            f"预估每块 QUBO ≤{_qubo_mb:.1f} MB"
         )
 
         # 初始评估
@@ -1088,7 +1119,9 @@ class QuantumAnnealingOptimizer:
         return QuantumAnnealingOptimizer._get_policy_net(agent)
 
     @staticmethod
-    def _extract_weights(network: nn.Module) -> tuple[list[np.ndarray], list[tuple[int, ...]]]:
+    def _extract_weights(
+        network: nn.Module,
+    ) -> tuple[list[np.ndarray], list[tuple[int, ...]]]:
         """
         从 PyTorch 网络中提取所有权重参数
 
@@ -1474,7 +1507,7 @@ def build_qubo_matrix(
 
     if task_priorities.shape != task_times.shape:
         raise ValueError(
-            f"task_priorities 与 task_times 形状不一致: "
+            "task_priorities 与 task_times 形状不一致: "
             f"{task_priorities.shape} vs {task_times.shape}"
         )
     if task_priorities.ndim != 1:
@@ -1534,7 +1567,7 @@ def build_qubo_matrix_optimized(
 
     if task_priorities.shape != task_times.shape:
         raise ValueError(
-            f"task_priorities 与 task_times 形状不一致: "
+            "task_priorities 与 task_times 形状不一致: "
             f"{task_priorities.shape} vs {task_times.shape}"
         )
     if task_priorities.ndim != 1:
