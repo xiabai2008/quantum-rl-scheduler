@@ -75,6 +75,16 @@ STRATEGY_COLORS = {
     "D": "#9b59b6",
 }
 
+# Check if neal is actually available (not falling back to numpy SA)
+try:
+    import neal
+    NEAL_AVAILABLE = True
+    logging.info("neal package is available and will be used for Strategy A")
+except ImportError:
+    NEAL_AVAILABLE = False
+    logging.warning("neal package not available - Strategy A will fall back to numpy SA")
+
+
 
 def random_sample_qubo(qubo_matrix: np.ndarray, num_samples: int = 1000) -> str:
     """随机采样求解 QUBO 矩阵，返回最优比特串
@@ -774,17 +784,7 @@ def run_experiment(seeds: list[int], total_timesteps: int) -> dict[str, Any]:
 def main() -> None:
     """主函数入口"""
     # 启用量子加速（原为模块级设置，移入函数避免副作用）
-    
-# Check if neal is actually available (not falling back to numpy SA)
-try:
-    import neal
-    NEAL_AVAILABLE = True
-    logging.info("neal package is available and will be used for Strategy A")
-except ImportError:
-    NEAL_AVAILABLE = False
-    logging.warning("neal package not available - Strategy A will fall back to numpy SA")
-
-os.environ["QUANTUM_ACCELERATION_ENABLED"] = "1"
+        os.environ["QUANTUM_ACCELERATION_ENABLED"] = "1"
     _annealing_mod.QUANTUM_ACCELERATION_ENABLED = True
 
     parser = argparse.ArgumentParser(description="QUBO 求解器对比实验 (Issue #111)")
