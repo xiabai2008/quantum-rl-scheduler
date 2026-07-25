@@ -96,8 +96,8 @@ jobs:
         run: |
           pip install --upgrade pip
           pip install -r requirements.txt
-          # Test dependencies (not in requirements.txt to keep prod image lean)
-          pip install pytest pytest-cov pytest-xdist pytest-timeout pytest-benchmark pytest-subtests
+          # Dev/test dependencies (not in requirements.txt to keep prod image lean)
+          pip install -r requirements-dev.txt
 
       - name: Install ffmpeg (Linux)
         if: runner.os == 'Linux'
