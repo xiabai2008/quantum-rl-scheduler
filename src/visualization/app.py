@@ -88,6 +88,8 @@ system_status: dict = {
     "real_machines": [],  # 真机列表 [{name, status, type, id}]
     "real_submissions": [],  # 真机提交记录 [{step, task_id, machine, latency_s, status}]
     "last_update": datetime.now().isoformat(),
+    "current_action": "等待",  # 当前调度动作
+    "current_reward": 0.0,  # 当前奖励值
 }
 
 # 任务队列

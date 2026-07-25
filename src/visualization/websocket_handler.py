@@ -75,6 +75,20 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
             # 客户端可发送 {"action": "ping"} 作为心跳
             if msg.get("action") == "ping":
                 await websocket.send_json({"type": "pong"})
+            
+            # 客户端请求决策日志
+            if msg.get("action") == "get_decisions":
+                await websocket.send_json({
+                    "type": "decision_log",
+                    "decisions": _app._decision_log[-200:],
+                })
+            
+            # 客户端请求资源历史
+            if msg.get("action") == "get_resource_history":
+                await websocket.send_json({
+                    "type": "resource_history",
+                    "history": _app._resource_history[-100:],
+                })
     except WebSocketDisconnect:
         _app.manager.disconnect(websocket)
 

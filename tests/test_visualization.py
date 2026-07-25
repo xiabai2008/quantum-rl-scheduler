@@ -869,13 +869,13 @@ def test_get_ppo_model_exception_returns_none(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_simulate_scheduler_one_iteration(monkeypatch):
-    """测试 simulate_scheduler 单次迭代：mock asyncio.sleep 第二次抛 CancelledError 退出循环。"""
+    """测试 simulate_scheduler 单次迭代：mock asyncio.sleep 第一次抛 CancelledError 退出循环。"""
     sleep_calls = 0
 
     async def fake_sleep(_seconds):
         nonlocal sleep_calls
         sleep_calls += 1
-        if sleep_calls >= 2:
+        if sleep_calls >= 1:
             raise asyncio.CancelledError()
 
     monkeypatch.setattr(app_module.asyncio, "sleep", fake_sleep)
