@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import * as echarts from 'echarts'
 import type { DecisionRecord } from '../types'
 
 // ============ 响应式数据 ============
@@ -10,11 +11,34 @@ const playSpeed = ref(1000) // 每步间隔 ms
 let playTimer: number | null = null
 const loading = ref(false)
 
+// 特征贡献度 / 解释文本：按 step 索引（来自 /api/explainability）
+const contribMap = ref<Record<number, Record<string, number>>>({})
+const explainMap = ref<Record<number, string>>({})
+
+// Echarts 实例（当前步特征贡献度迷你条形图）
+const contribChartRef = ref<HTMLElement | null>(null)
+let contribChart: echarts.ECharts | null = null
+
 // ============ 计算属性 ============
 const totalSteps = computed(() => records.value.length)
 const currentRecord = computed<DecisionRecord | null>(() => {
   if (records.value.length === 0) return null
   return records.value[currentIndex.value] ?? null
+})
+
+// 当前步的特征贡献度，按贡献度降序
+const currentContributions = computed<Array<[string, number]>>(() => {
+  const r = currentRecord.value
+  if (!r) return []
+  const fc = contribMap.value[r.step]
+  if (!fc) return []
+  return Object.entries(fc).sort((a, b) => b[1] - a[1])
+})
+
+const currentExplanation = computed<string>(() => {
+  const r = currentRecord.value
+  if (!r) return ''
+  return explainMap.value[r.step] ?? ''
 })
 
 const sourceLabel = (source: string): string => {
@@ -51,20 +75,98 @@ const fetchRecords = async () => {
   try {
     const res = await fetch('/api/decision-log')
     if (!res.ok) return
-    const data = (await res.json()) as DecisionRecord[]
-    if (Array.isArray(data)) {
-      records.value = data
-      if (data.length > 0) {
-        currentIndex.value = Math.min(currentIndex.value, data.length - 1)
-      } else {
-        currentIndex.value = 0
-      }
+    // 端点返回 { decisions: [...] }，兼容直接返回数组的情况
+    const data = (await res.json()) as { decisions?: DecisionRecord[] } | DecisionRecord[]
+    const arr: DecisionRecord[] = Array.isArray(data)
+      ? data
+      : (data as { decisions?: DecisionRecord[] }).decisions ?? []
+    records.value = arr
+    if (arr.length > 0) {
+      currentIndex.value = Math.min(currentIndex.value, arr.length - 1)
+    } else {
+      currentIndex.value = 0
     }
   } catch (err) {
     console.debug('decision-log 接口暂不可用:', err)
   } finally {
     loading.value = false
   }
+}
+
+// 拉取每步决策的特征贡献度与解释文本，按 step 建索引
+const fetchExplainability = async () => {
+  try {
+    const res = await fetch('/api/explainability?limit=200')
+    if (!res.ok) return
+    const data = (await res.json()) as {
+      decisions?: Array<{
+        step?: number
+        feature_contributions?: Record<string, number>
+        explanation_text?: string
+      }>
+    }
+    const cMap: Record<number, Record<string, number>> = {}
+    const eMap: Record<number, string> = {}
+    for (const d of data.decisions ?? []) {
+      if (d.step === undefined) continue
+      if (d.feature_contributions) cMap[d.step] = d.feature_contributions
+      if (d.explanation_text) eMap[d.step] = d.explanation_text
+    }
+    contribMap.value = cMap
+    explainMap.value = eMap
+  } catch (err) {
+    console.debug('explainability 接口暂不可用:', err)
+  }
+}
+
+const renderContribChart = () => {
+  if (!contribChartRef.value) return
+  if (!contribChart) {
+    contribChart = echarts.init(contribChartRef.value)
+  }
+  const items = currentContributions.value
+  if (items.length === 0) {
+    contribChart.clear()
+    return
+  }
+  // 横向条形图：贡献度高的特征排在顶部
+  const ordered = [...items].reverse()
+  contribChart.setOption({
+    grid: { left: 100, right: 40, top: 8, bottom: 8 },
+    tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
+    xAxis: {
+      type: 'value',
+      max: Math.max(...items.map((i) => i[1]), 0.0001),
+      axisLabel: { color: '#94a3b8', fontSize: 10 },
+      splitLine: { lineStyle: { color: 'rgba(148,163,184,0.15)' } }
+    },
+    yAxis: {
+      type: 'category',
+      data: ordered.map((i) => i[0]),
+      axisLabel: { color: '#cbd5e1', fontSize: 11 },
+      axisLine: { lineStyle: { color: 'rgba(148,163,184,0.3)' } }
+    },
+    series: [
+      {
+        type: 'bar',
+        data: ordered.map((i) => Number(i[1].toFixed(4))),
+        barWidth: '62%',
+        itemStyle: {
+          color: new echarts.graphic.LinearGradient(0, 0, 1, 0, [
+            { offset: 0, color: '#1e3a8a' },
+            { offset: 1, color: '#60a5fa' }
+          ])
+        },
+        label: {
+          show: true,
+          position: 'right',
+          color: '#cbd5e1',
+          fontSize: 10,
+          formatter: '{c}'
+        }
+      }
+    ]
+  })
 }
 
 const onSliderChange = (e: Event) => {
@@ -128,13 +230,25 @@ const changeSpeed = (e: Event) => {
   }
 }
 
+const onResize = () => {
+  contribChart?.resize()
+}
+
+// 当前步贡献度变化时重绘图表（flush: post 保证 DOM 已就绪）
+watch(currentContributions, renderContribChart, { flush: 'post' })
+
 // ============ 生命周期 ============
 onMounted(() => {
   fetchRecords()
+  fetchExplainability()
+  window.addEventListener('resize', onResize)
 })
 
 onUnmounted(() => {
   pause()
+  window.removeEventListener('resize', onResize)
+  contribChart?.dispose()
+  contribChart = null
 })
 </script>
 
@@ -249,6 +363,18 @@ onUnmounted(() => {
             <span class="label">时间戳</span>
             <span class="value">{{ currentRecord.timestamp }}</span>
           </div>
+
+          <!-- 决策解释文本（来自 /api/explainability） -->
+          <div v-if="currentExplanation" class="decision-row decision-explain">
+            <span class="label">决策解释</span>
+            <span class="value explain-text">{{ currentExplanation }}</span>
+          </div>
+
+          <!-- 当前步特征贡献度可视化（Echarts 横向条形图） -->
+          <div v-if="currentContributions.length" class="decision-contrib">
+            <div class="contrib-title">特征贡献度（为何如此决策）</div>
+            <div ref="contribChartRef" class="contrib-chart"></div>
+          </div>
         </div>
       </div>
     </div>
@@ -270,5 +396,28 @@ onUnmounted(() => {
   border-radius: 10px;
   font-size: 12px;
   font-weight: 600;
+}
+.decision-explain {
+  align-items: flex-start;
+}
+.explain-text {
+  line-height: 1.6;
+  white-space: pre-wrap;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+.decision-contrib {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--border-color);
+}
+.contrib-title {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+}
+.contrib-chart {
+  width: 100%;
+  height: 320px;
 }
 </style>
