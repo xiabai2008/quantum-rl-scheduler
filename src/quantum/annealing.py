@@ -255,7 +255,8 @@ class QuantumAnnealingOptimizer:
                     # t = target_delta_direction (目标更新方向)
                     # 线性项来自 g*Δw，我们要最小化 loss，所以目标是 -t*Δw
                     Q[global_idx, global_idx] = (
-                        -target_delta_direction * bit_val * imp + reg_lambda * bit_val * bit_val
+                        -target_delta_direction * bit_val * imp
+                        + reg_lambda * bit_val * bit_val
                     )
 
             # --- 同一权重内比特间的耦合项 ---
@@ -367,11 +368,15 @@ class QuantumAnnealingOptimizer:
                             f"[退火] 真机退火返回类型 {type(result)} 无法识别，降级为仿真"
                         )
                         best_bitstring = self._numpy_simulated_annealing(qubo_matrix)
-                    logger.info(f"[退火] 真机退火完成，比特串长度={len(best_bitstring)}")
+                    logger.info(
+                        f"[退火] 真机退火完成，比特串长度={len(best_bitstring)}"
+                    )
                     return best_bitstring
                 except Exception as e:
                     # 真机退火涉及 cqlib SDK，异常类型无法穷举，保留宽捕获并记录日志
-                    logger.warning(f"[退火] 真机退火失败 ({type(e).__name__}: {e})，降级为仿真")
+                    logger.warning(
+                        f"[退火] 真机退火失败 ({type(e).__name__}: {e})，降级为仿真"
+                    )
                     # 继续走下方仿真路径
             else:
                 logger.info(
@@ -405,7 +410,9 @@ class QuantumAnnealingOptimizer:
             )
             best_bitstring = self._numpy_simulated_annealing(qubo_matrix)
 
-        logger.debug(f"anneal: 最优比特串 = {best_bitstring[:32]}{'...' if n > 32 else ''}")
+        logger.debug(
+            f"anneal: 最优比特串 = {best_bitstring[:32]}{'...' if n > 32 else ''}"
+        )
         return best_bitstring
 
     # ------------------------------------------------------------------
@@ -583,7 +590,9 @@ class QuantumAnnealingOptimizer:
         # 获取策略网络
         # head_only 模式需要完整的 policy（含 action_net/value_net 输出头）
         # 非 head_only 模式使用 mlp_extractor 即可
-        policy_net = self._get_full_policy(agent) if head_only else self._get_policy_net(agent)
+        policy_net = (
+            self._get_full_policy(agent) if head_only else self._get_policy_net(agent)
+        )
         if policy_net is None:
             logger.error("无法获取策略网络，退出 optimize_policy")
             return agent
@@ -656,7 +665,9 @@ class QuantumAnnealingOptimizer:
                     )
                     if head_only and gradients is not None:
                         gradients = gradients[head_start_idx:]
-                    logger.debug(f"  梯度计算成功, TD 误差均值={np.mean(np.abs(td_errors)):.4f}")
+                    logger.debug(
+                        f"  梯度计算成功, TD 误差均值={np.mean(np.abs(td_errors)):.4f}"
+                    )
                 except Exception as e:
                     # 梯度计算涉及 PyTorch 张量运算与 replay buffer，异常类型无法穷举，保留宽捕获并记录日志
                     logger.warning(f"  梯度计算失败: {e}, 退化为无梯度模式")
@@ -683,7 +694,9 @@ class QuantumAnnealingOptimizer:
             delta_flat = np.concatenate(
                 [
                     (ow - cw).flatten()
-                    for ow, cw in zip(optimized_head_weights, current_weights, strict=False)
+                    for ow, cw in zip(
+                        optimized_head_weights, current_weights, strict=False
+                    )
                 ]
             )
             delta_l2 = float(np.linalg.norm(delta_flat))
@@ -877,7 +890,9 @@ class QuantumAnnealingOptimizer:
         total_params_count = sum(p.numel() for p in all_params)
         n_bits_per_weight = max(1, self.num_qubits // 4)
 
-        blocks = self._create_param_blocks(all_params, block_strategy, max_params_per_block)
+        blocks = self._create_param_blocks(
+            all_params, block_strategy, max_params_per_block
+        )
 
         logger.info(
             f"开始分层/分块量子退火 ({block_strategy}): "
@@ -905,7 +920,8 @@ class QuantumAnnealingOptimizer:
             for block_idx, block_param_indices in enumerate(blocks):
                 # --- 提取该块的权重 ---
                 block_weights = [
-                    all_params[idx].detach().cpu().numpy().copy() for idx in block_param_indices
+                    all_params[idx].detach().cpu().numpy().copy()
+                    for idx in block_param_indices
                 ]
                 block_shapes = [w.shape for w in block_weights]
                 block_param_count = sum(w.size for w in block_weights)
@@ -919,7 +935,9 @@ class QuantumAnnealingOptimizer:
                             policy_net, replay_buffer, agent
                         )
                         if full_gradients is not None:
-                            block_gradients = [full_gradients[i] for i in block_param_indices]
+                            block_gradients = [
+                                full_gradients[i] for i in block_param_indices
+                            ]
                     except Exception:
                         block_gradients = None
 
@@ -953,7 +971,9 @@ class QuantumAnnealingOptimizer:
                 block_delta = np.concatenate(
                     [
                         (ow - cw).flatten()
-                        for ow, cw in zip(optimized_block_weights, block_weights, strict=False)
+                        for ow, cw in zip(
+                            optimized_block_weights, block_weights, strict=False
+                        )
                     ]
                 )
                 block_delta_l2 = float(np.linalg.norm(block_delta))
@@ -1118,7 +1138,9 @@ class QuantumAnnealingOptimizer:
         return QuantumAnnealingOptimizer._get_policy_net(agent)
 
     @staticmethod
-    def _extract_weights(network: nn.Module) -> tuple[list[np.ndarray], list[tuple[int, ...]]]:
+    def _extract_weights(
+        network: nn.Module,
+    ) -> tuple[list[np.ndarray], list[tuple[int, ...]]]:
         """
         从 PyTorch 网络中提取所有权重参数
 
@@ -1179,7 +1201,9 @@ class QuantumAnnealingOptimizer:
             for param, w_old, w_new, shape in zip(
                 network.parameters(), old_weights, new_weights, shapes, strict=False
             ):
-                assert w_new.shape == shape, f"权重形状不匹配: 期望 {shape}, 实际 {w_new.shape}"
+                assert w_new.shape == shape, (
+                    f"权重形状不匹配: 期望 {shape}, 实际 {w_new.shape}"
+                )
                 old_std = np.std(w_old) + 1e-8
                 new_std = np.std(w_new) + 1e-8
                 w_new_scaled = w_new * (old_std / new_std)
@@ -1250,7 +1274,9 @@ class QuantumAnnealingOptimizer:
             learning_rate : 学习率，控制更新幅度
         """
         with torch.no_grad():
-            for param, w_old, w_new in zip(params, old_weights, new_weights, strict=False):
+            for param, w_old, w_new in zip(
+                params, old_weights, new_weights, strict=False
+            ):
                 delta = w_new - w_old
                 w_final = w_old + learning_rate * delta
                 param.copy_(torch.from_numpy(w_final.astype(np.float32)))
@@ -1444,7 +1470,9 @@ class QuantumAnnealingOptimizer:
             if temperature < 1e-6:
                 break
 
-        logger.debug(f"numpy 模拟退火: 最佳能量 = {best_energy:.6f}, 扫描次数 = {sweep + 1}")
+        logger.debug(
+            f"numpy 模拟退火: 最佳能量 = {best_energy:.6f}, 扫描次数 = {sweep + 1}"
+        )
 
         # 转换为比特串
         best_bitstring = "".join(str(int(b)) for b in best_solution)
@@ -1508,7 +1536,9 @@ def build_qubo_matrix(
             f"{task_priorities.shape} vs {task_times.shape}"
         )
     if task_priorities.ndim != 1:
-        raise ValueError(f"task_priorities 必须为一维数组，实际 ndim={task_priorities.ndim}")
+        raise ValueError(
+            f"task_priorities 必须为一维数组，实际 ndim={task_priorities.ndim}"
+        )
 
     n = task_priorities.shape[0]
     qubo = np.zeros((n, n), dtype=np.float64)
@@ -1524,7 +1554,10 @@ def build_qubo_matrix(
                 qubo[i, j] = (
                     0.5
                     * penalty
-                    * (task_priorities[i] * task_times[j] + task_priorities[j] * task_times[i])
+                    * (
+                        task_priorities[i] * task_times[j]
+                        + task_priorities[j] * task_times[i]
+                    )
                 )
 
     return qubo
@@ -1568,7 +1601,9 @@ def build_qubo_matrix_optimized(
             f"{task_priorities.shape} vs {task_times.shape}"
         )
     if task_priorities.ndim != 1:
-        raise ValueError(f"task_priorities 必须为一维数组，实际 ndim={task_priorities.ndim}")
+        raise ValueError(
+            f"task_priorities 必须为一维数组，实际 ndim={task_priorities.ndim}"
+        )
 
     n = task_priorities.shape[0]
     # 外积 PT[i,j] = P[i] * T[j]；加上其转置得到对称的成对冲突代价
@@ -1734,7 +1769,9 @@ def find_optimal_qubo_params(
     best_energy = float("inf")
 
     for p in penalties:
-        qubo = build_qubo_matrix_optimized(task_priorities, task_times, penalty=float(p))
+        qubo = build_qubo_matrix_optimized(
+            task_priorities, task_times, penalty=float(p)
+        )
         energy = float(x @ qubo @ x) if n > 0 else 0.0
         all_results.append({"penalty": float(p), "energy": energy})
         if energy < best_energy:
@@ -1761,8 +1798,12 @@ if __name__ == "__main__":
     # 显示量子加速开关状态
     _qa_env = os.environ.get("QUANTUM_ACCELERATION_ENABLED", "未设置")
     print(f"\n环境变量 QUANTUM_ACCELERATION_ENABLED = {_qa_env}")
-    print(f"量子加速功能: {'✅ 已启用' if QUANTUM_ACCELERATION_ENABLED else '❌ 已禁用'}")
-    print(f"D-Wave SDK 可用: {'✅ 是' if _DWAVE_AVAILABLE else '❌ 否（使用 numpy 仿真）'}")
+    print(
+        f"量子加速功能: {'✅ 已启用' if QUANTUM_ACCELERATION_ENABLED else '❌ 已禁用'}"
+    )
+    print(
+        f"D-Wave SDK 可用: {'✅ 是' if _DWAVE_AVAILABLE else '❌ 否（使用 numpy 仿真）'}"
+    )
 
     # ---- 测试 1: 创建优化器 ----
     print("\n--- 测试 1: 初始化 QuantumAnnealingOptimizer ---")
@@ -1806,7 +1847,9 @@ if __name__ == "__main__":
     original_shapes = [w.shape for w in mock_weights]
     decoded_weights = optimizer.bitstring_to_weights(bitstring, original_shapes)
     print(f"  解码后权重层数: {len(decoded_weights)}")
-    for i, (dw, orig_shape) in enumerate(zip(decoded_weights, original_shapes, strict=False)):
+    for i, (dw, orig_shape) in enumerate(
+        zip(decoded_weights, original_shapes, strict=False)
+    ):
         assert dw.shape == orig_shape, f"形状不匹配: {dw.shape} vs {orig_shape}"
         print(f"  第 {i} 层: 形状 {dw.shape}, 范围 [{dw.min():.4f}, {dw.max():.4f}]")
 

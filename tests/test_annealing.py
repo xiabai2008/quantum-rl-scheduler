@@ -164,7 +164,9 @@ class TestNetworkToQubo(unittest.TestCase):
             np.random.randn(2).astype(np.float32),
         ]
         td_errors = np.array([0.1, -0.2, 0.3])
-        Q = self.opt.network_to_qubo(self.weights, gradients=gradients, td_errors=td_errors)
+        Q = self.opt.network_to_qubo(
+            self.weights, gradients=gradients, td_errors=td_errors
+        )
         self.assertEqual(Q.shape[0], Q.shape[1])
         self.assertTrue(np.all(np.isfinite(Q)))
 
@@ -230,7 +232,9 @@ class TestBitstringToWeights(unittest.TestCase):
             np.random.randn(2).astype(np.float64),
         ]
         bitstring = "0" * self.bitstring_len
-        weights = self.opt.bitstring_to_weights(bitstring, self.shapes, current_weights=current)
+        weights = self.opt.bitstring_to_weights(
+            bitstring, self.shapes, current_weights=current
+        )
         for w, c in zip(weights, current, strict=False):
             np.testing.assert_array_almost_equal(w, c)
 
@@ -259,7 +263,9 @@ class TestBitstringToWeights(unittest.TestCase):
             np.random.randn(2).astype(np.float64),
         ]
         bitstring = "0" * self.bitstring_len
-        weights = self.opt.bitstring_to_weights(bitstring, self.shapes, current_weights=current)
+        weights = self.opt.bitstring_to_weights(
+            bitstring, self.shapes, current_weights=current
+        )
         for w, c in zip(weights, current, strict=False):
             np.testing.assert_array_almost_equal(w, c)
 
@@ -468,7 +474,9 @@ class TestWeightExtraction(unittest.TestCase):
         self.opt = QuantumAnnealingOptimizer()
         self.net = nn.Linear(4, 2)
         with torch.no_grad():
-            self.net.weight.copy_(torch.tensor([[0.1, 0.2, 0.3, 0.4], [0.5, 0.6, 0.7, 0.8]]))
+            self.net.weight.copy_(
+                torch.tensor([[0.1, 0.2, 0.3, 0.4], [0.5, 0.6, 0.7, 0.8]])
+            )
             self.net.bias.copy_(torch.tensor([0.01, 0.02]))
 
     def test_extract_returns_weights_and_shapes(self):
@@ -476,7 +484,9 @@ class TestWeightExtraction(unittest.TestCase):
         weights, shapes = self.opt._extract_weights(self.net)
         self.assertEqual(len(weights), 2)
         self.assertEqual(shapes, [(2, 4), (2,)])
-        np.testing.assert_array_almost_equal(weights[0], self.net.weight.detach().numpy())
+        np.testing.assert_array_almost_equal(
+            weights[0], self.net.weight.detach().numpy()
+        )
         np.testing.assert_array_almost_equal(weights[1], self.net.bias.detach().numpy())
 
     def test_extract_shapes_match_module(self):
@@ -502,8 +512,12 @@ class TestWeightExtraction(unittest.TestCase):
             np.full((2,), 0.1, dtype=np.float32),
         ]
         self.opt._set_weights(self.net, target)
-        np.testing.assert_array_almost_equal(self.net.weight.detach().numpy(), np.full((2, 4), 0.9))
-        np.testing.assert_array_almost_equal(self.net.bias.detach().numpy(), np.full((2,), 0.1))
+        np.testing.assert_array_almost_equal(
+            self.net.weight.detach().numpy(), np.full((2, 4), 0.9)
+        )
+        np.testing.assert_array_almost_equal(
+            self.net.bias.detach().numpy(), np.full((2,), 0.1)
+        )
 
     def test_extract_multi_layer_network(self):
         """??????????????"""
@@ -538,8 +552,12 @@ class TestOptimizePolicyAndHelpers(unittest.TestCase):
             """?? RL ???,???? optimize_policy ???"""
 
             def __init__(self):
-                self.policy_net = nn.Sequential(nn.Linear(4, 8), nn.ReLU(), nn.Linear(8, 2))
-                self.target_net = nn.Sequential(nn.Linear(4, 8), nn.ReLU(), nn.Linear(8, 2))
+                self.policy_net = nn.Sequential(
+                    nn.Linear(4, 8), nn.ReLU(), nn.Linear(8, 2)
+                )
+                self.target_net = nn.Sequential(
+                    nn.Linear(4, 8), nn.ReLU(), nn.Linear(8, 2)
+                )
                 self.target_net.load_state_dict(self.policy_net.state_dict())
 
         agent = MockAgent()
@@ -573,7 +591,9 @@ class TestOptimizePolicyAndHelpers(unittest.TestCase):
             """? policy_net ???????"""
 
             def __init__(self):
-                self.policy_net = nn.Sequential(nn.Linear(4, 4), nn.ReLU(), nn.Linear(4, 2))
+                self.policy_net = nn.Sequential(
+                    nn.Linear(4, 4), nn.ReLU(), nn.Linear(4, 2)
+                )
 
         agent = MockAgent()
         calls = []
@@ -582,7 +602,9 @@ class TestOptimizePolicyAndHelpers(unittest.TestCase):
             calls.append((iteration, loss))
 
         with patch.object(annealing_mod, "QUANTUM_ACCELERATION_ENABLED", True):
-            self.opt.optimize_policy(agent, num_iterations=3, callback=cb, head_only=False)
+            self.opt.optimize_policy(
+                agent, num_iterations=3, callback=cb, head_only=False
+            )
         self.assertEqual(len(calls), 3)
         self.assertEqual([c[0] for c in calls], [0, 1, 2])
 
@@ -639,7 +661,9 @@ class TestOptimizePolicyAndHelpers(unittest.TestCase):
         new = [np.ones((1, 3), dtype=np.float32), np.ones(1, dtype=np.float32)]
         self.opt._apply_weights_v2(net, old, new, learning_rate=0.5)
         # w_final = 0 + 0.5 * (1 - 0) = 0.5
-        np.testing.assert_array_almost_equal(net.weight.detach().numpy(), np.full((1, 3), 0.5))
+        np.testing.assert_array_almost_equal(
+            net.weight.detach().numpy(), np.full((1, 3), 0.5)
+        )
         np.testing.assert_array_almost_equal(net.bias.detach().numpy(), np.full(1, 0.5))
 
     def test_apply_weights_v1_linear_interpolation(self):
@@ -648,12 +672,20 @@ class TestOptimizePolicyAndHelpers(unittest.TestCase):
         with torch.no_grad():
             net.weight.copy_(torch.tensor([[1.0, 1.0]]))
             net.bias.copy_(torch.tensor([1.0]))
-        old = [np.array([[1.0, 1.0]], dtype=np.float32), np.array([1.0], dtype=np.float32)]
-        new = [np.array([[3.0, 3.0]], dtype=np.float32), np.array([3.0], dtype=np.float32)]
+        old = [
+            np.array([[1.0, 1.0]], dtype=np.float32),
+            np.array([1.0], dtype=np.float32),
+        ]
+        new = [
+            np.array([[3.0, 3.0]], dtype=np.float32),
+            np.array([3.0], dtype=np.float32),
+        ]
         shapes = [(1, 2), (1,)]
         self.opt._apply_weights(net, old, new, shapes, learning_rate=0.5)
         # old_std?0, new_std?0 ? ????1 ? w_final = 0.5*1 + 0.5*3 = 2
-        np.testing.assert_array_almost_equal(net.weight.detach().numpy(), np.full((1, 2), 2.0))
+        np.testing.assert_array_almost_equal(
+            net.weight.detach().numpy(), np.full((1, 2), 2.0)
+        )
         np.testing.assert_array_almost_equal(net.bias.detach().numpy(), np.full(1, 2.0))
 
 
@@ -735,7 +767,9 @@ class TestParamBlockCreation(unittest.TestCase):
 
     def test_no_params_returns_empty(self):
         """????????????"""
-        blocks = QuantumAnnealingOptimizer._create_param_blocks([], block_strategy="size_limited")
+        blocks = QuantumAnnealingOptimizer._create_param_blocks(
+            [], block_strategy="size_limited"
+        )
         self.assertEqual(blocks, [])
 
 
@@ -813,7 +847,9 @@ class TestHierarchicalAnnealing(unittest.TestCase):
         loss_after = QuantumAnnealingOptimizer._evaluate_network_quality(self.net)
         # loss ??????(??????,<5%)
         self.assertLessEqual(
-            loss_after, loss_before * 1.05, f"loss ????: {loss_before:.4f} ? {loss_after:.4f}"
+            loss_after,
+            loss_before * 1.05,
+            f"loss ????: {loss_before:.4f} ? {loss_after:.4f}",
         )
 
     def test_hierarchical_disabled_when_quantum_disabled(self):
@@ -836,7 +872,6 @@ class TestHierarchicalAnnealing(unittest.TestCase):
 
     def test_hierarchical_memory_efficient(self):
         """?????????(??? OOM)?"""
-        import sys
 
         # ??????(6 ?????,??? 540,>500 ????)?
         # ????:???? 200 ?? ? ?? QUBO 800 ?,
@@ -914,8 +949,12 @@ class TestQuboMatrixConstruction(unittest.TestCase):
     def test_build_qubo_custom_penalty(self):
         """??? penalty ????????"""
         # ?? penalty=10.0,? penalty=20.0 ??(?? 2 ?????)
-        Q_default = annealing_mod.build_qubo_matrix(self.priorities, self.times, penalty=10.0)
-        Q_custom = annealing_mod.build_qubo_matrix(self.priorities, self.times, penalty=20.0)
+        Q_default = annealing_mod.build_qubo_matrix(
+            self.priorities, self.times, penalty=10.0
+        )
+        Q_custom = annealing_mod.build_qubo_matrix(
+            self.priorities, self.times, penalty=20.0
+        )
         # ??????(?? penalty ??)
         np.testing.assert_array_almost_equal(np.diag(Q_default), np.diag(Q_custom))
         # ?????? 2 ???
@@ -937,19 +976,27 @@ class TestQuboMatrixConstruction(unittest.TestCase):
 
     def test_build_qubo_optimized_matches_original(self):
         """????????????"""
-        Q_orig = annealing_mod.build_qubo_matrix(self.priorities, self.times, penalty=5.0)
-        Q_opt = annealing_mod.build_qubo_matrix_optimized(self.priorities, self.times, penalty=5.0)
+        Q_orig = annealing_mod.build_qubo_matrix(
+            self.priorities, self.times, penalty=5.0
+        )
+        Q_opt = annealing_mod.build_qubo_matrix_optimized(
+            self.priorities, self.times, penalty=5.0
+        )
         np.testing.assert_array_almost_equal(Q_orig, Q_opt)
 
     def test_build_qubo_optimized_shape_mismatch_raises(self):
         """??????????"""
         with self.assertRaises(ValueError):
-            annealing_mod.build_qubo_matrix_optimized(np.array([1.0]), np.array([1.0, 2.0]))
+            annealing_mod.build_qubo_matrix_optimized(
+                np.array([1.0]), np.array([1.0, 2.0])
+            )
 
     def test_build_qubo_optimized_non_1d_raises(self):
         """??????????"""
         with self.assertRaises(ValueError):
-            annealing_mod.build_qubo_matrix_optimized(np.array([[1.0]]), np.array([1.0]))
+            annealing_mod.build_qubo_matrix_optimized(
+                np.array([[1.0]]), np.array([1.0])
+            )
 
     def test_build_qubo_zero_penalty(self):
         """penalty=0 ???????? 0?"""
@@ -1094,7 +1141,9 @@ class TestSetParamsFromWeights(unittest.TestCase):
             np.array([4.0, 5.0], dtype=np.float32),
         ]
         QuantumAnnealingOptimizer._set_params_from_weights(params, weights)
-        np.testing.assert_array_almost_equal(params[0].detach().numpy(), [1.0, 2.0, 3.0])
+        np.testing.assert_array_almost_equal(
+            params[0].detach().numpy(), [1.0, 2.0, 3.0]
+        )
         np.testing.assert_array_almost_equal(params[1].detach().numpy(), [4.0, 5.0])
 
     def test_partial_param_subset(self):
@@ -1106,7 +1155,9 @@ class TestSetParamsFromWeights(unittest.TestCase):
         # ??????????
         np.testing.assert_array_almost_equal(all_params[0].detach().numpy(), [1.0, 1.0])
         # ?????????
-        np.testing.assert_array_almost_equal(all_params[1].detach().numpy(), [10.0, 20.0, 30.0])
+        np.testing.assert_array_almost_equal(
+            all_params[1].detach().numpy(), [10.0, 20.0, 30.0]
+        )
 
 
 # ============================================================
@@ -1139,7 +1190,9 @@ class TestComputeGradients(unittest.TestCase):
         # actions ??? 2D (batch, 1),?? gather(1, actions) ?????
         batch = (
             np.random.randn(8, 4).astype(np.float32),  # obs
-            np.array([[0], [1], [0], [1], [0], [1], [0], [1]], dtype=np.int64),  # actions 2D
+            np.array(
+                [[0], [1], [0], [1], [0], [1], [0], [1]], dtype=np.int64
+            ),  # actions 2D
             np.array([1.0, 0.5, -0.5, 1.0, 0.0, 0.3, -0.2, 0.8]),  # rewards
             np.random.randn(8, 4).astype(np.float32),  # next_obs
             np.array([0, 0, 0, 0, 0, 0, 0, 1]),  # dones
@@ -1147,7 +1200,9 @@ class TestComputeGradients(unittest.TestCase):
         )
         buffer = MagicMock()
         buffer.sample = MagicMock(return_value=batch)
-        _gradients, _td_errors, loss = self.opt._compute_gradients(self.net, buffer, agent=None)
+        _gradients, _td_errors, loss = self.opt._compute_gradients(
+            self.net, buffer, agent=None
+        )
         # ??????
         self.assertTrue(np.isfinite(loss))
 
@@ -1233,7 +1288,9 @@ class TestSolverComparison(unittest.TestCase):
         mean_sa = float(np.mean(sa_energies))
         mean_rand = float(np.mean(rand_energies))
         # ????? SA ???????
-        self.assertLessEqual(mean_sa, mean_rand, f"SA mean={mean_sa} > random mean={mean_rand}")
+        self.assertLessEqual(
+            mean_sa, mean_rand, f"SA mean={mean_sa} > random mean={mean_rand}"
+        )
 
     def test_apply_weights_v2_partial_with_gradient_direction(self):
         """????????(D)???????????"""
