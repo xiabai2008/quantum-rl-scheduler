@@ -37,7 +37,7 @@
 
 **技术栈**：Python ≥3.10 + Stable-Baselines3（DQN/PPO）+ Gymnasium + PyTorch + Qiskit + D-Wave Ocean SDK + FastAPI + Vue3 + Echarts
 
-**核心代码量**：约 13,100 行 Python（不含测试和文档），2278+ 单元测试用例。
+**核心代码量**：约 17,900 行 Python（不含测试和文档），2278+ 个单元测试用例。
 
 ### 1.1 版本演进
 
@@ -47,7 +47,8 @@
 | v4 | 环境异质化 + PPO 主力算法 | PPO 单机平均奖励 +2,804，超越所有基线 92.5% |
 | v5 | 多机器调度 + 真机验证 | 多机器 PPO 奖励 +4,294（+86.3%），17 个任务成功提交天衍云真机 |
 | v6 | MAPPO 多智能体 + 异步退火闭环 + 14维状态 + 多目标奖励 | 新增 ~3,600 行代码 + 71 测试用例 |
-| v7-v8 | 真机闭环 + 统计显著性 + 公平调度 + D3消融 + 部署架构 | PPO +88.3%(p<0.001,N=250)，真机d=5.64(p<0.001)，Jain's=0.9875 |
+| v7 | ruff 142→0 + mypy 26→0 + CI全严格阻断 + 覆盖率70%→91% | 49个测试文件1663+用例，CI lint/typecheck从baseline升级为strict |
+| v8 | 50seed N=250验证 + 多seed真机实验 | PPO=2746.94±1160.72, +88.3%, p=1.032e-42, rank-biserial=-0.71；多seed真机PPO=1665.22±324.51 vs FCFS=353.22±53.33, d=5.64, p=6.83e-04（Bonferroni校正后显著） | | FCFS: 1458.77±60.47
 
 ---
 
@@ -153,13 +154,35 @@ Web 界面实时展示 (WebSocket 推送)
 
 | 文件 | 行数 | 职责 |
 |------|------|------|
-| [env.py](../src/scheduler/env.py) | 1398 | Gymnasium 调度环境（14维状态/3动作/异质化任务/多机器调度） |
-| [parser.py](../src/scheduler/parser.py) | 864 | 任务解析器（字典/QASM/YAML/文本 → Task） |
-| [agent.py](../src/scheduler/agent.py) | 1261 | DQN + PPO/LSTM 智能体 + 退火/真机回调 |
-| [marl.py](../src/scheduler/marl.py) | 1134 | MAPPO 多智能体调度（CTDE 架构） |
-| [multi_objective_env.py](../src/scheduler/multi_objective_env.py) | 372 | 多目标奖励包装器（吞吐量/平衡/服务质量） |
-| [async_annealing_callback.py](../src/scheduler/async_annealing_callback.py) | 132 | 异步量子退火训练回调 |
-| [__init__.py](../src/scheduler/__init__.py) | 92 | 模块统一导出（延迟导入） |
+| [__init__.py](../src/scheduler/__init__.py) | 98 | 模块统一导出（延迟导入） |
+| [env.py](../src/scheduler/env.py) | 492 | Gymnasium 调度环境入口（14维状态/3动作/异质化任务/多机器调度） |
+| [env_observation.py](../src/scheduler/env_observation.py) | 169 | 观测空间（14维，从 env.py 拆分） |
+| [env_dynamics.py](../src/scheduler/env_dynamics.py) | 155 | 环境动力学（泊松任务生成） |
+| [env_machines.py](../src/scheduler/env_machines.py) | 130 | 多机器管理 |
+| [env_reward.py](../src/scheduler/env_reward.py) | 88 | 奖励函数 |
+| [env_render.py](../src/scheduler/env_render.py) | 94 | 渲染 |
+| [env_types.py](../src/scheduler/env_types.py) | 237 | 类型定义（OBS_DIM=14） |
+| [env_real_machine.py](../src/scheduler/env_real_machine.py) | 569 | 真机集成 |
+| [parser.py](../src/scheduler/parser.py) | 769 | 任务解析器（字典/QASM/YAML/文本 → Task） |
+| [agent.py](../src/scheduler/agent.py) | 475 | DQN 智能体 + 退火/真机回调 |
+| [ppo_agent.py](../src/scheduler/ppo_agent.py) | 347 | PPO 智能体（独立文件，从 agent.py 拆分） |
+| [networks.py](../src/scheduler/networks.py) | 107 | 神经网络定义 |
+| [training.py](../src/scheduler/training.py) | 221 | 训练循环 |
+| [callbacks.py](../src/scheduler/callbacks.py) | 275 | 训练回调 |
+| [marl.py](../src/scheduler/marl.py) | 993 | MAPPO 多智能体调度（CTDE 架构） |
+| [multi_objective_env.py](../src/scheduler/multi_objective_env.py) | 308 | 多目标奖励包装器（吞吐量/平衡/服务质量） |
+| [async_annealing_callback.py](../src/scheduler/async_annealing_callback.py) | 110 | 异步量子退火训练回调 |
+| [baselines.py](../src/scheduler/baselines.py) | 318 | 基线启发式策略（FCFS/SJF/Random/Greedy 等） |
+| [ablation.py](../src/scheduler/ablation.py) | 519 | 消融实验框架 |
+| [dag_scheduler.py](../src/scheduler/dag_scheduler.py) | 431 | DAG 工作流调度 |
+| [hybrid_scheduler.py](../src/scheduler/hybrid_scheduler.py) | 326 | 混合调度器 |
+| [tenant.py](../src/scheduler/tenant.py) | 279 | 多租户管理 |
+| [fairness.py](../src/scheduler/fairness.py) | 215 | 公平性保障 |
+| [checkpoint_manager.py](../src/scheduler/checkpoint_manager.py) | 389 | 检查点管理 |
+| [training_logger.py](../src/scheduler/training_logger.py) | 326 | 训练日志 |
+| [explainability.py](../src/scheduler/explainability.py) | 417 | 可解释性模块 |
+| [export.py](../src/scheduler/export.py) | 481 | 模型导出 |
+| [cache.py](../src/scheduler/cache.py) | 201 | 缓存层 |
 
 #### 3.1.1 状态空间与动作空间
 
@@ -233,11 +256,12 @@ Web 界面实时展示 (WebSocket 推送)
 
 | 文件 | 行数 | 职责 |
 |------|------|------|
-| [tianyan_client.py](../src/api/tianyan_client.py) | 789 | 主客户端（REST/cqlib/Mock 三路委托 + 熔断器） |
-| [tianyan_cqlib.py](../src/api/tianyan_cqlib.py) | 456 | cqlib 真机客户端 + 多机器协调器 |
-| [mock_client.py](../src/api/mock_client.py) | 602 | Mock 客户端 + 工厂函数 |
-| [circuit_breaker.py](../src/api/circuit_breaker.py) | 121 | 独立熔断器（包裹式 API） |
-| [__init__.py](../src/api/__init__.py) | 64 | 工厂函数 `get_client()` / `get_cqlib_client()` |
+| [tianyan_client.py](../src/api/tianyan_client.py) | 886 | 主客户端（REST/cqlib/Mock 三路委托 + 熔断器） |
+| [tianyan_cqlib.py](../src/api/tianyan_cqlib.py) | 547 | cqlib 真机客户端 + 多机器协调器 |
+| [mock_client.py](../src/api/mock_client.py) | 494 | Mock 客户端 + 工厂函数 |
+| [circuit_breaker.py](../src/api/circuit_breaker.py) | 325 | 独立熔断器（包裹式 API） |
+| [quota_tracker.py](../src/api/quota_tracker.py) | 412 | 配额追踪（API 调用配额管理与限流） |
+| [__init__.py](../src/api/__init__.py) | 51 | 工厂函数 `get_client()` / `get_cqlib_client()` |
 
 #### 3.2.1 三路委托架构
 
@@ -346,9 +370,15 @@ RL 训练线程（生产者）              退火工作线程（消费者）
 
 | 文件 | 行数 | 职责 |
 |------|------|------|
-| [app.py](../src/visualization/app.py) | 1534 | FastAPI 监控后端 + WebSocket + Prometheus |
+| [app.py](../src/visualization/app.py) | 335 | FastAPI 监控后端入口 + WebSocket + Prometheus |
+| [routes.py](../src/visualization/routes.py) | 618 | 路由（含 /metrics 端点） |
+| [simulator.py](../src/visualization/simulator.py) | 188 | 仿真器 |
+| [websocket_handler.py](../src/visualization/websocket_handler.py) | 70 | WebSocket 处理器 |
+| [connection.py](../src/visualization/connection.py) | 32 | WebSocket 连接管理器 |
+| [models.py](../src/visualization/models.py) | 26 | 数据模型定义 |
+| [fallback_template.py](../src/visualization/fallback_template.py) | 707 | 前端模板回退（CDN 不可用时） |
 | [frontend/index.html](../src/visualization/frontend/index.html) | 920 | Vue3 + Echarts 前端监控面板 |
-| [__init__.py](../src/visualization/__init__.py) | 12 | 模块导出 |
+| [__init__.py](../src/visualization/__init__.py) | 10 | 模块导出 |
 
 #### 3.4.1 REST API 端点
 
@@ -395,9 +425,13 @@ RL 训练线程（生产者）              退火工作线程（消费者）
 
 | 文件 | 行数 | 职责 |
 |------|------|------|
-| [helpers.py](../src/utils/helpers.py) | 305 | 日志/配置/数据预处理/性能评估工具 |
-| [metrics.py](../src/utils/metrics.py) | 111 | Prometheus 指标定义（Counter/Gauge/Histogram） |
-| [__init__.py](../src/utils/__init__.py) | 36 | 模块导出 |
+| [helpers.py](../src/utils/helpers.py) | 362 | 日志/配置/数据预处理/性能评估工具 |
+| [metrics.py](../src/utils/metrics.py) | 116 | Prometheus 指标定义（Counter/Gauge/Histogram） |
+| [stats_significance.py](../src/utils/stats_significance.py) | 393 | 统计显著性检验（t/Welch/Mann-Whitney + Bonferroni 校正） |
+| [seeds.py](../src/utils/seeds.py) | 48 | 随机种子管理 |
+| [alerts.py](../src/utils/alerts.py) | 236 | 告警 |
+| [platform_compat.py](../src/utils/platform_compat.py) | 240 | 平台兼容 |
+| [__init__.py](../src/utils/__init__.py) | 34 | 模块导出 |
 
 `metrics.py` 定义了更完整的 9 个 Prometheus 指标，覆盖调度引擎、API 调用、量子退火与运行时状态。
 
@@ -822,7 +856,7 @@ src/utils/
 | 配置 | python-dotenv / pyyaml | ≥1.0 / ≥6.0 | 配置管理 |
 | 日志 | loguru | ≥0.7 | 日志框架 |
 | 测试 | pytest / pytest-cov / pytest-timeout / hypothesis | ≥7.4 / ≥4.1 / ≥2.1 / ≥6.100 | 单元测试 |
-| 代码质量 | black / isort / mypy / ruff / bandit | ≥23 / ≥5.12 / ≥1.5 / ≥0.4 / ≥1.7 | 代码规范 |
+| 代码质量 | ruff / mypy / bandit | ≥0.4 / ≥1.5 / ≥1.7 | 代码规范（v7 全面替代 black/isort） |
 | 可观测性 | prometheus_client | ≥0.19 | 指标收集 |
 | CLI | click | ≥8.1 | 命令行接口 |
 | 真机 | cqlib（可选） | — | 天衍云真机 SDK |
@@ -877,10 +911,10 @@ python scripts/training/train_agent.py --config config/config.yaml
 python -c "from src.scheduler.env import QuantumSchedulingEnv; from src.scheduler.agent import PPOAgent; env=QuantumSchedulingEnv(max_qubits=20); agent=PPOAgent(env, learning_rate=3e-4, n_steps=2048, gamma=0.99); agent.train(total_timesteps=50000); agent.save('./models/ppo_model')"
 
 # v6 算法深化训练
-python scripts/train_marl.py --machines 3 --timesteps 50000              # MAPPO 多智能体
-python scripts/train_lstm_agent.py --timesteps 50000                     # PPO+LSTM
-python scripts/train_multi_objective.py --weights 1.0 0.5 0.5            # 多目标 RL
-python scripts/train_with_annealing_loop.py --timesteps 50000            # 异步退火闭环
+python scripts/training/train_marl.py --machines 3 --timesteps 50000              # MAPPO 多智能体
+python scripts/training/train_lstm_agent.py --timesteps 50000                     # PPO+LSTM
+python scripts/training/train_multi_objective.py --weights 1.0 0.5 0.5            # 多目标 RL
+python scripts/training/train_with_annealing_loop.py --timesteps 50000            # 异步退火闭环
 ```
 
 ### 6.4 仿真对比
@@ -897,16 +931,16 @@ python scripts/evaluation/hyperparameter_search.py --timesteps 20000
 
 ```bash
 # 快速验证所有消融维度（dry-run）
-python scripts/ablation_study.py --all --dry-run
+python scripts/evaluation/ablation_study.py --all --dry-run
 
 # 指定维度 3 seed
-python scripts/ablation_study.py --dim D1 D4 --seeds 3
+python scripts/evaluation/ablation_study.py --dim D1 D4 --seeds 3
 
 # 退火消融（PPO vs PPO+退火, 5 seed）
-python scripts/ablation_annealing.py
+python scripts/evaluation/ablation_annealing.py
 
 # 生成学术报告
-python scripts/generate_ablation_report.py results/ablation_study_XXX.json
+python scripts/reporting/generate_ablation_report.py results/ablation_study_XXX.json
 ```
 
 ### 6.6 多机器调度与真机验证
@@ -944,9 +978,8 @@ python scripts/demo/demo.py --skip-train --skip-simulation
 ### 6.9 代码质量检查
 
 ```bash
-black src/ scripts/ tests/                 # 代码格式化
-isort src/ scripts/ tests/                 # import 排序
-ruff check src/ scripts/ tests/            # 代码检查（替代 flake8）
+ruff format src/ scripts/ tests/           # 代码格式化（v7 替代 black）
+ruff check src/ scripts/ tests/            # 代码检查（替代 flake8 + isort）
 mypy src/                                  # 类型检查
 bandit -r src/ -ll                         # 安全扫描
 pre-commit run --all-files                 # 手动触发 pre-commit
@@ -999,22 +1032,39 @@ config = load_config()
 
 ### 7.1 测试概览
 
-测试目录共 **12 个测试文件**，**561 个测试用例**，覆盖率 **85.42%**。
+测试目录共 **~64 个测试文件**，**2278+ 个测试用例**，覆盖率 **91%**。
 
-| 测试文件 | 用例数 | 覆盖模块 |
-|---------|-------|---------|
-| [test_api.py](../tests/test_api.py) | 136 | API 客户端（最大用例集，95.96% 覆盖） |
-| [test_parser.py](../tests/test_parser.py) | 107 | 任务解析器（100% 覆盖） |
-| [test_scheduler.py](../tests/test_scheduler.py) | 67 | 调度核心（含 11 个多机器用例） |
-| [test_annealing.py](../tests/test_annealing.py) | 62 | 量子退火 |
-| [test_helpers.py](../tests/test_helpers.py) | 63 | 工具函数 |
-| [test_visualization.py](../tests/test_visualization.py) | 42 | Web 可视化（90% 覆盖） |
-| [test_multi_objective.py](../tests/test_multi_objective.py) | 33 | 多目标奖励（v6） |
-| [test_marl.py](../tests/test_marl.py) | 18 | MAPPO 多智能体（v6） |
-| [test_state_space.py](../tests/test_state_space.py) | 14 | 状态空间（v6） |
-| [test_annealing_loop.py](../tests/test_annealing_loop.py) | 6 | 异步退火闭环（v6） |
-| [test_property.py](../tests/test_property.py) | 6 | 属性测试（hypothesis） |
-| [benchmarks/test_annealing_benchmark.py](../tests/benchmarks/test_annealing_benchmark.py) | 7 | 退火性能基准 |
+| 测试文件 | 覆盖模块 |
+|---------|---------|
+| [test_api.py](../tests/test_api.py) | API 客户端（最大用例集，95.96% 覆盖） |
+| [test_parser.py](../tests/test_parser.py) | 任务解析器（100% 覆盖） |
+| [test_scheduler.py](../tests/test_scheduler.py) | 调度核心（含 11 个多机器用例） |
+| [test_annealing.py](../tests/test_annealing.py) | 量子退火 |
+| [test_helpers.py](../tests/test_helpers.py) | 工具函数 |
+| [test_visualization.py](../tests/test_visualization.py) | Web 可视化（90% 覆盖） |
+| [test_multi_objective.py](../tests/test_multi_objective.py) | 多目标奖励（v6） |
+| [test_marl.py](../tests/test_marl.py) | MAPPO 多智能体（v6） |
+| [test_state_space.py](../tests/test_state_space.py) | 状态空间（v6） |
+| [test_annealing_loop.py](../tests/test_annealing_loop.py) | 异步退火闭环（v6） |
+| [test_property.py](../tests/test_property.py) | 属性测试（hypothesis） |
+| [test_baselines.py](../tests/test_baselines.py) | 基线策略（v7） |
+| [test_dag_scheduler.py](../tests/test_dag_scheduler.py) | DAG 工作流调度（v7） |
+| [test_hybrid_scheduler.py](../tests/test_hybrid_scheduler.py) | 混合调度器（v7） |
+| [test_explainability.py](../tests/test_explainability.py) | 可解释性模块（v7） |
+| [test_checkpoint_manager.py](../tests/test_checkpoint_manager.py) | 检查点管理（v7） |
+| [test_tenant.py](../tests/test_tenant.py) | 多租户管理（v7） |
+| [test_quota_tracker.py](../tests/test_quota_tracker.py) | 配额追踪（v7） |
+| [test_circuit_breaker.py](../tests/test_circuit_breaker.py) | 熔断器（v7） |
+| [test_stats_significance.py](../tests/test_stats_significance.py) | 统计显著性检验（v8） |
+| [test_multiseed_real_machine_analysis.py](../tests/test_multiseed_real_machine_analysis.py) | 多seed真机分析（v8） |
+| [test_env_real_machine.py](../tests/test_env_real_machine.py) | 真机环境测试（v7） |
+| [test_callbacks.py](../tests/test_callbacks.py) | 训练回调（v7） |
+| [test_seeds.py](../tests/test_seeds.py) | 随机种子管理（v7） |
+| [test_alerts.py](../tests/test_alerts.py) | 告警（v7） |
+| [test_platform_compat.py](../tests/test_platform_compat.py) | 平台兼容（v7） |
+| [benchmarks/test_annealing_benchmark.py](../tests/benchmarks/test_annealing_benchmark.py) | 退火性能基准 |
+
+> 完整测试文件列表请参考 `tests/` 目录，共计 ~64 个测试文件覆盖全部源码模块。
 
 ### 7.2 运行测试
 
@@ -1092,7 +1142,7 @@ Docker 容器健康检查：`curl -f http://localhost:8000/api/status`，30 秒�
 
 - [config/config.yaml](../config/config.yaml)：系统主配置（mock_mode、调度参数、退火参数、天衍云配置）
 - [config/.env.example](../config/.env.example)：环境变量模板
-- [pyproject.toml](../pyproject.toml)：代码质量工具统一配置（Black/isort/ruff/mypy/pytest/coverage/bandit）
+- [pyproject.toml](../pyproject.toml)：代码质量工具统一配置（ruff/mypy/pytest/coverage/bandit）
 
 > **重要约束**：不要修改 `config/config.yaml` 的 `mock_mode: true`，除非获得天衍云平台权限。
 
@@ -1102,18 +1152,25 @@ Docker 容器健康检查：`curl -f http://localhost:8000/api/status`，30 秒�
 
 | 模块 | 核心文件 | 行数 |
 |------|---------|------|
-| 调度环境 | [src/scheduler/env.py](../src/scheduler/env.py) | 1398 |
-| 任务解析 | [src/scheduler/parser.py](../src/scheduler/parser.py) | 864 |
-| RL 智能体 | [src/scheduler/agent.py](../src/scheduler/agent.py) | 1261 |
-| MAPPO | [src/scheduler/marl.py](../src/scheduler/marl.py) | 1134 |
-| 多目标 | [src/scheduler/multi_objective_env.py](../src/scheduler/multi_objective_env.py) | 372 |
-| 异步退火回调 | [src/scheduler/async_annealing_callback.py](../src/scheduler/async_annealing_callback.py) | 132 |
-| 天衍云客户端 | [src/api/tianyan_client.py](../src/api/tianyan_client.py) | 789 |
-| cqlib 真机 | [src/api/tianyan_cqlib.py](../src/api/tianyan_cqlib.py) | 456 |
-| Mock 客户端 | [src/api/mock_client.py](../src/api/mock_client.py) | 602 |
-| 量子退火 | [src/quantum/annealing.py](../src/quantum/annealing.py) | 1286 |
-| 退火闭环 | [src/quantum/annealing_loop.py](../src/quantum/annealing_loop.py) | 343 |
-| Web 后端 | [src/visualization/app.py](../src/visualization/app.py) | 1534 |
+| 调度环境 | [src/scheduler/env.py](../src/scheduler/env.py) | 492 |
+| 任务解析 | [src/scheduler/parser.py](../src/scheduler/parser.py) | 769 |
+| RL 智能体 | [src/scheduler/agent.py](../src/scheduler/agent.py) | 475 |
+| PPO 智能体 | [src/scheduler/ppo_agent.py](../src/scheduler/ppo_agent.py) | 347 |
+| MAPPO | [src/scheduler/marl.py](../src/scheduler/marl.py) | 993 |
+| 多目标 | [src/scheduler/multi_objective_env.py](../src/scheduler/multi_objective_env.py) | 308 |
+| 异步退火回调 | [src/scheduler/async_annealing_callback.py](../src/scheduler/async_annealing_callback.py) | 110 |
+| 真机集成 | [src/scheduler/env_real_machine.py](../src/scheduler/env_real_machine.py) | 569 |
+| 消融实验 | [src/scheduler/ablation.py](../src/scheduler/ablation.py) | 519 |
+| DAG 调度 | [src/scheduler/dag_scheduler.py](../src/scheduler/dag_scheduler.py) | 431 |
+| 天衍云客户端 | [src/api/tianyan_client.py](../src/api/tianyan_client.py) | 886 |
+| cqlib 真机 | [src/api/tianyan_cqlib.py](../src/api/tianyan_cqlib.py) | 547 |
+| Mock 客户端 | [src/api/mock_client.py](../src/api/mock_client.py) | 494 |
+| 配额追踪 | [src/api/quota_tracker.py](../src/api/quota_tracker.py) | 412 |
+| 量子退火 | [src/quantum/annealing.py](../src/quantum/annealing.py) | 1569 |
+| 退火闭环 | [src/quantum/annealing_loop.py](../src/quantum/annealing_loop.py) | 304 |
+| Web 后端 | [src/visualization/app.py](../src/visualization/app.py) | 335 |
+| 路由 | [src/visualization/routes.py](../src/visualization/routes.py) | 618 |
 | Web 前端 | [src/visualization/frontend/index.html](../src/visualization/frontend/index.html) | 920 |
-| 工具函数 | [src/utils/helpers.py](../src/utils/helpers.py) | 305 |
-| Prometheus | [src/utils/metrics.py](../src/utils/metrics.py) | 111 |
+| 工具函数 | [src/utils/helpers.py](../src/utils/helpers.py) | 362 |
+| 统计检验 | [src/utils/stats_significance.py](../src/utils/stats_significance.py) | 393 |
+| Prometheus | [src/utils/metrics.py](../src/utils/metrics.py) | 116 |
