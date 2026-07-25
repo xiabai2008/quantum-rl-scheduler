@@ -304,7 +304,7 @@ quantum-rl-scheduler/
 | 演示视频（5分钟） | — | 待录制 |
 | 统计显著性报告 | `results/reports/statistical_validation.md` | ✅ 已完成 |
 | 验证报告v2修复 | commit `bf5d141` | ✅ 已完成（14文件+169行，2285测试全通过，2026-07-25） |
-| 验证报告v3修复 | commit 待提交 | ✅ 已完成（API密钥轮换+README路径/文件数/Mermaid架构图+setup脚本修复+.env.example+答辩QA补充，8文件修改，2026-07-25） |
+| 验证报告v3修复 | commit `bf78a9a` | ✅ 已完成（API密钥轮换+README路径/文件数/Mermaid架构图+setup脚本修复+.env.example+答辩QA补充，14文件+254行，2026-07-25） |
 | 答辩QA手册v1.2 | `docs/defense_qa_handbook.md` | ✅ 已完成（新增Q39-Q43量子含量5问答+完美分离话术，2026-07-25） |
 
 ## 8. 当前进度
