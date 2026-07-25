@@ -463,9 +463,11 @@ def _generate_markdown(report: dict[str, Any], path: str) -> None:
     lines.extend(
         [
             "| Seed | QUBO 大小 | A (neal) 能量 |"
-            " A gap | B (numpy SA) 能量 | B gap |" C (random) 能量 | C gap |",
-            ""|------|-----------|---------------|-------|-------------------"
-            "|-------|-----------------|-------|","
+            " A gap | B (numpy SA) 能量 | B gap |"
+            " C (random) 能量 | C gap |",
+            "|------|-----------|---------------|"
+            "-------|-------------------|-------|"
+            "-----------------|-------|",
         ]
     )
     for q in report["qubo"]:
