@@ -16,11 +16,13 @@ from typing import TYPE_CHECKING, Any
 
 from loguru import logger
 
+from src.api.hardware_adapter import CircuitFormat, QuantumHardwareBackend
+
 if TYPE_CHECKING:
     from src.api.quota_tracker import QuotaTracker
 
 
-class CqlibTianyanClient:
+class CqlibTianyanClient(QuantumHardwareBackend):
     """基于 cqlib SDK 的天衍云真机客户端
 
     直接调用天衍云超导量子计算机执行量子电路。
@@ -80,6 +82,67 @@ class CqlibTianyanClient:
             logger.info("[Cqlib] 额外凭证已加载（api_secret/app_id），将在平台初始化时透传")
 
         logger.info(f"[Cqlib] 客户端初始化，默认机器={machine_name}")
+
+    # ------------------------------------------------------------------
+    # QuantumHardwareBackend ABC 接口实现（Issue #257）
+    # ------------------------------------------------------------------
+
+    @property
+    def supported_gates(self) -> list[str]:
+        """返回天衍云超导真机支持的量子门列表。"""
+        return ["H", "X", "Y", "Z", "RX", "RY", "RZ", "CNOT", "CZ", "M"]
+
+    @property
+    def topology(self) -> dict[str, Any]:
+        """返回天衍-287 的耦合图拓扑信息。
+
+        天衍-287 超导量子计算机：105 数据比特 + 182 耦合比特，
+        采用 2D 网格拓扑（最近邻耦合）。
+        """
+        return {
+            "type": "2d_grid",
+            "machine_name": self.machine_name,
+            "total_qubits": 287,
+            "data_qubits": 105,
+            "coupler_qubits": 182,
+            "connectivity": "nearest_neighbor",
+            "description": "天衍-287 超导量子计算机，2D 网格拓扑",
+        }
+
+    @property
+    def backend_type(self) -> str:
+        """返回后端类型标识。"""
+        return "superconducting"
+
+    @property
+    def circuit_format(self) -> CircuitFormat:
+        """天衍云超导后端使用 QCIS 指令格式。"""
+        return CircuitFormat.QCIS
+
+    def submit_circuit(
+        self,
+        circuit: str,
+        shots: int = 1024,
+        task_name: str = "Scheduler_Task",
+    ) -> str | None:
+        """提交量子电路到天衍云真机（QuantumHardwareBackend 接口实现）。
+
+        本方法是 ``submit_quantum_task`` 的 ABC 接口适配，
+        将 ``circuit`` 参数映射为 QCIS 指令字符串。
+
+        Args:
+            circuit   : QCIS 指令字符串
+            shots     : 测量次数
+            task_name : 任务名称
+
+        Returns:
+            task_id 字符串；全部机器不可用时返回 None
+        """
+        return self.submit_quantum_task(
+            qcis=circuit,
+            shots=shots,
+            task_name=task_name,
+        )
 
     @property
     def platform(self) -> Any:

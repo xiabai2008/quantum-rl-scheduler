@@ -7,6 +7,13 @@ import os
 from typing import Any
 
 from src.api.circuit_breaker import CircuitBreaker, CircuitState
+from src.api.hardware_adapter import (
+    CircuitFormat,
+    IonTrapBackend,
+    PhotonicBackend,
+    QuantumHardwareBackend,
+    create_hardware_backend,
+)
 from src.api.mock_client import MockTianyanClient, create_tianyan_client
 from src.api.tianyan_client import TianyanAPIError, TianyanClient
 from src.api.tianyan_cqlib import (
@@ -17,12 +24,17 @@ from src.api.tianyan_cqlib import (
 
 __all__ = [
     "CircuitBreaker",
+    "CircuitFormat",
     "CircuitState",
     "CqlibTianyanClient",
+    "IonTrapBackend",
     "MockTianyanClient",
     "MultiMachineCqlibCoordinator",
+    "PhotonicBackend",
+    "QuantumHardwareBackend",
     "TianyanAPIError",
     "TianyanClient",
+    "create_hardware_backend",
     "create_multi_machine_clients",
     "create_tianyan_client",
     "get_client",

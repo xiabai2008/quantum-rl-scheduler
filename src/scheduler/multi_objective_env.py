@@ -27,7 +27,6 @@ from typing import Any, cast
 
 import gymnasium as gym
 import numpy as np
-from numpy.typing import NDArray
 
 from src.scheduler.env import (
     MAX_WAIT_STEPS,
@@ -50,7 +49,7 @@ DEFAULT_WEIGHTS = {
 }
 
 
-class MultiObjectiveRewardWrapper(gym.Wrapper[Any, Any, Any, Any]):
+class MultiObjectiveRewardWrapper(gym.Wrapper):
     """
     多目标奖励包装器。
 
@@ -135,7 +134,7 @@ class MultiObjectiveRewardWrapper(gym.Wrapper[Any, Any, Any, Any]):
         *,
         seed: int | None = None,
         options: dict[str, Any] | None = None,
-    ) -> tuple[NDArray[Any], dict[str, Any]]:
+    ) -> tuple[np.ndarray, dict[str, Any]]:
         """
         重置环境并初始化多目标统计。
 
@@ -162,7 +161,7 @@ class MultiObjectiveRewardWrapper(gym.Wrapper[Any, Any, Any, Any]):
     # step()
     # ------------------------------------------------------------------
 
-    def step(self, action: int) -> tuple[NDArray[Any], float, bool, bool, dict[str, Any]]:
+    def step(self, action: int) -> tuple[np.ndarray, float, bool, bool, dict[str, Any]]:
         """
         执行一步调度决策，计算多目标奖励。
 

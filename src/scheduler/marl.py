@@ -36,13 +36,12 @@ from __future__ import annotations
 import json
 import os
 import random
-from typing import Any, cast
+from typing import Any
 
 import numpy as np
 import torch
 import torch.nn as nn
 from loguru import logger
-from numpy.typing import NDArray
 from torch.optim import Adam
 
 # 复用现有环境常量，确保观测维度与原环境一致
@@ -110,7 +109,7 @@ class MultiAgentEnvWrapper:
     # 局部观测构建
     # ------------------------------------------------------------------
 
-    def _build_local_obs(self, global_obs: NDArray[Any], machine_idx: int) -> NDArray[Any]:
+    def _build_local_obs(self, global_obs: np.ndarray, machine_idx: int) -> np.ndarray:
         """
         构建单个 Agent 的局部观测向量。
 
@@ -132,10 +131,10 @@ class MultiAgentEnvWrapper:
             ],
             dtype=np.float32,
         )
-        result: NDArray[Any] = np.concatenate([global_obs.astype(np.float32), per_machine])
+        result: np.ndarray = np.concatenate([global_obs.astype(np.float32), per_machine])
         return result
 
-    def get_local_observations(self) -> dict[str, NDArray[Any]]:
+    def get_local_observations(self) -> dict[str, np.ndarray]:
         """
         获取所有 Agent 的局部观测。
 
@@ -148,7 +147,7 @@ class MultiAgentEnvWrapper:
             for i in range(self.num_agents)
         }
 
-    def get_global_state(self) -> NDArray[Any]:
+    def get_global_state(self) -> np.ndarray:
         """
         获取集中式 Critic 的输入：所有 Agent 局部观测的拼接。
 
@@ -159,10 +158,7 @@ class MultiAgentEnvWrapper:
             形状 (local_obs_dim * num_agents,) 的 float32 向量
         """
         local_obs = self.get_local_observations()
-        return cast(
-            NDArray[Any],
-            np.concatenate([local_obs[name] for name in self.machine_names]).astype(np.float32),
-        )
+        return np.concatenate([local_obs[name] for name in self.machine_names]).astype(np.float32)  # type: ignore[no-any-return]
 
     # ------------------------------------------------------------------
     # 动作聚合与路由
@@ -243,7 +239,7 @@ class MultiAgentEnvWrapper:
 
     def step(
         self, actions: dict[str, int]
-    ) -> tuple[dict[str, NDArray[Any]], float, bool, bool, dict[str, Any]]:
+    ) -> tuple[dict[str, np.ndarray], float, bool, bool, dict[str, Any]]:
         """
         执行一步多智能体调度。
 
@@ -298,7 +294,7 @@ class MultiAgentEnvWrapper:
 
     def reset(
         self, *, seed: int | None = None, options: dict[str, Any] | None = None
-    ) -> tuple[dict[str, NDArray[Any]], dict[str, Any]]:
+    ) -> tuple[dict[str, np.ndarray], dict[str, Any]]:
         """
         重置环境，返回各 Agent 的局部观测。
 
@@ -398,9 +394,9 @@ class ActorNet(nn.Module):
         """
         logits = self.forward(obs)
         dist = torch.distributions.Categorical(logits=logits)
-        action = torch.argmax(logits, dim=-1) if deterministic else dist.sample()  # type: ignore[no-untyped-call]
-        log_prob = dist.log_prob(action)  # type: ignore[no-untyped-call]
-        entropy = dist.entropy()  # type: ignore[no-untyped-call]
+        action = torch.argmax(logits, dim=-1) if deterministic else dist.sample()
+        log_prob = dist.log_prob(action)
+        entropy = dist.entropy()
         return action, log_prob, entropy
 
     def evaluate_actions(
@@ -418,8 +414,8 @@ class ActorNet(nn.Module):
         """
         logits = self.forward(obs)
         dist = torch.distributions.Categorical(logits=logits)
-        log_prob = dist.log_prob(actions)  # type: ignore[no-untyped-call]
-        entropy = dist.entropy()  # type: ignore[no-untyped-call]
+        log_prob = dist.log_prob(actions)
+        entropy = dist.entropy()
         return log_prob, entropy
 
 
@@ -490,30 +486,30 @@ class RolloutBuffer:
         self.global_state_dim = global_state_dim
 
         # 每 Agent 独立数据
-        self.local_obs: list[NDArray[Any]] = [
+        self.local_obs: list[np.ndarray] = [
             np.zeros((n_steps, local_obs_dim), dtype=np.float32) for _ in range(num_agents)
         ]
-        self.actions: list[NDArray[Any]] = [
+        self.actions: list[np.ndarray] = [
             np.zeros(n_steps, dtype=np.int64) for _ in range(num_agents)
         ]
-        self.log_probs: list[NDArray[Any]] = [
+        self.log_probs: list[np.ndarray] = [
             np.zeros(n_steps, dtype=np.float32) for _ in range(num_agents)
         ]
         # 共享数据
-        self.rewards: NDArray[Any] = np.zeros(n_steps, dtype=np.float32)
-        self.global_states: NDArray[Any] = np.zeros((n_steps, global_state_dim), dtype=np.float32)
-        self.dones: NDArray[Any] = np.zeros(n_steps, dtype=np.float32)
-        self.values: NDArray[Any] = np.zeros(n_steps, dtype=np.float32)
+        self.rewards: np.ndarray = np.zeros(n_steps, dtype=np.float32)
+        self.global_states: np.ndarray = np.zeros((n_steps, global_state_dim), dtype=np.float32)
+        self.dones: np.ndarray = np.zeros(n_steps, dtype=np.float32)
+        self.values: np.ndarray = np.zeros(n_steps, dtype=np.float32)
 
         self.pos = 0
 
     def add(
         self,
-        local_obs: list[NDArray[Any]],
+        local_obs: list[np.ndarray],
         actions: list[int],
         log_probs: list[float],
         reward: float,
-        global_state: NDArray[Any],
+        global_state: np.ndarray,
         done: bool,
         value: float,
     ) -> None:
@@ -557,7 +553,7 @@ class RolloutBuffer:
 
     def compute_gae(
         self, last_value: float, gamma: float, gae_lambda: float
-    ) -> tuple[list[NDArray[Any]], NDArray[Any]]:
+    ) -> tuple[list[np.ndarray], np.ndarray]:
         """
         使用 GAE (Generalized Advantage Estimation) 计算优势和回报。
 
@@ -574,7 +570,7 @@ class RolloutBuffer:
                 returns: 共享的回报数组
         """
         n = self.pos
-        advantages: NDArray[Any] = np.zeros(n, dtype=np.float32)
+        advantages: np.ndarray = np.zeros(n, dtype=np.float32)
         last_gae = 0.0
         for t in reversed(range(n)):
             next_value = last_value if t == n - 1 else self.values[t + 1]
@@ -710,8 +706,8 @@ class MultiAgentPPO:
 
         # 训练统计
         self.total_timesteps = 0
-        self._last_obs: dict[str, NDArray[Any]] | None = None
-        self._last_global_state: NDArray[Any] | None = None
+        self._last_obs: dict[str, np.ndarray] | None = None
+        self._last_global_state: np.ndarray | None = None
 
     # ------------------------------------------------------------------
     # 内部工具
@@ -727,11 +723,11 @@ class MultiAgentPPO:
         if torch.cuda.is_available():
             torch.cuda.manual_seed_all(seed)
 
-    def _to_tensor(self, x: NDArray[Any]) -> torch.Tensor:
+    def _to_tensor(self, x: np.ndarray) -> torch.Tensor:
         """将 numpy 数组转为设备上的 float32 张量。"""
         return torch.as_tensor(x, dtype=torch.float32, device=self.device)
 
-    def _global_state_tensor(self, global_state: NDArray[Any]) -> torch.Tensor:
+    def _global_state_tensor(self, global_state: np.ndarray) -> torch.Tensor:
         """将全局状态转为 Critic 输入张量（带 batch 维）。"""
         return self._to_tensor(global_state).unsqueeze(0)
 
@@ -740,7 +736,7 @@ class MultiAgentPPO:
     # ------------------------------------------------------------------
 
     def _sample_actions(
-        self, local_obs: dict[str, NDArray[Any]], deterministic: bool = False
+        self, local_obs: dict[str, np.ndarray], deterministic: bool = False
     ) -> tuple[dict[str, int], list[float], float]:
         """
         为所有 Agent 采样动作。
@@ -893,8 +889,8 @@ class MultiAgentPPO:
 
     def _update(
         self,
-        advantages_per_agent: list[NDArray[Any]],
-        returns: NDArray[Any],
+        advantages_per_agent: list[np.ndarray],
+        returns: np.ndarray,
     ) -> dict[str, float]:
         """
         执行 n_epochs 轮 PPO 更新。
@@ -943,7 +939,7 @@ class MultiAgentPPO:
                 critic_loss = nn.functional.mse_loss(values_pred, returns_batch)
 
                 self.critic_optimizer.zero_grad()
-                critic_loss.backward()  # type: ignore[no-untyped-call]
+                critic_loss.backward()
                 nn.utils.clip_grad_norm_(self.critic.parameters(), self.max_grad_norm)
                 self.critic_optimizer.step()
 
@@ -971,7 +967,7 @@ class MultiAgentPPO:
                     loss = actor_loss - self.ent_coef * entropy_mean
 
                     self.actor_optimizers[i].zero_grad()
-                    loss.backward()  # type: ignore[no-untyped-call]
+                    loss.backward()
                     nn.utils.clip_grad_norm_(self.actors[i].parameters(), self.max_grad_norm)
                     self.actor_optimizers[i].step()
 

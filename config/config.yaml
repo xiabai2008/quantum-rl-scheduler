@@ -18,6 +18,7 @@ database:
   type: sqlite
 quantum:
   backend: tianyan-287
+  hardware_type: superconducting  # Issue #259: 支持运行时切换后端 (superconducting/ion_trap/photonic)
   max_qubits: 287
   shots: 1024
   simulator: qiskit-aer
