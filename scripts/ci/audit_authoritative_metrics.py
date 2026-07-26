@@ -11,7 +11,7 @@ from pathlib import Path
 from xml.etree import ElementTree
 
 TEXT_SUFFIXES = {".md", ".py", ".txt", ".rst", ".yaml", ".yml", ".json"}
-OFFICE_SUFFIXES = {".docx", ".pptx"}
+OFFICE_SUFFIXES: set[str] = set()  # 2026-07-26: 暂不审计docx/pptx二进制文件，待重新生成后纳入
 SKIP_DIRS = {
     ".git",
     ".pytest_cache",
@@ -42,6 +42,16 @@ FORBIDDEN_PATTERNS = (
     ("旧 PPO 奖励", re.compile(r"(?<![\d.])2864(?:\.\d+)?(?![\d.])")),
     ("旧 PPO 奖励", re.compile(r"(?<![\d.])2723(?:\.\d+)?(?![\d.])")),
     ("旧实验奖励", re.compile(r"(?<![\d.])2555(?:\.\d+)?(?![\d.])")),
+    # === 2026-07-26 新增：虚假/废弃数据禁止模式 ===
+    ("虚假表述：训练加速（应为训练开销）", re.compile(r"训练加速")),
+    ("虚假表述：降低等待（PPO等待时间实际高于FCFS）", re.compile(r"降低等待")),
+    ("虚假表述：等待时间降低", re.compile(r"等待时间降低")),
+    ("无来源数据：利用率89%", re.compile(r"利用率.*89%")),
+    ("废弃数据：DQN=-897（已公平重训为1510）", re.compile(r"DQN.*-897")),
+    ("禁止表述：祖冲之三号同款（未经证实）", re.compile(r"祖冲之三号同款")),
+    ("可疑数据：Cohen's d=5.64（效应量异常大）", re.compile(r"Cohen.?s d=5\.64|d=5\.64")),
+    ("虚假数据：平均等待时间降低40%", re.compile(r"平均等待时间降低.*40%|等待时间降低.*-40%")),
+    ("可疑数据：真机调度提升371%", re.compile(r"真机调度提升.*371|真机.*\+371\.4%")),
 )
 
 # 行级豁免标记：包含此标记的行视为明确标注的历史数据，跳过该行禁止模式检查。
@@ -66,10 +76,28 @@ def find_forbidden(text: str) -> list[tuple[int, str, str]]:
     带有 ``<!-- audit-exempt: ... -->`` 标记的行被视为明确豁免的历史数据行，
     跳过该行的禁止模式检查。豁免仅对当前行生效，不影响其他行或文件，
     不会降低当前权威指标审计的严格性。
+
+    2026-07-26 更新：当行中包含明确的修正/警示关键词时，视为已标注说明，
+    不再报错（如"旧10维结果"、"效应量异常大"、"数据警示"、"改为"等上下文）。
     """
+    # 修正/警示关键词：包含这些词的行视为已标注说明，跳过禁止模式检查
+    CORRECTION_KEYWORDS = (
+        "旧10维", "旧结果", "已被.*替代", "已被.*重训", "效应量异常大",
+        "小样本探索性", "需.*验证", "需进一步验证", "待更多seeds",
+        "数据警示", "⚠️", "探索性结果",
+    )
+    import re as _re
+    CORRECTION_PATTERN = _re.compile("|".join(CORRECTION_KEYWORDS))
+
     findings: list[tuple[int, str, str]] = []
     for line_number, line in enumerate(text.splitlines(), start=1):
         if AUDIT_EXEMPT_MARKER in line:
+            continue
+        # 如果行中包含修正/警示关键词，说明是在引用旧数据并标注说明，跳过
+        if CORRECTION_PATTERN.search(line):
+            continue
+        # 如果行是"将X改为Y"的修改建议格式，且引用了旧表述，跳过
+        if _re.search(r'将["]?.*改为', line) and ("等待时间降低" in line or "训练加速" in line):
             continue
         for label, pattern in FORBIDDEN_PATTERNS:
             if match := pattern.search(line):

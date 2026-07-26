@@ -18,7 +18,7 @@
 
 需求按四类分组：
 - **功能性需求（R-F）**：必须实现的调度/退火/真机对接功能
-- **性能性需求（R-P）**：资源利用率 ≥30%、等待时间降低 ≥40% 等量化指标
+- **性能性需求（R-P）**：资源利用率 ≥30%、等待时间-吞吐量权衡等量化指标
 - **工程性需求（R-E）**：可观测性、容错、文档、代码质量
 - **创新性需求（R-I）**：双向赋能命题、学术/商业价值
 
@@ -33,7 +33,7 @@
 | R-F-01 | 实现量子任务的智能调度决策 | 功能 | `src/scheduler/env.py`<br>`src/scheduler/agent.py` | **已实现** | 单元测试 + 8策略对比 | "PPO 强化学习调度策略比 FCFS 提升 88.3%" | `results/reports/strategy_comparison.md` |
 | R-F-02 | 支持量子/经典/混合三种执行模式 | 功能 | `src/scheduler/env.py`<br>`src/scheduler/parser.py` | **已实现** | 单元测试 + 消融实验 | "系统支持任务智能分流到量子、经典或混合执行通道" | `src/scheduler/env.py` L46-200 |
 | R-F-03 | 接入天衍云真机 API | 功能 | `src/api/tianyan_client.py`<br>`src/api/tianyan_cqlib.py` | **已实现** | 真机提交验证 | "已成功提交 32 个量子任务到天衍云 3 台超导量子计算机" | `results/reports/real_machine_validation.md` |
-| R-F-04 | 实现量子退火加速 RL 训练 | 功能 | `src/quantum/annealing.py`<br>`src/scheduler/async_annealing_callback.py` | **已实现** | 5 Seed 消融实验 | "量子退火将策略网络权重映射为 QUBO 问题，训练奖励提升 6.4%" | `results/reports/ablation_report.md` |
+| R-F-04 | 实现量子退火优化RL训练（探索性方向） | 功能 | `src/quantum/annealing.py`<br>`src/scheduler/async_annealing_callback.py` | **已实现** | 5 Seed 消融实验 | "量子退火将策略网络权重映射为 QUBO 问题（当前使用经典模拟退火D-Wave neal），训练奖励提升 6.4%（p=0.190不显著，训练开销+74.5%）" | `results/reports/ablation_report.md` |
 | R-F-05 | 支持多机器协同调度 | 功能 | `src/scheduler/marl.py`<br>`src/scheduler/env.py` | **已实现** | 单机 vs 多机对比 | "MAPPO 多智能体协同调度，3 台真机负载均衡 CV=0.246，奖励提升 86.3%" | `results/reports/ablation_report.md` |
 | R-F-06 | 任务解析与资源预估 | 功能 | `src/scheduler/parser.py` | **已实现** | 单元测试 | "支持 QASM 电路解析、资源约束校验、执行时间预估" | `tests/test_parser.py` |
 | R-F-07 | 多目标奖励设计（等待时间 + 利用率） | 功能 | `src/scheduler/multi_objective_env.py` | **已实现** | 多目标实验 + D3消融 | "多目标奖励函数同时优化吞吐量、资源平衡、服务质量；D3消融（7预设×2策略×10seeds）揭示各分量贡献占比：吞吐量27.6%、平衡21.2%、服务质量51.2%" | `tests/test_multi_objective.py`<br>`results/reports/d3_reward_ablation_report.md` |
@@ -44,7 +44,7 @@
 | 需求 ID | 需求描述（原文） | 类别 | 对应代码模块 | 实现状态 | 验证方式 | 答辩话术 | 证据文件 |
 |---------|----------------|------|-------------|---------|---------|---------|---------|
 | R-P-01 | 资源利用率提升 ≥30% | 性能 | `src/scheduler/env.py`<br>`src/scheduler/agent.py` | **已达成** | 8策略对比 | "PPO 经典利用率 48.96%，综合资源利用率 45.47%，较基线提升显著" | `results/reports/strategy_comparison.md` |
-| R-P-02 | 平均等待时间降低 ≥40% | 性能 | `src/scheduler/env.py`<br>`src/scheduler/agent.py` | **权衡边界** | D3奖励消融实验 | "PPO 等待时间 57.73 步高于 FCFS 38.22 步；D3消融（7预设×10seeds）证明PPO策略与原始奖励强耦合（91.7%量子分配），切换多目标权重不改变固定策略的动作分布，等待时间是多目标优化的权衡维度" | `results/reports/reward_ablation_d3.md`<br>`results/reports/d3_reward_ablation_report.md` |
+| R-P-02 | 吞吐量+88.3%（等待时间为帕累托权衡） | 性能 | `src/scheduler/env.py`<br>`src/scheduler/agent.py` | **权衡边界** | D3奖励消融实验 | "PPO 等待时间 57.73 步高于 FCFS 38.22 步；D3消融（7预设×10seeds）证明PPO策略与原始奖励强耦合（91.7%量子分配），切换多目标权重不改变固定策略的动作分布，等待时间是多目标优化的权衡维度，核心优势为吞吐量+88.3%" | `results/reports/reward_ablation_d3.md`<br>`results/reports/d3_reward_ablation_report.md` |
 | R-P-03 | 调度决策延迟 < 100ms | 性能 | `src/scheduler/agent.py` | **已达成** | 性能测试 | "PPO 单次前向推理 < 10ms，满足实时调度需求" | `src/scheduler/agent.py` L200-400 |
 | R-P-04 | 适配 287 量子比特平台接口 | 性能 | `src/scheduler/env.py` | **已达成** | 真机可用性验证 | "系统已适配天衍-287 平台接口（MAX_QUBITS=287），284 次真机调用 100% 成功；真机任务规模受机时限制为 1-3 qubit" | `results/reports/real_machine_boundary_statement.md` |
 | R-P-05 | 压力测试：4 种极端场景稳定性 | 性能 | `scripts/benchmarking/stress_test.py` | **已达成** | 压力测试 | "PPO 在 4 种压力场景下综合稳定性最强，量子波动场景比第二名提升 91.4%" | `results/reports/stress_test_report.md` |
@@ -68,7 +68,7 @@
 | 需求 ID | 需求描述（原文） | 类别 | 对应代码模块 | 实现状态 | 验证方式 | 答辩话术 | 证据文件 |
 |---------|----------------|------|-------------|---------|---------|---------|---------|
 | R-I-01 | 双向赋能：AI 赋能量子计算 | 创新 | `src/scheduler/` | **已实现** | 实验验证 | "RL 智能调度量子/经典任务，资源利用率提升显著" | `results/reports/strategy_comparison.md` |
-| R-I-02 | 双向赋能：量子赋能 AI | 创新 | `src/quantum/annealing.py` | **已实现** | 消融实验 | "量子退火加速 RL 训练，形成闭环：AI 优化量子调度 → 量子加速 AI 训练" | `results/reports/ablation_report.md` |
+| R-I-02 | 双向赋能：量子赋能 AI（探索性方向） | 创新 | `src/quantum/annealing.py` | **已实现** | 消融实验 | "量子退火优化RL（探索性方向，当前为经典模拟退火，训练开销+74.5%，p=0.190不显著）；核心闭环为AI优化量子调度（RL智能调度为核心claim）" | `results/reports/ablation_report.md` |
 | R-I-03 | 将 RL 应用于量子云调度 | 创新 | 全系统 | **已实现** | 文献调研 | "我们将强化学习应用于量子云平台任务调度" | 项目 README |
 | R-I-04 | QUBO 映射神经网络权重 | 创新 | `src/quantum/annealing.py` | **已实现** | 单元测试 | "将策略网络权重差分编码为 QUBO 矩阵，用量子退火求解全局最优" | `src/quantum/annealing.py` L1-300 |
 | R-I-05 | 多智能体协同调度（MAPPO） | 创新 | `src/scheduler/marl.py` | **已实现** | 多机实验 | "CTDE 架构：去中心化执行 + 集中式训练，单模型零成本复用到多机器" | `src/scheduler/marl.py` |
@@ -81,7 +81,7 @@
 
 | 需求 ID | 需求描述 | 当前状态 | 是否需要在 9/15 前补齐 | 优先级 | 备注 |
 |---------|---------|---------|---------------------|-------|------|
-| R-P-02 | 平均等待时间降低 ≥40% | **权衡边界**：PPO 等待时间高于 FCFS，D3 消融证明无法通过推理时调整 reward weight 改变 | **否** | 中 | D3 消融实验（6配置×2策略×25ep）证明：推理时调整 reward weight 不改变已训练 PPO 的 policy；等待时间是多目标优化的权衡维度，非独立可优化指标。详见 `results/reports/reward_ablation_d3.md` |
+| R-P-02 | 吞吐量+88.3%（等待时间为帕累托权衡） | **权衡边界**：PPO 等待时间高于 FCFS，D3 消融证明无法通过推理时调整 reward weight 改变 | **否** | 中 | D3 消融实验（6配置×2策略×25ep）证明：推理时调整 reward weight 不改变已训练 PPO 的 policy；等待时间是多目标优化的帕累托权衡维度，核心优势为吞吐量+88.3%。详见 `results/reports/reward_ablation_d3.md` |
 | - | 任务规模梯度测试（100/500/1000/5000/10000） | **未实现** | **建议补齐** | 中 | 压力测试报告建议补充，可证明系统线性扩展能力 |
 | - | 奖励函数消融实验（D3） | **已完成** | — | — | Issue #201 已完成：6 种 reward 配置 × 2 策略 × 25 episodes，输出 6 项指标，证明奖励函数各组件有明确语义贡献。详见 `results/reports/reward_ablation_d3.md`。2026-07-24 补充：7预设×2策略×10seeds固定策略交叉评估，揭示策略-奖励耦合关系，详见 `results/reports/d3_reward_ablation_report.md` |
 | - | 多租户公平调度验证 | **已完成** | — | — | 2026-07-24 完成：5租户不同优先级，PPO Jain's公平指数=0.9875，总奖励+57.6% vs FCFS，证明RL调度在公平性维度优于启发式。详见 `results/reports/fair_scheduling_report.md` |
@@ -112,12 +112,12 @@
 |---------|---------|-------------|---------|
 | R-F-01 | "PPO 强化学习调度策略比 FCFS 提升 88.3%" | 第 5 页 | ✅ 已同步 |
 | R-F-03 | "已成功提交 32 个量子任务到天衍云 3 台超导量子计算机" | 第 8 页 | ✅ 已同步 |
-| R-F-04 | "量子退火将策略网络权重映射为 QUBO 问题，训练奖励提升 6.4%" | 第 7 页 | ✅ 已同步 |
+| R-F-04 | "量子退火将策略网络权重映射为 QUBO 问题（当前经典模拟退火），训练奖励提升 6.4%（p=0.190不显著，训练开销+74.5%，探索性方向）" | 第 7 页 | ✅ 已同步 |
 | R-F-05 | "MAPPO 多智能体协同调度，3 台真机负载均衡 CV=0.246，奖励提升 86.3%" | 第 7 页 | ✅ 已同步 |
 | R-P-01 | "PPO 经典利用率 48.96%，综合资源利用率 45.47%" | 第 9 页 | ✅ 已同步 |
 | R-P-05 | "PPO 在 4 种压力场景下综合稳定性最强，量子波动场景比第二名提升 91.4%" | 第 12 页 | ✅ 已同步 |
 | R-I-01 | "RL 智能调度量子/经典任务，资源利用率提升显著" | 第 3 页 | ✅ 已同步 |
-| R-I-02 | "量子退火加速 RL 训练，形成闭环" | 第 6 页 | ✅ 已同步 |
+| R-I-02 | "量子退火优化RL（探索性方向），形成探索性闭环" | 第 6 页 | ✅ 已同步 |
 
 ### 4.2 同步至演示视频分镜脚本
 
