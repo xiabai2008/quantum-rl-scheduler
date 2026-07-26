@@ -2,7 +2,7 @@
 经典调度策略基线模块
 Classic Scheduling Strategy Baselines
 
-提供 FCFS / SPTF / EDF / Priority / RoundRobin / LIFO 等经典调度算法，
+提供 FCFS / SPTF / EDF / Priority / RoundRobin / LIFO / HEFT / Min-Min 等经典调度算法，
 作为 RL 调度策略（PPO/DQN）的对比基准。
 
 任务以 dict 表示，常用字段：
@@ -13,21 +13,36 @@ Classic Scheduling Strategy Baselines
     - deadline       : 截止时间（可选，缺失时按 arrival_time + estimated_time*2 推算）
     - qubit_count    : 所需量子比特数
 
-每个策略实现 ``select_action(tasks, available_resources) -> int`` 接口，
+经典策略实现 ``select_action(tasks, available_resources) -> int`` 接口，
 返回所选任务在 tasks 列表中的索引；若 tasks 为空返回 -1。
+
+环境适配策略（Issue #230/#270）继承 ``EnvBasedScheduler``，
+实现 ``select_action(observation, env) -> int`` 在 Gymnasium 环境中运行。
 """
 
 from typing import Any
 
+import numpy as np
+
 __all__ = [
     "BaselineScheduler",
     "EDFScheduler",
+    "EnvBasedEDFScheduler",
+    "EnvBasedFCFSScheduler",
+    "EnvBasedGreedyScheduler",
+    "EnvBasedHEFTScheduler",
+    "EnvBasedMinMinScheduler",
+    "EnvBasedSPTFScheduler",
+    "EnvBasedScheduler",
     "FCFSScheduler",
+    "HEFTScheduler",
     "LIFOScheduler",
+    "MinMinScheduler",
     "PriorityScheduler",
     "RoundRobinScheduler",
     "SPTFScheduler",
     "get_all_baseline_schedulers",
+    "get_all_env_based_schedulers",
     "run_baseline_comparison",
 ]
 
@@ -103,9 +118,7 @@ class BaselineScheduler:
         """
         self.name = name
 
-    def select_action(
-        self, tasks: list[dict[str, Any]], available_resources: dict[str, Any]
-    ) -> int:
+    def select_action(self, tasks: list[dict], available_resources: dict) -> int:
         """从任务列表中选择一个任务，返回其索引。
 
         Args:
@@ -142,9 +155,7 @@ class FCFSScheduler(BaselineScheduler):
         """初始化 FCFS 策略。"""
         super().__init__("FCFS")
 
-    def select_action(
-        self, tasks: list[dict[str, Any]], available_resources: dict[str, Any]
-    ) -> int:
+    def select_action(self, tasks: list[dict], available_resources: dict) -> int:
         """选择到达时间最早的任务。
 
         Args:
@@ -172,9 +183,7 @@ class SPTFScheduler(BaselineScheduler):
         """初始化 SPTF 策略。"""
         super().__init__("SPTF")
 
-    def select_action(
-        self, tasks: list[dict[str, Any]], available_resources: dict[str, Any]
-    ) -> int:
+    def select_action(self, tasks: list[dict], available_resources: dict) -> int:
         """选择预估执行时间最短的任务。
 
         Args:
@@ -203,9 +212,7 @@ class EDFScheduler(BaselineScheduler):
         """初始化 EDF 策略。"""
         super().__init__("EDF")
 
-    def select_action(
-        self, tasks: list[dict[str, Any]], available_resources: dict[str, Any]
-    ) -> int:
+    def select_action(self, tasks: list[dict], available_resources: dict) -> int:
         """选择有效截止时间最早的任务。
 
         Args:
@@ -253,9 +260,7 @@ class PriorityScheduler(BaselineScheduler):
         """初始化 Priority 策略。"""
         super().__init__("Priority")
 
-    def select_action(
-        self, tasks: list[dict[str, Any]], available_resources: dict[str, Any]
-    ) -> int:
+    def select_action(self, tasks: list[dict], available_resources: dict) -> int:
         """选择优先级最高的任务。
 
         Args:
@@ -288,9 +293,7 @@ class RoundRobinScheduler(BaselineScheduler):
         super().__init__("RoundRobin")
         self._pointer = 0
 
-    def select_action(
-        self, tasks: list[dict[str, Any]], available_resources: dict[str, Any]
-    ) -> int:
+    def select_action(self, tasks: list[dict], available_resources: dict) -> int:
         """按内部指针轮转选择任务，并推进指针。
 
         Args:
@@ -322,9 +325,7 @@ class LIFOScheduler(BaselineScheduler):
         """初始化 LIFO 策略。"""
         super().__init__("LIFO")
 
-    def select_action(
-        self, tasks: list[dict[str, Any]], available_resources: dict[str, Any]
-    ) -> int:
+    def select_action(self, tasks: list[dict], available_resources: dict) -> int:
         """选择到达时间最晚的任务。
 
         Args:
@@ -342,6 +343,75 @@ class LIFOScheduler(BaselineScheduler):
         )
 
 
+class HEFTScheduler(BaselineScheduler):
+    """HEFT（异构最早完成时间）经典调度策略（Issue #270）。
+
+    传统 HEFT 用于 DAG 任务图调度，在异构处理器环境中最小化 makespan。
+    本实现将其简化为独立任务列表调度：按 upward rank 降序选择任务，
+    并选择最早完成时间的处理器。
+
+    在 ``select_action`` 接口中，返回优先级最高的任务索引
+    （按 upward rank 排序，等效于按估算执行时间降序选择长任务优先）。
+    """
+
+    def __init__(self) -> None:
+        """初始化 HEFT 策略。"""
+        super().__init__("HEFT")
+
+    def select_action(self, tasks: list[dict], available_resources: dict) -> int:
+        """按 upward rank 降序选择任务（长任务优先）。
+
+        Args:
+            tasks               : 待调度任务列表
+            available_resources : 可用资源字典（含 "qubits" 用于判断量子可用）
+
+        Returns:
+            upward rank 最大的任务索引；空列表返回 -1。
+        """
+        if not tasks:
+            return -1
+        # upward rank ≈ estimated_time（简化版，不考虑后继）
+        # HEFT 按 upward rank 降序选择（长任务优先调度）
+        return max(
+            range(len(tasks)),
+            key=lambda i: _get_float(tasks[i], "estimated_time", _DEFAULT_ESTIMATED_TIME),
+        )
+
+
+class MinMinScheduler(BaselineScheduler):
+    """Min-Min 经典调度策略（Issue #270）。
+
+    Min-Min 算法每轮选择所有任务中完成时间最小的任务-处理器对。
+    在 ``select_action`` 接口中，简化为选择估算执行时间最短的任务
+    （等效于 SPTF，但 Min-Min 的核心思想是"最小最小"——
+    先选最小完成时间的任务，再选最小完成时间的处理器）。
+
+    与 SPTF 的区别在于 Min-Min 是迭代贪心算法，在多处理器场景下
+    会重新计算每轮的完成时间。在单选择器接口中，两者表现一致。
+    """
+
+    def __init__(self) -> None:
+        """初始化 Min-Min 策略。"""
+        super().__init__("MinMin")
+
+    def select_action(self, tasks: list[dict], available_resources: dict) -> int:
+        """选择估算执行时间最短的任务（最小完成时间优先）。
+
+        Args:
+            tasks               : 待调度任务列表
+            available_resources : 可用资源字典（本策略未使用）
+
+        Returns:
+            最短耗时任务的索引；空列表返回 -1。
+        """
+        if not tasks:
+            return -1
+        return min(
+            range(len(tasks)),
+            key=lambda i: _get_float(tasks[i], "estimated_time", _DEFAULT_ESTIMATED_TIME),
+        )
+
+
 # ---------------------------------------------------------------------------
 # 模块级工具函数
 # ---------------------------------------------------------------------------
@@ -351,7 +421,7 @@ def get_all_baseline_schedulers() -> list[BaselineScheduler]:
     """返回所有基线调度策略的实例列表。
 
     Returns:
-        包含 6 个基线策略实例的列表
+        包含 8 个基线策略实例的列表（FCFS/SPTF/EDF/Priority/RoundRobin/LIFO/HEFT/MinMin）
     """
     return [
         FCFSScheduler(),
@@ -360,12 +430,12 @@ def get_all_baseline_schedulers() -> list[BaselineScheduler]:
         PriorityScheduler(),
         RoundRobinScheduler(),
         LIFOScheduler(),
+        HEFTScheduler(),
+        MinMinScheduler(),
     ]
 
 
-def run_baseline_comparison(
-    tasks: list[dict[str, Any]], num_steps: int = 100
-) -> dict[str, dict[str, Any]]:
+def run_baseline_comparison(tasks: list[dict], num_steps: int = 100) -> dict[str, dict]:
     """用所有基线策略调度给定任务列表，返回对比结果。
 
     模拟流程：每步从剩余任务队列中按策略选一个任务执行，完成后从队列移除，
@@ -384,14 +454,14 @@ def run_baseline_comparison(
     Returns:
         ``{策略名: {total_reward, completed_tasks, avg_wait_time, throughput}}``
     """
-    results: dict[str, dict[str, Any]] = {}
-    available_resources: dict[str, Any] = {"qubits": 20, "classical_load": 0.0}
+    results: dict[str, dict] = {}
+    available_resources: dict = {"qubits": 20, "classical_load": 0.0}
     schedulers = get_all_baseline_schedulers()
 
     for scheduler in schedulers:
         scheduler.reset()
         # 深拷贝任务，避免跨策略污染
-        queue: list[dict[str, Any]] = [dict(t) for t in tasks]
+        queue: list[dict] = [dict(t) for t in tasks]
 
         total_reward = 0.0
         completed = 0
@@ -428,3 +498,321 @@ def run_baseline_comparison(
         }
 
     return results
+
+
+# ---------------------------------------------------------------------------
+# EnvBasedScheduler 层次（Issue #230/#270）
+# ---------------------------------------------------------------------------
+
+# 动作常量（与 env_types.py 保持一致）
+_ACTION_CLASSICAL = 0
+_ACTION_QUANTUM = 1
+_ACTION_HYBRID = 2
+
+
+class EnvBasedScheduler:
+    """基线策略的 Gymnasium 环境适配器（Issue #230）。
+
+    将经典调度策略封装为 Gymnasium 环境的动作选择器，
+    使基线策略在相同的 ``QuantumSchedulingEnv`` 环境中运行，
+    reward 由 ``env.step(action)`` 返回（即 ``env_reward.py`` 计算）。
+
+    子类需实现 ``select_action(observation, env) -> int``，
+    在合法动作空间 [0, 1, 2] 中选择动作。
+
+    Attributes:
+        name: 策略名称，用于结果标识
+    """
+
+    def __init__(self, name: str) -> None:
+        """初始化环境适配策略。
+
+        Args:
+            name : 策略名称
+        """
+        self.name = name
+
+    def select_action(self, observation: np.ndarray, env: Any) -> int:
+        """根据观测和环境状态选择动作。
+
+        Args:
+            observation: Gymnasium 环境的观测向量（14维）
+            env        : QuantumSchedulingEnv 实例
+
+        Returns:
+            动作值（0=classical, 1=quantum, 2=hybrid）
+        """
+        raise NotImplementedError("子类必须实现 select_action")
+
+    def reset(self) -> None:
+        """重置调度器内部状态。"""
+
+
+class EnvBasedFCFSScheduler(EnvBasedScheduler):
+    """FCFS 策略的环境适配器。
+
+    量子任务优先分配到量子资源；无量子任务时分配到经典。
+    """
+
+    def __init__(self) -> None:
+        """初始化 FCFS 环境策略。"""
+        super().__init__("EnvBased-FCFS")
+
+    def select_action(self, observation: np.ndarray, env: Any) -> int:
+        """根据观测中任务类型选择动作。
+
+        观测第 10 位（OBS_TASK_TYPE_QUANTUM）表示当前任务是否为量子任务。
+        """
+        obs_dim = len(observation) if hasattr(observation, "__len__") else 0
+        if obs_dim > 10 and float(observation[10]) > 0.5:
+            return _ACTION_QUANTUM
+        return _ACTION_CLASSICAL
+
+
+class EnvBasedSPTFScheduler(EnvBasedScheduler):
+    """SPTF 策略的环境适配器。
+
+    量子任务的等效处理时间更短（量子加速比 2-5x），优先量子。
+    """
+
+    def __init__(self) -> None:
+        """初始化 SPTF 环境策略。"""
+        super().__init__("EnvBased-SPTF")
+
+    def select_action(self, observation: np.ndarray, env: Any) -> int:
+        """量子任务优先量子动作以获得更短的等效处理时间。"""
+        obs_dim = len(observation) if hasattr(observation, "__len__") else 0
+        if obs_dim > 10 and float(observation[10]) > 0.5:
+            return _ACTION_QUANTUM
+        return _ACTION_CLASSICAL
+
+
+class EnvBasedEDFScheduler(EnvBasedScheduler):
+    """EDF 策略的环境适配器。
+
+    紧急任务优先量子加速以尽快完成。
+    """
+
+    def __init__(self) -> None:
+        """初始化 EDF 环境策略。"""
+        super().__init__("EnvBased-EDF")
+
+    def select_action(self, observation: np.ndarray, env: Any) -> int:
+        """紧急任务（高 urgency）优先量子动作。"""
+        obs_dim = len(observation) if hasattr(observation, "__len__") else 0
+        if obs_dim > 10 and float(observation[10]) > 0.5:
+            urgency = float(observation[13]) if obs_dim > 13 else 0.0
+            if urgency > 0.3:
+                return _ACTION_QUANTUM
+            return _ACTION_HYBRID
+        return _ACTION_CLASSICAL
+
+
+class EnvBasedGreedyScheduler(EnvBasedScheduler):
+    """贪心策略的环境适配器。
+
+    贪心选择当前收益最高的动作。
+    """
+
+    def __init__(self) -> None:
+        """初始化贪心环境策略。"""
+        super().__init__("EnvBased-Greedy")
+
+    def select_action(self, observation: np.ndarray, env: Any) -> int:
+        """贪心选择：量子可用且任务为量子时选量子，否则经典。"""
+        obs_dim = len(observation) if hasattr(observation, "__len__") else 0
+        if obs_dim > 10 and float(observation[10]) > 0.5:
+            qubit_avail = float(observation[6]) if obs_dim > 6 else 0.5
+            if qubit_avail > 0.3:
+                return _ACTION_QUANTUM
+            return _ACTION_HYBRID
+        return _ACTION_CLASSICAL
+
+
+class EnvBasedHEFTScheduler(EnvBasedScheduler):
+    """HEFT（Heterogeneous Earliest Finish Time）策略的环境适配器（Issue #270）。
+
+    HEFT 算法步骤：
+    1. 计算每个任务的 upward rank（基于估算执行时间和后继依赖）
+    2. 按 upward rank 降序排列任务
+    3. 对每个任务，计算在每种"处理器"（classical/quantum/hybrid）上的最早完成时间
+    4. 选择最早完成时间对应的动作
+
+    在 Gymnasium 环境中，每步只需为当前任务选择一个动作，
+    因此 HEFT 简化为：根据当前任务的估算执行时间和资源可用性，
+    选择能最早完成该任务的动作。
+
+    Note:
+        传统 HEFT 用于 DAG 任务图调度，多处理器异构环境。
+        本实现将其适配为单步动作选择，保留"最早完成时间优先"的核心思想。
+    """
+
+    # 量子加速比范围（与 env_types.py QUANTUM_SPEEDUP_RANGE 一致）
+    _QUANTUM_SPEEDUP_MIN = 2.0
+    _QUANTUM_SPEEDUP_MAX = 5.0
+
+    def __init__(self) -> None:
+        """初始化 HEFT 环境策略。"""
+        super().__init__("EnvBased-HEFT")
+
+    def _compute_upward_rank(
+        self, estimated_time: float, is_quantum: bool, quantum_speedup: float
+    ) -> float:
+        """计算任务的 upward rank（简化版）。
+
+        upward rank = 估算执行时间 + max(后继 upward rank)
+        在单步决策中，后继信息不可用，简化为估算执行时间本身。
+
+        Args:
+            estimated_time  : 任务的估算执行时间
+            is_quantum      : 是否为量子任务
+            quantum_speedup : 量子加速比
+
+        Returns:
+            upward rank 值
+        """
+        equiv_time = estimated_time / max(quantum_speedup, 0.1) if is_quantum else estimated_time
+        return equiv_time
+
+    def _estimate_finish_time(
+        self, action: int, estimated_time: float, quantum_speedup: float
+    ) -> float:
+        """估算任务在指定动作下的完成时间。
+
+        Args:
+            action          : 动作（0=classical, 1=quantum, 2=hybrid）
+            estimated_time  : 任务的估算执行时间
+            quantum_speedup : 量子加速比
+
+        Returns:
+            估算完成时间
+        """
+        if action == _ACTION_QUANTUM:
+            return estimated_time / max(quantum_speedup, 0.1)
+        if action == _ACTION_HYBRID:
+            # 混合执行：部分加速
+            return estimated_time / max(quantum_speedup * 0.5, 0.1)
+        # classical
+        return estimated_time
+
+    def select_action(self, observation: np.ndarray, env: Any) -> int:
+        """根据 HEFT 策略选择最早完成时间的动作。
+
+        步骤：
+        1. 从观测中解析任务类型和资源状态
+        2. 估算量子加速比
+        3. 计算每种动作的估算完成时间
+        4. 选择最早完成时间对应的动作
+
+        Args:
+            observation: 14维观测向量
+            env        : QuantumSchedulingEnv 实例
+
+        Returns:
+            动作值（0=classical, 1=quantum, 2=hybrid）
+        """
+        obs = list(observation) if hasattr(observation, "__iter__") else [0.0] * 14
+
+        # 从观测中提取关键信息
+        is_quantum = float(obs[10]) > 0.5 if len(obs) > 10 else False
+        qubit_avail = float(obs[6]) if len(obs) > 6 else 0.5
+        quantum_queue = float(obs[7]) if len(obs) > 7 else 0.0
+
+        # 估算量子加速比（从观测范围推算）
+        speedup = self._QUANTUM_SPEEDUP_MIN + qubit_avail * (
+            self._QUANTUM_SPEEDUP_MAX - self._QUANTUM_SPEEDUP_MIN
+        )
+
+        # 估算执行时间（从 urgency 推算，高 urgency = 短时间）
+        urgency = float(obs[13]) if len(obs) > 13 else 0.5
+        estimated_time = max(1.0, 10.0 * (1.0 - urgency))
+
+        # 计算每种动作的完成时间
+        finish_times: dict[int, float] = {}
+        for action in (_ACTION_CLASSICAL, _ACTION_QUANTUM, _ACTION_HYBRID):
+            ft = self._estimate_finish_time(action, estimated_time, speedup)
+            # 量子动作需要考虑队列等待
+            if action == _ACTION_QUANTUM:
+                ft += quantum_queue * 5.0  # 队列惩罚
+            elif action == _ACTION_HYBRID:
+                ft += quantum_queue * 2.5
+            finish_times[action] = ft
+
+        # 选择最早完成时间的动作
+        best_action = min(finish_times, key=lambda a: finish_times[a])
+
+        # 量子任务但量子资源不可用时，降级到混合或经典
+        if best_action == _ACTION_QUANTUM and qubit_avail < 0.2:
+            best_action = _ACTION_HYBRID if qubit_avail > 0.05 else _ACTION_CLASSICAL
+
+        if not is_quantum and best_action == _ACTION_QUANTUM:
+            best_action = _ACTION_CLASSICAL
+
+        return best_action
+
+
+class EnvBasedMinMinScheduler(EnvBasedScheduler):
+    """Min-Min 策略的环境适配器（Issue #270）。
+
+    Min-Min 算法步骤：
+    1. 对每个未分配任务，计算在每种处理器上的最小完成时间
+    2. 选择所有任务中最小完成时间对应的任务-处理器对
+    3. 将该任务分配到最佳处理器
+    4. 重复直到所有任务分配完毕
+
+    在 Gymnasium 环境中，每步只需为当前任务选择一个动作，
+    因此 Min-Min 简化为：选择使当前任务完成时间最小的动作。
+
+    与 HEFT 的区别：
+    - HEFT 按 upward rank 排序后分配
+    - Min-Min 每轮选择全局最小完成时间的任务
+    在单步决策中，两者都简化为"选择最小完成时间的动作"，
+    但 Min-Min 更倾向于选择短任务优先。
+    """
+
+    def __init__(self) -> None:
+        """初始化 Min-Min 环境策略。"""
+        super().__init__("EnvBased-MinMin")
+
+    def select_action(self, observation: np.ndarray, env: Any) -> int:
+        """根据 Min-Min 策略选择最小完成时间的动作。
+
+        Min-Min 倾向于选择能最快完成的动作，与 HEFT 类似但
+        更强调"最小"而非"最早"——即优先短任务和快速处理器。
+
+        Args:
+            observation: 14维观测向量
+            env        : QuantumSchedulingEnv 实例
+
+        Returns:
+            动作值（0=classical, 1=quantum, 2=hybrid）
+        """
+        obs = list(observation) if hasattr(observation, "__iter__") else [0.0] * 14
+
+        is_quantum = float(obs[10]) > 0.5 if len(obs) > 10 else False
+        qubit_avail = float(obs[6]) if len(obs) > 6 else 0.5
+        quantum_queue = float(obs[7]) if len(obs) > 7 else 0.0
+
+        # Min-Min: 选择"最小"完成时间的动作
+        # 量子动作的等效时间最短（加速比 2-5x），但需考虑可用性和队列
+        if is_quantum and qubit_avail > 0.3 and quantum_queue < 0.5:
+            return _ACTION_QUANTUM
+        if is_quantum and qubit_avail > 0.1:
+            return _ACTION_HYBRID
+        return _ACTION_CLASSICAL
+
+
+def get_all_env_based_schedulers() -> list[EnvBasedScheduler]:
+    """返回所有环境适配基线策略的实例列表。
+
+    Returns:
+        包含 6 个环境适配策略实例的列表（FCFS/SPTF/EDF/Greedy/HEFT/MinMin）
+    """
+    return [
+        EnvBasedFCFSScheduler(),
+        EnvBasedSPTFScheduler(),
+        EnvBasedEDFScheduler(),
+        EnvBasedGreedyScheduler(),
+        EnvBasedHEFTScheduler(),
+        EnvBasedMinMinScheduler(),
+    ]

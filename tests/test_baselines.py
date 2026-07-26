@@ -9,6 +9,8 @@ Unit Tests for src/scheduler/baselines.py
 - TestPriorityScheduler      : 高优先级优先、相同优先级稳定性
 - TestRoundRobinScheduler    : 轮转顺序、指针更新
 - TestLIFOScheduler          : 后来先服务
+- TestHEFTScheduler          : HEFT 长任务优先、空列表边界（Issue #270）
+- TestMinMinScheduler        : Min-Min 最短任务优先、空列表边界（Issue #270）
 - TestRunBaselineComparison  : 多策略对比、返回结构完整
 - TestEdgeCases              : 空任务列表、单任务、所有任务相同属性
 """
@@ -20,7 +22,9 @@ from src.scheduler.baselines import (
     BaselineScheduler,
     EDFScheduler,
     FCFSScheduler,
+    HEFTScheduler,
     LIFOScheduler,
+    MinMinScheduler,
     PriorityScheduler,
     RoundRobinScheduler,
     SPTFScheduler,
@@ -270,20 +274,102 @@ class TestLIFOScheduler(unittest.TestCase):
 
 
 # ============================================================
+# TestHEFTScheduler (Issue #270)
+# ============================================================
+class TestHEFTScheduler(unittest.TestCase):
+    """测试 HEFT（异构最早完成时间）策略。"""
+
+    def test_selects_longest_time(self):
+        """应选择预估执行时间最长的任务（upward rank 降序）。"""
+        tasks = [
+            _make_task("A", estimated_time=5.0),
+            _make_task("B", estimated_time=30.0),
+            _make_task("C", estimated_time=15.0),
+        ]
+        scheduler = HEFTScheduler()
+        idx = scheduler.select_action(tasks, _EMPTY_RESOURCES)
+        self.assertEqual(idx, 1)  # B 最长
+        self.assertEqual(tasks[idx]["task_id"], "B")
+
+    def test_equal_time_stability(self):
+        """所有任务时间相同时应稳定返回第一个（max 返回首个最大值索引）。"""
+        tasks = [
+            _make_task("A", estimated_time=10.0),
+            _make_task("B", estimated_time=10.0),
+            _make_task("C", estimated_time=10.0),
+        ]
+        scheduler = HEFTScheduler()
+        idx = scheduler.select_action(tasks, _EMPTY_RESOURCES)
+        self.assertEqual(idx, 0)  # max 返回第一个最大值索引
+
+    def test_empty_list_returns_negative(self):
+        """空任务列表应返回 -1。"""
+        scheduler = HEFTScheduler()
+        self.assertEqual(scheduler.select_action([], _EMPTY_RESOURCES), -1)
+
+    def test_name_and_repr(self):
+        """策略名与 repr 应正确。"""
+        s = HEFTScheduler()
+        self.assertEqual(s.name, "HEFT")
+        self.assertIn("HEFT", repr(s))
+
+
+# ============================================================
+# TestMinMinScheduler (Issue #270)
+# ============================================================
+class TestMinMinScheduler(unittest.TestCase):
+    """测试 Min-Min（最小完成时间优先）策略。"""
+
+    def test_selects_shortest_time(self):
+        """应选择预估执行时间最短的任务（最小完成时间优先）。"""
+        tasks = [
+            _make_task("A", estimated_time=30.0),
+            _make_task("B", estimated_time=5.0),
+            _make_task("C", estimated_time=20.0),
+        ]
+        scheduler = MinMinScheduler()
+        idx = scheduler.select_action(tasks, _EMPTY_RESOURCES)
+        self.assertEqual(idx, 1)  # B 最短
+        self.assertEqual(tasks[idx]["task_id"], "B")
+
+    def test_equal_time_stability(self):
+        """所有任务时间相同时应稳定返回第一个（min 稳定选择）。"""
+        tasks = [
+            _make_task("A", estimated_time=10.0),
+            _make_task("B", estimated_time=10.0),
+            _make_task("C", estimated_time=10.0),
+        ]
+        scheduler = MinMinScheduler()
+        idx = scheduler.select_action(tasks, _EMPTY_RESOURCES)
+        self.assertEqual(idx, 0)  # min 返回第一个最小值索引
+
+    def test_empty_list_returns_negative(self):
+        """空任务列表应返回 -1。"""
+        scheduler = MinMinScheduler()
+        self.assertEqual(scheduler.select_action([], _EMPTY_RESOURCES), -1)
+
+    def test_name_and_repr(self):
+        """策略名与 repr 应正确。"""
+        s = MinMinScheduler()
+        self.assertEqual(s.name, "MinMin")
+        self.assertIn("MinMin", repr(s))
+
+
+# ============================================================
 # TestRunBaselineComparison
 # ============================================================
 class TestRunBaselineComparison(unittest.TestCase):
     """测试 run_baseline_comparison 对比函数。"""
 
     def test_returns_all_strategies(self):
-        """返回结果应包含全部 6 个基线策略。"""
+        """返回结果应包含全部 8 个基线策略。"""
         tasks = [
             _make_task("T1", priority=3, estimated_time=5.0, arrival_time=0.0),
             _make_task("T2", priority=5, estimated_time=3.0, arrival_time=1.0),
             _make_task("T3", priority=1, estimated_time=10.0, arrival_time=2.0),
         ]
         results = run_baseline_comparison(tasks, num_steps=10)
-        expected_names = {"FCFS", "SPTF", "EDF", "Priority", "RoundRobin", "LIFO"}
+        expected_names = {"FCFS", "SPTF", "EDF", "Priority", "RoundRobin", "LIFO", "HEFT", "MinMin"}
         self.assertEqual(set(results.keys()), expected_names)
 
     def test_result_structure_complete(self):
@@ -319,11 +405,13 @@ class TestRunBaselineComparison(unittest.TestCase):
             self.assertLessEqual(metrics["throughput"], 1.0, f"{name} throughput>1")
 
     def test_get_all_baseline_schedulers(self):
-        """get_all_baseline_schedulers 应返回 6 个不同策略实例。"""
+        """get_all_baseline_schedulers 应返回 8 个不同策略实例。"""
         schedulers = get_all_baseline_schedulers()
-        self.assertEqual(len(schedulers), 6)
+        self.assertEqual(len(schedulers), 8)
         names = {s.name for s in schedulers}
-        self.assertEqual(names, {"FCFS", "SPTF", "EDF", "Priority", "RoundRobin", "LIFO"})
+        self.assertEqual(
+            names, {"FCFS", "SPTF", "EDF", "Priority", "RoundRobin", "LIFO", "HEFT", "MinMin"}
+        )
         for s in schedulers:
             self.assertIsInstance(s, BaselineScheduler)
 
@@ -337,7 +425,7 @@ class TestEdgeCases(unittest.TestCase):
     def test_empty_task_list_comparison(self):
         """空任务列表对比时各策略应完成 0 任务且奖励为 0。"""
         results = run_baseline_comparison([], num_steps=10)
-        self.assertEqual(len(results), 6)
+        self.assertEqual(len(results), 8)
         for name, metrics in results.items():
             self.assertEqual(metrics["completed_tasks"], 0, f"{name} 空列表应完成 0")
             self.assertEqual(metrics["total_reward"], 0.0, f"{name} 空列表奖励应为 0")
