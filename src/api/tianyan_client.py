@@ -65,7 +65,7 @@ class TianyanAPIError(QuantumSchedulerError):
         response_body: 原始响应体（JSON）
     """
 
-    def __init__(self, status_code: int, message: str, response_body: dict | None = None):
+    def __init__(self, status_code: int, message: str, response_body: dict[str, Any] | None = None):
         self.status_code = status_code
         self.message = message
         self.response_body = response_body or {}

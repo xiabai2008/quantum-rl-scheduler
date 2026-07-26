@@ -2,6 +2,8 @@
 
 > Issue #25 — 从技术导向转向价值导向，用具体场景和量化数据说话
 >
+> **Issue #210 文档碎片化整理**：本文档为价值量化主题的"深度分析"分册，主文档为 [value_quantification.md](value_quantification.md)（基础价值量化，6节10项指标）。答辩摘要见 [value_summary_for_defense.md](value_summary_for_defense.md)。
+>
 > 关联文档：`docs/value_quantification.md`（基础价值量化）、`docs/sota_comparison.md`（技术对比）
 >
 > 生成时间：2026-07-23

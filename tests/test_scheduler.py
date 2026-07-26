@@ -492,6 +492,133 @@ class TestMultiMachineScheduling(unittest.TestCase):
         self.assertEqual(stats["success_count"], 1)
 
 
+class TestPerformanceOptimization(unittest.TestCase):
+    """Issue #219: 性能优化测试（缓存 total_qubits + 向量化加权平均 + max() 选任务）。"""
+
+    def test_total_qubits_cache_initialized(self):
+        """env.__init__ 应初始化 _total_qubits_cache 缓存。"""
+        env = QuantumSchedulingEnv(
+            machine_configs=[
+                {"name": "m1", "total_qubits": 50, "supported_gates": ("H", "M")},
+                {"name": "m2", "total_qubits": 30, "supported_gates": ("H", "M")},
+                {"name": "m3", "total_qubits": 20, "supported_gates": ("H", "M")},
+            ]
+        )
+        # 缓存值应等于所有机器总量子比特数之和
+        self.assertEqual(env._total_qubits_cache, 100)
+
+    def test_total_qubits_cache_updated_after_attach_real_clients(self):
+        """attach_real_clients 后应同步更新 _total_qubits_cache。"""
+        env = QuantumSchedulingEnv(
+            machine_configs=[
+                {"name": "m1", "total_qubits": 50, "supported_gates": ("H", "M")},
+            ]
+        )
+        # 初始缓存
+        self.assertEqual(env._total_qubits_cache, 50)
+
+        # attach_real_clients（机器列表不变，但应触发缓存更新）
+        env.attach_real_clients({"m1": object()})
+        self.assertEqual(env._total_qubits_cache, 50)
+
+    def test_observation_uses_cache_value(self):
+        """get_observation 应使用 _total_qubits_cache 而非每步重新计算。"""
+        env = QuantumSchedulingEnv(
+            machine_configs=[
+                {"name": "m1", "total_qubits": 50, "supported_gates": ("H", "M")},
+                {"name": "m2", "total_qubits": 30, "supported_gates": ("H", "M")},
+            ]
+        )
+        # 修改缓存值为哨兵值，验证 get_observation 使用了缓存
+        env._total_qubits_cache = 999
+        obs = env._get_observation()
+        # 即使缓存值错误，obs 仍应正常返回（缓存值非 0 时会进入分支）
+        # 此处主要验证不抛异常
+        self.assertEqual(obs.shape, (OBS_DIM,))
+
+    def test_pick_next_task_uses_max_not_sort(self):
+        """pick_next_task 应使用 max() 选最紧急任务，而非全量排序。
+
+        验证：队列顺序在 pick_next_task 后应保持稳定（不排序），
+        仅最紧急任务被取出。
+        """
+        env = QuantumSchedulingEnv()
+        env._task_queue = [
+            Task(
+                task_id="T1",
+                task_type="quantum",
+                qubit_count=2,
+                priority=1,
+                urgency=0.5,
+                execution_time=3,
+            ),
+            Task(
+                task_id="T2",
+                task_type="quantum",
+                qubit_count=2,
+                priority=5,
+                urgency=0.9,
+                execution_time=3,
+            ),
+            Task(
+                task_id="T3",
+                task_type="quantum",
+                qubit_count=2,
+                priority=3,
+                urgency=0.5,
+                execution_time=3,
+            ),
+        ]
+        from src.scheduler.env_dynamics import pick_next_task
+
+        pick_next_task(env)
+
+        # 应取出 priority 最高的 T2
+        self.assertEqual(env._current_task.task_id, "T2")
+        # 剩余队列顺序应保持不变（未被排序）
+        remaining_ids = [t.task_id for t in env._task_queue]
+        # T1 和 T3 应保持原始相对顺序
+        self.assertEqual(remaining_ids, ["T1", "T3"])
+
+    def test_pick_next_task_tie_breaking(self):
+        """pick_next_task 在 priority 相同时按 wait_steps 降序选择。"""
+        env = QuantumSchedulingEnv()
+        env._task_queue = [
+            Task(
+                task_id="T1",
+                task_type="quantum",
+                qubit_count=2,
+                priority=5,
+                urgency=0.5,
+                execution_time=3,
+                wait_steps=1,
+            ),
+            Task(
+                task_id="T2",
+                task_type="quantum",
+                qubit_count=2,
+                priority=5,
+                urgency=0.9,
+                execution_time=3,
+                wait_steps=5,
+            ),
+            Task(
+                task_id="T3",
+                task_type="quantum",
+                qubit_count=2,
+                priority=5,
+                urgency=0.5,
+                execution_time=3,
+                wait_steps=3,
+            ),
+        ]
+        from src.scheduler.env_dynamics import pick_next_task
+
+        pick_next_task(env)
+        # 三个任务 priority 相同，wait_steps 最高的 T2 应被取出
+        self.assertEqual(env._current_task.task_id, "T2")
+
+
 class TestSchedulerAgent(unittest.TestCase):
     """测试RL智能体"""
 

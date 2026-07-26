@@ -63,6 +63,7 @@ Circuit Breaker Module
   熔断器保护对天衍云平台的请求
 """
 
+import threading
 import time
 from collections.abc import Callable
 from enum import Enum
@@ -213,6 +214,9 @@ class CircuitBreaker:
         self.state: CircuitState = CircuitState.CLOSED
         self.failure_count: int = 0
         self.last_failure_time: float = 0.0
+        # 线程锁：保护 state / failure_count / last_failure_time 的并发读写（Issue #213）
+        # 使用 RLock 以允许同一线程内嵌套调用（如 call() 内部调用 reset()）
+        self._lock = threading.RLock()
 
     def call(self, func: Callable[..., T], *args: Any, **kwargs: Any) -> T:
         """通过熔断器执行函数
@@ -247,42 +251,54 @@ class CircuitBreaker:
             本方法不实现重试逻辑，仅做单次调用与状态反馈。
             若需重试，应由调用方在外层实现。
         """
-        # OPEN 状态：判断是否已过恢复超时
-        if self.state == CircuitState.OPEN:
-            if time.monotonic() - self.last_failure_time >= self.recovery_timeout:
-                # 进入 HALF_OPEN，放行一次试探性调用
-                self.state = CircuitState.HALF_OPEN
-            else:
-                raise CircuitOpenError(
-                    "熔断器处于 OPEN 状态，拒绝调用",
-                    code="CIRCUIT_OPEN",
-                    retryable=True,
-                )
+        # 阶段 1：加锁检查状态，决定是否放行（Issue #213 线程安全）
+        # 锁内不调用 func，避免外部回调持有锁导致死锁
+        with self._lock:
+            current_state = self.state
+            if current_state == CircuitState.OPEN:
+                if time.monotonic() - self.last_failure_time >= self.recovery_timeout:
+                    # 进入 HALF_OPEN，放行一次试探性调用
+                    self.state = CircuitState.HALF_OPEN
+                else:
+                    raise CircuitOpenError(
+                        "熔断器处于 OPEN 状态，拒绝调用",
+                        code="CIRCUIT_OPEN",
+                        retryable=True,
+                    )
 
+        # 阶段 2：不加锁执行 func（避免外部回调持锁导致死锁）
         try:
             result = func(*args, **kwargs)
         except Exception as e:
             # 熔断器需捕获所有异常以记录失败计数，原异常重新抛出由上层处理
             logger.debug(f"熔断器记录失败: {type(e).__name__}: {e}")
-            # 失败：累加计数并更新失败时间
-            self.failure_count += 1
-            self.last_failure_time = time.monotonic()
-            if self.state == CircuitState.HALF_OPEN:
-                # 试探性调用失败，重回 OPEN
-                self.state = CircuitState.OPEN
-            elif self.state == CircuitState.CLOSED and self.failure_count >= self.failure_threshold:
-                self.state = CircuitState.OPEN
-                alert_critical(
-                    "circuit_breaker",
-                    f"熔断器 CLOSED→OPEN（连续失败 {self.failure_count}/{self.failure_threshold}）",
-                )
+            # 阶段 3a：加锁更新失败状态
+            with self._lock:
+                self.failure_count += 1
+                self.last_failure_time = time.monotonic()
+                if self.state == CircuitState.HALF_OPEN:
+                    # 试探性调用失败，重回 OPEN
+                    self.state = CircuitState.OPEN
+                elif (
+                    self.state == CircuitState.CLOSED
+                    and self.failure_count >= self.failure_threshold
+                ):
+                    self.state = CircuitState.OPEN
+                    alert_critical(
+                        "circuit_breaker",
+                        f"熔断器 CLOSED→OPEN（连续失败 {self.failure_count}/{self.failure_threshold}）",
+                    )
             raise
 
-        # 成功：HALF_OPEN 试探通过则重置，CLOSED 则清零连续失败计数
-        if self.state == CircuitState.HALF_OPEN:
-            self.reset()
-        elif self.state == CircuitState.CLOSED:
-            self.failure_count = 0
+        # 阶段 3b：加锁更新成功状态
+        with self._lock:
+            if self.state == CircuitState.HALF_OPEN:
+                # HALF_OPEN 试探通过 → 重置为 CLOSED
+                self.state = CircuitState.CLOSED
+                self.failure_count = 0
+                self.last_failure_time = 0.0
+            elif self.state == CircuitState.CLOSED:
+                self.failure_count = 0
         return result
 
     def reset(self) -> None:
@@ -298,9 +314,10 @@ class CircuitBreaker:
         Note:
             本方法不区分当前状态，任何状态调用都会立即重置为 CLOSED。
         """
-        self.state = CircuitState.CLOSED
-        self.failure_count = 0
-        self.last_failure_time = 0.0
+        with self._lock:
+            self.state = CircuitState.CLOSED
+            self.failure_count = 0
+            self.last_failure_time = 0.0
 
     # ------------------------------------------------------------------
     # 兼容方法：供 TianyanClient 等外部调用方使用
@@ -319,15 +336,16 @@ class CircuitBreaker:
         Raises:
             CircuitOpenError: 熔断器处于 OPEN 状态且未到恢复超时时抛出。
         """
-        if self.state == CircuitState.OPEN:
-            if time.monotonic() - self.last_failure_time >= self.recovery_timeout:
-                self.state = CircuitState.HALF_OPEN
-            else:
-                raise CircuitOpenError(
-                    "Circuit breaker is open",
-                    code="CIRCUIT_OPEN",
-                    retryable=True,
-                )
+        with self._lock:
+            if self.state == CircuitState.OPEN:
+                if time.monotonic() - self.last_failure_time >= self.recovery_timeout:
+                    self.state = CircuitState.HALF_OPEN
+                else:
+                    raise CircuitOpenError(
+                        "Circuit breaker is open",
+                        code="CIRCUIT_OPEN",
+                        retryable=True,
+                    )
 
     def on_success(self) -> None:
         """请求成功时重置状态（兼容接口）
@@ -335,8 +353,9 @@ class CircuitBreaker:
         清零 ``failure_count`` 并将状态设为 ``CLOSED``。
         行为与原 ``tianyan_client.py`` 中的 ``CircuitBreaker.on_success`` 完全一致。
         """
-        self.failure_count = 0
-        self.state = CircuitState.CLOSED
+        with self._lock:
+            self.failure_count = 0
+            self.state = CircuitState.CLOSED
 
     def on_failure(self) -> None:
         """请求失败时累加失败计数（兼容接口）
@@ -347,15 +366,16 @@ class CircuitBreaker:
         告警使用 ``alert_error``（与原 ``tianyan_client.py`` 一致），
         而非 :meth:`call` 方法使用的 ``alert_critical``。
         """
-        self.failure_count += 1
-        self.last_failure_time = time.monotonic()
-        if self.failure_count >= self.failure_threshold:
-            self.state = CircuitState.OPEN
-            # 使用 alert_error 以与原 tianyan_client.py 行为一致
-            alert_error(
-                "api",
-                f"API 熔断器打开（连续失败 {self.failure_count}/{self.failure_threshold}）",
-            )
+        with self._lock:
+            self.failure_count += 1
+            self.last_failure_time = time.monotonic()
+            if self.failure_count >= self.failure_threshold:
+                self.state = CircuitState.OPEN
+                # 使用 alert_error 以与原 tianyan_client.py 行为一致
+                alert_error(
+                    "api",
+                    f"API 熔断器打开（连续失败 {self.failure_count}/{self.failure_threshold}）",
+                )
 
     def get_state(self) -> str:
         """返回当前状态字符串（兼容接口）
@@ -387,9 +407,10 @@ class CircuitBreaker:
             本方法不会触发状态转换，仅做只读判定。实际的状态转换发生在
             :meth:`call` 调用时。
         """
-        if self.state == CircuitState.CLOSED:
-            return True
-        if self.state == CircuitState.HALF_OPEN:
-            return True
-        # OPEN 状态：判断是否已过恢复超时
-        return time.monotonic() - self.last_failure_time >= self.recovery_timeout
+        with self._lock:
+            if self.state == CircuitState.CLOSED:
+                return True
+            if self.state == CircuitState.HALF_OPEN:
+                return True
+            # OPEN 状态：判断是否已过恢复超时
+            return time.monotonic() - self.last_failure_time >= self.recovery_timeout

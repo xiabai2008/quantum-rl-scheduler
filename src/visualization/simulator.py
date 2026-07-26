@@ -25,9 +25,10 @@ v2 改进（Day2-3-9）：
 import asyncio
 import random
 from datetime import datetime
+from typing import Any
 
-import numpy as np
 from loguru import logger
+from numpy.typing import NDArray
 
 # _app 提供共享状态（从 state.py 再导出）和辅助函数访问。
 # 测试通过 patch("src.visualization.simulator._app", mock_app) 替换整个引用，
@@ -38,7 +39,7 @@ from src.scheduler.explainability import DecisionExplainer
 _explainer = DecisionExplainer()
 
 # PPO 推理持久化状态
-_ppo_current_obs: np.ndarray | None = None  # 当前观测向量（episode 内持续更新）
+_ppo_current_obs: NDArray[Any] | None = None  # 当前观测向量（episode 内持续更新）
 _ppo_episode_reward = 0.0  # 当前 episode 累积奖励
 _ppo_episode_step = 0  # 当前 episode 步数
 

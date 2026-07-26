@@ -103,7 +103,9 @@ class BaselineScheduler:
         """
         self.name = name
 
-    def select_action(self, tasks: list[dict], available_resources: dict) -> int:
+    def select_action(
+        self, tasks: list[dict[str, Any]], available_resources: dict[str, Any]
+    ) -> int:
         """从任务列表中选择一个任务，返回其索引。
 
         Args:
@@ -140,7 +142,9 @@ class FCFSScheduler(BaselineScheduler):
         """初始化 FCFS 策略。"""
         super().__init__("FCFS")
 
-    def select_action(self, tasks: list[dict], available_resources: dict) -> int:
+    def select_action(
+        self, tasks: list[dict[str, Any]], available_resources: dict[str, Any]
+    ) -> int:
         """选择到达时间最早的任务。
 
         Args:
@@ -168,7 +172,9 @@ class SPTFScheduler(BaselineScheduler):
         """初始化 SPTF 策略。"""
         super().__init__("SPTF")
 
-    def select_action(self, tasks: list[dict], available_resources: dict) -> int:
+    def select_action(
+        self, tasks: list[dict[str, Any]], available_resources: dict[str, Any]
+    ) -> int:
         """选择预估执行时间最短的任务。
 
         Args:
@@ -197,7 +203,9 @@ class EDFScheduler(BaselineScheduler):
         """初始化 EDF 策略。"""
         super().__init__("EDF")
 
-    def select_action(self, tasks: list[dict], available_resources: dict) -> int:
+    def select_action(
+        self, tasks: list[dict[str, Any]], available_resources: dict[str, Any]
+    ) -> int:
         """选择有效截止时间最早的任务。
 
         Args:
@@ -245,7 +253,9 @@ class PriorityScheduler(BaselineScheduler):
         """初始化 Priority 策略。"""
         super().__init__("Priority")
 
-    def select_action(self, tasks: list[dict], available_resources: dict) -> int:
+    def select_action(
+        self, tasks: list[dict[str, Any]], available_resources: dict[str, Any]
+    ) -> int:
         """选择优先级最高的任务。
 
         Args:
@@ -278,7 +288,9 @@ class RoundRobinScheduler(BaselineScheduler):
         super().__init__("RoundRobin")
         self._pointer = 0
 
-    def select_action(self, tasks: list[dict], available_resources: dict) -> int:
+    def select_action(
+        self, tasks: list[dict[str, Any]], available_resources: dict[str, Any]
+    ) -> int:
         """按内部指针轮转选择任务，并推进指针。
 
         Args:
@@ -310,7 +322,9 @@ class LIFOScheduler(BaselineScheduler):
         """初始化 LIFO 策略。"""
         super().__init__("LIFO")
 
-    def select_action(self, tasks: list[dict], available_resources: dict) -> int:
+    def select_action(
+        self, tasks: list[dict[str, Any]], available_resources: dict[str, Any]
+    ) -> int:
         """选择到达时间最晚的任务。
 
         Args:
@@ -349,7 +363,9 @@ def get_all_baseline_schedulers() -> list[BaselineScheduler]:
     ]
 
 
-def run_baseline_comparison(tasks: list[dict], num_steps: int = 100) -> dict[str, dict]:
+def run_baseline_comparison(
+    tasks: list[dict[str, Any]], num_steps: int = 100
+) -> dict[str, dict[str, Any]]:
     """用所有基线策略调度给定任务列表，返回对比结果。
 
     模拟流程：每步从剩余任务队列中按策略选一个任务执行，完成后从队列移除，
@@ -368,14 +384,14 @@ def run_baseline_comparison(tasks: list[dict], num_steps: int = 100) -> dict[str
     Returns:
         ``{策略名: {total_reward, completed_tasks, avg_wait_time, throughput}}``
     """
-    results: dict[str, dict] = {}
-    available_resources: dict = {"qubits": 20, "classical_load": 0.0}
+    results: dict[str, dict[str, Any]] = {}
+    available_resources: dict[str, Any] = {"qubits": 20, "classical_load": 0.0}
     schedulers = get_all_baseline_schedulers()
 
     for scheduler in schedulers:
         scheduler.reset()
         # 深拷贝任务，避免跨策略污染
-        queue: list[dict] = [dict(t) for t in tasks]
+        queue: list[dict[str, Any]] = [dict(t) for t in tasks]
 
         total_reward = 0.0
         completed = 0

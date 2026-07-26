@@ -12,6 +12,7 @@ from typing import Any
 import gymnasium as gym
 import numpy as np
 from loguru import logger
+from numpy.typing import NDArray
 from sb3_contrib import RecurrentPPO
 from stable_baselines3 import PPO
 from stable_baselines3.common.callbacks import (
@@ -221,7 +222,7 @@ class PPOAgent:
         real_cb_save_path = kwargs.pop("real_callback_save_path", "results/real_times.json")
         real_cb_shots = int(kwargs.pop("real_callback_shots", 512))
 
-        eval_env: gym.Env = Monitor(self.env)
+        eval_env: gym.Env[Any, Any] = Monitor(self.env)
         eval_callback = EvalCallback(
             eval_env=eval_env,
             best_model_save_path=os.path.join(self.log_dir, "best_model"),
@@ -283,7 +284,7 @@ class PPOAgent:
 
     def predict(
         self,
-        state: np.ndarray,
+        state: NDArray[Any],
         deterministic: bool = True,
     ) -> int:
         """

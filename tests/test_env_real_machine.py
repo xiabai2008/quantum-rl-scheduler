@@ -496,6 +496,82 @@ class TestRecordRealFailure:
 
 
 # =============================================================================
+# 真机错误区分（Issue #218）
+# =============================================================================
+
+
+class _TransientErrorClient:
+    """submit 抛出网络异常（OSError 子类）的 mock 客户端。"""
+
+    def submit_quantum_task(self, **kwargs):
+        raise ConnectionError("网络抖动：连接超时")
+
+    def get_task_status(self, task_id: str) -> dict:
+        raise RuntimeError("查询异常")
+
+
+class _PermanentErrorClient:
+    """submit 抛出非网络异常的 mock 客户端（模拟认证失败）。"""
+
+    def submit_quantum_task(self, **kwargs):
+        raise RuntimeError("认证失败：API Key 无效")
+
+    def get_task_status(self, task_id: str) -> dict:
+        raise RuntimeError("查询异常")
+
+
+class TestTransientVsPermanentError:
+    """Issue #218: 真机失败区分暂时性错误与永久性错误。"""
+
+    def test_transient_error_not_counted_as_failure(self):
+        """暂时性错误（网络抖动）不计入连续失败计数，不触发降级。"""
+        env, _, machine, task = _make_env_with_client(client=_TransientErrorClient())
+
+        # 触发多次暂时性错误
+        for _ in range(REAL_MACHINE_DEGRADE_FAIL_THRESHOLD + 2):
+            submit_to_real_machine(env, machine, task)
+
+        # 暂时性错误不应计入连续失败
+        assert env._real_consecutive_failures == 0
+        assert env._real_fail_count == 0
+        # 不应触发降级
+        assert env._real_machine_degraded is False
+        # render_log 中应有"暂时性错误"记录
+        assert any("暂时性错误" in msg for msg in env._render_log)
+
+    def test_permanent_error_triggers_degradation(self):
+        """永久性错误（认证失败）计入连续失败并触发降级。"""
+        env, _, machine, task = _make_env_with_client(client=_PermanentErrorClient())
+
+        # 触发足够多次永久性错误
+        for _ in range(REAL_MACHINE_DEGRADE_FAIL_THRESHOLD):
+            submit_to_real_machine(env, machine, task)
+
+        # 永久性错误应计入连续失败
+        assert env._real_consecutive_failures >= REAL_MACHINE_DEGRADE_FAIL_THRESHOLD
+        assert env._real_fail_count >= REAL_MACHINE_DEGRADE_FAIL_THRESHOLD
+        # 应触发降级
+        assert env._real_machine_degraded is True
+
+    def test_mixed_errors_transient_does_not_reset_permanent(self):
+        """混合错误场景：暂时性错误不影响永久性错误的累计计数。"""
+        env, _, machine, task = _make_env_with_client(client=_PermanentErrorClient())
+
+        # 1 次永久性错误
+        submit_to_real_machine(env, machine, task)
+        assert env._real_consecutive_failures == 1
+
+        # 替换为暂时性错误客户端，触发几次
+        env._real_clients[machine.name] = _TransientErrorClient()
+        for _ in range(3):
+            submit_to_real_machine(env, machine, task)
+
+        # 暂时性错误不应增加计数，但也不应重置
+        assert env._real_consecutive_failures == 1
+        assert env._real_machine_degraded is False
+
+
+# =============================================================================
 # 真机任务轮询
 # =============================================================================
 

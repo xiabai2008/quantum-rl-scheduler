@@ -96,29 +96,78 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             overflow-x: hidden;
             font-size: 13px;
             -webkit-font-smoothing: antialiased;
+            position: relative;
+        }
+
+        /* ===== 量子粒子背景 ===== */
+        #quantum-bg {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            z-index: 0;
+            pointer-events: none;
+            opacity: 0.6;
+        }
+        .bg-vignette {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            z-index: 0;
+            pointer-events: none;
+            background:
+                radial-gradient(ellipse 80% 50% at 50% -20%, rgba(59,201,219,0.06) 0%, transparent 60%),
+                radial-gradient(ellipse 60% 40% at 80% 80%, rgba(167,139,250,0.04) 0%, transparent 50%);
         }
 
         /* ===== 顶部标题栏 ===== */
         .header {
             position: relative;
-            z-index: 1;
-            background: var(--surface);
+            z-index: 10;
+            background: linear-gradient(180deg, rgba(14,20,34,0.98) 0%, rgba(14,20,34,0.92) 100%);
             border-bottom: 1px solid var(--line);
             padding: 14px 28px;
             display: flex;
             align-items: center;
             justify-content: space-between;
+            backdrop-filter: blur(12px);
+        }
+        .header::after {
+            content: '';
+            position: absolute;
+            bottom: 0; left: 0; right: 0;
+            height: 1px;
+            background: linear-gradient(90deg, transparent 0%, rgba(59,201,219,0.3) 50%, transparent 100%);
         }
         .header-left { display: flex; align-items: center; gap: 14px; }
         .logo {
-            width: 40px; height: 40px;
-            background: var(--brand);
+            width: 42px; height: 42px;
+            background: linear-gradient(135deg, rgba(59,201,219,0.2) 0%, rgba(59,201,219,0.05) 100%);
+            border: 1px solid rgba(59,201,219,0.3);
             border-radius: var(--r-md);
             display: flex; align-items: center; justify-content: center;
-            font-size: 16px; font-weight: 700; color: var(--brand-fg);
-            font-family: var(--font-mono);
-            letter-spacing: -1px;
             position: relative;
+            box-shadow: 0 0 16px rgba(59,201,219,0.15), inset 0 1px 0 rgba(255,255,255,0.05);
+        }
+        .logo svg {
+            width: 24px; height: 24px;
+            color: var(--brand);
+            animation: logoPulse 4s ease-in-out infinite;
+        }
+        @keyframes logoPulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.75; }
+        }
+        .logo .electron {
+            transform-origin: 12px 12px;
+            animation: electronOrbit 6s linear infinite;
+        }
+        .logo .electron-2 {
+            animation-duration: 8s;
+            animation-direction: reverse;
+        }
+        @keyframes electronOrbit {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
         }
         .header-titles h1 {
             font-size: 18px; font-weight: 600;
@@ -144,25 +193,45 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             font-family: var(--font-mono);
             letter-spacing: 0.3px;
             color: var(--ink-3);
+            position: relative;
         }
         .ws-status::before {
             content: ''; width: 6px; height: 6px;
             border-radius: 50%;
             background: var(--error);
+            flex-shrink: 0;
         }
-        .ws-status.connected::before { background: var(--success); box-shadow: 0 0 6px rgba(52,211,153,0.4); }
+        .ws-status::after {
+            content: '';
+            position: absolute;
+            left: 12px; top: 50%;
+            width: 6px; height: 6px;
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+        }
+        .ws-status.connected::before { background: var(--success); }
+        .ws-status.connected::after {
+            background: var(--success);
+            animation: statusPulse 2s ease-out infinite;
+        }
+        @keyframes statusPulse {
+            0% { transform: translate(-50%, -50%) scale(1); opacity: 0.6; }
+            100% { transform: translate(-50%, -50%) scale(2.5); opacity: 0; }
+        }
         .ws-status.disconnected::before { background: var(--error); }
-        .ws-status.connected { color: var(--success); border-color: rgba(52,211,153,0.2); background: rgba(52,211,153,0.08); }
+        .ws-status.connected { color: var(--success); border-color: rgba(52,211,153,0.25); background: rgba(52,211,153,0.08); }
         .ws-status.disconnected { color: var(--error); border-color: rgba(248,113,113,0.2); }
         .model-badge {
             font-size: 10px; padding: 5px 12px;
             border-radius: var(--r-pill);
-            background: var(--brand-dim);
-            border: 1px solid rgba(59,201,219,0.2);
+            background: linear-gradient(135deg, rgba(59,201,219,0.15) 0%, rgba(59,201,219,0.05) 100%);
+            border: 1px solid rgba(59,201,219,0.25);
             color: var(--brand);
             font-family: var(--font-mono);
             font-weight: 600;
             letter-spacing: 0.5px;
+            box-shadow: 0 0 10px rgba(59,201,219,0.08);
         }
 
         /* ===== 状态卡片区域 ===== */
@@ -179,14 +248,28 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             border: 1px solid var(--line);
             border-radius: var(--r-lg);
             padding: 18px 20px;
-            transition: border-color 0.2s, box-shadow 0.2s;
+            transition: border-color 0.25s ease, box-shadow 0.25s ease, transform 0.25s ease;
             position: relative;
+            overflow: hidden;
+        }
+        .status-card::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.06), transparent);
+            opacity: 0;
+            transition: opacity 0.25s;
         }
         .status-card:hover {
             border-color: var(--line-strong);
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px -8px rgba(0,0,0,0.4), 0 0 0 1px var(--line-strong);
         }
+        .status-card:hover::before { opacity: 1; }
         /* 激活/高亮卡片（量子比特利用率）使用品牌青边框+微glow */
         .card-blue { border-color: rgba(59,201,219,0.3); box-shadow: 0 0 0 1px rgba(59,201,219,0.1), 0 0 20px rgba(59,201,219,0.06); }
+        .card-blue:hover { box-shadow: 0 8px 24px -8px rgba(0,0,0,0.4), 0 0 0 1px rgba(59,201,219,0.3), 0 0 24px rgba(59,201,219,0.12); }
         .card-purple { border-color: var(--line); }
         .card-green { border-color: var(--line); }
         .card-amber { border-color: var(--line); }
@@ -227,6 +310,15 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             font-family: var(--font-mono);
             color: var(--ink);
             letter-spacing: -1px;
+            transition: color 0.3s ease;
+        }
+        .card-value.flash {
+            animation: valueFlash 0.5s ease-out;
+        }
+        @keyframes valueFlash {
+            0% { text-shadow: 0 0 0 transparent; }
+            50% { text-shadow: 0 0 12px currentColor; }
+            100% { text-shadow: 0 0 0 transparent; }
         }
         .card-unit {
             font-size: 14px; font-weight: 400;
@@ -268,13 +360,29 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             border: 1px solid var(--line);
             border-radius: var(--r-lg);
             overflow: hidden;
+            transition: border-color 0.25s ease, box-shadow 0.25s ease;
+        }
+        .panel:hover {
+            border-color: var(--line-strong);
+            box-shadow: 0 4px 20px -8px rgba(0,0,0,0.3);
         }
         .panel-header {
             padding: 14px 18px;
             border-bottom: 1px solid var(--line);
             display: flex; align-items: center; justify-content: space-between;
             background: var(--surface);
+            position: relative;
         }
+        .panel-header::after {
+            content: '';
+            position: absolute;
+            bottom: 0; left: 18px; right: 18px;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, var(--line-strong), transparent);
+            opacity: 0;
+            transition: opacity 0.25s;
+        }
+        .panel:hover .panel-header::after { opacity: 1; }
         .panel-header h2 {
             font-size: 14px; font-weight: 600;
             display: flex; align-items: center; gap: 8px;
@@ -428,17 +536,25 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         .battle-controls .btn-sm {
             padding: 6px 14px; font-size: 11px;
             border-radius: var(--r-md); border: 1px solid var(--line);
-            background: var(--surface-2); color: var(--ink-2);
-            cursor: pointer; transition: all 0.15s;
+            background: linear-gradient(180deg, var(--surface-2) 0%, var(--surface-3) 100%);
+            color: var(--ink-2);
+            cursor: pointer; transition: all 0.2s ease;
             font-weight: 500;
             font-family: var(--font-mono);
             margin-right: 6px;
+            position: relative;
         }
-        .battle-controls .btn-sm:hover { border-color: rgba(59,201,219,0.3); color: var(--brand); }
+        .battle-controls .btn-sm:hover {
+            border-color: rgba(59,201,219,0.4);
+            color: var(--brand);
+            box-shadow: 0 0 10px rgba(59,201,219,0.1);
+        }
         .battle-controls .btn-sm.active {
-            background: var(--brand);
-            border-color: var(--brand); color: var(--brand-fg);
+            background: linear-gradient(180deg, var(--brand) 0%, var(--brand-strong) 100%);
+            border-color: var(--brand);
+            color: var(--brand-fg);
             font-weight: 600;
+            box-shadow: 0 2px 8px rgba(59,201,219,0.25), inset 0 1px 0 rgba(255,255,255,0.15);
         }
         .battle-controls .battle-info {
             font-size: 11px; color: var(--ink-3);
@@ -654,18 +770,18 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         .form-group input, .form-group select {
             width: 100%;
             padding: 8px 12px;
-            background: var(--surface-2);
+            background: linear-gradient(180deg, var(--surface-2) 0%, var(--surface) 100%);
             border: 1px solid var(--line);
             border-radius: var(--r-md);
             color: var(--ink);
             font-size: 13px;
             outline: none;
-            transition: border-color 0.15s, box-shadow 0.15s;
+            transition: border-color 0.2s ease, box-shadow 0.2s ease;
             font-family: var(--font-mono);
         }
         .form-group input:focus, .form-group select:focus {
-            border-color: rgba(59,201,219,0.4);
-            box-shadow: 0 0 0 3px rgba(59,201,219,0.08);
+            border-color: rgba(59,201,219,0.5);
+            box-shadow: 0 0 0 3px rgba(59,201,219,0.1), inset 0 1px 0 rgba(255,255,255,0.03);
         }
         .form-group input::placeholder { color: var(--ink-4); }
         .form-row {
@@ -675,22 +791,28 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         }
         .btn {
             padding: 10px 20px;
-            border: none;
+            border: 1px solid transparent;
             border-radius: var(--r-md);
             font-size: 13px;
             font-weight: 600;
             cursor: pointer;
-            transition: all 0.15s;
+            transition: all 0.2s ease;
             font-family: var(--font-sans);
             letter-spacing: 0.2px;
+            position: relative;
         }
         .btn-primary {
-            background: var(--brand);
+            background: linear-gradient(180deg, var(--brand) 0%, var(--brand-strong) 100%);
             color: var(--brand-fg);
             width: 100%;
+            box-shadow: 0 2px 8px rgba(59,201,219,0.2), inset 0 1px 0 rgba(255,255,255,0.15);
         }
-        .btn-primary:hover { background: var(--brand-strong); transform: translateY(-1px); }
-        .btn-primary:active { transform: translateY(0); }
+        .btn-primary:hover {
+            background: linear-gradient(180deg, #4dd5e7 0%, var(--brand) 100%);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 14px rgba(59,201,219,0.3), inset 0 1px 0 rgba(255,255,255,0.2);
+        }
+        .btn-primary:active { transform: translateY(0); box-shadow: 0 1px 4px rgba(59,201,219,0.2); }
         .strategy-buttons {
             display: flex;
             flex-wrap: wrap;
@@ -698,22 +820,27 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         }
         .strategy-btn {
             padding: 6px 14px;
-            background: var(--surface-2);
+            background: linear-gradient(180deg, var(--surface-2) 0%, var(--surface-3) 100%);
             border: 1px solid var(--line);
             border-radius: var(--r-md);
             color: var(--ink-2);
             font-size: 11px;
             cursor: pointer;
-            transition: all 0.15s;
+            transition: all 0.2s ease;
             font-weight: 500;
             font-family: var(--font-mono);
         }
-        .strategy-btn:hover { border-color: rgba(59,201,219,0.3); color: var(--brand); }
+        .strategy-btn:hover {
+            border-color: rgba(59,201,219,0.4);
+            color: var(--brand);
+            box-shadow: 0 0 8px rgba(59,201,219,0.1);
+        }
         .strategy-btn.active {
-            background: var(--brand);
+            background: linear-gradient(180deg, var(--brand) 0%, var(--brand-strong) 100%);
             border-color: var(--brand);
             color: var(--brand-fg);
             font-weight: 700;
+            box-shadow: 0 2px 8px rgba(59,201,219,0.25), inset 0 1px 0 rgba(255,255,255,0.15);
         }
         .strategy-btn.recommended {
             border-color: rgba(59,201,219,0.3);
@@ -848,6 +975,10 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 </head>
 <body>
 
+    <!-- 量子粒子背景 -->
+    <canvas id="quantum-bg"></canvas>
+    <div class="bg-vignette"></div>
+
     <!-- 加载遮罩 -->
     <div class="loading-overlay" id="loading">
         <div class="loader"></div>
@@ -858,7 +989,20 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     <!-- 顶部标题栏 -->
     <div class="header">
         <div class="header-left">
-            <div class="logo">Q</div>
+            <div class="logo">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                    <circle cx="12" cy="12" r="2" fill="currentColor" stroke="none"/>
+                    <g class="electron">
+                        <ellipse cx="12" cy="12" rx="9" ry="3.5"/>
+                    </g>
+                    <g class="electron electron-2">
+                        <ellipse cx="12" cy="12" rx="9" ry="3.5" transform="rotate(60 12 12)"/>
+                    </g>
+                    <g style="transform-origin:12px 12px; animation: electronOrbit 10s linear infinite reverse;">
+                        <ellipse cx="12" cy="12" rx="9" ry="3.5" transform="rotate(-60 12 12)"/>
+                    </g>
+                </svg>
+            </div>
             <div class="header-titles">
                 <h1>量子RL智能调度系统</h1>
                 <div class="subtitle">AI赋能量子计算 · PPO强化学习 · 14维状态空间 · 8策略对比</div>
@@ -1388,12 +1532,25 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     // ================================================================
     // 页面渲染
     // ================================================================
+    // 数值更新闪光辅助函数
+    function flashValue(elId, newText) {
+        var el = document.getElementById(elId);
+        if (!el) return;
+        var oldText = el.textContent;
+        if (oldText !== newText) {
+            el.textContent = newText;
+            el.classList.remove('flash');
+            void el.offsetWidth; // 强制重排触发动画
+            el.classList.add('flash');
+        }
+    }
+
     function renderStatus(status) {
         if (!status) return;
-        document.getElementById('val-qubit').textContent = ((status.qubit_utilization||0)*100).toFixed(1)+'%';
-        document.getElementById('val-queue').textContent = status.queue_length||0;
-        document.getElementById('val-wait').textContent = (status.average_wait_time||0).toFixed(1)+'s';
-        document.getElementById('val-completed').textContent = status.completed_tasks||0;
+        flashValue('val-qubit', ((status.qubit_utilization||0)*100).toFixed(1)+'%');
+        flashValue('val-queue', String(status.queue_length||0));
+        flashValue('val-wait', (status.average_wait_time||0).toFixed(1)+'s');
+        flashValue('val-completed', String(status.completed_tasks||0));
         // 吞吐量：如果API没有提供，则根据已完成任务和步数估算
         var throughput = status.throughput;
         if (throughput === undefined || throughput === null) {
@@ -1402,9 +1559,10 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             // 假设每步约3秒，换算为任务/分钟
             throughput = steps > 0 ? (completed / (steps * 3 / 60)) : 0;
         }
-        document.getElementById('val-throughput').textContent = throughput.toFixed(1);
-        document.getElementById('val-strategy').textContent = (status.current_strategy||'-').toUpperCase();
-        document.getElementById('val-step').textContent = 'Step: '+(status.current_step||0);
+        flashValue('val-throughput', throughput.toFixed(1));
+        flashValue('val-strategy', (status.current_strategy||'-').toUpperCase());
+        var stepEl = document.getElementById('val-step');
+        if (stepEl) stepEl.textContent = 'Step: '+(status.current_step||0);
 
         // 记录历史
         resourceHistory.push({
@@ -1780,6 +1938,109 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
     // ================================================================
     // 初始化
+    // ================================================================
+    // ================================================================
+    // 量子粒子背景动画
+    // ================================================================
+    (function initQuantumBg(){
+        var canvas = document.getElementById('quantum-bg');
+        if (!canvas) return;
+        var ctx = canvas.getContext('2d');
+        var particles = [];
+        var PARTICLE_COUNT = 60;
+        var CONNECTION_DIST = 140;
+        var w, h;
+
+        function resize() {
+            w = canvas.width = window.innerWidth * window.devicePixelRatio;
+            h = canvas.height = window.innerHeight * window.devicePixelRatio;
+            canvas.style.width = window.innerWidth + 'px';
+            canvas.style.height = window.innerHeight + 'px';
+        }
+        resize();
+        window.addEventListener('resize', resize);
+
+        // 创建粒子
+        for (var i = 0; i < PARTICLE_COUNT; i++) {
+            particles.push({
+                x: Math.random() * w,
+                y: Math.random() * h,
+                vx: (Math.random() - 0.5) * 0.3 * window.devicePixelRatio,
+                vy: (Math.random() - 0.5) * 0.3 * window.devicePixelRatio,
+                r: (Math.random() * 1.2 + 0.4) * window.devicePixelRatio,
+                alpha: Math.random() * 0.5 + 0.2,
+                pulse: Math.random() * Math.PI * 2,
+                pulseSpeed: Math.random() * 0.01 + 0.005,
+                color: Math.random() > 0.7 ? 'a78bfa' : '3bc9db'
+            });
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, w, h);
+            var dpr = window.devicePixelRatio;
+
+            // 更新和绘制粒子
+            for (var i = 0; i < particles.length; i++) {
+                var p = particles[i];
+                p.x += p.vx;
+                p.y += p.vy;
+                p.pulse += p.pulseSpeed;
+
+                // 边界环绕
+                if (p.x < -10) p.x = w + 10;
+                if (p.x > w + 10) p.x = -10;
+                if (p.y < -10) p.y = h + 10;
+                if (p.y > h + 10) p.y = -10;
+
+                var pulseAlpha = p.alpha * (0.7 + 0.3 * Math.sin(p.pulse));
+                var rgb = p.color === 'a78bfa' ? '167,139,250' : '59,201,219';
+
+                // 发光
+                var grd = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.r * 4);
+                grd.addColorStop(0, 'rgba(' + rgb + ',' + pulseAlpha * 0.8 + ')');
+                grd.addColorStop(1, 'rgba(' + rgb + ',0)');
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.r * 4, 0, Math.PI * 2);
+                ctx.fillStyle = grd;
+                ctx.fill();
+
+                // 核心点
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+                ctx.fillStyle = 'rgba(' + rgb + ',' + pulseAlpha + ')';
+                ctx.fill();
+            }
+
+            // 绘制连接线（量子纠缠效果）
+            for (var i = 0; i < particles.length; i++) {
+                for (var j = i + 1; j < particles.length; j++) {
+                    var dx = particles[i].x - particles[j].x;
+                    var dy = particles[i].y - particles[j].y;
+                    var dist = Math.sqrt(dx * dx + dy * dy);
+                    var maxDist = CONNECTION_DIST * dpr;
+                    if (dist < maxDist) {
+                        var alpha = (1 - dist / maxDist) * 0.12;
+                        var sameColor = particles[i].color === particles[j].color;
+                        var rgb = sameColor
+                            ? (particles[i].color === 'a78bfa' ? '167,139,250' : '59,201,219')
+                            : '148,184,220';
+                        ctx.beginPath();
+                        ctx.moveTo(particles[i].x, particles[i].y);
+                        ctx.lineTo(particles[j].x, particles[j].y);
+                        ctx.strokeStyle = 'rgba(' + rgb + ',' + alpha + ')';
+                        ctx.lineWidth = 0.5 * dpr;
+                        ctx.stroke();
+                    }
+                }
+            }
+
+            requestAnimationFrame(draw);
+        }
+        draw();
+    })();
+
+    // ================================================================
+    // 入口
     // ================================================================
     (function init(){
         // 启动Canvas动画循环
