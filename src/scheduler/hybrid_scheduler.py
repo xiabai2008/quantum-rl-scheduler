@@ -22,9 +22,6 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
-import numpy as np
-from loguru import logger
-from numpy.typing import NDArray
 
 __all__ = [
     "ACTION_CLASSICAL",
@@ -238,7 +235,7 @@ class HybridScheduler:
     def decide(
         self,
         task: Any,
-        state: NDArray[Any] | None = None,
+        state: np.ndarray | None = None,
         context: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """
@@ -287,10 +284,10 @@ class HybridScheduler:
                 }
             except RuntimeError:
                 # RL 未训练，走兜底
-                logger.debug("RL 智能体未训练（RuntimeError），回退到默认规则")
-            except Exception as e:
+                pass
+            except Exception:
                 # 其他异常也走兜底
-                logger.warning(f"RL 推理失败，回退到经典调度: {type(e).__name__}: {e}")
+                pass
 
         # 3. 默认规则兜底
         if self._fallback_to_rule:
@@ -333,7 +330,7 @@ class HybridScheduler:
     def decide_batch(
         self,
         tasks: list[Any],
-        states: list[NDArray[Any]] | None = None,
+        states: list[np.ndarray] | None = None,
         context: dict[str, Any] | None = None,
     ) -> list[dict[str, Any]]:
         """
@@ -349,7 +346,7 @@ class HybridScheduler:
         """
         results: list[dict[str, Any]] = []
         for i, task in enumerate(tasks):
-            state: NDArray[Any] | None = None
+            state: np.ndarray | None = None
             if states is not None and i < len(states):
                 state = states[i]
             result = self.decide(task, state=state, context=context)
