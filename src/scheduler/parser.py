@@ -33,10 +33,10 @@ PRIORITY_MAP: dict[str, int] = {
 }
 PRIORITY_REVERSE: dict[int, str] = {v: k for k, v in PRIORITY_MAP.items()}
 
-VALID_TASK_TYPES: set = {"quantum", "classical", "hybrid"}
-VALID_STATUSES: set = {"pending", "queued", "running", "completed", "failed"}
+VALID_TASK_TYPES: set[str] = {"quantum", "classical", "hybrid"}
+VALID_STATUSES: set[str] = {"pending", "queued", "running", "completed", "failed"}
 
-KNOWN_ALGORITHMS: set = {
+KNOWN_ALGORITHMS: set[str] = {
     "VQE",
     "QAOA",
     "Grover",

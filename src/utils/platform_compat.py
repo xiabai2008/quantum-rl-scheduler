@@ -270,7 +270,7 @@ def kill_process_tree(pid: int) -> None:
 def run_subprocess(
     cmd: list[str],
     **kwargs: Any,
-) -> subprocess.CompletedProcess:
+) -> subprocess.CompletedProcess[Any]:
     """跨平台 subprocess 封装。
 
     Windows 下默认不使用 shell(避免 shell 注入风险与 cmd.exe 兼容问题),

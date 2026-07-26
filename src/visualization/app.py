@@ -62,7 +62,7 @@ from src.visualization.models import SystemStatusUpdate, TaskSubmit
 # 确保 `from src.visualization.app import system_status` 等既有导入路径
 # 与测试 monkeypatch（`app_module.system_status.clear()` 等）仍然可用。
 # 新代码请直接 `from src.visualization.state import ...` 获取状态或访问器。
-from src.visualization.state import (  # noqa: F401 — 再导出，供 __all__ 声明
+from src.visualization.state import (  # 再导出，供 __all__ 声明
     STRATEGY_OPTIONS,
     _battle_state,
     _decision_log,
@@ -79,6 +79,9 @@ __all__ = [
     "ConnectionManager",
     "SystemStatusUpdate",
     "TaskSubmit",
+    "_battle_state",
+    "_decision_log",
+    "_resource_history",
     "app",
     "lifespan",
     "manager",
@@ -211,7 +214,7 @@ def _get_real_cqlib_client() -> Any:
     return _real_cqlib_client
 
 
-def _get_real_machines_status() -> list[dict]:
+def _get_real_machines_status() -> list[dict[str, Any]]:
     """查询天衍云真实量子计算机列表及状态。
 
     调用 ``CqlibTianyanClient.list_backends()``（底层
@@ -231,7 +234,7 @@ def _get_real_machines_status() -> list[dict]:
         return []
 
 
-def _load_real_submissions() -> list[dict]:
+def _load_real_submissions() -> list[dict[str, Any]]:
     """从 results/real_times.json 加载最近的真机提交记录。
 
     训练回调 ``RealMachineCallback`` 会把真机提交记录写入该文件。

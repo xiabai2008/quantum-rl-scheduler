@@ -118,7 +118,7 @@ async def get_tasks(status: str | None = None, _auth: None = Depends(verify_api_
 
 
 @router.post("/api/tasks")
-async def submit_task(task: TaskSubmit, _auth: None = Depends(verify_api_key)) -> dict:
+async def submit_task(task: TaskSubmit, _auth: None = Depends(verify_api_key)) -> dict[str, Any]:
     """提交新任务"""
     new_task = {
         "task_id": "QTASK-" + uuid.uuid4().hex[:8],
@@ -187,7 +187,7 @@ async def metrics() -> Response:
 
 
 @router.get("/health", tags=["运维"])
-async def health() -> dict:
+async def health() -> dict[str, Any]:
     """存活探针（Liveness Probe）。
 
     只要进程在运行就返回 200，用于判断应用是否还活着。
@@ -200,7 +200,7 @@ async def health() -> dict:
 
 
 @router.get("/ready", tags=["运维"])
-async def ready() -> dict:
+async def ready() -> dict[str, Any]:
     """就绪探针（Readiness Probe）。
 
     检查应用关键依赖是否就绪：FastAPI app、Prometheus 注册表、
@@ -247,7 +247,7 @@ async def ready() -> dict:
 
 
 @router.post("/api/strategy")
-async def switch_strategy(strategy: str, _auth: None = Depends(verify_api_key)) -> dict:
+async def switch_strategy(strategy: str, _auth: None = Depends(verify_api_key)) -> dict[str, Any]:
     """切换调度策略"""
     current_status = state.get_system_status()
     if strategy not in current_status["strategy_options"]:
@@ -266,7 +266,9 @@ async def switch_strategy(strategy: str, _auth: None = Depends(verify_api_key)) 
 
 
 @router.post("/api/update")
-async def update_status(update: SystemStatusUpdate, _auth: None = Depends(verify_api_key)) -> dict:
+async def update_status(
+    update: SystemStatusUpdate, _auth: None = Depends(verify_api_key)
+) -> dict[str, Any]:
     """更新系统状态（供调度引擎调用）"""
     state.update_system_status(
         {
@@ -607,7 +609,7 @@ async def get_explainability_latest(_auth: None = Depends(verify_api_key)) -> di
 
 
 @router.post("/api/battle/start")
-async def battle_start(_auth: None = Depends(verify_api_key)) -> dict:
+async def battle_start(_auth: None = Depends(verify_api_key)) -> dict[str, Any]:
     """启动 PPO vs FCFS 对战（Day4-7-11）。
 
     初始化两个独立的调度环境实例，分别使用 PPO 和 FCFS 策略。
@@ -648,7 +650,7 @@ async def battle_start(_auth: None = Depends(verify_api_key)) -> dict:
 
 
 @router.post("/api/battle/step")
-async def battle_step(_auth: None = Depends(verify_api_key)) -> dict:
+async def battle_step(_auth: None = Depends(verify_api_key)) -> dict[str, Any]:
     """推进对战一步（Day4-7-11）。
 
     PPO 使用模型预测动作，FCFS 使用固定策略（始终选择动作 0=经典资源）。
@@ -751,7 +753,7 @@ async def battle_status(_auth: None = Depends(verify_api_key)) -> dict:
 
 
 @router.post("/api/battle/reset")
-async def battle_reset(_auth: None = Depends(verify_api_key)) -> dict:
+async def battle_reset(_auth: None = Depends(verify_api_key)) -> dict[str, Any]:
     """重置对战状态（Day4-7-11）。"""
     state.reset_battle_state()
     return {"success": True, "message": "对战已重置"}

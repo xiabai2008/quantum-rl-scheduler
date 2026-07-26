@@ -11,6 +11,7 @@ from typing import Any
 import gymnasium as gym
 import numpy as np
 from gymnasium import spaces
+from numpy.typing import NDArray
 
 # 从子模块重新导出（向后兼容：from src.scheduler.env import Task, OBS_DIM, ... ）
 from src.scheduler.env_dynamics import (
@@ -124,7 +125,7 @@ __all__ = [
 ]
 
 
-class QuantumSchedulingEnv(gym.Env):
+class QuantumSchedulingEnv(gym.Env[Any, Any]):
     """量子-经典混合计算调度环境（Gymnasium 接口）。
 
     状态空间 14 维 Box(float32)，动作空间 Discrete(3)。
@@ -324,7 +325,7 @@ class QuantumSchedulingEnv(gym.Env):
         *,
         seed: int | None = None,
         options: dict[str, Any] | None = None,
-    ) -> tuple[np.ndarray, dict[str, Any]]:
+    ) -> tuple[NDArray[Any], dict[str, Any]]:
         """重置环境：随机初始化任务队列、量子比特状态、经典负载和时间段。"""
         super().reset(seed=seed)
         rng = self.np_random
@@ -379,7 +380,7 @@ class QuantumSchedulingEnv(gym.Env):
 
         return self._get_observation(), self._get_info()
 
-    def step(self, action: int) -> tuple[np.ndarray, float, bool, bool, dict[str, Any]]:
+    def step(self, action: int) -> tuple[NDArray[Any], float, bool, bool, dict[str, Any]]:
         """执行一步调度决策：根据 action 分配到经典/量子/混合资源并计算奖励。"""
         self._current_step += 1
         rng = self.np_random
@@ -558,7 +559,7 @@ class QuantumSchedulingEnv(gym.Env):
     def _pick_next_task(self) -> None:
         pick_next_task(self)
 
-    def _get_observation(self) -> np.ndarray:
+    def _get_observation(self) -> NDArray[Any]:
         return get_observation(self)
 
     def _get_info(self) -> dict[str, Any]:

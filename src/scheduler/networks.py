@@ -9,7 +9,7 @@ Dueling 架构将 Q 值拆分为状态价值函数和优势函数，提升策略
     - DuelingQNetwork: Dueling DQN 策略网络（兼容 Stable-Baselines3 2.0+）
 """
 
-from typing import cast
+from typing import Any, cast
 
 import torch as th
 from gymnasium import spaces
@@ -43,8 +43,8 @@ class DuelingQNetwork(QNetwork):
 
     def __init__(
         self,
-        observation_space: spaces.Space,
-        action_space: spaces.Discrete,
+        observation_space: spaces.Space[Any],
+        action_space: spaces.Discrete[Any],
         features_extractor: BaseFeaturesExtractor,
         features_dim: int,
         net_arch: list[int] | None = None,

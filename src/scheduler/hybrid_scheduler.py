@@ -24,6 +24,7 @@ from typing import Any
 
 import numpy as np
 from loguru import logger
+from numpy.typing import NDArray
 
 __all__ = [
     "ACTION_CLASSICAL",
@@ -237,7 +238,7 @@ class HybridScheduler:
     def decide(
         self,
         task: Any,
-        state: np.ndarray | None = None,
+        state: NDArray[Any] | None = None,
         context: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         """
@@ -332,7 +333,7 @@ class HybridScheduler:
     def decide_batch(
         self,
         tasks: list[Any],
-        states: list[np.ndarray] | None = None,
+        states: list[NDArray[Any]] | None = None,
         context: dict[str, Any] | None = None,
     ) -> list[dict[str, Any]]:
         """
@@ -348,7 +349,7 @@ class HybridScheduler:
         """
         results: list[dict[str, Any]] = []
         for i, task in enumerate(tasks):
-            state: np.ndarray | None = None
+            state: NDArray[Any] | None = None
             if states is not None and i < len(states):
                 state = states[i]
             result = self.decide(task, state=state, context=context)

@@ -13,6 +13,7 @@ from typing import Any
 
 import numpy as np
 from loguru import logger
+from numpy.typing import NDArray
 
 from src.evaluation.blind_test import (
     BlindTestEvaluator,
@@ -258,7 +259,7 @@ class OODGeneralizationTester:
         env: QuantumSchedulingEnv,
         shift_params: dict[str, Any],
         rng: np.random.Generator,
-    ) -> np.ndarray:
+    ) -> NDArray[Any]:
         """在 reset 后对环境施加保真度与队列大小偏移。
 
         Args:

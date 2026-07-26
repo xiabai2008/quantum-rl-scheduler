@@ -21,6 +21,7 @@ from itertools import combinations
 from typing import Any
 
 import numpy as np
+from numpy.typing import NDArray
 from scipy import stats
 
 
@@ -199,7 +200,7 @@ def bootstrap_improvement_ci(
     improvement = (target_mean - baseline_mean) / abs(baseline_mean) * 100
 
     rng = np.random.default_rng(seed)
-    boot_improvements: np.ndarray = np.empty(n_bootstrap, dtype=np.float64)
+    boot_improvements: NDArray[Any] = np.empty(n_bootstrap, dtype=np.float64)
 
     for i in range(n_bootstrap):
         idx1 = rng.integers(0, n1, size=n1)
