@@ -20,7 +20,7 @@ from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 from numpy.typing import NDArray
@@ -578,7 +578,7 @@ class AblationRunner:
             bool(config.components.get("multi_objective", True))
             and MultiObjectiveRewardWrapper is not None
         ):
-            env = MultiObjectiveRewardWrapper(env)
+            env = MultiObjectiveRewardWrapper(env)  # type: ignore[assignment]
 
         return env
 
