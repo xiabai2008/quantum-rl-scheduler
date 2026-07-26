@@ -157,8 +157,7 @@ class AsyncAnnealingLoop:
             effective = self._effective_triggers
         impact_rate = effective / total if total > 0 else 0.0
         logger.info(
-            f"[退火闭环] 介入率总结: 总触发={total}, "
-            f"有效触发={effective}, 介入率={impact_rate:.1%}"
+            f"[退火闭环] 介入率总结: 总触发={total}, 有效触发={effective}, 介入率={impact_rate:.1%}"
         )
         logger.info("异步退火工作线程已关闭")
 
