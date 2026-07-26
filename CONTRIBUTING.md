@@ -227,8 +227,8 @@ bandit -r src/ -c pyproject.toml -ll      # 安全扫描
 ### 6.1 测试命令
 
 ```bash
-# 运行全部测试 + 覆盖率（CI 强制 ≥ 60%）
-pytest tests/ --cov=src --cov-fail-under=60
+# 运行全部测试 + 覆盖率（CI 强制 ≥ 70%）
+pytest tests/ --cov=src --cov-fail-under=70
 
 # 运行指定测试文件
 pytest tests/test_scheduler.py -v
@@ -245,7 +245,7 @@ pytest tests/benchmarks/ --benchmark-only
 - 每个新功能必须有对应的测试用例
 - 测试文件与 `src/` 目录结构对应（如 `src/scheduler/agent.py` ↔ `tests/test_agent.py`）
 - 函数/类必须写 docstring（中文）
-- 测试覆盖率目标：**≥ 60%**（CI 强制门禁），长期目标 80%+
+- 测试覆盖率目标：**≥ 70%**（CI 强制门禁），长期目标 80%+
 
 ### 6.3 测试标记
 
@@ -266,7 +266,7 @@ import pytest
 
 1. **创建分支**：`git checkout -b feature/xxx`（从最新 `main` 切出）
 2. **写代码**：遵循第 5 节代码规范
-3. **跑测试**：`pytest tests/ --cov=src --cov-fail-under=60`
+3. **跑测试**：`pytest tests/ --cov=src --cov-fail-under=70`
 4. **跑检查**：`pre-commit run --all-files`
 5. **提交并推送**：`git push origin feature/xxx`
 6. **创建 PR**：去 GitHub 网页点击 "Compare & pull request"
@@ -282,7 +282,7 @@ import pytest
 | Job | 内容 |
 |-----|------|
 | **Lint** | ruff check + ruff format + bandit 安全扫描 |
-| **Test** | pytest 多版本测试（Python 3.10 / 3.11 / 3.12）+ 覆盖率（≥ 60%） |
+| **Test** | pytest 多版本测试（Python 3.10 / 3.11 / 3.12）+ 覆盖率（≥ 70%） |
 | **Type Check** | mypy 类型检查 |
 | **Benchmarks** | 性能基准测试 |
 
@@ -400,7 +400,7 @@ bandit -r src/ -c pyproject.toml -ll            # 安全扫描
 pre-commit run --all-files                      # 全量检查
 
 # ── 测试 ──
-pytest tests/ --cov=src --cov-fail-under=60     # 测试 + 覆盖率
+pytest tests/ --cov=src --cov-fail-under=70     # 测试 + 覆盖率
 pytest tests/benchmarks/ --benchmark-only       # 性能基准
 
 # ── Web ──

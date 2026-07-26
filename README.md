@@ -157,24 +157,23 @@ TIANYAN_API_KEY=你的真实API密钥
 项目默认 `TIANYAN_MOCK_MODE=true`（见 `.env.example`），**绝大多数开发、测试、仿真都在本地 Mock 模式下完成**，不需要天衍云权限。只有极少数任务在"真机验证环节"才需连接真实硬件。
 
 ### 2. 当前开放 Issue 的真机适用范围
-| Issue | 标题 | 是否需要真机 | 说明 |
-|---|---|---|---|
-| #142 | 制作系统演示视频 | 否 | 视频制作 |
-| #143 | 技术白皮书 v3 终稿 | 否 | 文档 |
-| #144 | 答辩 PPT 终稿 | 否 | 文档 |
-| #145 | 清理 v5 克隆 | 否 | 仓库卫生 |
-| #147 | 数字一致性复核 | 否 | 文档核对 |
-| #148 | 突破 head_only 退火限制 | 验证环节需要 | 默认 `simulation_mode=True` 用本地 D-Wave neal 求解器，开发全程可纯仿真；真机仅作"全量/分层 QUBO 上硬件验证"的可选项 |
-| #149 | 补齐 env_real_machine 测试 | 测试用 Mock 即可 | 模块本身即真机集成；按 `docs/真机训练接入指南.md` 用 Mock 降级，不强制连真机 |
-| #150 | 提升 marl（MAPPO）覆盖率 | 否 | `marl.py` 为纯仿真模块，不依赖真机 |
-| #151 | 提升 tianyan_cqlib 覆盖率 | 测试用 Mock 即可 | 真机客户端封装，测试用 Mock 模拟响应即可省机时 |
-| #152 | 提升 env/ppo_agent 覆盖率 | 否 | 默认 `use_real_machine=False` |
+完整的开放 Issue 列表请直接查看 GitHub：[Open Issues](https://github.com/xiabai2008/quantum-rl-scheduler/issues?q=is%3Aissue+is%3Aopen)。
 
-> 真机"上手前置"指引仅对 **#148 / #149 / #151** 三个 Issue 适用；其余任务请纯本地仿真完成。
+判断一个 Issue 是否需要真机，遵循以下规则（无需逐条记忆，认领时按 Issue 标签和说明判断即可）：
+
+| Issue 类别 | 是否需要真机 | 说明 |
+|---|---|---|
+| 文档/报告类（`documentation` 标签） | 否 | 纯写作，与代码同步即可 |
+| 测试补全类（`testing` 标签） | 否 | 绝大多数模块默认 `use_real_machine=False`，Mock 即可 |
+| 真机客户端封装类 | 测试用 Mock 即可 | 按 [`docs/真机训练接入指南.md`](docs/真机训练接入指南.md) 用 Mock 降级，不强制连真机 |
+| 退火/量子算法类 | 开发期纯仿真 | 默认 `simulation_mode=True` 用本地 D-Wave neal 求解器；真机仅作可选验证环节 |
+| 真机验证类（`real-machine` 标签） | 是 | 需要连真机；认领前与瑞哥确认机时配额 |
+
+> 绝大多数任务请纯本地仿真完成；仅 `real-machine` 标签的 Issue 在验证环节需要真机。
 
 ### 3. 真机机时珍贵，省着用
 - 免费机时包仅 1-qubit 电路稳定（默认只用单比特门）。
-- 真机只留给 **#148 / #149 / #151 的验证环节**；开发期一律用 Mock。
+- 真机只留给带 `real-machine` 标签的 Issue 的验证环节；开发期一律用 Mock。
 - 连续失败 3 次会自动降级 Mock（正常现象，非 bug）。
 
 ### 4. 需要连真机时
@@ -311,7 +310,7 @@ python scripts/ci/validate_submission.py --pack
 |--------|----------|------|
 | Track A 工程收尾 | 7/1 已完成 | pre-commit + scripts/ 重组 |
 | Track B 比赛材料 | 7/1 已完成 | PPT + 白皮书 + 视频脚本 + 实验数据 |
-| Track C 质量深化 | 7-8月 | mypy豁免清理 + 覆盖率80% + mutation testing |
+| Track C 质量深化 | 7-8月 | mypy豁免清理 + 覆盖率70% + mutation testing |
 | PPO 真机闭环 | 7-8月 | cqlib 注入调度循环 |
 | M5 参赛提交 | 9/15 | 最终材料提交 |
 

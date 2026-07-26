@@ -137,8 +137,8 @@ fi
 echo ""
 echo -e "${BOLD}[5/8]${NC} 运行单元测试..."
 
-if python -m pytest tests/ -q --cov=src --cov-fail-under=60 --timeout=120 -W ignore::DeprecationWarning 2>/dev/null; then
-    pass "单元测试全部通过 (cov >= 60%)"
+if python -m pytest tests/ -q --cov=src --cov-fail-under=70 --timeout=120 -W ignore::DeprecationWarning 2>/dev/null; then
+    pass "单元测试全部通过 (cov >= 70%)"
 else
     fail "单元测试失败或覆盖率不足"
 fi
@@ -213,7 +213,7 @@ if [ "$FAIL" -gt 0 ]; then
     echo ""
     echo "修复建议:"
     echo "  1. 代码格式: black src/ scripts/ tests/ && isort src/ scripts/ tests/"
-    echo "  2. 运行测试: python -m pytest tests/ -v --cov=src --cov-fail-under=60"
+    echo "  2. 运行测试: python -m pytest tests/ -v --cov=src --cov-fail-under=70"
     echo "  3. 提交物校验: python scripts/ci/validate_submission.py --check"
     echo "  4. 数字审计: python scripts/ci/audit_authoritative_metrics.py"
     echo ""

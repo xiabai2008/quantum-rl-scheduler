@@ -429,7 +429,7 @@ bandit -r src/ -c pyproject.toml -ll      # 安全扫描
 pre-commit run --all-files                 # pre-commit 全量检查
 
 # ── 测试 ──
-pytest tests/ --cov=src --cov-fail-under=60  # 测试 + 覆盖率
+pytest tests/ --cov=src --cov-fail-under=70  # 测试 + 覆盖率
 pytest tests/benchmarks/ --benchmark-only    # 性能基准
 
 # ── Web ──
