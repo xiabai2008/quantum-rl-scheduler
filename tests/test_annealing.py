@@ -42,6 +42,12 @@ class TestQuantumAnnealingOptimizerInit(unittest.TestCase):
         self.assertTrue(opt.simulation_mode)
         self.assertIsNone(opt.cqlib_client)
 
+    def test_solver_type_initial_value(self):
+        """solver_type 初始值应为 'none'。"""
+        opt = QuantumAnnealingOptimizer()
+        self.assertEqual(opt.solver_type, "none")
+        self.assertEqual(opt._last_solver, "none")
+
     def test_custom_init(self):
         """????????????"""
         opt = QuantumAnnealingOptimizer(
@@ -404,6 +410,77 @@ class TestAnneal(unittest.TestCase):
         result = opt.anneal(Q)
         self.assertEqual(len(result), 2)
         self.assertTrue(set(result).issubset({"0", "1"}))
+
+    def test_solver_type_numpy_sa(self):
+        """numpy 模拟退火路径应设置 solver_type='numpy_sa'。"""
+        # 强制使用 numpy 路径（即使 neal 可用）
+        with patch.object(annealing_mod, "_DWAVE_AVAILABLE", False):
+            opt = QuantumAnnealingOptimizer(num_qubits=16, shots=10)
+            opt._sim_num_sweeps = 20
+            Q = opt.network_to_qubo(self.weights)
+            opt.anneal(Q)
+            self.assertEqual(opt.solver_type, "numpy_sa")
+            self.assertEqual(opt._last_solver, "numpy_sa")
+
+    def test_solver_type_neal_sa(self):
+        """neal 模拟退火路径应设置 solver_type='neal_sa'。"""
+        if not annealing_mod._DWAVE_AVAILABLE:
+            self.skipTest("D-Wave neal 未安装，跳过 neal 路径测试")
+        opt = QuantumAnnealingOptimizer(num_qubits=16, shots=10)
+        opt._sim_num_sweeps = 20
+        Q = opt.network_to_qubo(self.weights)
+        opt.anneal(Q)
+        self.assertEqual(opt.solver_type, "neal_sa")
+        self.assertEqual(opt._last_solver, "neal_sa")
+
+    def test_solver_type_real_quantum_string(self):
+        """真机退火返回字符串时 solver_type='real_quantum'。"""
+        client = MagicMock()
+        client.submit_annealing_task = MagicMock(return_value="1010")
+        opt = QuantumAnnealingOptimizer(simulation_mode=False, cqlib_client=client)
+        Q = np.array([[1.0, 0.5], [0.5, 1.0]])
+        opt.anneal(Q)
+        self.assertEqual(opt.solver_type, "real_quantum")
+        self.assertEqual(opt._last_solver, "real_quantum")
+
+    def test_solver_type_real_quantum_dict(self):
+        """真机退火返回含 bitstring 的 dict 时 solver_type='real_quantum'。"""
+        client = MagicMock()
+        client.submit_annealing_task = MagicMock(return_value={"bitstring": "01"})
+        opt = QuantumAnnealingOptimizer(simulation_mode=False, cqlib_client=client)
+        Q = np.array([[1.0, 0.5], [0.5, 1.0]])
+        opt.anneal(Q)
+        self.assertEqual(opt.solver_type, "real_quantum")
+
+    def test_solver_type_fallback_empty_dict(self):
+        """真机退火返回空 bitstring 降级时 solver_type='numpy_sa'。"""
+        client = MagicMock()
+        client.submit_annealing_task = MagicMock(return_value={"bitstring": ""})
+        opt = QuantumAnnealingOptimizer(simulation_mode=False, cqlib_client=client)
+        opt._sim_num_sweeps = 5
+        Q = np.array([[1.0, 0.5], [0.5, 1.0]])
+        opt.anneal(Q)
+        self.assertEqual(opt.solver_type, "numpy_sa")
+
+    def test_solver_type_fallback_unknown_type(self):
+        """真机退火返回无法识别类型降级时 solver_type='numpy_sa'。"""
+        client = MagicMock()
+        client.submit_annealing_task = MagicMock(return_value=12345)
+        opt = QuantumAnnealingOptimizer(simulation_mode=False, cqlib_client=client)
+        opt._sim_num_sweeps = 5
+        Q = np.array([[1.0, 0.5], [0.5, 1.0]])
+        opt.anneal(Q)
+        self.assertEqual(opt.solver_type, "numpy_sa")
+
+    def test_solver_type_fallback_on_exception(self):
+        """真机退火异常降级后 solver_type 应为仿真求解器。"""
+        client = MagicMock()
+        client.submit_annealing_task = MagicMock(side_effect=RuntimeError("boom"))
+        opt = QuantumAnnealingOptimizer(simulation_mode=False, cqlib_client=client)
+        opt._sim_num_sweeps = 5
+        Q = np.array([[1.0, 0.5], [0.5, 1.0]])
+        opt.anneal(Q)
+        self.assertIn(opt.solver_type, ("numpy_sa", "neal_sa"))
 
 
 # ============================================================

@@ -145,7 +145,8 @@ class _AnnealingCallbackProxy(BaseCallback):
                     self.optimizer.anneal = lambda qubo: random_sample_qubo(qubo, num_samples=1000)
                     self.optimizer.optimize_policy(self.model, head_only=True)
                     self.optimizer.anneal = original_anneal
-                    # monkey-patch 不会设置 _last_solver，手动修正
+                    # monkey-patch 不会设置 solver_type/_last_solver，手动修正
+                    self.optimizer.solver_type = "random"  # type: ignore[attr-defined]
                     self.optimizer._last_solver = "random"  # type: ignore[attr-defined]
                     if hasattr(self.optimizer, "_last_anneal_stats"):
                         self.optimizer._last_anneal_stats["solver"] = "random"  # type: ignore[attr-defined]

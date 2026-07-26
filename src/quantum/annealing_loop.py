@@ -241,6 +241,9 @@ class AsyncAnnealingLoop:
             is_effective = self._update_interval(delta)
             impact_rate = self.get_impact_rate()
 
+            # 获取本次退火实际使用的求解器类型（Issue #226）
+            solver_type = getattr(self.optimizer, "solver_type", "unknown")
+
             record = {
                 "step": step,
                 "timestamp": time.time(),
@@ -250,6 +253,7 @@ class AsyncAnnealingLoop:
                 "interval": self.get_current_interval(),
                 "effective": is_effective,
                 "impact_rate": impact_rate,
+                "solver_type": solver_type,
             }
 
             with self._lock:
@@ -268,7 +272,8 @@ class AsyncAnnealingLoop:
                 f"新奖励={new_reward:.4f}, delta={delta:.4f}, "
                 f"当前间隔={self.get_current_interval()}, "
                 f"有效={'是' if is_effective else '否'}, "
-                f"介入率={impact_rate:.1%}"
+                f"介入率={impact_rate:.1%}, "
+                f"求解器={solver_type}"
             )
 
     def _optimize_policy_call(self, agent_wrapper: Any) -> Any:
