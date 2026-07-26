@@ -134,6 +134,40 @@ class TestGenerateQcisCircuit:
             for p in parts[1:]:
                 assert p.startswith("Q"), f"应为比特引用: {p}"
 
+    def test_bell_ghz_circuit_generation(self):
+        """Bell/GHZ 模板应生成固定纠缠电路。"""
+        task = Task(task_id="entangled", task_type="quantum", qubit_count=3, priority=3)
+
+        bell = generate_qcis_circuit(task, max_qubits=2, circuit_type="bell")
+        assert bell == "H Q0\nCNOT Q0 Q1\nM Q0 Q1"
+
+        ghz = generate_qcis_circuit(task, max_qubits=3, circuit_type="ghz3")
+        assert ghz == "H Q0\nCNOT Q0 Q1\nCNOT Q1 Q2\nM Q0 Q1 Q2"
+
+    @pytest.mark.parametrize(
+        ("circuit_type", "max_qubits"),
+        [("bell", 1), ("ghz3", 2)],
+    )
+    def test_entangled_template_respects_qubit_limit(
+        self,
+        circuit_type: str,
+        max_qubits: int,
+    ):
+        """模板不能在配置上限不足时生成越界量子比特。"""
+        task = Task(task_id="limited", task_type="quantum", qubit_count=3, priority=3)
+        with pytest.raises(ValueError, match="requires at least"):
+            generate_qcis_circuit(
+                task,
+                max_qubits=max_qubits,
+                circuit_type=circuit_type,
+            )
+
+    def test_invalid_circuit_type_raises(self):
+        """未知模板名称应显式拒绝。"""
+        task = Task(task_id="invalid", task_type="quantum", qubit_count=3, priority=3)
+        with pytest.raises(ValueError, match="circuit_type"):
+            generate_qcis_circuit(task, circuit_type="unknown")
+
 
 class TestTaskQcisField:
     """Task 数据类 qcis 字段测试"""
@@ -195,6 +229,19 @@ class TestRealSubmissionBudget:
             QuantumSchedulingEnv(max_real_submissions=-1)
         with pytest.raises(ValueError, match="real_machine_shots"):
             QuantumSchedulingEnv(real_machine_shots=0)
+        with pytest.raises(ValueError, match="real_machine_max_qubits"):
+            QuantumSchedulingEnv(real_machine_max_qubits=0)
+
+    def test_submission_uses_configured_real_machine_qubit_limit(self):
+        """动态生成的提交电路应遵守显式真机比特上限。"""
+        env, client, machine, _task = self._make_env()
+        env.real_machine_max_qubits = 2
+        task = Task(task_id="configured", task_type="quantum", qubit_count=5)
+
+        submit_to_real_machine(env, machine, task)
+
+        assert len(client.calls) == 1
+        assert "Q2" not in client.calls[0]["qcis"]
 
     def test_hard_limit_survives_reset_and_uses_configured_shots(self):
         env, client, machine, task = self._make_env()
@@ -350,6 +397,24 @@ class TestComputeTheoreticalDistribution:
         assert len(dist) == 4
         for v in dist.values():
             assert abs(v - 0.25) < 1e-9
+
+    @pytest.mark.parametrize(
+        ("qcis", "expected"),
+        [
+            ("H Q0\nCNOT Q0 Q1\nM Q0 Q1", {"00": 0.5, "11": 0.5}),
+            (
+                "H Q0\nCNOT Q0 Q1\nCNOT Q1 Q2\nM Q0 Q1 Q2",
+                {"000": 0.5, "111": 0.5},
+            ),
+        ],
+    )
+    def test_entangled_template_exact_distribution(
+        self,
+        qcis: str,
+        expected: dict[str, float],
+    ):
+        """Bell/GHZ 模板应返回精确理想分布，而非均匀近似。"""
+        assert compute_theoretical_distribution(qcis) == expected
 
     def test_no_measure_returns_default(self):
         """无测量行返回默认 {0: 1.0}。"""
