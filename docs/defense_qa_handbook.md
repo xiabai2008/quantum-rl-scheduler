@@ -1102,7 +1102,7 @@ Jain's Fairness Index 是网络资源分配公平性的标准度量，取值 [0,
 - 状态管理架构：`src/visualization/state.py`（内存态唯一定义点，含线程安全访问器）
 - 持久化设计文档：`docs/state_persistence_design.md`（6 张表结构 + Redis 数据结构 + 恢复流程 + 路线图）
 - 生产落地路径：`docs/production_roadmap.md`（阶段 2 试点 → 阶段 3 生产）
-- 部署架构：`docs/deployment_architecture.md`（K8s + Redis StatefulSet 配置）
+- 部署架构：`docs/deployment.md`（K8s + Redis StatefulSet 配置）
 
 **延伸说明**：
 

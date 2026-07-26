@@ -57,7 +57,7 @@
 
 | 任务 | 负责人 | 状态 | 预期提升 |
 |------|--------|------|---------|
-| 落地价值深度量化 | NN2914 | ✅ 完成（`docs/value_deep_quantification.md`） | +5 |
+| 落地价值深度量化 | NN2914 | ✅ 完成（`docs/value_quantification.md`） | +5 |
 | 平台落地商业分析 | NN2914 | ✅ 完成（`docs/platform_landing_value.md`） | +3 |
 | 文档表述收敛 | NN2914 | ✅ 完成（13 文件修正） | +2 |
 | 行业场景锚定 | NN2914 | ✅ 完成（量子化学/优化/云平台三场景） | +3 |
@@ -193,7 +193,7 @@
 - 比赛评审维度：比赛方案第五至第八部分
 - 权威实验数据：`results/reports/strategy_comparison.md`
 - 证据谱系：`results/reports/evidence_lineage.md`
-- 价值深度量化：`docs/value_deep_quantification.md`
+- 价值深度量化：`docs/value_quantification.md`
 - 平台落地分析：`docs/platform_landing_value.md`
 - SOTA 对比：`docs/sota_comparison.md`
 - 新颖性声明：`docs/novelty_statement.md`

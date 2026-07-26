@@ -14,7 +14,7 @@
 | 👥 日常开发队友 | [队友协同开发指南](./队友协同开发指南.md) | [Git工作流](./Git工作流.md) |
 | 🤖 AI 助手 | [项目记忆_给AI.md](./项目记忆_给AI.md) | 项目根目录 `AGENTS.md` |
 | 📋 项目经理/瑞哥 | [开发计划](./开发计划.md) + [团队分工](./团队分工.md) | [项目记忆_给AI.md](./项目记忆_给AI.md) |
-| 🐳 部署运维 | [docker-deploy](./docker-deploy.md) | [开发计划](./开发计划.md) |
+| 🐳 部署运维 | [deployment](./deployment.md) | [开发计划](./开发计划.md) |
 
 ---
 
@@ -28,11 +28,11 @@
 | 4 | [团队分工.md](./团队分工.md) | 7.8 KB | 角色职责+模块负责人速查 | ⚠️ 人员待具名 |
 | 5 | [开发计划.md](./开发计划.md) | 8.7 KB | 14周路线图+风险管理 | ⚠️ 含占位符 |
 | 6 | [项目记忆_给AI.md](./项目记忆_给AI.md) | 15 KB | 技术架构+完成状态+决策记录 | ⚠️ 日期待更新 |
-| 7 | [docker-deploy.md](./docker-deploy.md) | 1.9 KB | Docker容器化部署手册 | ✅ |
+| 7 | [deployment.md](./deployment.md) | 合并后 | 部署架构 + Docker 容器化部署手册 | ✅ |
 | 8 | [technical_bottlenecks.md](./technical_bottlenecks.md) | 12 KB | 7项技术瓶颈+缓解策略（2026-07-24） | ✅ |
 | 9 | [annealing_significance-defense.md](./annealing_significance-defense.md) | 8 KB | 退火p=0.19答辩话术+5类评委问题 | ✅ |
-| 10 | [deployment_architecture.md](./deployment_architecture.md) | 15 KB | 三阶段部署路径（原型→试点→生产） | ✅ |
-| 11 | [cross_hardware_scalability.md](./cross_hardware_scalability.md) | 10 KB | 三层解耦架构+跨硬件扩展路径 | ✅ |
+| 10 | [deployment.md](./deployment.md) | 合并后 | 部署架构（三阶段路径+ONNX+K8s）+ Docker 部署 | ✅ |
+| 11 | [cross_hardware.md](./cross_hardware.md) | 合并后 | 跨硬件兼容路线图+可扩展性论述 | ✅ |
 | 12 | [value_quantification.md](./value_quantification.md) | 14 KB | 10项指标+ROI分析+VQE场景案例 | ✅ |
 | 13 | [defense_qa_handbook.md](./defense_qa_handbook.md) | 25 KB | 30+预设问题及标准答案 | ✅ |
 | 14 | [Code_Wiki.md](./Code_Wiki.md) | 30 KB | 系统架构+模块详解+类函数参考 | ✅ |
@@ -45,7 +45,7 @@
 ### 🚀 环境搭建
 - [新人上手指南 - 第一步到第七步](./新人上手指南.md) — 从零到环境通过
 - [队友协同开发指南 - 第二步](./队友协同开发指南.md) — 精简版环境搭建
-- [docker-deploy.md](./docker-deploy.md) — Docker 一键部署
+- [deployment.md](./deployment.md) — Docker 一键部署
 
 ### 🌿 Git 协作
 - [Git工作流.md](./Git工作流.md) — 完整规范（分支命名/Commit/PR/冲突解决）
@@ -74,9 +74,8 @@
 - [value_quantification.md](./value_quantification.md) — 价值量化（10项指标+ROI）
 
 ### 🚢 部署与扩展
-- [deployment_architecture.md](./deployment_architecture.md) — 三阶段部署路径
-- [cross_hardware_scalability.md](./cross_hardware_scalability.md) — 跨硬件扩展性
-- [docker-deploy.md](./docker-deploy.md) — Docker容器化部署
+- [deployment.md](./deployment.md) — 三阶段部署路径 + Docker容器化部署
+- [cross_hardware.md](./cross_hardware.md) — 跨硬件兼容性
 
 ---
 
