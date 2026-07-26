@@ -70,12 +70,14 @@ def build_h_circuit(n_qubits: int) -> str:
     """构建 n 比特 H 门均匀分布电路（使用 Q1~Qn）。
 
     天衍-287 物理比特 Q1~Q105，无 Q0。
+    每条门指令单独一行（QCIS 规范）。
     """
     if n_qubits < 1 or n_qubits > 3:
         raise ValueError(f"仅支持 1/2/3 比特，实际: {n_qubits}")
-    gates = " ".join(f"H Q{i + 1}" for i in range(n_qubits))
+    lines = [f"H Q{i + 1}" for i in range(n_qubits)]
     measures = " ".join(f"Q{i + 1}" for i in range(n_qubits))
-    return f"{gates}\nM {measures}"
+    lines.append(f"M {measures}")
+    return "\n".join(lines)
 
 
 def theoretical_distribution(n_qubits: int) -> dict[str, float]:
