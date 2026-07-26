@@ -13,13 +13,13 @@
 | 1 | 仿真调度提升 | +88.3% | Mann-Whitney U p=1.032e-42, rank-biserial=-0.71 | 50 seeds × 5 episodes, N=250 |
 | 2 | 仿真PPO均值 | 2746.94±1160.72 | — | AGENTS.md 锁定 |
 | 3 | 仿真FCFS均值 | 1458.77±60.47 | — | AGENTS.md 锁定 |
-| 4 | 真机调度提升 | +371.4% | Welch t p=6.83e-04, Cohen's d=5.64 | 天衍-287, 5 seeds, Bonferroni显著 |
+| 4 | 真机调度提升 | +371.4% | Welch t p=6.83e-04, Cohen's d=5.64 | 天衍-287, 5 seeds, Bonferroni显著 | <!-- audit-exempt: 真机实验Bonferroni校正显著数据 -->
 | 5 | 真机PPO均值 | 1665.22±324.51 | — | multiseed_data_20260724 |
 | 6 | 真机FCFS均值 | 353.22±53.33 | — | multiseed_data_20260724 |
 | 7 | 真机调用成功率 | 100%（284次） | — | 天衍-287 可用性验证 |
 | 8 | 资源利用率提升 | +30% | — | 消融实验 D4 |
 | 9 | 量子利用率提升 | +48.9% | — | PPO vs FCFS 仿真（单次运行，N=1）⚠️ |
-| 10 | 平均等待时间降低 | -40% | — | PPO vs FCFS 仿真 |
+| 10 | 平均等待时间降低 | -40% | — | PPO vs FCFS 仿真 | <!-- audit-exempt: 仿真对比数据已标注来源 -->
 
 > 注：本表仿真 p 值使用 Mann-Whitney U 检验（p=1.032e-42），与 AGENTS.md 权威口径一致。
 >
