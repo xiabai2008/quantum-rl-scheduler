@@ -17,7 +17,7 @@ Classic Scheduling Strategy Baselines
 返回所选任务在 tasks 列表中的索引；若 tasks 为空返回 -1。
 """
 
-from typing import Any, cast
+from typing import Any
 
 __all__ = [
     "BaselineScheduler",
