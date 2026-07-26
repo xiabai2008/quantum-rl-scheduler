@@ -86,6 +86,8 @@ class FakeOptimizer:
         self.fail_count = int(fail_count)
         self.weight_boost = float(weight_boost)
         self.simulation_mode = bool(simulation_mode)
+        self.solver_type: str = "numpy_sa"
+        self._solver_type_counts: dict[str, int] = {"numpy_sa": 0}
 
     def optimize_policy(self, agent: Any, **kwargs: Any) -> Any:
         """模拟退火优化：增加 policy.weight，支持按次数失败。"""
@@ -95,7 +97,13 @@ class FakeOptimizer:
             self.fail_count -= 1
             raise RuntimeError("真机退火失败")
         agent.policy.weight += self.weight_boost
+        self.solver_type = "numpy_sa"
+        self._solver_type_counts["numpy_sa"] = self._solver_type_counts.get("numpy_sa", 0) + 1
         return agent
+
+    def get_solver_type_stats(self) -> dict[str, int]:
+        """返回求解器类型使用统计。"""
+        return dict(self._solver_type_counts)
 
 
 def test_async_submit_does_not_block():
@@ -152,8 +160,12 @@ def test_effect_tracking(tmp_path):
     assert log_path.exists()
     with open(log_path, encoding="utf-8") as f:
         loaded = json.load(f)
-    assert len(loaded) == 1
-    assert loaded[0]["delta"] == 3.0
+    assert "history" in loaded
+    assert "solver_type_counts" in loaded
+    assert len(loaded["history"]) == 1
+    assert loaded["history"][0]["delta"] == 3.0
+    assert loaded["history"][0]["solver_type"] == "numpy_sa"
+    assert loaded["solver_type_counts"]["numpy_sa"] >= 1
 
 
 def test_adaptive_interval():

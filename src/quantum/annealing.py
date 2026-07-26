@@ -130,6 +130,11 @@ class QuantumAnnealingOptimizer:
         self._sim_cooling_rate = 0.995  # 降温系数
         self._sim_num_sweeps = 200  # 扫描次数（减少以适应 QUBO 规模）
 
+        # 求解器类型跟踪：记录每次 anneal() 实际使用的求解器
+        # 取值："real_quantum" / "neal_sa" / "numpy_sa" / "unknown"
+        self.solver_type: str = "unknown"
+        self._solver_type_counts: dict[str, int] = {}
+
     # ------------------------------------------------------------------
     # 方法 2: network_to_qubo
     # ------------------------------------------------------------------
@@ -320,7 +325,10 @@ class QuantumAnnealingOptimizer:
     # ------------------------------------------------------------------
     def anneal(self, qubo_matrix: np.ndarray) -> str:
         """
-        调用量子退火器（或仿真）求解 QUBO 问题，返回最优比特串
+        调用退火求解器（真机量子退火 / 经典模拟退火），返回最优比特串
+
+        根据配置和运行环境自动选择求解路径。每次调用后 ``self.solver_type``
+        属性会被更新为实际使用的求解器类型，便于实验报告追踪。
 
         求解路径优先级：
             1. 真机退火：``simulation_mode=False`` 且 ``cqlib_client`` 提供
@@ -336,6 +344,10 @@ class QuantumAnnealingOptimizer:
 
         Returns:
             best_bitstring: 最优比特串，例如 "10110..."，长度为 N
+
+        Note:
+            调用后可通过 ``self.solver_type`` 获取本次实际使用的求解器类型，
+            取值为 ``"real_quantum"`` / ``"neal_sa"`` / ``"numpy_sa"``。
         """
         n = qubo_matrix.shape[0]
 
@@ -355,15 +367,21 @@ class QuantumAnnealingOptimizer:
                     # 兼容两种返回：直接返回比特串，或返回 {'bitstring': ...}
                     if isinstance(result, str):
                         best_bitstring = result
+                        self._record_solver_type("real_quantum")
                     elif isinstance(result, dict):
-                        best_bitstring = str(
-                            result.get("bitstring", "")
-                        ) or self._numpy_simulated_annealing(qubo_matrix)
+                        bitstring_from_dict = str(result.get("bitstring", ""))
+                        if bitstring_from_dict:
+                            best_bitstring = bitstring_from_dict
+                            self._record_solver_type("real_quantum")
+                        else:
+                            best_bitstring = self._numpy_simulated_annealing(qubo_matrix)
+                            self._record_solver_type("numpy_sa")
                     else:
                         logger.warning(
                             f"[退火] 真机退火返回类型 {type(result)} 无法识别，降级为仿真"
                         )
                         best_bitstring = self._numpy_simulated_annealing(qubo_matrix)
+                        self._record_solver_type("numpy_sa")
                     logger.info(f"[退火] 真机退火完成，比特串长度={len(best_bitstring)}")
                     return best_bitstring
                 except Exception as e:
@@ -390,13 +408,40 @@ class QuantumAnnealingOptimizer:
             # 取能量最低的样本
             best_sample = sampleset.first.sample
             best_bitstring = "".join(str(best_sample[i]) for i in range(n))
+            self._record_solver_type("neal_sa")
         else:
             # ---- 使用内置 numpy 模拟退火 ----
             logger.debug(f"anneal: 使用内置 numpy 模拟退火, QUBO 规模 {n}x{n}")
             best_bitstring = self._numpy_simulated_annealing(qubo_matrix)
+            self._record_solver_type("numpy_sa")
 
         logger.debug(f"anneal: 最优比特串 = {best_bitstring[:32]}{'...' if n > 32 else ''}")
         return best_bitstring
+
+    def _record_solver_type(self, solver_type: str) -> None:
+        """
+        记录本次退火使用的求解器类型，并更新统计计数
+
+        Args:
+            solver_type: 求解器类型标识符
+                - ``"real_quantum"``: 真机量子退火
+                - ``"neal_sa"``: D-Wave neal 模拟退火
+                - ``"numpy_sa"``: 内置 numpy 模拟退火
+        """
+        self.solver_type = solver_type
+        self._solver_type_counts[solver_type] = self._solver_type_counts.get(solver_type, 0) + 1
+        logger.debug(f"[退火] solver_type={solver_type}")
+
+    def get_solver_type_stats(self) -> dict[str, int]:
+        """
+        获取各求解器类型的使用次数统计
+
+        Returns:
+            求解器类型到使用次数的映射字典，例如::
+
+                {"neal_sa": 5, "numpy_sa": 2, "real_quantum": 1}
+        """
+        return dict(self._solver_type_counts)
 
     # ------------------------------------------------------------------
     # 方法 4: bitstring_to_weights
@@ -658,6 +703,9 @@ class QuantumAnnealingOptimizer:
 
             # ---- 步骤 4: 退火求解 ----
             best_bitstring = self.anneal(qubo_matrix)
+            logger.info(
+                f"  迭代 {iteration + 1}/{num_iterations}: 退火求解器类型={self.solver_type}"
+            )
 
             # ---- 步骤 5: 解码为权重更新（使用当前权重作为基准）----
             optimized_head_weights = self.bitstring_to_weights(
@@ -902,6 +950,9 @@ class QuantumAnnealingOptimizer:
 
                 # --- 退火求解 ---
                 best_bitstring = self.anneal(qubo_matrix)
+                logger.debug(
+                    f"  块 {block_idx + 1}/{len(blocks)}: 退火求解器类型={self.solver_type}"
+                )
 
                 # --- 解码为权重更新 ---
                 optimized_block_weights = self.bitstring_to_weights(

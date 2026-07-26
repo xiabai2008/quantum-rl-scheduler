@@ -203,6 +203,9 @@ class AsyncAnnealingLoop:
             delta = new_reward - old_reward
             self._update_interval(delta)
 
+            # 读取本次优化实际使用的退火求解器类型
+            solver_type = getattr(self.optimizer, "solver_type", "unknown")
+
             record = {
                 "step": step,
                 "timestamp": time.time(),
@@ -210,6 +213,7 @@ class AsyncAnnealingLoop:
                 "new_reward": new_reward,
                 "delta": delta,
                 "interval": self.get_current_interval(),
+                "solver_type": solver_type,
             }
 
             with self._lock:
@@ -218,6 +222,7 @@ class AsyncAnnealingLoop:
                     "state_dict": copy.deepcopy(optimized_wrapper.policy.state_dict()),
                     "delta": delta,
                     "timestamp": record["timestamp"],
+                    "solver_type": solver_type,
                 }
                 self._history.append(record)
 
@@ -226,7 +231,8 @@ class AsyncAnnealingLoop:
             logger.info(
                 f"[退火闭环] 步数 {step}: 旧奖励={old_reward:.4f}, "
                 f"新奖励={new_reward:.4f}, delta={delta:.4f}, "
-                f"当前间隔={self.get_current_interval()}"
+                f"当前间隔={self.get_current_interval()}, "
+                f"求解器类型={solver_type}"
             )
 
     def _run_annealing_with_retries(self, agent_wrapper: Any, step: int) -> Any:
@@ -336,15 +342,30 @@ class AsyncAnnealingLoop:
                     )
 
     def _save_log(self) -> None:
-        """将退火效果历史保存为 JSON 日志。"""
+        """将退火效果历史保存为 JSON 日志，包含 solver_type 使用统计。"""
         try:
             log_dir = os.path.dirname(self.log_path)
             if log_dir:
                 os.makedirs(log_dir, exist_ok=True)
             with self._lock:
                 history = copy.deepcopy(self._history)
+            # 从优化器获取各求解器类型的累计使用次数（按 anneal 调用粒度统计）
+            optimizer_stats_fn = getattr(self.optimizer, "get_solver_type_stats", None)
+            solver_type_counts: dict[str, int]
+            if callable(optimizer_stats_fn):
+                solver_type_counts = optimizer_stats_fn()
+            else:
+                # 回退：从历史记录中按周期统计
+                solver_type_counts = {}
+                for record in history:
+                    st = record.get("solver_type", "unknown")
+                    solver_type_counts[st] = solver_type_counts.get(st, 0) + 1
+            report = {
+                "history": history,
+                "solver_type_counts": solver_type_counts,
+            }
             with open(self.log_path, "w", encoding="utf-8") as f:
-                json.dump(history, f, ensure_ascii=False, indent=2)
+                json.dump(report, f, ensure_ascii=False, indent=2)
         except (OSError, TypeError) as e:
             # OSError: 文件读写失败；TypeError: history 含不可 JSON 序列化的对象
             logger.error(f"[退火闭环] 保存日志失败 ({type(e).__name__}: {e})")

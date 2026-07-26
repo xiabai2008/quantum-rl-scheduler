@@ -407,6 +407,134 @@ class TestAnneal(unittest.TestCase):
 
 
 # ============================================================
+# solver_type 跟踪测试
+# ============================================================
+class TestSolverTypeTracking(unittest.TestCase):
+    """测试 anneal() 调用后 solver_type 属性的正确性。"""
+
+    def setUp(self):
+        """初始化优化器并降低扫描次数以加速测试。"""
+        self.opt = QuantumAnnealingOptimizer(num_qubits=16, shots=10)
+        self.opt._sim_num_sweeps = 20
+        np.random.seed(123)
+        self.weights = [
+            np.random.randn(4, 2).astype(np.float32),
+            np.random.randn(2).astype(np.float32),
+        ]
+        self.Q = self.opt.network_to_qubo(self.weights)
+
+    def test_solver_type_initial_value(self):
+        """初始化后 solver_type 应为 'unknown'。"""
+        opt = QuantumAnnealingOptimizer(num_qubits=16)
+        self.assertEqual(opt.solver_type, "unknown")
+
+    def test_solver_type_numpy_path(self):
+        """numpy 模拟退火路径应设置 solver_type='numpy_sa'。"""
+        # 强制使用 numpy 路径（禁用 neal）
+        opt = QuantumAnnealingOptimizer(num_qubits=16, shots=10)
+        opt._sim_num_sweeps = 20
+        opt.use_dw = False
+        Q = np.array([[1.0, 0.5], [0.5, 1.0]])
+        opt.anneal(Q)
+        self.assertEqual(opt.solver_type, "numpy_sa")
+
+    def test_solver_type_neal_path(self):
+        """neal 求解器路径应设置 solver_type='neal_sa'。"""
+        opt = QuantumAnnealingOptimizer(num_qubits=16, shots=10)
+        opt._sim_num_sweeps = 20
+        if not opt.use_dw:
+            self.skipTest("D-Wave neal 不可用，跳过 neal_sa 路径测试")
+        Q = np.array([[1.0, 0.5], [0.5, 1.0]])
+        opt.anneal(Q)
+        self.assertEqual(opt.solver_type, "neal_sa")
+
+    def test_solver_type_real_quantum_path(self):
+        """真机退火路径（字符串返回）应设置 solver_type='real_quantum'。"""
+        client = MagicMock()
+        client.submit_annealing_task = MagicMock(return_value="10")
+        opt = QuantumAnnealingOptimizer(simulation_mode=False, cqlib_client=client)
+        Q = np.array([[1.0, 0.5], [0.5, 1.0]])
+        opt.anneal(Q)
+        self.assertEqual(opt.solver_type, "real_quantum")
+
+    def test_solver_type_real_quantum_dict_path(self):
+        """真机退火路径（字典返回）应设置 solver_type='real_quantum'。"""
+        client = MagicMock()
+        client.submit_annealing_task = MagicMock(return_value={"bitstring": "01"})
+        opt = QuantumAnnealingOptimizer(simulation_mode=False, cqlib_client=client)
+        Q = np.array([[1.0, 0.5], [0.5, 1.0]])
+        opt.anneal(Q)
+        self.assertEqual(opt.solver_type, "real_quantum")
+
+    def test_solver_type_fallback_on_exception(self):
+        """真机退火异常降级后 solver_type 应为仿真路径类型。"""
+        client = MagicMock()
+        client.submit_annealing_task = MagicMock(side_effect=RuntimeError("boom"))
+        opt = QuantumAnnealingOptimizer(simulation_mode=False, cqlib_client=client)
+        opt._sim_num_sweeps = 5
+        Q = np.array([[1.0, 0.5], [0.5, 1.0]])
+        opt.anneal(Q)
+        # 降级后应为 neal_sa 或 numpy_sa
+        self.assertIn(opt.solver_type, ("neal_sa", "numpy_sa"))
+
+    def test_solver_type_empty_dict_falls_back_to_numpy(self):
+        """真机返回空 bitstring 字典降级时 solver_type 应为 'numpy_sa'。"""
+        client = MagicMock()
+        client.submit_annealing_task = MagicMock(return_value={"bitstring": ""})
+        opt = QuantumAnnealingOptimizer(simulation_mode=False, cqlib_client=client)
+        opt._sim_num_sweeps = 5
+        opt.use_dw = False  # 确保降级走 numpy 路径
+        Q = np.array([[1.0, 0.5], [0.5, 1.0]])
+        opt.anneal(Q)
+        self.assertEqual(opt.solver_type, "numpy_sa")
+
+    def test_solver_type_unknown_result_falls_back_to_numpy(self):
+        """真机返回未知类型降级时 solver_type 应为 'numpy_sa'。"""
+        client = MagicMock()
+        client.submit_annealing_task = MagicMock(return_value=12345)
+        opt = QuantumAnnealingOptimizer(simulation_mode=False, cqlib_client=client)
+        opt._sim_num_sweeps = 5
+        opt.use_dw = False  # 确保降级走 numpy 路径
+        Q = np.array([[1.0, 0.5], [0.5, 1.0]])
+        opt.anneal(Q)
+        self.assertEqual(opt.solver_type, "numpy_sa")
+
+    def test_solver_type_counts_accumulate(self):
+        """多次 anneal 调用后 solver_type 统计应正确累计。"""
+        opt = QuantumAnnealingOptimizer(num_qubits=16, shots=10)
+        opt._sim_num_sweeps = 5
+        opt.use_dw = False
+        Q = np.array([[1.0, 0.5], [0.5, 1.0]])
+        opt.anneal(Q)
+        opt.anneal(Q)
+        opt.anneal(Q)
+        stats = opt.get_solver_type_stats()
+        self.assertEqual(stats.get("numpy_sa", 0), 3)
+
+    def test_solver_type_counts_multiple_types(self):
+        """混合使用不同求解器路径时统计应分别记录。"""
+        opt = QuantumAnnealingOptimizer(num_qubits=16, shots=10)
+        opt._sim_num_sweeps = 5
+        opt.use_dw = False
+        Q = np.array([[1.0, 0.5], [0.5, 1.0]])
+
+        # 2 次 numpy 路径
+        opt.anneal(Q)
+        opt.anneal(Q)
+
+        # 1 次真机路径
+        client = MagicMock()
+        client.submit_annealing_task = MagicMock(return_value="10")
+        opt.simulation_mode = False
+        opt.cqlib_client = client
+        opt.anneal(Q)
+
+        stats = opt.get_solver_type_stats()
+        self.assertEqual(stats.get("numpy_sa", 0), 2)
+        self.assertEqual(stats.get("real_quantum", 0), 1)
+
+
+# ============================================================
 # _compute_qubo_energy 测试
 # ============================================================
 class TestQuboEnergy(unittest.TestCase):
