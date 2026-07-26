@@ -71,6 +71,8 @@ class QuantumAnnealingOptimizer:
         annealing_time: 退火时间（微秒），仅在真机模式下生效
         shots         : 每次退火的采样次数，用于统计最优解
         use_dw        : 是否使用 D-Wave SDK 仿真器（优先级高于 numpy 仿真）
+        solver_type   : 最后一次 anneal() 实际使用的求解器类型
+                        ("real_quantum" / "neal_sa" / "numpy_sa" / "none")
     """
 
     def __init__(
@@ -126,7 +128,13 @@ class QuantumAnnealingOptimizer:
         self._sim_cooling_rate = 0.995  # 降温系数
         self._sim_num_sweeps = 200  # 扫描次数（减少以适应 QUBO 规模）
 
-        # 记录最后一次 anneal 实际使用的求解器（供外部诊断）
+        # 记录最后一次 anneal 实际使用的求解器类型（Issue #226）
+        # solver_type 为公开属性，_last_solver 为向后兼容别名，两者始终同步
+        #   - "real_quantum": 真机量子退火（cqlib submit_annealing_task 成功）
+        #   - "neal_sa"     : D-Wave neal 模拟退火
+        #   - "numpy_sa"    : 内置 numpy 模拟退火
+        #   - "none"        : 尚未执行退火
+        self.solver_type: str = "none"
         self._last_solver: str = "none"
         # 记录最后一次 optimize_policy 的退火统计（供外部诊断无效化/接受率）
         self._last_anneal_stats: dict[str, Any] = {}
@@ -354,18 +362,30 @@ class QuantumAnnealingOptimizer:
                         annealing_time=self.annealing_time,
                     )
                     # 兼容两种返回：直接返回比特串，或返回 {'bitstring': ...}
+                    # 同时根据实际返回追踪 solver_type（Issue #226）
                     if isinstance(result, str):
                         best_bitstring = result
+                        used_solver = "real_quantum"
                     elif isinstance(result, dict):
-                        best_bitstring = str(
-                            result.get("bitstring", "")
-                        ) or self.numpy_simulated_annealing(qubo_matrix)
+                        bitstring_val = str(result.get("bitstring", ""))
+                        if bitstring_val:
+                            best_bitstring = bitstring_val
+                            used_solver = "real_quantum"
+                        else:
+                            best_bitstring = self.numpy_simulated_annealing(qubo_matrix)
+                            used_solver = "numpy_sa"
                     else:
                         logger.warning(
                             f"[退火] 真机退火返回类型 {type(result)} 无法识别，降级为仿真"
                         )
                         best_bitstring = self.numpy_simulated_annealing(qubo_matrix)
-                    logger.info(f"[退火] 真机退火完成，比特串长度={len(best_bitstring)}")
+                        used_solver = "numpy_sa"
+                    self.solver_type = used_solver
+                    self._last_solver = used_solver
+                    logger.info(
+                        f"[退火] 真机退火完成，比特串长度={len(best_bitstring)}, "
+                        f"求解器={used_solver}"
+                    )
                     return best_bitstring
                 except Exception as e:
                     # 真机退火涉及 cqlib SDK，异常类型无法穷举，保留宽捕获并记录日志
@@ -380,7 +400,8 @@ class QuantumAnnealingOptimizer:
         # ---- 路径 2/3：仿真退火 ----
         if self.use_dw:
             # ---- 使用 D-Wave neal 求解器 ----
-            self._last_solver = "neal"
+            self.solver_type = "neal_sa"
+            self._last_solver = "neal_sa"
             logger.info(
                 f"[退火] 使用 D-Wave neal 求解器, QUBO 规模 {n}x{n}, "
                 f"shots={self.shots}, annealing_time={self.annealing_time}μs"
@@ -397,6 +418,7 @@ class QuantumAnnealingOptimizer:
             best_bitstring = "".join(str(best_sample[i]) for i in range(n))
         else:
             # ---- 使用内置 numpy 模拟退火 ----
+            self.solver_type = "numpy_sa"
             self._last_solver = "numpy_sa"
             logger.info(
                 f"[退火] 使用内置 numpy 模拟退火, QUBO 规模 {n}x{n}, sweeps={self._sim_num_sweeps}"
@@ -825,6 +847,7 @@ class QuantumAnnealingOptimizer:
             "total": total_anneals,
             "accept_rate": accept_rate,
             "solver": self._last_solver,
+            "solver_type": self.solver_type,
             "ineffective_count": ineffective_count,
             "weight_l2_diff": diff_l2,
         }
@@ -1094,6 +1117,7 @@ class QuantumAnnealingOptimizer:
             "accept_rate": (num_iterations - hierarchical_ineffective_count)
             / max(num_iterations, 1),
             "solver": self._last_solver,
+            "solver_type": self.solver_type,
             "ineffective_count": hierarchical_ineffective_count,
             "weight_l2_diff": hier_diff_l2,
         }

@@ -87,6 +87,7 @@ class FakeOptimizer:
         self.weight_boost = float(weight_boost)
         self.simulation_mode = bool(simulation_mode)
         self.last_kwargs: dict[str, Any] = {}
+        self.solver_type: str = "numpy_sa"
 
     def optimize_policy(self, agent: Any, **kwargs: Any) -> Any:
         """模拟退火优化：增加 policy.weight，支持按次数失败。"""
@@ -502,6 +503,30 @@ def test_impact_rate_low_when_delta_below_threshold(tmp_path):
     # delta = 0.3 (0.1 * 3 steps) < 1.0 -> 无效
     assert history[0]["effective"] is False
     assert history[0]["impact_rate"] == 0.0
+
+
+def test_solver_type_in_history_records(tmp_path):
+    """验证退火历史记录中包含 solver_type 字段（Issue #226）。"""
+    optimizer = FakeOptimizer(weight_boost=1.0)
+    env = FakeEnv()
+    loop = AsyncAnnealingLoop(
+        optimizer,
+        env,
+        eval_episodes=2,
+        initial_interval=100,
+        retry_delays=[0.0, 0.0],
+        log_path=str(tmp_path / "solver_type_log.json"),
+    )
+    loop.start()
+
+    model = FakeModel(weight=0.0)
+    loop.submit(model.policy, step=10)
+    loop.shutdown()
+
+    history = loop.get_history()
+    assert len(history) == 1
+    assert "solver_type" in history[0]
+    assert history[0]["solver_type"] == "numpy_sa"
 
 
 if __name__ == "__main__":
