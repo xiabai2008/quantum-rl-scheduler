@@ -1,4 +1,4 @@
-"""
+﻿"""
 多智能体 PPO (MAPPO) 调度模块
 Multi-Agent PPO for Quantum-Classical Hybrid Task Scheduling
 
@@ -36,7 +36,7 @@ from __future__ import annotations
 import json
 import os
 import random
-from typing import Any, cast
+from typing import Any
 
 import numpy as np
 import torch
@@ -158,10 +158,7 @@ class MultiAgentEnvWrapper:
             形状 (local_obs_dim * num_agents,) 的 float32 向量
         """
         local_obs = self.get_local_observations()
-        return cast(
-            np.ndarray,
-            np.concatenate([local_obs[name] for name in self.machine_names]).astype(np.float32),
-        )
+        return np.concatenate([local_obs[name] for name in self.machine_names]).astype(np.float32)
 
     # ------------------------------------------------------------------
     # 动作聚合与路由
