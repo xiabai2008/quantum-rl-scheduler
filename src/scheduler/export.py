@@ -198,8 +198,8 @@ class ModelExporter:
             obs_space = model.observation_space
             if hasattr(obs_space, "shape") and obs_space.shape:
                 return tuple(obs_space.shape)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"输入形状推断失败，使用默认值 {_DEFAULT_INPUT_SHAPE}: {e}")
         return _DEFAULT_INPUT_SHAPE
 
     def _resolve_shape(self, input_shape: tuple[int, ...]) -> tuple[int, ...]:
@@ -227,8 +227,8 @@ class ModelExporter:
                         f"从模型观测空间推断输入形状: {inferred}（覆盖默认 {input_shape}）"
                     )
                     return inferred
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"输出形状推断失败，使用输入值 {input_shape}: {e}")
         return input_shape
 
     def _make_dummy_input(self, input_shape: tuple[int, ...] | None = None) -> th.Tensor:
