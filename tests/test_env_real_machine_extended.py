@@ -170,7 +170,7 @@ class TestSubmitToRealMachineBranches:
     def test_submission_exception_records_failure(self):
         """submit_quantum_task 抛异常时记录失败并写入 render_log（lines 206-210）。"""
         client = MagicMock()
-        client.submit_quantum_task.side_effect = ConnectionError("网络断开")
+        client.submit_quantum_task.side_effect = RuntimeError("提交错误")
         env = _MockEnv(clients={"tianyan176": client})
         machine = _make_machine()
         task = Task(task_id="err", task_type="quantum", qubit_count=1)
