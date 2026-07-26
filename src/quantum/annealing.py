@@ -84,6 +84,7 @@ class QuantumAnnealingOptimizer:
         simulation_mode: bool = True,
         cqlib_client: Any = None,
         n_bits_per_weight: int = 4,
+        max_qubo_memory_mb: float = 64.0,
     ):
         """
         初始化量子退火策略优化器
@@ -100,11 +101,16 @@ class QuantumAnnealingOptimizer:
             cqlib_client  : 天衍云 cqlib 客户端实例（可选）。simulation_mode=False
                             且客户端具备 submit_annealing_task 方法时尝试真机退火。
             n_bits_per_weight: 每个权重的编码位数（默认 4），其中 1 位为符号位。
+            max_qubo_memory_mb: 单个 QUBO 矩阵允许的最大内存（MiB，默认 64）。
         """
         if n_bits_per_weight < 2:
             raise ValueError("n_bits_per_weight 必须至少为 2（1 个符号位 + 1 个数值位）")
+        if max_qubo_memory_mb <= 0:
+            raise ValueError("max_qubo_memory_mb 必须大于 0")
         self.num_qubits = num_qubits
         self.n_bits_per_weight = n_bits_per_weight
+        self.max_qubo_memory_mb = max_qubo_memory_mb
+        self.last_qubo_memory_bytes = 0
         self.annealing_time = annealing_time
         self.shots = shots
         self.simulation_mode = bool(simulation_mode)
@@ -218,6 +224,18 @@ class QuantumAnnealingOptimizer:
         # 总比特数 = 权重数 × 每权重编码比特数
         # 编码格式：1 bit 符号位 + (n_bits-1) bit 数值位
         total_bits = num_weights * n_bits_per_weight
+        estimated_bytes = total_bits * total_bits * np.dtype(np.float64).itemsize
+        self.last_qubo_memory_bytes = estimated_bytes
+        estimated_mb = estimated_bytes / (1024 * 1024)
+        logger.info(
+            f"QUBO 内存预估: {total_bits}² float64 = {estimated_mb:.2f} MiB "
+            f"（上限 {self.max_qubo_memory_mb:.2f} MiB）"
+        )
+        if estimated_mb > self.max_qubo_memory_mb:
+            raise MemoryError(
+                f"QUBO 矩阵预计占用 {estimated_mb:.2f} MiB，"
+                f"超过配置上限 {self.max_qubo_memory_mb:.2f} MiB"
+            )
 
         logger.debug(
             f"network_to_qubo (v2): {num_weights} 个权重参数, "
@@ -439,8 +457,35 @@ class QuantumAnnealingOptimizer:
         return best_bitstring
 
     # ------------------------------------------------------------------
-    # 方法 4: bitstring_to_weights
+    # 方法 4: weight_deltas_to_bitstring / bitstring_to_weights
     # ------------------------------------------------------------------
+    def weight_deltas_to_bitstring(
+        self,
+        deltas: list[np.ndarray],
+        max_delta: float = 0.1,
+    ) -> str:
+        """将权重更新量编码为符号-数值比特串。
+
+        该方法与 :meth:`bitstring_to_weights` 使用相同的定点数约定，
+        可用于验证 4/8 bit 等配置下的量化往返误差。
+        """
+        if max_delta <= 0:
+            raise ValueError("max_delta 必须大于 0")
+
+        magnitude_bits = self.n_bits_per_weight - 1
+        scale = 2**magnitude_bits
+        max_encoded = scale - 1
+        flat_deltas = np.concatenate([delta.flatten() for delta in deltas])
+        encoded: list[str] = []
+
+        for delta in flat_deltas:
+            sign = "1" if delta < 0 else "0"
+            quantized = round(min(abs(float(delta)) / max_delta, 1.0) * scale)
+            quantized = min(quantized, max_encoded)
+            encoded.append(f"{sign}{quantized:0{magnitude_bits}b}")
+
+        return "".join(encoded)
+
     def bitstring_to_weights(
         self,
         bitstring: str,
