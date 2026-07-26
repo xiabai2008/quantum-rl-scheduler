@@ -1442,55 +1442,81 @@ def reset(self) -> None:
 ```python
 QuantumSchedulerError (基类)
 ├── TianyanAPIError (API 错误基类)
-│   ├── TianyanAuthError (认证错误)
-│   ├── TianyanConnectionError (连接错误)
-│   ├── TianyanSubmissionError (提交错误)
-│   ├── TianyanQueryError (查询错误)
-│   ├── TianyanCancellationError (取消错误)
-│   ├── TianyanValidationError (校验错误)
-│   └── TianyanNotFoundError (资源不存在)
-└── CircuitBreakerOpenError (熔断器开启)
+├── CircuitOpenError (熔断器开启)
+├── ConfigurationError (配置错误，不可重试)
+├── TaskParseError (任务解析错误)
+├── SchedulingError (调度错误)
+├── QuantumAnnealingError (量子退火错误)
+├── ResourceExhaustedError (资源耗尽错误)
+└── RateLimitError (API 限流错误，含 retry_after 属性，默认可重试)
 ```
 
 ### 8.2 异常属性
 
-所有异常继承自 `QuantumSchedulerError`，包含以下属性：
+所有异常继承自 `QuantumSchedulerError`，使用关键字参数传递 code 和 retryable：
 
 ```python
 class QuantumSchedulerError(Exception):
-    def __init__(self, message: str, code: str | None = None, retryable: bool = False):
+    def __init__(self, message: str, *, code: str = "UNKNOWN", retryable: bool = False) -> None:
         """
         Args:
             message: 错误描述
-            code: 错误代码（如 "TIANYAN_AUTH_FAILED"）
-            retryable: 是否可重试（True 表示可安全重试）
+            code: 错误代码（关键字参数，默认 "UNKNOWN"）
+            retryable: 是否可重试（关键字参数，默认 False）
         """
+        self.code = code
+        self.retryable = retryable
+        super().__init__(message)
+
+
+class RateLimitError(QuantumSchedulerError):
+    """API 限流错误，默认可重试，携带 retry_after 属性"""
+    def __init__(
+        self,
+        message: str,
+        *,
+        code: str = "RATE_LIMIT",
+        retryable: bool = True,
+        retry_after: float | None = None,
+    ) -> None:
+        self.retry_after = retry_after
+        super().__init__(message, code=code, retryable=retryable)
 ```
 
 ### 8.3 异常处理示例
 
 ```python
 from src.exceptions import (
-    TianyanAuthError,
-    TianyanSubmissionError,
-    CircuitBreakerOpenError
+    TianyanAPIError,
+    CircuitOpenError,
+    ConfigurationError,
+    RateLimitError,
+    ResourceExhaustedError,
 )
 
 try:
     task_id = client.submit_task(qasm, "tianyan_s")
-except TianyanAuthError as e:
-    print(f"认证失败: {e.message}")
-    # 检查 API 密钥配置
-except TianyanSubmissionError as e:
+except ConfigurationError as e:
+    print(f"配置错误: {e}")
+    print(f"错误码: {e.code}, 可重试: {e.retryable}")
+    # 检查 API 密钥配置等
+except TianyanAPIError as e:
     if e.retryable:
-        print(f"提交失败，可重试: {e.message}")
+        print(f"API 调用失败，可重试: {e}")
         # 执行重试逻辑
     else:
-        print(f"提交失败，不可重试: {e.message}")
+        print(f"API 调用失败，不可重试: {e}")
         # 记录错误，通知用户
-except CircuitBreakerOpenError:
+except RateLimitError as e:
+    wait = e.retry_after if e.retry_after else 1.0
+    print(f"触发限流，等待 {wait} 秒后重试")
+    # 等待后重试
+except CircuitOpenError:
     print("熔断器开启，API 暂时不可用")
     # 降级到 Mock 模式或排队等待
+except ResourceExhaustedError:
+    print("资源耗尽，无法接受新任务")
+    # 排队等待或返回错误
 ```
 
 ---

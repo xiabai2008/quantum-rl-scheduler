@@ -377,7 +377,7 @@ class ActorNet(nn.Module):
             logits 张量，形状 (batch, action_dim)
         """
         features = self.feature(obs)
-        return self.action_head(features)  # type: ignore[no-any-return]
+        return self.action_head(features)
 
     def get_action(
         self, obs: torch.Tensor, deterministic: bool = False
@@ -451,7 +451,7 @@ class CentralizedCritic(nn.Module):
         Returns:
             价值张量，形状 (batch,)
         """
-        return self.net(global_state).squeeze(-1)  # type: ignore[no-any-return]
+        return self.net(global_state).squeeze(-1)
 
 
 # ---------------------------------------------------------------------------
