@@ -106,11 +106,21 @@ def find_forbidden(text: str, require_context: bool = True) -> list[tuple[int, s
     """
     # 修正/警示关键词：包含这些词的行视为已标注说明，跳过禁止模式检查
     CORRECTION_KEYWORDS = (
-        "旧10维", "旧结果", "已被.*替代", "已被.*重训", "效应量异常大",
-        "小样本探索性", "需.*验证", "需进一步验证", "待更多seeds",
-        "数据警示", "⚠️", "探索性结果",
+        "旧10维",
+        "旧结果",
+        "已被.*替代",
+        "已被.*重训",
+        "效应量异常大",
+        "小样本探索性",
+        "需.*验证",
+        "需进一步验证",
+        "待更多seeds",
+        "数据警示",
+        "⚠️",
+        "探索性结果",
     )
     import re as _re
+
     CORRECTION_PATTERN = _re.compile("|".join(CORRECTION_KEYWORDS))
 
     findings: list[tuple[int, str, str]] = []
