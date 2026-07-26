@@ -77,7 +77,23 @@ quantum-rl-scheduler/
 
 ## 快速开始
 
-### 方式一：一键初始化（推荐）
+### 方式一：Demo 一键启动（评委/演示推荐）
+
+安装依赖后，一条命令启动完整 Demo（自动检测依赖、启动服务、打开浏览器）：
+
+```bash
+python scripts/demo_one_click.py
+```
+
+脚本会自动：
+- 检查 Python 版本和必需依赖（缺失时自动安装）
+- 检查 PPO 模型文件
+- 寻找可用端口（默认 8000）
+- 启动 uvicorn 服务器
+- 等待服务就绪后自动打开浏览器
+- 打印访问地址和操作指引
+
+### 方式二：一键初始化（开发）
 
 ```bash
 git clone https://github.com/xiabai2008/quantum-rl-scheduler.git
@@ -90,7 +106,7 @@ bash setup.sh
 powershell .\setup.ps1
 ```
 
-### 方式二：手动安装
+### 方式三：手动安装
 
 ```bash
 git clone https://github.com/xiabai2008/quantum-rl-scheduler.git
@@ -104,11 +120,11 @@ pip install -r requirements.txt
 cp .env.example .env            # Mock 模式默认开启
 ```
 
-### 方式三：VS Code Dev Container
+### 方式四：VS Code Dev Container
 
 安装 [Dev Containers](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers) 扩展后，打开项目文件夹，点击右下角 "Reopen in Container"。
 
-### 方式四：Docker 一键复现（Docker）
+### 方式五：Docker 一键复现（Docker）
 
 ```bash
 # 一条命令，5 分钟看到对比结果
