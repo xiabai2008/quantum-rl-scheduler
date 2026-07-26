@@ -90,8 +90,8 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
                     "history": _app.get_resource_history()[-100:],
                 })
     except WebSocketDisconnect:
+        logger.debug("[Web] WebSocket 客户端正常断开连接")
+    except Exception as e:
+        logger.warning(f"[Web] WebSocket 异常断开: {type(e).__name__}: {e}")
+    finally:
         _app.manager.disconnect(websocket)
-
-    # Ensure the message is processed and sent back to the client if needed
-    # For example, sending processed data to the client
-    # ws.send(processed_data)
