@@ -282,9 +282,20 @@ class AsyncAnnealingLoop:
             agent_wrapper = types.SimpleNamespace(policy=eval_policy)
 
             try:
-                old_reward = self._evaluate_policy(eval_policy)
+                baseline_evaluation = self._evaluate_policy(eval_policy)
+                old_reward = baseline_evaluation["reward"]
+                natural_evaluation = self._evaluate_policy(
+                    eval_policy,
+                    baseline_reward=old_reward,
+                )
+                natural_delta = natural_evaluation["counterfactual_delta"]
                 optimized_wrapper = self._run_annealing_with_retries(agent_wrapper, step)
-                new_reward = self._evaluate_policy(optimized_wrapper.policy)
+                optimized_evaluation = self._evaluate_policy(
+                    optimized_wrapper.policy,
+                    baseline_reward=old_reward,
+                    natural_delta=natural_delta,
+                )
+                new_reward = optimized_evaluation["reward"]
             except Exception as e:
                 # 退火与评估涉及优化器、网络推理、环境交互，异常类型无法穷举，保留宽捕获并记录日志
                 logger.error(f"[退火闭环] 步数 {step}: 退火或评估失败 ({type(e).__name__}: {e})")
@@ -292,6 +303,10 @@ class AsyncAnnealingLoop:
                 continue
 
             delta = new_reward - old_reward
+            counterfactual_delta = optimized_evaluation["counterfactual_delta"]
+            attribution = optimized_evaluation["attribution"]
+            attribution_ratio = optimized_evaluation["attribution_ratio"]
+            attribution_status = "退火无效" if attribution < 0.0 else "退火有效"
             is_effective = self._update_interval(delta)
             impact_rate = self.get_impact_rate()
 
@@ -304,6 +319,11 @@ class AsyncAnnealingLoop:
                 "old_reward": old_reward,
                 "new_reward": new_reward,
                 "delta": delta,
+                "counterfactual_delta": counterfactual_delta,
+                "natural_delta": natural_delta,
+                "attribution": attribution,
+                "attribution_ratio": attribution_ratio,
+                "attribution_status": attribution_status,
                 "interval": self.get_current_interval(),
                 "effective": is_effective,
                 "impact_rate": impact_rate,
@@ -315,6 +335,11 @@ class AsyncAnnealingLoop:
                     "step": step,
                     "state_dict": copy.deepcopy(optimized_wrapper.policy.state_dict()),
                     "delta": delta,
+                    "counterfactual_delta": counterfactual_delta,
+                    "natural_delta": natural_delta,
+                    "attribution": attribution,
+                    "attribution_ratio": attribution_ratio,
+                    "attribution_status": attribution_status,
                     "timestamp": record["timestamp"],
                 }
                 self._history.append(record)
@@ -324,6 +349,11 @@ class AsyncAnnealingLoop:
             logger.info(
                 f"[退火闭环] 步数 {step}: 旧奖励={old_reward:.4f}, "
                 f"新奖励={new_reward:.4f}, delta={delta:.4f}, "
+                f"counterfactual_delta={counterfactual_delta:.4f}, "
+                f"natural_delta={natural_delta:.4f}, "
+                f"attribution={attribution:.4f}, "
+                f"attribution_ratio={attribution_ratio:.1%}, "
+                f"归因诊断={attribution_status}, "
                 f"当前间隔={self.get_current_interval()}, "
                 f"有效={'是' if is_effective else '否'}, "
                 f"介入率={impact_rate:.1%}, "
@@ -432,7 +462,13 @@ class AsyncAnnealingLoop:
             logger.error(f"[退火闭环] 步数 {step}: 仿真退火也失败 ({type(e).__name__}: {e})")
             raise
 
-    def _evaluate_policy(self, policy: Any) -> float:
+    def _evaluate_policy(
+        self,
+        policy: Any,
+        *,
+        baseline_reward: float | None = None,
+        natural_delta: float = 0.0,
+    ) -> dict[str, float]:
         """
         在验证环境上评估策略网络的平均回合奖励
 
@@ -441,9 +477,11 @@ class AsyncAnnealingLoop:
 
         Args:
             policy: 策略网络（需实现 predict 方法）
+            baseline_reward: 反事实比较的基准奖励；省略时以本次奖励为基准
+            natural_delta: 未应用退火时重复评估得到的自然奖励变化
 
         Returns:
-            平均回合奖励
+            包含平均奖励、反事实增量、自然增量、退火归因及归因占比的评估结果
         """
         episode_rewards: list[float] = []
         for ep_idx in range(self.eval_episodes):
@@ -465,7 +503,22 @@ class AsyncAnnealingLoop:
                 done = bool(terminated or truncated)
             episode_rewards.append(total_reward)
 
-        return float(np.mean(episode_rewards))
+        reward = float(np.mean(episode_rewards))
+        baseline = reward if baseline_reward is None else float(baseline_reward)
+        counterfactual_delta = reward - baseline
+        attribution = counterfactual_delta - float(natural_delta)
+        attribution_ratio = (
+            attribution / counterfactual_delta
+            if abs(counterfactual_delta) > np.finfo(float).eps
+            else 0.0
+        )
+        return {
+            "reward": reward,
+            "counterfactual_delta": counterfactual_delta,
+            "natural_delta": float(natural_delta),
+            "attribution": attribution,
+            "attribution_ratio": attribution_ratio,
+        }
 
     def _update_interval(self, delta: float) -> bool:
         """
