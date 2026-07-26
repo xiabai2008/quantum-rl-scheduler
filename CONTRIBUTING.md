@@ -227,8 +227,8 @@ bandit -r src/ -c pyproject.toml -ll      # 安全扫描
 ### 6.1 测试命令
 
 ```bash
-# 运行全部测试 + 覆盖率（CI 强制 ≥ 60%）
-pytest tests/ --cov=src --cov-fail-under=60
+# 运行全部测试 + 覆盖率（CI 强制 ≥ 80%）
+pytest tests/ --cov=src --cov-fail-under=80
 
 # 运行指定测试文件
 pytest tests/test_scheduler.py -v
@@ -266,7 +266,7 @@ import pytest
 
 1. **创建分支**：`git checkout -b feature/xxx`（从最新 `main` 切出）
 2. **写代码**：遵循第 5 节代码规范
-3. **跑测试**：`pytest tests/ --cov=src --cov-fail-under=60`
+3. **跑测试**：`pytest tests/ --cov=src --cov-fail-under=80`
 4. **跑检查**：`pre-commit run --all-files`
 5. **提交并推送**：`git push origin feature/xxx`
 6. **创建 PR**：去 GitHub 网页点击 "Compare & pull request"
@@ -400,7 +400,7 @@ bandit -r src/ -c pyproject.toml -ll            # 安全扫描
 pre-commit run --all-files                      # 全量检查
 
 # ── 测试 ──
-pytest tests/ --cov=src --cov-fail-under=60     # 测试 + 覆盖率
+pytest tests/ --cov=src --cov-fail-under=80     # 测试 + 覆盖率
 pytest tests/benchmarks/ --benchmark-only       # 性能基准
 
 # ── Web ──

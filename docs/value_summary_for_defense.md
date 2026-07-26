@@ -1,6 +1,9 @@
 # 落地价值统一摘要（答辩用）
 
 > 本文档合并三份价值文档的精华，锁定一套权威数字，供答辩直接引用。
+>
+> **Issue #210 文档碎片化整理**：本文档为价值量化主题的"答辩摘要"分册，主文档为 [value_quantification.md](value_quantification.md)（基础价值量化，6节10项指标）。深度分析见 [value_deep_quantification.md](value_deep_quantification.md)。
+>
 > 关联文档：value_quantification.md、value_deep_quantification.md、platform_landing_value.md
 > 生成时间：2026-07-25
 
