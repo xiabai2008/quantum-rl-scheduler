@@ -13,6 +13,7 @@ WebSocket 端点处理
 
 import json
 import os
+from typing import Any
 
 from fastapi import WebSocket, WebSocketDisconnect
 from loguru import logger
@@ -38,7 +39,7 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
     await state.manager.connect(websocket)
     try:
         # 连接后立即发送当前状态 + PPO 数据
-        ppo_stats: dict = {}
+        ppo_stats: dict[str, Any] = {}
         try:
             report_dir = os.path.join(_app._PROJECT_ROOT, "results")
             json_files = sorted(

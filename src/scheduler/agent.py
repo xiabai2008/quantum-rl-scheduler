@@ -42,6 +42,7 @@ import gymnasium as gym
 import gymnasium.spaces as spaces
 import numpy as np
 from loguru import logger
+from numpy.typing import NDArray
 from stable_baselines3 import DQN
 from stable_baselines3.common.callbacks import (
     CallbackList,
@@ -115,11 +116,11 @@ class SchedulerAgent:
     DEFAULT_VERBOSE: int = 1  # 训练日志详细程度
 
     # 策略网络隐藏层架构
-    NET_ARCH: list = [128, 64]  # noqa: RUF012
+    NET_ARCH: list[int] = [128, 64]  # noqa: RUF012
 
     def __init__(
         self,
-        env: gym.Env,
+        env: gym.Env[Any, Any],
         learning_rate: float = DEFAULT_LEARNING_RATE,
         buffer_size: int = DEFAULT_BUFFER_SIZE,
         batch_size: int = DEFAULT_BATCH_SIZE,
@@ -302,7 +303,7 @@ class SchedulerAgent:
             self.model = self._build_model()
 
         # 创建评估环境
-        eval_env: gym.Env = Monitor(self.env)
+        eval_env: gym.Env[Any, Any] = Monitor(self.env)
 
         # 构建 Epsilon 探索回调
         epsilon_callback = EpsilonExplorationCallback(
@@ -340,7 +341,7 @@ class SchedulerAgent:
 
     def predict(
         self,
-        state: np.ndarray,
+        state: NDArray[Any],
         deterministic: bool = False,
     ) -> int:
         """

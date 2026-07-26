@@ -14,6 +14,7 @@ Observation Builder Module for Quantum-Classical Hybrid Task Scheduling Environm
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
+from numpy.typing import NDArray
 
 from src.scheduler.env_types import (
     MAX_QUEUE_SIZE,
@@ -40,7 +41,7 @@ if TYPE_CHECKING:
     from src.scheduler.env import QuantumSchedulingEnv
 
 
-def get_observation(env: "QuantumSchedulingEnv") -> np.ndarray:
+def get_observation(env: "QuantumSchedulingEnv") -> NDArray[Any]:
     """
     构建并返回当前 14 维状态向量（扩展版：包含物理噪声和拓扑特征）。
 
@@ -64,9 +65,9 @@ def get_observation(env: "QuantumSchedulingEnv") -> np.ndarray:
         env: 调度环境实例
 
     Returns:
-        np.ndarray: 形状 (14,)，dtype=float32，值域 [0, 1]
+        NDArray[Any]: 形状 (14,)，dtype=float32，值域 [0, 1]
     """
-    obs: np.ndarray = np.zeros(OBS_DIM, dtype=np.float32)
+    obs: NDArray[Any] = np.zeros(OBS_DIM, dtype=np.float32)
 
     obs[OBS_QUBIT_AVAILABILITY] = float(np.clip(env._quantum.available_ratio, 0.0, 1.0))
 

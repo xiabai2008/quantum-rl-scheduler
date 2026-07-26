@@ -40,6 +40,7 @@ from datetime import datetime
 from typing import Any
 
 import numpy as np
+from numpy.typing import NDArray
 
 # ---------------------------------------------------------------------------
 # 常量定义
@@ -91,10 +92,10 @@ class DecisionRecord:
     """
 
     step: int
-    state: np.ndarray
+    state: NDArray[Any]
     action: int
     action_prob: float
-    q_values: np.ndarray | None
+    q_values: NDArray[Any] | None
     feature_contributions: dict[str, float]
     timestamp: str
 
@@ -182,9 +183,9 @@ class DecisionExplainer:
 
     def explain(
         self,
-        state: np.ndarray,
+        state: NDArray[Any],
         action: int,
-        q_values: np.ndarray | None = None,
+        q_values: NDArray[Any] | None = None,
         action_prob: float = 1.0,
         step: int = 0,
     ) -> DecisionRecord:
@@ -205,7 +206,7 @@ class DecisionExplainer:
         n = len(state_arr)
 
         # 计算 Q 值数组（标准化存储）
-        q_arr: np.ndarray | None = None
+        q_arr: NDArray[Any] | None = None
         if q_values is not None:
             q_arr = np.asarray(q_values, dtype=np.float64).flatten()
 
