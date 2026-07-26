@@ -1141,7 +1141,8 @@ Docker 容器健康检查：`curl -f http://localhost:8000/api/status`，30 秒�
 ### 8.4 配置文件
 
 - [config/config.yaml](../config/config.yaml)：系统主配置（mock_mode、调度参数、退火参数、天衍云配置）
-- [config/.env.example](../config/.env.example)：环境变量模板
+- [.env.example](../.env.example)：环境变量模板（项目唯一模板，Issue #206）
+- [config/.env.example](../config/.env.example)：已废弃，指向根目录的 .env.example
 - [pyproject.toml](../pyproject.toml)：代码质量工具统一配置（ruff/mypy/pytest/coverage/bandit）
 
 > **重要约束**：不要修改 `config/config.yaml` 的 `mock_mode: true`，除非获得天衍云平台权限。
