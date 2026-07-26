@@ -4,7 +4,7 @@ Quantum Annealing Accelerator for Reinforcement Learning Policy Optimization
 
 核心思想：
     将 DQN 策略网络的参数优化问题映射为 QUBO（Quadratic Unconstrained Binary Optimization）问题，
-    利用量子退火器（或仿真模拟退火）来高效求解，从而加速策略搜索过程。
+    利用量子退火或仿真模拟退火来高效求解，从而加速策略搜索过程。
 
 QUBO 问题形式：min  x^T Q x，其中 x ∈ {0,1}^n, Q 为 n×n 的实数矩阵。
 
@@ -338,16 +338,17 @@ class QuantumAnnealingOptimizer:
     # ------------------------------------------------------------------
     def anneal(self, qubo_matrix: np.ndarray) -> str:
         """
-        调用量子退火器（或仿真）求解 QUBO 问题，返回最优比特串
+        调用退火求解器（真机/仿真）求解 QUBO 问题，返回最优比特串
 
         求解路径优先级：
             1. 真机退火：``simulation_mode=False`` 且 ``cqlib_client`` 提供
-               ``submit_annealing_task`` 方法时，提交 QUBO 到天衍云量子退火器
+               ``submit_annealing_task`` 方法时，提交 QUBO 到天衍云真机退火接口
             2. D-Wave neal 模拟退火：若 D-Wave Ocean SDK 可用
             3. 内置 numpy 模拟退火：始终可用的兜底实现
 
         天衍云 cqlib 为门控量子计算机 SDK，不提供 QUBO 退火接口；遇到此情况
         会打印"降级为仿真"日志并回退到 numpy/neal 路径，保证流程不中断。
+        实际使用的求解器类型记录在 ``self.solver_type`` 属性中（Issue #226）。
 
         Args:
             qubo_matrix: QUBO 矩阵 Q，形状为 (N, N)
