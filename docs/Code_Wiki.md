@@ -1,8 +1,8 @@
 # 量子RL调度系统 — Code Wiki
 
 > **作品名称**：量子RL驱动的天衍云平台智能调度系统
-> **核心创新**：AI 赋能量子计算（RL 智能调度） + 量子赋能 AI（量子退火加速 RL 决策）
-> **目标平台**：天衍云真机"天衍-287"（祖冲之三号同款超导量子计算机）
+> **核心创新**：AI 赋能量子计算（RL 智能调度） + 量子赋能 AI（量子退火优化RL，探索性方向）
+> **目标平台**：天衍云真机"天衍-287"（tianyan176，66 qubit，可用性验证）
 > **文档版本**：v8（PPO主力+MAPPO多智能体+退火异步闭环+14维状态空间+多目标奖励+真机闭环+统计显著性验证）
 > **最后更新**：2026-07-24
 
@@ -15,7 +15,7 @@
 - [3. 模块职责详解](#3-模块职责详解)
   - [3.1 调度引擎 src/scheduler/](#31-调度引擎-srcscheduler)
   - [3.2 API 客户端 src/api/](#32-api-客户端-srcapi)
-  - [3.3 量子加速 src/quantum/](#33-量子加速-srcquantum)
+  - [3.3 量子退火模块 src/quantum/](#33-量子退火模块-srcquantum)
   - [3.4 可视化 src/visualization/](#34-可视化-srcvisualization)
   - [3.5 工具函数 src/utils/](#35-工具函数-srcutils)
 - [4. 关键类与函数参考](#4-关键类与函数参考)
@@ -33,7 +33,7 @@
 **双向赋能核心**：
 
 - **AI 赋能量子计算**：用强化学习（RL）智能调度量子/经典混合任务，量化目标为资源利用率提升 ≥30%
-- **量子赋能 AI**：用量子退火（QUBO 映射）加速 RL 策略搜索
+- **量子赋能 AI**：探索性方向——用量子退火（QUBO映射）优化RL策略搜索（当前使用经典模拟退火D-Wave neal，训练开销+74.5%，奖励提升+6.4%在5 seeds下p=0.190统计不显著）
 
 **技术栈**：Python ≥3.10 + Stable-Baselines3（DQN/PPO）+ Gymnasium + PyTorch + Qiskit + D-Wave Ocean SDK + FastAPI + Vue3 + Echarts
 
@@ -48,7 +48,7 @@
 | v5 | 多机器调度 + 真机验证 | 多机器 PPO 奖励 +4,294（+86.3%），17 个任务成功提交天衍云真机 |
 | v6 | MAPPO 多智能体 + 异步退火闭环 + 14维状态 + 多目标奖励 | 新增 ~3,600 行代码 + 71 测试用例 |
 | v7 | ruff 142→0 + mypy 26→0 + CI全严格阻断 + 覆盖率70%→91% | 49个测试文件1663+用例，CI lint/typecheck从baseline升级为strict |
-| v8 | 50seed N=250验证 + 多seed真机实验 | PPO=2746.94±1160.72, +88.3%, p=1.032e-42, rank-biserial=-0.71；多seed真机PPO=1665.22±324.51 vs FCFS=353.22±53.33, d=5.64, p=6.83e-04（Bonferroni校正后显著） | | FCFS: 1458.77±60.47
+| v8 | 50seed N=250验证 + 多seed真机实验 | PPO=2746.94±1160.72, +88.3%, p=1.032e-42, rank-biserial=-0.71；多seed真机PPO=1665.22±324.51 vs FCFS=353.22±53.33, d=5.64（效应量异常大，小样本探索性结果，需进一步验证）| | FCFS: 1458.77±60.47
 
 ---
 
@@ -78,7 +78,7 @@
         ┌────────────────────┼────────────────────┐
         ▼                    ▼                    ▼
 ┌───────────────┐   ┌─────────────────┐   ┌──────────────┐
-│ API 客户端     │   │  量子加速模块     │   │  工具函数     │
+│ API 客户端     │   │  量子退火模块     │   │  工具函数     │
 │ src/api/      │   │  src/quantum/   │   │  src/utils/  │
 │               │   │                  │   │              │
 │ ┌───────────┐ │   │ ┌──────────────┐│   │ ┌──────────┐ │
@@ -304,9 +304,9 @@ tianyan_swn, tianyan_sa, tianyan176, tianyan176-2
 
 ---
 
-### 3.3 量子加速 src/quantum/
+### 3.3 量子退火模块 src/quantum/
 
-实现量子退火加速 RL 策略搜索，核心思想是将神经网络权重优化问题映射为 QUBO 问题。
+实现量子退火优化RL策略搜索（探索性方向，当前使用经典模拟退火D-Wave neal），核心思想是将神经网络权重优化问题映射为 QUBO 问题。
 
 #### 文件清单
 
@@ -683,7 +683,7 @@ def create_multi_machine_clients(login_key: str, machine_names: list[str]) -> di
 
 ---
 
-### 4.3 量子加速核心类
+### 4.3 量子退火核心类
 
 #### `QuantumAnnealingOptimizer`
 
@@ -1141,7 +1141,8 @@ Docker 容器健康检查：`curl -f http://localhost:8000/api/status`，30 秒�
 ### 8.4 配置文件
 
 - [config/config.yaml](../config/config.yaml)：系统主配置（mock_mode、调度参数、退火参数、天衍云配置）
-- [config/.env.example](../config/.env.example)：环境变量模板
+- [.env.example](../.env.example)：环境变量模板（项目唯一模板，Issue #206）
+- [config/.env.example](../config/.env.example)：已废弃，指向根目录的 .env.example
 - [pyproject.toml](../pyproject.toml)：代码质量工具统一配置（ruff/mypy/pytest/coverage/bandit）
 
 > **重要约束**：不要修改 `config/config.yaml` 的 `mock_mode: true`，除非获得天衍云平台权限。

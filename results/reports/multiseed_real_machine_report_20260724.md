@@ -1,5 +1,7 @@
 # 天衍-287 多seed真机实验统计分析报告（Issue #58 统一口径）
 
+> ⚠️ 数据警示：本报告中PPO vs FCFS +371.4%、Cohen's d=5.64为5 seeds小样本探索性结果，效应量异常大（d>2极罕见），与dual_empowerment_asymmetry_analysis中mixed_real p=0.127不显著的结论存在矛盾，需更多seeds验证。真机验证定位为SDK可用性验证而非性能基准测试。
+
 **数据文件**: `results\real_machine\tianyan287_multiseed\multiseed_data_20260724_105757.json`
 
 **实验时间**: 2026-07-24 10:47-10:57（耗时 529.6s）
@@ -86,7 +88,7 @@
 
 ## 4. 结论
 
-1. **PPO vs FCFS**: Cohen's d=5.64（大效应），Welch p=6.83e-04, Bonferroni校正后显著。判定：**支持**。
+1. **PPO vs FCFS**: Cohen's d=5.64（大效应，⚠️效应量异常大，5 seeds小样本探索性结果，需更多seeds验证），Welch p=6.83e-04, Bonferroni校正后显著（⚠️小样本）。判定：**支持（探索性）**。
 
 2. **PPO vs SJF**: Cohen's d=4.04（大效应），Welch p=4.25e-04, Bonferroni校正后显著。判定：**支持**。
 
@@ -97,7 +99,7 @@
 ## 5. 总体结论
 
 在 5 seeds × 3 策略的天衍-287 真机实验中：
-- **PPO 显著优于 FCFS**（d=5.64, p=6.83e-04, Bonferroni显著），真机环境验证了仿真结论。
+- **PPO 优于 FCFS**（d=5.64, ⚠️效应量异常大，5 seeds小样本探索性结果需验证；p=6.83e-04, Bonferroni校正后显著但样本量极小），真机环境SDK可用性验证通过。
 - **PPO 显著优于 SJF**（d=4.04, p=4.25e-04, Bonferroni显著）。
 - **SJF vs FCFS 无显著差异**（p=0.080），与仿真结果一致。
 - 所有 16 次真机任务调用成功率 100%，无失败/超时/降级。

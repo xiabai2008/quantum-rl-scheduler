@@ -17,7 +17,7 @@
 # 如无天衍云访问权限，系统会自动降级为 Mock 模式运行。
 # =============================================================================
 
-# 天衍云 cqlib SDK（天衍-287 超导量子计算机真机调度）
+# 天衍云 cqlib SDK（天衍-287 超导量子计算机真机调度，105数据比特+182耦合比特）
 # 安装方式 A（内部源）：pip install cqlib -i https://pypi.tianyan.com/simple/
 # 安装方式 B（手动）：从天衍云平台下载 wheel 包后 pip install cqlib-x.x.x-py3-none-any.whl
 --extra-index-url https://pypi.tianyan.com/simple/
