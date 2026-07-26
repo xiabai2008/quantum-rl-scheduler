@@ -189,7 +189,7 @@ class TestAsyncAnnealingCallbackOnStep(unittest.TestCase):
         )
         cb._next_trigger_step = 100
         with patch(
-            "src.scheduler.async_annealing_callback.copy.deepcopy",
+            "src.scheduler.async_annealing_callback._clone_tensor",
             side_effect=RuntimeError("deepcopy fail"),
         ):
             result = cb._on_step()
@@ -210,7 +210,7 @@ class TestAsyncAnnealingCallbackOnStep(unittest.TestCase):
         cb._next_trigger_step = 100
         with (
             patch(
-                "src.scheduler.async_annealing_callback.copy.deepcopy",
+                "src.scheduler.async_annealing_callback._clone_tensor",
                 side_effect=TypeError("type error"),
             ),
             patch("src.scheduler.async_annealing_callback.logger") as mock_logger,
