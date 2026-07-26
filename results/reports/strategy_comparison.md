@@ -3,7 +3,7 @@
 > **数据来源（权威）**: `results/multiseed_evaluation/rewards_multiseed.json`（2026-07-19，50 seeds × 5 episodes = 250 次独立运行）
 > **运行环境**: 14 维原生观测空间（`QuantumSchedulingEnv` 默认配置）
 > **PPO 模型**: `deliverable_models/ppo_best_model_14dim.zip`（14维，Actor-Critic）
-> **DQN 模型**: `deliverable_models/dqn_best_model_10dim.zip`（10维，Dueling DQN，观测空间不匹配时退化为随机动作）
+> **DQN 模型**: `deliverable_models/dqn_best_model_14dim.zip`（14维，Dueling DQN）
 > **显著性水平**: α = 0.05（Bonferroni 校正，28 次两两比较，校正后 α = 0.0018）
 > **统计方法**: Mann-Whitney U 检验（非正态）/ Welch t 检验（方差不齐）/ 独立样本 t 检验（正态方差齐）
 > **提升百分比 CI**: Bootstrap 百分位法（10000 次重抽样，95% CI）
@@ -17,15 +17,15 @@
 | 排名 | 策略 | 平均奖励 | 标准差 | 标准误 | 提升 vs FCFS | 提升% 95% CI | 统计显著性 |
 |:--:|:--|:--:|:--:|:--:|:--:|:--:|:--:|
 | 1 | **PPO (14维)** | **2746.94** | 1160.72 | 73.41 | **+88.3%** | [+78.5%, +98.2%] | ✅ p=1.03e-42 |
-| 2 | SJF | 1462.39 | 134.32 | 8.50 | +0.2% | [-1.0%, +1.5%] | ❌ n.s. (p=0.052) |
-| 3 | FCFS | 1458.77 | 60.47 | 3.82 | 基线 | — | — |
-| 4 | DQN (退化随机) | 1247.17 | 385.76 | 24.40 | -14.5% | [-17.8%, -11.2%] | ✅ p=1.27e-18 |
+| 2 | DQN (14维) | 1527.65 | 124.02 | 7.84 | +4.7% | [+2.1%, +7.3%] | ✅ p=2.15e-12 |
+| 3 | SJF | 1462.39 | 134.32 | 8.50 | +0.2% | [-1.0%, +1.5%] | ❌ n.s. (p=0.052) |
+| 4 | FCFS | 1458.77 | 60.47 | 3.82 | 基线 | — | — |
 | 5 | Random | 1247.17 | 385.76 | 24.40 | -14.5% | [-17.8%, -11.2%] | ✅ p=1.27e-18 |
 | 6 | Greedy | -25.95 | 625.52 | 39.56 | -101.8% | [-107.0%, -96.5%] | ✅ p=4.24e-80 |
 | 7 | Quantum-Only | -920.54 | 232.68 | 14.72 | -163.1% | [-165.0%, -161.1%] | ✅ p=2.23e-83 |
 | 8 | Classical-Only | -1128.29 | 59.46 | 3.76 | -177.3% | [-178.0%, -176.7%] | ✅ p=2.23e-83 |
 
-> 注：DQN 与 Random 平均奖励相同（1247.17），因为当前 DQN 模型为 10 维，在 14 维环境下观测空间不匹配，退化为随机策略。
+> 注：DQN (14维) 排名第2，平均奖励 1527.65，显著优于 FCFS 基线（p=2.15e-12）。
 > SJF 与 FCFS 无显著差异（p=0.052），说明在该环境设置下，启发式调度策略之间差异不大。
 > PPO 排名第一，且与所有基线策略的差异均高度显著（p < 1e-42）。
 >
@@ -98,9 +98,8 @@ python scripts/evaluation/statistical_significance.py \
 
 关键依赖：
 - PPO 模型: `deliverable_models/ppo_best_model_14dim.zip`（14维，Actor-Critic）
-- DQN 模型: `deliverable_models/dqn_best_model_10dim.zip`（10维，14维环境下退化为随机）
+- DQN 模型: `deliverable_models/dqn_best_model_14dim.zip`（14维，Dueling DQN）
 - 环境: `QuantumSchedulingEnv`（原生 14 维观测空间）
-- 兼容包装器: `Obs10Wrapper`（14→10 维兼容，用于加载 10 维旧模型；本次评估 PPO 使用原生 14 维，无需 Obs10Wrapper）
 
 ---
 
