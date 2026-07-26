@@ -762,9 +762,7 @@ class TestOptimizePolicyAndHelpers(unittest.TestCase):
 
         class MockAgent:
             def __init__(self):
-                self.policy_net = nn.Sequential(
-                    nn.Linear(4, 8), nn.ReLU(), nn.Linear(8, 2)
-                )
+                self.policy_net = nn.Sequential(nn.Linear(4, 8), nn.ReLU(), nn.Linear(8, 2))
 
         agent = MockAgent()
         with patch.object(annealing_mod, "QUANTUM_ACCELERATION_ENABLED", True):
@@ -786,9 +784,7 @@ class TestOptimizePolicyAndHelpers(unittest.TestCase):
 
         class MockAgent:
             def __init__(self):
-                self.policy_net = nn.Sequential(
-                    nn.Linear(4, 8), nn.ReLU(), nn.Linear(8, 2)
-                )
+                self.policy_net = nn.Sequential(nn.Linear(4, 8), nn.ReLU(), nn.Linear(8, 2))
 
         agent = MockAgent()
         with patch.object(annealing_mod, "QUANTUM_ACCELERATION_ENABLED", True):
@@ -812,9 +808,7 @@ class TestOptimizePolicyAndHelpers(unittest.TestCase):
 
         class MockAgent:
             def __init__(self):
-                self.policy_net = nn.Sequential(
-                    nn.Linear(4, 8), nn.ReLU(), nn.Linear(8, 2)
-                )
+                self.policy_net = nn.Sequential(nn.Linear(4, 8), nn.ReLU(), nn.Linear(8, 2))
 
         agent = MockAgent()
         with patch.object(annealing_mod, "QUANTUM_ACCELERATION_ENABLED", True):

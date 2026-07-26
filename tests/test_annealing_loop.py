@@ -302,9 +302,7 @@ def test_annealing_mode_head_only_routing():
     """验证 head_only 模式调用 optimize_policy 时传 head_only=True。"""
     optimizer = FakeOptimizer(weight_boost=1.0)
     env = FakeEnv()
-    loop = AsyncAnnealingLoop(
-        optimizer, env, initial_interval=100, retry_delays=[0.0, 0.0]
-    )
+    loop = AsyncAnnealingLoop(optimizer, env, initial_interval=100, retry_delays=[0.0, 0.0])
     loop.start()
 
     model = FakeModel(weight=0.0)
@@ -345,13 +343,9 @@ def test_callback_passes_annealing_mode_to_loop():
     """验证 AsyncAnnealingCallback 将 annealing_mode 透传给 loop。"""
     optimizer = FakeOptimizer()
     env = FakeEnv()
-    loop = AsyncAnnealingLoop(
-        optimizer, env, initial_interval=100, retry_delays=[0.0, 0.0]
-    )
+    loop = AsyncAnnealingLoop(optimizer, env, initial_interval=100, retry_delays=[0.0, 0.0])
     # loop 默认 head_only，callback 传 hierarchical 应覆盖
-    callback = AsyncAnnealingCallback(
-        loop, verbose=0, annealing_mode="hierarchical"
-    )
+    callback = AsyncAnnealingCallback(loop, verbose=0, annealing_mode="hierarchical")
     callback._init_callback()
     assert loop.annealing_mode == "hierarchical"
     loop.shutdown()
