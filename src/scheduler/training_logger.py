@@ -21,7 +21,7 @@ try:
 
     _TENSORBOARD_AVAILABLE = True
 except ImportError:  # pragma: no cover
-    SummaryWriter = None
+    SummaryWriter = None  # type: ignore[assignment, misc]
     _TENSORBOARD_AVAILABLE = False
 
 __all__ = [
