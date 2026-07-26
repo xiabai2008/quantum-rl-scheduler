@@ -20,7 +20,7 @@ Classic Scheduling Strategy Baselines
 实现 ``select_action(observation, env) -> int`` 在 Gymnasium 环境中运行。
 """
 
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 
