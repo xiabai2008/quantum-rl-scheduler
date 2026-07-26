@@ -734,18 +734,11 @@ class QuantumAnnealingOptimizer:
             # 当 learning_rate 过小时，w_final = w_old + lr * delta 的变化量极小，
             # 退火实质上是空操作。低于 min_effective_delta 则跳过接受/拒绝判定。
             if head_only:
-                applied_weights = [
-                    p.detach().cpu().numpy().copy() for p in head_params
-                ]
+                applied_weights = [p.detach().cpu().numpy().copy() for p in head_params]
             else:
-                applied_weights = [
-                    p.detach().cpu().numpy().copy() for p in policy_net.parameters()
-                ]
+                applied_weights = [p.detach().cpu().numpy().copy() for p in policy_net.parameters()]
             actual_delta_flat = np.concatenate(
-                [
-                    (aw - ow).flatten()
-                    for aw, ow in zip(applied_weights, old_weights, strict=False)
-                ]
+                [(aw - ow).flatten() for aw, ow in zip(applied_weights, old_weights, strict=False)]
             )
             weight_l2_diff_iter = float(np.linalg.norm(actual_delta_flat))
 
@@ -1036,9 +1029,7 @@ class QuantumAnnealingOptimizer:
             hier_delta_flat = np.concatenate(
                 [
                     (cw - ow).flatten()
-                    for cw, ow in zip(
-                        current_all_weights, old_all_weights, strict=False
-                    )
+                    for cw, ow in zip(current_all_weights, old_all_weights, strict=False)
                 ]
             )
             hier_weight_l2_diff = float(np.linalg.norm(hier_delta_flat))
