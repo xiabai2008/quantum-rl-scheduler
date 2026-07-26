@@ -1,6 +1,8 @@
 # 跨硬件兼容路线图：超导 / 离子阱 / 光量子
 
 > 本文档聚焦技术实施路线图（详细适配策略与验收标准），与 `cross_hardware_scalability.md`（聚焦答辩论述）互补。
+>
+> **Issue #210 文档碎片化整理**：本文档为跨硬件主题的"技术实施"分册，主文档为 [cross_hardware_scalability.md](cross_hardware_scalability.md)。两份文档已建立交叉引用，不再单独维护，后续将择机合并。
 
 > Issue #100 — 比赛方案要求"兼容主流及新兴量子硬件技术路线（如超导、离子阱、光量子等）"
 >
