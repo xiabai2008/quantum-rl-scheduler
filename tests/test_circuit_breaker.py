@@ -677,5 +677,115 @@ def _raise_runtime_error() -> None:
     raise RuntimeError("boom")
 
 
+class TestCircuitBreakerThreadSafety(unittest.TestCase):
+    """熔断器线程安全测试（Issue #213）
+
+    多线程并发调用 call() / on_success() / on_failure() / before_request() 时，
+    状态变量（state / failure_count / last_failure_time）的读写应有锁保护，
+    避免竞态条件导致状态不一致。
+    """
+
+    @patch("src.api.circuit_breaker.alert_critical")
+    def test_concurrent_call_no_state_corruption(self, _mock_alert):
+        """2 线程并发调用 call() 各 50 次，最终状态应一致且不出现非法状态。"""
+        import threading
+
+        cb = CircuitBreaker(failure_threshold=1000, recovery_timeout=0.0)
+        barrier = threading.Barrier(2)
+        errors: list[Exception] = []
+
+        def worker() -> None:
+            try:
+                barrier.wait()
+                for _ in range(50):
+                    cb.call(lambda: 1)
+            except Exception as e:
+                errors.append(e)
+
+        threads = [threading.Thread(target=worker) for _ in range(2)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        self.assertEqual(errors, [])
+        # 100 次成功调用后，state 仍为 CLOSED，failure_count=0
+        self.assertEqual(cb.state, CircuitState.CLOSED)
+        self.assertEqual(cb.failure_count, 0)
+
+    @patch("src.api.circuit_breaker.alert_error")
+    def test_concurrent_on_failure_failure_count_consistent(self, _mock_alert):
+        """2 线程并发调用 on_failure() 各 50 次，failure_count 应精确等于 100。"""
+        import threading
+
+        cb = CircuitBreaker(failure_threshold=1000, recovery_timeout=0.0)
+        barrier = threading.Barrier(2)
+
+        def worker() -> None:
+            barrier.wait()
+            for _ in range(50):
+                cb.on_failure()
+
+        threads = [threading.Thread(target=worker) for _ in range(2)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        # 没有锁保护时，并发 += 会导致 lost update，最终计数 < 100
+        self.assertEqual(cb.failure_count, 100)
+
+    def test_concurrent_on_success_no_corruption(self):
+        """2 线程并发调用 on_success() 各 50 次，state 应稳定为 CLOSED。"""
+        import threading
+
+        cb = CircuitBreaker(failure_threshold=1000, recovery_timeout=0.0)
+        barrier = threading.Barrier(2)
+
+        def worker() -> None:
+            barrier.wait()
+            for _ in range(50):
+                cb.on_success()
+
+        threads = [threading.Thread(target=worker) for _ in range(2)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        self.assertEqual(cb.state, CircuitState.CLOSED)
+        self.assertEqual(cb.failure_count, 0)
+
+    @patch("src.api.circuit_breaker.alert_critical")
+    def test_concurrent_reset_no_corruption(self, _mock_alert):
+        """2 线程并发调用 reset() 各 50 次，state 应稳定为 CLOSED。"""
+        import threading
+
+        cb = CircuitBreaker(failure_threshold=1000, recovery_timeout=0.0)
+        barrier = threading.Barrier(2)
+
+        def worker() -> None:
+            barrier.wait()
+            for _ in range(50):
+                cb.reset()
+
+        threads = [threading.Thread(target=worker) for _ in range(2)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        self.assertEqual(cb.state, CircuitState.CLOSED)
+        self.assertEqual(cb.failure_count, 0)
+
+    def test_lock_is_initialized(self):
+        """熔断器实例应包含 _lock 属性（threading.RLock）。"""
+        import threading
+
+        cb = CircuitBreaker()
+        self.assertTrue(hasattr(cb, "_lock"))
+        self.assertIsInstance(cb._lock, type(threading.RLock()))
+
+
 if __name__ == "__main__":
     unittest.main()

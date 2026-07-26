@@ -23,6 +23,7 @@ from dataclasses import dataclass
 from typing import Any
 
 import numpy as np
+from loguru import logger
 
 __all__ = [
     "ACTION_CLASSICAL",
@@ -285,10 +286,10 @@ class HybridScheduler:
                 }
             except RuntimeError:
                 # RL 未训练，走兜底
-                pass
-            except Exception:
+                logger.debug("RL 智能体未训练（RuntimeError），回退到默认规则")
+            except Exception as e:
                 # 其他异常也走兜底
-                pass
+                logger.warning(f"RL 推理失败，回退到经典调度: {type(e).__name__}: {e}")
 
         # 3. 默认规则兜底
         if self._fallback_to_rule:
