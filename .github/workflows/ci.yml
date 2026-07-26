@@ -265,7 +265,9 @@ jobs:
       contents: write
     # Issue #176: 扩展到 PR 触发，检测性能退化
     if: github.event_name == 'push' || github.event_name == 'pull_request'
-    # 寰熀鍑嗘祴璇曪紙姣绾э級鍦ㄤ笉鍚?runner 涓婃尝鍔ㄥぇ锛屾槗璇姤鎬ц兘鍥炲綊锛?    # benchmark 浠呯敤浜庤秼鍔跨洃鎺э紝涓嶉樆鏂?PR銆?    continue-on-error: true
+    # Micro-benchmarks (ms-level) vary across runners;
+    # benchmark is for trend monitoring only, not a PR gate.
+    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
         with:
