@@ -42,6 +42,7 @@ from src.api.tianyan_cqlib import (
     MultiMachineCqlibCoordinator,
     create_multi_machine_clients,
 )
+from src.api.types import TaskResult
 from src.exceptions import CircuitOpenError, RateLimitError
 
 # 简单的 Bell 态 QASM 电路，用于提交任务测试
@@ -122,6 +123,8 @@ class TestMockTianyanClient(unittest.TestCase):
             status = self.client.get_task_status(task_id)
         self.assertEqual(status["status"], "PENDING")
         self.assertEqual(status["task_id"], task_id)
+        self.assertIsInstance(status, TaskResult)
+        self.assertEqual(status.to_dict()["backend"], "tianyan-287")
 
     def test_task_state_transitions_to_completed(self):
         """轮询多次应能经历 PENDING→RUNNING→COMPLETED 全流程。"""
