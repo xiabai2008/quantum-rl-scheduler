@@ -53,8 +53,8 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
         await websocket.send_json(
             {
                 "type": "init",
-                "status": _app.system_status,
-                "tasks": _app.task_queue,
+                "status": _app.get_system_status(),
+                "tasks": _app.get_task_queue(),
                 "ppo_stats": ppo_stats,
             }
         )
@@ -80,14 +80,14 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
             if msg.get("action") == "get_decisions":
                 await websocket.send_json({
                     "type": "decision_log",
-                    "decisions": _app._decision_log[-200:],
+                    "decisions": _app.get_decision_log()[-200:],
                 })
             
             # 客户端请求资源历史
             if msg.get("action") == "get_resource_history":
                 await websocket.send_json({
                     "type": "resource_history",
-                    "history": _app._resource_history[-100:],
+                    "history": _app.get_resource_history()[-100:],
                 })
     except WebSocketDisconnect:
         _app.manager.disconnect(websocket)

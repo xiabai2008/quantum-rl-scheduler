@@ -102,72 +102,69 @@ async def _step_simulation() -> None:
     await _app.manager.broadcast(
         {
             "type": "status_update",
-            "status": _app.system_status,
+            "status": _app.get_system_status(),
             "step_duration_ms": round(elapsed * 1000, 2),
         }
     )
 
-    logger.debug(f"[Web] 仿真步骤完成: step={_app.system_status['current_step']}, "
+    status = _app.get_system_status()
+    logger.debug(f"[Web] 仿真步骤完成: step={status['current_step']}, "
                  f"action={action_label}, reward={reward:.2f}, "
                  f"elapsed={elapsed:.3f}s")
 
 
 def _update_system_status(action: Any, action_label: str, reward: float) -> None:
     """更新系统状态"""
-    status = _app.system_status
+    current_status = _app.get_system_status()
 
-    status["current_step"] += 1
-    status["last_update"] = datetime.now().isoformat()
+    qubit_util = max(0.1, min(0.95, current_status["qubit_utilization"] + random.uniform(-0.03, 0.05)))
+    tasks = _app.get_task_queue()
+    pending_count = len([t for t in tasks if t["status"] == "pending"])
+    completed = current_status["completed_tasks"] + random.randint(0, 2)
+    avg_wait = max(1, current_status["average_wait_time"] + random.uniform(-2, 3))
 
-    status["qubit_utilization"] = max(0.1, min(0.95,
-        status["qubit_utilization"] + random.uniform(-0.03, 0.05)
-    ))
-
-    pending_count = len([t for t in _app.task_queue if t["status"] == "pending"])
-    status["queue_length"] = pending_count
-
-    status["completed_tasks"] += random.randint(0, 2)
-
-    status["average_wait_time"] = max(1,
-        status["average_wait_time"] + random.uniform(-2, 3)
-    )
-
-    status["current_action"] = action_label
-    status["current_reward"] = round(reward, 2)
+    _app.update_system_status({
+        "current_step": current_status["current_step"] + 1,
+        "qubit_utilization": qubit_util,
+        "queue_length": pending_count,
+        "completed_tasks": completed,
+        "average_wait_time": avg_wait,
+        "current_action": action_label,
+        "current_reward": round(reward, 2),
+    })
 
 
 def _record_resource_history() -> None:
     """记录资源利用率历史"""
+    status = _app.get_system_status()
     point = {
-        "step": _app.system_status["current_step"],
+        "step": status["current_step"],
         "timestamp": datetime.now().isoformat(),
-        "qubit_utilization": round(_app.system_status["qubit_utilization"], 4),
-        "queue_length": _app.system_status["queue_length"],
-        "completed_tasks": _app.system_status["completed_tasks"],
-        "average_wait_time": round(_app.system_status["average_wait_time"], 2),
-        "current_strategy": _app.system_status["current_strategy"],
+        "qubit_utilization": round(status["qubit_utilization"], 4),
+        "queue_length": status["queue_length"],
+        "completed_tasks": status["completed_tasks"],
+        "average_wait_time": round(status["average_wait_time"], 2),
+        "current_strategy": status["current_strategy"],
     }
-    _app._resource_history.append(point)
-    if len(_app._resource_history) > MAX_HISTORY_POINTS:
-        _app._resource_history.pop(0)
+    _app.append_resource_history(point)
 
 
 def _record_decision(action: Any, action_label: str, reward: float) -> None:
     """记录调度决策日志"""
-    pending_tasks = [t for t in _app.task_queue if t["status"] == "pending"]
+    tasks = _app.get_task_queue()
+    pending_tasks = [t for t in tasks if t["status"] == "pending"]
     task_id = pending_tasks[0]["task_id"] if pending_tasks else "NO_TASK"
 
+    status = _app.get_system_status()
     decision = {
-        "step": _app.system_status["current_step"],
+        "step": status["current_step"],
         "timestamp": datetime.now().isoformat(),
         "task_id": task_id,
         "action": int(action) if action is not None else -1,
         "action_label": action_label,
         "reward": round(reward, 4),
         "source": "PPO" if _app._ppo_model is not None else "random",
-        "queue_length": _app.system_status["queue_length"],
-        "qubit_utilization": round(_app.system_status["qubit_utilization"], 4),
+        "queue_length": status["queue_length"],
+        "qubit_utilization": round(status["qubit_utilization"], 4),
     }
-    _app._decision_log.append(decision)
-    if len(_app._decision_log) > MAX_DECISION_LOG:
-        _app._decision_log.pop(0)
+    _app.append_decision_log(decision)

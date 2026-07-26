@@ -66,7 +66,7 @@ async def root() -> HTMLResponse:
 @router.get("/api/status")
 async def get_status() -> dict:
     """获取当前系统状态（JSON）"""
-    return _app.system_status
+    return _app.get_system_status()
 
 
 @router.get("/api/real-machines")
@@ -104,9 +104,10 @@ async def get_tasks(status: str | None = None) -> list[dict]:
     - status=completed: 只返回已完成的任务
     - 不传: 返回全部任务
     """
+    tasks = _app.get_task_queue()
     if status:
-        return [t for t in _app.task_queue if t["status"] == status]
-    return _app.task_queue
+        return [t for t in tasks if t["status"] == status]
+    return tasks
 
 
 @router.post("/api/tasks")
@@ -123,18 +124,12 @@ async def submit_task(task: TaskSubmit, _auth: None = Depends(verify_api_key)) -
         "estimated_time": task.estimated_time,
         "arrival_time": datetime.now().isoformat(),
     }
-    _app.task_queue.append(new_task)
-    # 更新系统状态中的队列长度
-    _app.system_status["queue_length"] = len(
-        [t for t in _app.task_queue if t["status"] == "pending"]
-    )
-    _app.system_status["last_update"] = datetime.now().isoformat()
-    # 广播更新
+    _app.add_task_to_queue(new_task)
     await _app.manager.broadcast(
         {
             "type": "task_added",
             "task": new_task,
-            "status": _app.system_status,
+            "status": _app.get_system_status(),
         }
     )
     return {"message": "任务提交成功", "task_id": new_task["task_id"]}
@@ -143,26 +138,27 @@ async def submit_task(task: TaskSubmit, _auth: None = Depends(verify_api_key)) -
 @router.get("/api/metrics")
 async def get_metrics() -> str:
     """返回 Prometheus 格式的指标（可选功能）"""
+    status = _app.get_system_status()
     lines = [
         "# HELP quantum_scheduler_qubit_utilization 量子比特利用率 0~1",
         "# TYPE quantum_scheduler_qubit_utilization gauge",
-        f"quantum_scheduler_qubit_utilization {_app.system_status['qubit_utilization']:.4f}",
+        f"quantum_scheduler_qubit_utilization {status['qubit_utilization']:.4f}",
         "",
         "# HELP quantum_scheduler_queue_length 任务队列长度",
         "# TYPE quantum_scheduler_queue_length gauge",
-        f"quantum_scheduler_queue_length {_app.system_status['queue_length']}",
+        f"quantum_scheduler_queue_length {status['queue_length']}",
         "",
         "# HELP quantum_scheduler_completed_tasks 已完成任务总数",
         "# TYPE quantum_scheduler_completed_tasks counter",
-        f"quantum_scheduler_completed_tasks {_app.system_status['completed_tasks']}",
+        f"quantum_scheduler_completed_tasks {status['completed_tasks']}",
         "",
         "# HELP quantum_scheduler_avg_wait_time 平均等待时间(秒)",
         "# TYPE quantum_scheduler_avg_wait_time gauge",
-        f"quantum_scheduler_avg_wait_time {_app.system_status['average_wait_time']:.2f}",
+        f"quantum_scheduler_avg_wait_time {status['average_wait_time']:.2f}",
         "",
         "# HELP quantum_scheduler_current_step 当前调度步数",
         "# TYPE quantum_scheduler_current_step counter",
-        f"quantum_scheduler_current_step {_app.system_status['current_step']}",
+        f"quantum_scheduler_current_step {status['current_step']}",
     ]
     return "\n".join(lines)
 
@@ -245,17 +241,17 @@ async def ready() -> dict:
 @router.post("/api/strategy")
 async def switch_strategy(strategy: str, _auth: None = Depends(verify_api_key)) -> dict:
     """切换调度策略"""
-    if strategy not in _app.system_status["strategy_options"]:
+    status = _app.get_system_status()
+    if strategy not in status["strategy_options"]:
         return {"message": f"未知策略: {strategy}", "success": False}
-    old = _app.system_status["current_strategy"]
-    _app.system_status["current_strategy"] = strategy
-    _app.system_status["last_update"] = datetime.now().isoformat()
+    old = status["current_strategy"]
+    _app.update_system_status({"current_strategy": strategy})
     await _app.manager.broadcast(
         {
             "type": "strategy_changed",
             "old_strategy": old,
             "new_strategy": strategy,
-            "status": _app.system_status,
+            "status": _app.get_system_status(),
         }
     )
     return {"message": f"策略切换: {old} -> {strategy}", "success": True}
@@ -264,18 +260,22 @@ async def switch_strategy(strategy: str, _auth: None = Depends(verify_api_key)) 
 @router.post("/api/update")
 async def update_status(update: SystemStatusUpdate, _auth: None = Depends(verify_api_key)) -> dict:
     """更新系统状态（供调度引擎调用）"""
-    _app.system_status["qubit_utilization"] = update.qubit_utilization
-    _app.system_status["queue_length"] = update.queue_length
-    _app.system_status["completed_tasks"] = update.completed_tasks
-    _app.system_status["average_wait_time"] = update.average_wait_time
-    _app.system_status["last_update"] = datetime.now().isoformat()
+    _app.update_system_status(
+        {
+            "qubit_utilization": update.qubit_utilization,
+            "queue_length": update.queue_length,
+            "completed_tasks": update.completed_tasks,
+            "average_wait_time": update.average_wait_time,
+        }
+    )
+    new_status = _app.get_system_status()
     await _app.manager.broadcast(
         {
             "type": "status_update",
-            "status": _app.system_status,
+            "status": new_status,
         }
     )
-    return {"message": "状态更新成功", "status": _app.system_status}
+    return {"message": "状态更新成功", "status": new_status}
 
 
 # ============================================================
@@ -447,7 +447,7 @@ async def get_resource_history() -> dict:
         包含 history 列表的字典，每项含 step/qubit_utilization/queue_length/
         completed_tasks/average_wait_time 字段
     """
-    return {"history": _app._resource_history[-100:]}
+    return {"history": _app.get_resource_history()[-100:]}
 
 
 @router.get("/api/decision-log")
@@ -460,7 +460,7 @@ async def get_decision_log() -> dict:
     Returns:
         包含 decisions 列表的字典
     """
-    return {"decisions": _app._decision_log[-200:]}
+    return {"decisions": _app.get_decision_log()[-200:]}
 
 
 @router.get("/api/machines-comparison")
@@ -474,7 +474,8 @@ async def get_machines_comparison() -> dict:
         包含 machines 列表的字典
     """
     machines: list[dict[str, Any]] = []
-    for m in _app.system_status.get("real_machines", []):
+    status = _app.get_system_status()
+    for m in status.get("real_machines", []):
         machines.append(
             {
                 "name": m.get("name", "unknown"),

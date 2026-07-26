@@ -26,6 +26,7 @@ import asyncio
 import json
 import os
 import sys
+import threading
 import uuid
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
@@ -137,6 +138,68 @@ _resource_history: list[dict[str, Any]] = []
 
 # 决策日志（内存缓存，最多保留 200 条）
 _decision_log: list[dict[str, Any]] = []
+
+# ============================================================
+# 线程安全状态管理（Issue #217）
+# ============================================================
+
+_state_lock = threading.RLock()
+
+
+def get_system_status() -> dict[str, Any]:
+    """线程安全获取系统状态副本"""
+    with _state_lock:
+        return dict(system_status)
+
+
+def update_system_status(updates: dict[str, Any]) -> None:
+    """线程安全更新系统状态"""
+    with _state_lock:
+        system_status.update(updates)
+        system_status["last_update"] = datetime.now().isoformat()
+
+
+def get_task_queue() -> list[dict[str, Any]]:
+    """线程安全获取任务队列副本"""
+    with _state_lock:
+        return [dict(t) for t in task_queue]
+
+
+def add_task_to_queue(task: dict[str, Any]) -> None:
+    """线程安全添加任务到队列"""
+    with _state_lock:
+        task_queue.append(task)
+        pending_count = len([t for t in task_queue if t["status"] == "pending"])
+        system_status["queue_length"] = pending_count
+        system_status["last_update"] = datetime.now().isoformat()
+
+
+def get_resource_history() -> list[dict[str, Any]]:
+    """线程安全获取资源历史副本"""
+    with _state_lock:
+        return list(_resource_history)
+
+
+def append_resource_history(point: dict[str, Any]) -> None:
+    """线程安全追加资源历史记录"""
+    with _state_lock:
+        _resource_history.append(point)
+        if len(_resource_history) > 100:
+            _resource_history.pop(0)
+
+
+def get_decision_log() -> list[dict[str, Any]]:
+    """线程安全获取决策日志副本"""
+    with _state_lock:
+        return list(_decision_log)
+
+
+def append_decision_log(decision: dict[str, Any]) -> None:
+    """线程安全追加决策日志"""
+    with _state_lock:
+        _decision_log.append(decision)
+        if len(_decision_log) > 200:
+            _decision_log.pop(0)
 
 # 懒加载 PPO 模型和环境
 _ppo_model = None
