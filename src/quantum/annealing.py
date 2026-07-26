@@ -149,6 +149,46 @@ class QuantumAnnealingOptimizer:
         self._last_anneal_stats: dict[str, Any] = {}
 
     # ------------------------------------------------------------------
+    # 方法 1.1: get_annealing_config（Issue #247 退火参数可追溯）
+    # ------------------------------------------------------------------
+    def get_annealing_config(self) -> dict[str, Any]:
+        """返回当前退火优化器的完整参数配置（Issue #247）。
+
+        用于实验脚本在输出 JSON 中填充 ``annealing_config`` 字段，
+        确保不同实验使用的退火参数可追溯、可复现。
+
+        Returns:
+            包含全部退火参数的字典，字段说明：
+            - ``num_qubits``: 量子比特数
+            - ``annealing_time``: 退火时间（μs，仅真机有效）
+            - ``shots``: 采样次数
+            - ``simulation_mode``: 是否仿真模式
+            - ``solver_backend``: 求解器后端（"neal" / "numpy_sa"）
+            - ``sim_initial_temp``: 内置 SA 初始温度
+            - ``sim_cooling_rate``: 内置 SA 降温系数
+            - ``sim_num_sweeps``: 内置 SA 扫描次数
+            - ``n_bits_per_weight``: 每权重编码比特数
+            - ``last_solver``: 最后一次实际使用的求解器
+            - ``quantum_acceleration_enabled``: 全局加速开关
+        """
+        return {
+            "num_qubits": self.num_qubits,
+            "annealing_time": self.annealing_time,
+            "shots": self.shots,
+            "simulation_mode": self.simulation_mode,
+            "solver_backend": "neal" if self.use_dw else "numpy_sa",
+            "sim_initial_temp": self._sim_initial_temp,
+            "sim_cooling_rate": self._sim_cooling_rate,
+            "sim_num_sweeps": self._sim_num_sweeps,
+            "n_bits_per_weight": self.n_bits_per_weight,
+            "last_solver": self._last_solver,
+            "quantum_acceleration_enabled": os.environ.get(
+                "QUANTUM_ACCELERATION_ENABLED", "0"
+            ).lower()
+            in ("1", "true", "yes"),
+        }
+
+    # ------------------------------------------------------------------
     # 方法 2: network_to_qubo
     # ------------------------------------------------------------------
     def network_to_qubo(
