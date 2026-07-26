@@ -73,7 +73,7 @@ def check_dependencies():
         print(f"\n  ⚠️  缺少 {len(missing)} 个依赖包，正在自动安装...")
         try:
             subprocess.check_call(
-                [sys.executable, "-m", "pip", "install"] + missing,
+                [sys.executable, "-m", "pip", "install", *missing],
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.PIPE,
             )
