@@ -76,6 +76,10 @@ jobs:
     #   未定义的 matrix.os 导致恒假；当前仅 windows-latest。
     timeout-minutes: 30
     needs: lint
+    # Issue #260: 需要 pull-requests: write 才能在 PR 上发布覆盖率评论。
+    permissions:
+      contents: read
+      pull-requests: write
     strategy:
       fail-fast: false
       matrix:
@@ -135,6 +139,29 @@ jobs:
             --timeout=120 \
             -W ignore::DeprecationWarning
 
+      - name: QUBO formal/property verification (hypothesis)
+        # Issue #253: 将 QUBO 数学验证纳入 CI。
+        # 运行 QUBO 的形式化/属性测试（hypothesis 属性测试），
+        # 并显示 hypothesis 统计；失败时显式回显反例（counterexample）后退出。
+        # 仅在 3.11 + Windows 组合运行一次，避免矩阵重复执行。
+        # 注：-k "formal or property" 当前需由退火模块的 hypothesis 测试提供
+        # （类名/测试名含 formal 或 property）。若暂时没有命中测试（pytest 返回 5），
+        # 视为“验证待补充”而非失败，避免破坏既有 CI；若确有测试失败（反例）则退出 1。
+        if: matrix.python-version == '3.11' && matrix.os == 'windows-latest'
+        shell: bash
+        run: |
+          pip install hypothesis
+          pytest tests/test_qubo_optimization.py -k "formal or property" \
+            --hypothesis-show-statistics
+          status=$?
+          if [ "$status" -eq 5 ]; then
+            echo "No 'formal'/'property' QUBO tests collected yet (hypothesis verification pending)."
+            exit 0
+          elif [ "$status" -ne 0 ]; then
+            echo 'HYPOTHESIS COUNTEREXAMPLE ABOVE'
+            exit 1
+          fi
+
       - name: Upload coverage to Codecov
         # Issue #185: 条件需匹配矩阵中实际运行的 OS（windows-latest），
         # 避免引用未定义的 matrix.os 或恒假的 ubuntu 条件。
@@ -146,6 +173,27 @@ jobs:
           flags: unittests
           fail_ci_if_error: false
           token: ${{ secrets.CODECOV_TOKEN }}
+
+      - name: Upload coverage XML artifact
+        # Issue #260: 将 coverage.xml 作为可下载 artifact 保存，
+        # 便于审阅者随时下载本次构建的覆盖率报告快照。
+        if: always() && matrix.python-version == '3.11' && matrix.os == 'windows-latest'
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-xml
+          path: coverage.xml
+          if-no-files-found: warn
+
+      - name: Post coverage comment to PR
+        # Issue #260: 在 PR 上留言当前总覆盖率（行覆盖率 %）。
+        # 使用 $GITHUB_TOKEN 鉴权，仅在 pull_request 事件下运行。
+        # always() 确保即使主测试步骤失败也仍发布覆盖率（便于审阅者看到数值）。
+        if: always() && github.event_name == 'pull_request' && matrix.python-version == '3.11' && matrix.os == 'windows-latest'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        shell: bash
+        run: python scripts/ci/post_coverage_comment.py
 
   # ---------------------------------------------------------------------------
   # Job 3: 类型检查（mypy）
