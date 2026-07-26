@@ -13,7 +13,7 @@
 
 **双向赋能机制：**
 - AI赋能量子：RL Agent 实时决策任务在量子/经典资源间的最优分流
-- 量子赋能AI：利用量子退火算法加速 RL 策略搜索过程
+- 量子赋能AI：利用量子退火算法（仿真模拟退火）加速 RL 策略搜索过程
 
 **量化目标：** 资源利用率提升 ≥30%
 
@@ -191,7 +191,7 @@ TIANYAN_API_KEY=你的真实API密钥
 | 深度学习 | PyTorch 2.0+ | 神经网络 |
 | 量子仿真 | Qiskit / PennyLane | 量子电路仿真 |
 | 量子真机 | 天衍云 cqlib SDK | 287量子比特超导处理器 |
-| 量子退火 | D-Wave dimod / neal | QUBO求解 |
+| 量子退火 | D-Wave dimod / neal | QUBO退火求解（仿真模拟退火） |
 | Web后端 | FastAPI + Uvicorn | 监控API |
 | Web前端 | Vue3 + Echarts | 监控面板 |
 | CLI | Click | 统一命令行入口 |
@@ -225,7 +225,7 @@ TIANYAN_API_KEY=你的真实API密钥
 | RL智能体 | PPO（主力）+ DQN（备选）+ MAPPO（多智能体） | 已验证 |
 | 调度环境 | 14维状态空间 / 3类动作 / 异质化任务 | 已验证 |
 | 天衍API | Mock / REST / cqlib 三模式 + 多机器协调器 | 已验证 |
-| 量子退火 | QUBO映射 + 退火求解 + 异步闭环 | 已验证 |
+| 量子退火 | QUBO映射 + 退火求解（仿真） + 异步闭环 | 已验证 |
 | 多机器调度 | 3台机器MAPPO协同，奖励+86.3%（仿真验证） | 已验证 |
 | 真机可用性验证 | 284次真机调用100%成功，SDK全链路验证 | 已完成 |
 | Web可视化 | FastAPI + Vue3 + Echarts + WebSocket | 已验证 |

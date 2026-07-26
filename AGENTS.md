@@ -210,7 +210,7 @@ quantum-rl-scheduler/
 | RL  | Gymnasium              | 环境封装             |
 | DL  | PyTorch ≥2.0                | 神经网络             |
 | 量子  | 天衍云 cqlib SDK              | 287量子比特超导处理器（可选，requirements-quantum.txt） |
-| 量子  | D-Wave dimod / dwave-neal     | 量子退火（requirements.txt） |
+| 量子  | D-Wave dimod / dwave-neal     | QUBO退火求解（仿真模拟退火，requirements.txt） |
 | Web | FastAPI + Uvicorn      | 监控界面（routes.py含/metrics） |
 | 前端  | Vue3 + Echarts         | 监控面板             |
 | CLI | Click | 统一命令行入口 |

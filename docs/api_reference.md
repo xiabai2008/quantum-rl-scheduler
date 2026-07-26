@@ -1632,7 +1632,7 @@ API 层暴露以下 Prometheus 指标：
 | `tianyan_s` | 天衍-S | 287 | 超导量子计算机 |
 | `tianyan_sw` | 天衍-SW | 287 | 超导量子计算机 |
 | `tianyan_tn` | 天衍-TN | 287 | 超导量子计算机 |
-| `tianyan_annealer` | 天衍退火器 | - | 量子退火器 |
+| `tianyan_annealer` | 天衍退火器 | - | 退火求解器（仿真模拟退火） |
 
 ### 10.4 版本历史
 

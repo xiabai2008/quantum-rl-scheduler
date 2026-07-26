@@ -161,7 +161,7 @@ QCIS 电路生成 ──► 天衍真机执行 ──► 结果反馈 ──► 
 | AI 框架 | PPO/DQN (Stable-Baselines3) + 10 维 Obs10Wrapper | 8 策略对比验证最优 |
 | 量子 SDK | cqlib (天衍云原生) + D-Wave neal (本地仿真) | 双模式支持，真机/仿真一键切换 |
 | 电路格式 | QCIS (中国电信天衍云原生) | 直接从调度决策生成 |
-| 求解器 | QUBO → 量子退火 (Simulated Annealing) | D-Wave 经典算法，真机验证通过 |
+| 求解器 | QUBO → 退火求解（Simulated Annealing） | D-Wave neal 仿真，QUBO 兼容真机量子退火 |
 
 > 权威实验数字锁定日期：2026-07-09 (v8)
 > 来源：`results/reports/strategy_comparison.md`、`results/reports/statistical_validation.md`
