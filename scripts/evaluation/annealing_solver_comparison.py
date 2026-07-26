@@ -101,9 +101,9 @@ def random_sample_qubo(qubo_matrix: np.ndarray, num_samples: int = 1000) -> str:
     best_bits = np.zeros(n, dtype=np.float64)
     for _ in range(num_samples):
         bits = np.random.randint(0, 2, n).astype(np.float64)
-        energy = QuantumAnnealingOptimizer._compute_qubo_energy(
+        energy = QuantumAnnealingOptimizer.compute_qubo_energy(
             bits,
-            qubo_matrix,  # type: ignore[attr-defined]
+            qubo_matrix,
         )
         if energy < best_energy:
             best_energy = energy
@@ -256,9 +256,7 @@ def evaluate_qubo_solvers(policy_net: Any, optimizer: QuantumAnnealingOptimizer)
     Returns:
         包含各求解器能量、gap、比特串的字典。
     """
-    weights, _shapes = optimizer._extract_weights(  # type: ignore[attr-defined]  依赖内部实现，后续重构时需同步更新
-        policy_net
-    )
+    weights, _shapes = optimizer.extract_weights(policy_net)
     num_weights = sum(w.size for w in weights)
     n_bits_per_weight = max(1, optimizer.num_qubits // 4)
     qubo = optimizer.network_to_qubo(weights)
@@ -276,27 +274,19 @@ def evaluate_qubo_solvers(policy_net: Any, optimizer: QuantumAnnealingOptimizer)
         bitstring_a = optimizer.anneal(qubo)
         solver_a = getattr(optimizer, "_last_solver", "unknown")
         bits_a = np.array([int(b) for b in bitstring_a], dtype=np.float64)
-        energy_a = optimizer._compute_qubo_energy(  # type: ignore[attr-defined]  依赖内部实现，后续重构时需同步更新
-            bits_a, qubo
-        )
+        energy_a = optimizer.compute_qubo_energy(bits_a, qubo)
     except Exception:
         energy_a = None
 
     # B: numpy SA
-    bitstring_b = optimizer._numpy_simulated_annealing(  # type: ignore[attr-defined]
-        qubo
-    )
+    bitstring_b = optimizer.numpy_simulated_annealing(qubo)
     bits_b = np.array([int(b) for b in bitstring_b], dtype=np.float64)
-    energy_b = optimizer._compute_qubo_energy(  # type: ignore[attr-defined]  依赖内部实现，后续重构时需同步更新
-        bits_b, qubo
-    )
+    energy_b = optimizer.compute_qubo_energy(bits_b, qubo)
 
     # C: random
     bitstring_c = random_sample_qubo(qubo, num_samples=1000)
     bits_c = np.array([int(b) for b in bitstring_c], dtype=np.float64)
-    energy_c = optimizer._compute_qubo_energy(  # type: ignore[attr-defined]  依赖内部实现，后续重构时需同步更新
-        bits_c, qubo
-    )
+    energy_c = optimizer.compute_qubo_energy(bits_c, qubo)
 
     # 计算各求解器相对于最优解的 gap
     energies = [e for e in (energy_a, energy_b, energy_c) if e is not None]
@@ -678,9 +668,7 @@ def run_experiment(seeds: list[int], total_timesteps: int) -> dict[str, Any]:
         print(f"        最终 reward={final_r:.1f}  耗时={r_d['train_time_s']:.0f}s")
 
         # 用 D 的策略网络构建 QUBO 问题
-        policy_net_d = QuantumAnnealingOptimizer._get_full_policy(  # type: ignore[attr-defined]
-            agent_d.model
-        )
+        policy_net_d = QuantumAnnealingOptimizer.get_full_policy(agent_d.model)
         optimizer = QuantumAnnealingOptimizer(num_qubits=ANNEAL_QUBITS)
         qubo_info = evaluate_qubo_solvers(policy_net_d, optimizer)
         qubo_info["seed"] = seed

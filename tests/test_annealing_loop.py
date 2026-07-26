@@ -86,9 +86,11 @@ class FakeOptimizer:
         self.fail_count = int(fail_count)
         self.weight_boost = float(weight_boost)
         self.simulation_mode = bool(simulation_mode)
+        self.last_kwargs: dict[str, Any] = {}
 
     def optimize_policy(self, agent: Any, **kwargs: Any) -> Any:
         """模拟退火优化：增加 policy.weight，支持按次数失败。"""
+        self.last_kwargs = dict(kwargs)
         if self.sleep > 0:
             time.sleep(self.sleep)
         if self.fail_count > 0:
@@ -274,6 +276,84 @@ def test_callback_writes_back_pending_weights():
 
     # 回写后 pending_result 应被清空
     assert loop.peek_pending_result() is None
+
+
+# ============================================================
+# Issue #148: 分层退火模式（annealing_mode）路由测试
+# ============================================================
+def test_annealing_mode_default_is_head_only():
+    """验证 annealing_mode 默认值为 'head_only'，保持向后兼容。"""
+    optimizer = FakeOptimizer()
+    env = FakeEnv()
+    loop = AsyncAnnealingLoop(optimizer, env, retry_delays=[0.0, 0.0])
+    assert loop.annealing_mode == "head_only"
+
+
+def test_annealing_mode_invalid_raises_value_error():
+    """验证传入无效的 annealing_mode 会抛出 ValueError。"""
+    optimizer = FakeOptimizer()
+    env = FakeEnv()
+    with pytest.raises(ValueError, match="annealing_mode"):
+        AsyncAnnealingLoop(optimizer, env, annealing_mode="invalid_mode")
+
+
+def test_annealing_mode_head_only_routing():
+    """验证 head_only 模式调用 optimize_policy 时传 head_only=True。"""
+    optimizer = FakeOptimizer(weight_boost=1.0)
+    env = FakeEnv()
+    loop = AsyncAnnealingLoop(
+        optimizer, env, initial_interval=100, retry_delays=[0.0, 0.0]
+    )
+    loop.start()
+
+    model = FakeModel(weight=0.0)
+    loop.submit(model.policy, step=10)
+    loop.shutdown()
+
+    # head_only 模式应传 head_only=True，不传 mode
+    assert optimizer.last_kwargs.get("head_only") is True
+    assert "mode" not in optimizer.last_kwargs
+
+
+def test_annealing_mode_hierarchical_routing():
+    """验证 hierarchical 模式调用 optimize_policy 时传 mode='hierarchical'。"""
+    optimizer = FakeOptimizer(weight_boost=1.0)
+    env = FakeEnv()
+    loop = AsyncAnnealingLoop(
+        optimizer,
+        env,
+        initial_interval=100,
+        retry_delays=[0.0, 0.0],
+        annealing_mode="hierarchical",
+    )
+    loop.start()
+
+    model = FakeModel(weight=0.0)
+    loop.submit(model.policy, step=10)
+    loop.shutdown()
+
+    # hierarchical 模式应传 mode='hierarchical' 及分块参数
+    assert optimizer.last_kwargs.get("mode") == "hierarchical"
+    assert optimizer.last_kwargs.get("max_params_per_block") == 200
+    assert optimizer.last_kwargs.get("block_strategy") == "tensor_wise"
+    # 不应传 head_only
+    assert "head_only" not in optimizer.last_kwargs
+
+
+def test_callback_passes_annealing_mode_to_loop():
+    """验证 AsyncAnnealingCallback 将 annealing_mode 透传给 loop。"""
+    optimizer = FakeOptimizer()
+    env = FakeEnv()
+    loop = AsyncAnnealingLoop(
+        optimizer, env, initial_interval=100, retry_delays=[0.0, 0.0]
+    )
+    # loop 默认 head_only，callback 传 hierarchical 应覆盖
+    callback = AsyncAnnealingCallback(
+        loop, verbose=0, annealing_mode="hierarchical"
+    )
+    callback._init_callback()
+    assert loop.annealing_mode == "hierarchical"
+    loop.shutdown()
 
 
 if __name__ == "__main__":

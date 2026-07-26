@@ -22,6 +22,7 @@ import math
 import os
 import random
 import time
+import warnings
 from typing import Any
 
 import numpy as np
@@ -356,12 +357,12 @@ class QuantumAnnealingOptimizer:
                     elif isinstance(result, dict):
                         best_bitstring = str(
                             result.get("bitstring", "")
-                        ) or self._numpy_simulated_annealing(qubo_matrix)
+                        ) or self.numpy_simulated_annealing(qubo_matrix)
                     else:
                         logger.warning(
                             f"[退火] 真机退火返回类型 {type(result)} 无法识别，降级为仿真"
                         )
-                        best_bitstring = self._numpy_simulated_annealing(qubo_matrix)
+                        best_bitstring = self.numpy_simulated_annealing(qubo_matrix)
                     logger.info(f"[退火] 真机退火完成，比特串长度={len(best_bitstring)}")
                     return best_bitstring
                 except Exception as e:
@@ -398,7 +399,7 @@ class QuantumAnnealingOptimizer:
             logger.info(
                 f"[退火] 使用内置 numpy 模拟退火, QUBO 规模 {n}x{n}, sweeps={self._sim_num_sweeps}"
             )
-            best_bitstring = self._numpy_simulated_annealing(qubo_matrix)
+            best_bitstring = self.numpy_simulated_annealing(qubo_matrix)
 
         logger.debug(f"anneal: 最优比特串 = {best_bitstring[:32]}{'...' if n > 32 else ''}")
         return best_bitstring
@@ -578,7 +579,7 @@ class QuantumAnnealingOptimizer:
         # 获取策略网络
         # head_only 模式需要完整的 policy（含 action_net/value_net 输出头）
         # 非 head_only 模式使用 mlp_extractor 即可
-        policy_net = self._get_full_policy(agent) if head_only else self._get_policy_net(agent)
+        policy_net = self.get_full_policy(agent) if head_only else self._get_policy_net(agent)
         if policy_net is None:
             logger.error("无法获取策略网络，退出 optimize_policy")
             return agent
@@ -617,7 +618,7 @@ class QuantumAnnealingOptimizer:
         # 初始评估
         initial_loss = self._evaluate_network_quality(policy_net)
         best_loss = initial_loss
-        initial_weights, _initial_shapes = self._extract_weights(policy_net)
+        initial_weights, _initial_shapes = self.extract_weights(policy_net)
         best_weights = [w.copy() for w in initial_weights]
         # 记录初始权重 L2 范数，用于最终计算退火前后权重差异
         initial_flat = np.concatenate([w.flatten() for w in initial_weights])
@@ -629,7 +630,7 @@ class QuantumAnnealingOptimizer:
 
         for iteration in range(num_iterations):
             # ---- 步骤 1: 提取当前权重 ----
-            all_weights, all_shapes = self._extract_weights(policy_net)
+            all_weights, all_shapes = self.extract_weights(policy_net)
 
             # head_only 模式：仅优化最后 N 个参数张量
             if head_only:
@@ -723,7 +724,7 @@ class QuantumAnnealingOptimizer:
                 anneal_accepted += 1
                 if new_loss < best_loss:
                     best_loss = new_loss
-                    best_weights, _ = self._extract_weights(policy_net)
+                    best_weights, _ = self.extract_weights(policy_net)
             else:
                 # 回滚：仅回滚被修改的那部分参数
                 if head_only:
@@ -860,7 +861,7 @@ class QuantumAnnealingOptimizer:
         policy_net = (
             self._get_policy_net(agent)
             if block_strategy == "size_limited"
-            else self._get_full_policy(agent)
+            else self.get_full_policy(agent)
         )
         if policy_net is None:
             logger.error("无法获取策略网络，退出分层退火。")
@@ -885,7 +886,7 @@ class QuantumAnnealingOptimizer:
         # 初始评估
         initial_loss = self._evaluate_network_quality(policy_net)
         best_loss = initial_loss
-        best_weights, _ = self._extract_weights(policy_net)
+        best_weights, _ = self.extract_weights(policy_net)
 
         logger.info(
             f"[分层退火] 初始 loss={initial_loss:.6f}, "
@@ -894,7 +895,7 @@ class QuantumAnnealingOptimizer:
 
         for iteration in range(num_iterations):
             # 保存本轮开始前的全量权重（用于可能的回滚）
-            old_all_weights, _old_all_shapes = self._extract_weights(policy_net)
+            old_all_weights, _old_all_shapes = self.extract_weights(policy_net)
 
             # 逐块处理
             total_accepted_blocks = 0
@@ -973,7 +974,7 @@ class QuantumAnnealingOptimizer:
                 accepted = True
                 if new_loss < best_loss:
                     best_loss = new_loss
-                    best_weights, _ = self._extract_weights(policy_net)
+                    best_weights, _ = self.extract_weights(policy_net)
             else:
                 # 回滚全量权重
                 self._set_weights(policy_net, old_all_weights)
@@ -1096,15 +1097,15 @@ class QuantumAnnealingOptimizer:
         return None
 
     @staticmethod
-    def _get_full_policy(agent: Any) -> nn.Module | None:
+    def get_full_policy(agent: Any) -> nn.Module | None:
         """
         获取完整的 policy 网络（含输出头），用于 head_only 模式
 
-        与 _get_policy_net 的区别：
-            - _get_policy_net 对 PPO 返回 mlp_extractor（不含 action_net/value_net）
-            - _get_full_policy 对 PPO 返回完整的 ActorCriticPolicy（含所有参数）
+        与 get_policy_net 的区别：
+            - get_policy_net 对 PPO 返回 mlp_extractor（不含 action_net/value_net）
+            - get_full_policy 对 PPO 返回完整的 ActorCriticPolicy（含所有参数）
 
-        支持的 agent 类型：与 _get_policy_net 相同
+        支持的 agent 类型：与 get_policy_net 相同
         """
         # SB3 PPO: 返回完整的 policy（含 action_net + value_net 输出头）
         if hasattr(agent, "policy") and isinstance(agent.policy, nn.Module):
@@ -1114,7 +1115,18 @@ class QuantumAnnealingOptimizer:
         return QuantumAnnealingOptimizer._get_policy_net(agent)
 
     @staticmethod
-    def _extract_weights(
+    def _get_full_policy(agent: Any) -> nn.Module | None:
+        """[已弃用] 向后兼容别名，请使用 get_full_policy。"""
+        warnings.warn(
+            "QuantumAnnealingOptimizer._get_full_policy 已弃用，"
+            "请使用公共接口 get_full_policy。将在未来版本移除。",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return QuantumAnnealingOptimizer.get_full_policy(agent)
+
+    @staticmethod
+    def extract_weights(
         network: nn.Module,
     ) -> tuple[list[np.ndarray], list[tuple[int, ...]]]:
         """
@@ -1131,6 +1143,19 @@ class QuantumAnnealingOptimizer:
             weights.append(w)
             shapes.append(w.shape)
         return weights, shapes
+
+    @staticmethod
+    def _extract_weights(
+        network: nn.Module,
+    ) -> tuple[list[np.ndarray], list[tuple[int, ...]]]:
+        """[已弃用] 向后兼容别名，请使用 extract_weights。"""
+        warnings.warn(
+            "QuantumAnnealingOptimizer._extract_weights 已弃用，"
+            "请使用公共接口 extract_weights。将在未来版本移除。",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return QuantumAnnealingOptimizer.extract_weights(network)
 
     @staticmethod
     def _evaluate_network_quality(network: nn.Module) -> float:
@@ -1374,7 +1399,7 @@ class QuantumAnnealingOptimizer:
                     qubo_dict[(i, j)] = float(val)
         return qubo_dict
 
-    def _numpy_simulated_annealing(
+    def numpy_simulated_annealing(
         self,
         qubo_matrix: np.ndarray,
     ) -> str:
@@ -1403,7 +1428,7 @@ class QuantumAnnealingOptimizer:
 
         # ---------- 随机初始化 ----------
         current_solution = np.random.randint(0, 2, n).astype(np.float64)
-        current_energy = self._compute_qubo_energy(current_solution, qubo_matrix)
+        current_energy = self.compute_qubo_energy(current_solution, qubo_matrix)
 
         best_solution = current_solution.copy()
         best_energy = current_energy
@@ -1448,8 +1473,21 @@ class QuantumAnnealingOptimizer:
         best_bitstring = "".join(str(int(b)) for b in best_solution)
         return best_bitstring
 
+    def _numpy_simulated_annealing(
+        self,
+        qubo_matrix: np.ndarray,
+    ) -> str:
+        """[已弃用] 向后兼容别名，请使用 numpy_simulated_annealing。"""
+        warnings.warn(
+            "QuantumAnnealingOptimizer._numpy_simulated_annealing 已弃用，"
+            "请使用公共接口 numpy_simulated_annealing。将在未来版本移除。",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.numpy_simulated_annealing(qubo_matrix)
+
     @staticmethod
-    def _compute_qubo_energy(solution: np.ndarray, qubo_matrix: np.ndarray) -> float:
+    def compute_qubo_energy(solution: np.ndarray, qubo_matrix: np.ndarray) -> float:
         """
         计算 QUBO 目标函数值：E(x) = x^T Q x
 
@@ -1461,6 +1499,17 @@ class QuantumAnnealingOptimizer:
             energy: 目标函数值
         """
         return float(solution @ qubo_matrix @ solution)
+
+    @staticmethod
+    def _compute_qubo_energy(solution: np.ndarray, qubo_matrix: np.ndarray) -> float:
+        """[已弃用] 向后兼容别名，请使用 compute_qubo_energy。"""
+        warnings.warn(
+            "QuantumAnnealingOptimizer._compute_qubo_energy 已弃用，"
+            "请使用公共接口 compute_qubo_energy。将在未来版本移除。",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return QuantumAnnealingOptimizer.compute_qubo_energy(solution, qubo_matrix)
 
 
 # ============================================================================
@@ -1953,9 +2002,9 @@ if __name__ == "__main__":
 
     # 验证比特串确实降低了 QUBO 能量
     random_bits = np.random.randint(0, 2, len(bitstring)).astype(np.float64)
-    random_energy = optimizer._compute_qubo_energy(random_bits, qubo)
+    random_energy = optimizer.compute_qubo_energy(random_bits, qubo)
     best_bits = np.array([int(b) for b in bitstring], dtype=np.float64)
-    best_energy = optimizer._compute_qubo_energy(best_bits, qubo)
+    best_energy = optimizer.compute_qubo_energy(best_bits, qubo)
     print(f"  随机解能量: {random_energy:.6f}")
     print(f"  最优解能量: {best_energy:.6f}")
     print(f"  能量改进: {random_energy - best_energy:.6f}")

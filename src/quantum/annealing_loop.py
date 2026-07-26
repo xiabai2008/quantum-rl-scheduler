@@ -45,7 +45,11 @@ class AsyncAnnealingLoop:
         improvement_threshold: 判断退火有效的奖励提升阈值
         retry_delays       : 真机失败后的重试等待时间（秒）
         log_path           : 退火效果日志保存路径（JSON）
+        annealing_mode     : 退火模式 ("head_only" / "hierarchical")
     """
+
+    # 支持的退火模式
+    _SUPPORTED_ANNEALING_MODES: tuple[str, ...] = ("head_only", "hierarchical")
 
     def __init__(
         self,
@@ -60,6 +64,7 @@ class AsyncAnnealingLoop:
         retry_delays: list[float] | None = None,
         log_path: str = "results/annealing_loop_log.json",
         queue_maxsize: int = 1,
+        annealing_mode: str = "head_only",
     ):
         """
         初始化异步退火闭环
@@ -76,7 +81,18 @@ class AsyncAnnealingLoop:
             retry_delays        : 真机失败重试等待时间列表，默认 [5.0, 15.0]
             log_path            : 效果日志保存路径
             queue_maxsize       : 任务队列最大长度，默认 1（避免堆积）
+            annealing_mode      : 退火模式，"head_only"（仅尾部参数，向后兼容）
+                                  或 "hierarchical"（分层分块全量退火，突破 OOM 限制）。
+                                  默认 "head_only" 保持向后兼容。
+
+        Raises:
+            ValueError: 当 annealing_mode 不在支持列表中时
         """
+        if annealing_mode not in self._SUPPORTED_ANNEALING_MODES:
+            raise ValueError(
+                f"annealing_mode 必须是 {self._SUPPORTED_ANNEALING_MODES} 之一，"
+                f"得到 {annealing_mode!r}"
+            )
         self.optimizer = optimizer
         self.validation_env = validation_env
         self.eval_episodes = int(eval_episodes)
@@ -86,6 +102,7 @@ class AsyncAnnealingLoop:
         self.improvement_threshold = float(improvement_threshold)
         self.retry_delays = retry_delays if retry_delays is not None else [5.0, 15.0]
         self.log_path = str(log_path)
+        self.annealing_mode = str(annealing_mode)
 
         self._current_interval = int(initial_interval)
         self._consecutive_good = 0
@@ -227,6 +244,28 @@ class AsyncAnnealingLoop:
                 f"当前间隔={self.get_current_interval()}"
             )
 
+    def _optimize_policy_call(self, agent_wrapper: Any) -> Any:
+        """
+        根据 annealing_mode 路由到对应的退火优化调用
+
+        - "head_only": 仅优化网络尾部参数张量（向后兼容）
+        - "hierarchical": 分层/分块退火，逐块 QUBO 求解，覆盖全量网络参数
+
+        Args:
+            agent_wrapper: 包装了待优化策略网络的简单对象
+
+        Returns:
+            优化后的 agent_wrapper
+        """
+        if self.annealing_mode == "hierarchical":
+            return self.optimizer.optimize_policy(
+                agent_wrapper,
+                mode="hierarchical",
+                max_params_per_block=200,
+                block_strategy="tensor_wise",
+            )
+        return self.optimizer.optimize_policy(agent_wrapper, head_only=True)
+
     def _run_annealing_with_retries(self, agent_wrapper: Any, step: int) -> Any:
         """
         执行退火优化，并处理真机失败重试与降级
@@ -237,6 +276,9 @@ class AsyncAnnealingLoop:
             - 第三次失败，将优化器切换到仿真模式并最后尝试一次
             - 若仍失败，则抛出异常由工作线程记录
 
+        退火模式由 self.annealing_mode 决定（head_only / hierarchical），
+        两种模式共享相同的重试与降级逻辑。
+
         Args:
             agent_wrapper: 包装了待优化策略网络的简单对象
             step         : 当前训练步数，仅用于日志
@@ -246,7 +288,7 @@ class AsyncAnnealingLoop:
         """
         for attempt, delay in enumerate(self.retry_delays):
             try:
-                return self.optimizer.optimize_policy(agent_wrapper, head_only=True)
+                return self._optimize_policy_call(agent_wrapper)
             except Exception as e:
                 # 优化器内部涉及退火与权重更新，异常类型无法穷举，保留宽捕获并记录日志
                 if getattr(self.optimizer, "simulation_mode", True):
@@ -261,7 +303,7 @@ class AsyncAnnealingLoop:
         try:
             logger.warning(f"[退火闭环] 步数 {step}: 真机退火重试耗尽，降级为仿真退火")
             self.optimizer.simulation_mode = True
-            return self.optimizer.optimize_policy(agent_wrapper, head_only=True)
+            return self._optimize_policy_call(agent_wrapper)
         except Exception as e:
             # 仿真退火仍可能失败（权重更新/张量运算），保留宽捕获并记录日志
             logger.error(f"[退火闭环] 步数 {step}: 仿真退火也失败 ({type(e).__name__}: {e})")

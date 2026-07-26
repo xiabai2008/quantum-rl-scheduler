@@ -328,7 +328,7 @@ class TestAnneal(unittest.TestCase):
         """????????????"""
         bitstring = self.opt.anneal(self.Q)
         bits = np.array([int(b) for b in bitstring], dtype=np.float64)
-        energy = self.opt._compute_qubo_energy(bits, self.Q)
+        energy = self.opt.compute_qubo_energy(bits, self.Q)
         self.assertTrue(np.isfinite(energy))
 
     def test_anneal_beats_worst_random(self):
@@ -336,9 +336,9 @@ class TestAnneal(unittest.TestCase):
         np.random.seed(42)
         bitstring = self.opt.anneal(self.Q)
         bits = np.array([int(b) for b in bitstring], dtype=np.float64)
-        best_energy = self.opt._compute_qubo_energy(bits, self.Q)
+        best_energy = self.opt.compute_qubo_energy(bits, self.Q)
         worst_random = max(
-            self.opt._compute_qubo_energy(
+            self.opt.compute_qubo_energy(
                 np.random.randint(0, 2, self.Q.shape[0]).astype(np.float64), self.Q
             )
             for _ in range(5)
@@ -419,26 +419,26 @@ class TestQuboEnergy(unittest.TestCase):
         """???????? 0?"""
         Q = np.array([[1.0, 2.0], [2.0, 3.0]])
         x = np.array([0.0, 0.0])
-        self.assertEqual(self.opt._compute_qubo_energy(x, Q), 0.0)
+        self.assertEqual(self.opt.compute_qubo_energy(x, Q), 0.0)
 
     def test_known_energy_single_bit(self):
         """????? 1 ?????? Q[0,0]?"""
         Q = np.array([[1.0, 2.0], [2.0, 3.0]])
         x = np.array([1.0, 0.0])
-        self.assertAlmostEqual(self.opt._compute_qubo_energy(x, Q), 1.0)
+        self.assertAlmostEqual(self.opt.compute_qubo_energy(x, Q), 1.0)
 
     def test_known_energy_full_ones(self):
         """? 1 ????????????????"""
         Q = np.array([[1.0, 2.0], [2.0, 3.0]])
         x = np.array([1.0, 1.0])
         # Q00 + Q11 + Q01 + Q10 = 1 + 3 + 2 + 2 = 8
-        self.assertAlmostEqual(self.opt._compute_qubo_energy(x, Q), 8.0)
+        self.assertAlmostEqual(self.opt.compute_qubo_energy(x, Q), 8.0)
 
     def test_energy_returns_float(self):
         """????? float ???"""
         Q = np.array([[1.0, 0.0], [0.0, 1.0]])
         x = np.array([1.0, 1.0])
-        e = self.opt._compute_qubo_energy(x, Q)
+        e = self.opt.compute_qubo_energy(x, Q)
         self.assertIsInstance(e, float)
 
     def test_energy_diagonal_only(self):
@@ -446,7 +446,7 @@ class TestQuboEnergy(unittest.TestCase):
         Q = np.diag([2.0, 3.0, 4.0])
         x = np.array([1.0, 0.0, 1.0])
         # 2 + 4 = 6
-        self.assertAlmostEqual(self.opt._compute_qubo_energy(x, Q), 6.0)
+        self.assertAlmostEqual(self.opt.compute_qubo_energy(x, Q), 6.0)
 
     def test_energy_matches_manual_formula(self):
         """?????? x^T Q x ?????"""
@@ -455,7 +455,7 @@ class TestQuboEnergy(unittest.TestCase):
         Q = Q + Q.T  # ???
         x = np.array([1, 0, 1, 1, 0], dtype=np.float64)
         expected = float(x @ Q @ x)
-        self.assertAlmostEqual(self.opt._compute_qubo_energy(x, Q), expected)
+        self.assertAlmostEqual(self.opt.compute_qubo_energy(x, Q), expected)
 
 
 # ============================================================
@@ -473,7 +473,7 @@ class TestWeightExtraction(unittest.TestCase):
 
     def test_extract_returns_weights_and_shapes(self):
         """???????????????"""
-        weights, shapes = self.opt._extract_weights(self.net)
+        weights, shapes = self.opt.extract_weights(self.net)
         self.assertEqual(len(weights), 2)
         self.assertEqual(shapes, [(2, 4), (2,)])
         np.testing.assert_array_almost_equal(weights[0], self.net.weight.detach().numpy())
@@ -481,17 +481,17 @@ class TestWeightExtraction(unittest.TestCase):
 
     def test_extract_shapes_match_module(self):
         """??????? nn.Module ???????"""
-        weights, shapes = self.opt._extract_weights(self.net)
+        weights, shapes = self.opt.extract_weights(self.net)
         for w, s, p in zip(weights, shapes, self.net.parameters(), strict=False):
             self.assertEqual(w.shape, p.shape)
             self.assertEqual(s, p.shape)
 
     def test_set_weights_round_trip_preserves_values(self):
         """??????????????(????)?"""
-        original_w, _ = self.opt._extract_weights(self.net)
+        original_w, _ = self.opt.extract_weights(self.net)
         new_net = nn.Linear(4, 2)
         self.opt._set_weights(new_net, original_w)
-        round_trip, _ = self.opt._extract_weights(new_net)
+        round_trip, _ = self.opt.extract_weights(new_net)
         for a, b in zip(original_w, round_trip, strict=False):
             np.testing.assert_array_almost_equal(a, b)
 
@@ -508,7 +508,7 @@ class TestWeightExtraction(unittest.TestCase):
     def test_extract_multi_layer_network(self):
         """??????????????"""
         net = nn.Sequential(nn.Linear(4, 3), nn.ReLU(), nn.Linear(3, 2))
-        weights, shapes = self.opt._extract_weights(net)
+        weights, shapes = self.opt.extract_weights(net)
         # 4 ?????(2 ? Linear ?? weight+bias,ReLU ???)
         self.assertEqual(len(weights), 4)
         self.assertEqual(shapes, [(3, 4), (3,), (2, 3), (2,)])
@@ -1076,7 +1076,7 @@ class TestGetFullPolicy(unittest.TestCase):
         net = nn.Linear(4, 2)
         agent = MagicMock()
         agent.policy = net
-        result = QuantumAnnealingOptimizer._get_full_policy(agent)
+        result = QuantumAnnealingOptimizer.get_full_policy(agent)
         self.assertIs(result, net)
 
     def test_falls_back_to_get_policy_net(self):
@@ -1086,7 +1086,7 @@ class TestGetFullPolicy(unittest.TestCase):
         agent.policy_net = net
         # policy ????? ? ?????
         del agent.policy
-        result = QuantumAnnealingOptimizer._get_full_policy(agent)
+        result = QuantumAnnealingOptimizer.get_full_policy(agent)
         self.assertIs(result, net)
 
 
@@ -1191,7 +1191,7 @@ class TestSolverComparison(unittest.TestCase):
 
         bitstring = random_sample_qubo(self.Q, num_samples=100)
         bits = np.array([int(b) for b in bitstring], dtype=np.float64)
-        energy = self.opt._compute_qubo_energy(bits, self.Q)
+        energy = self.opt.compute_qubo_energy(bits, self.Q)
         self.assertTrue(np.isfinite(energy))
 
     def test_random_sample_improves_with_more_samples(self):
@@ -1201,12 +1201,12 @@ class TestSolverComparison(unittest.TestCase):
         np.random.seed(123)
         bs_small = random_sample_qubo(self.Q, num_samples=10)
         bits_small = np.array([int(b) for b in bs_small], dtype=np.float64)
-        energy_small = self.opt._compute_qubo_energy(bits_small, self.Q)
+        energy_small = self.opt.compute_qubo_energy(bits_small, self.Q)
 
         np.random.seed(123)
         bs_large = random_sample_qubo(self.Q, num_samples=500)
         bits_large = np.array([int(b) for b in bs_large], dtype=np.float64)
-        energy_large = self.opt._compute_qubo_energy(bits_large, self.Q)
+        energy_large = self.opt.compute_qubo_energy(bits_large, self.Q)
 
         # ??????????(????????????)
         self.assertLessEqual(energy_large, energy_small)
@@ -1227,13 +1227,13 @@ class TestSolverComparison(unittest.TestCase):
         sa_energies = []
         rand_energies = []
         for _ in range(5):
-            bs_sa = self.opt._numpy_simulated_annealing(qubo)
+            bs_sa = self.opt.numpy_simulated_annealing(qubo)
             bits_sa = np.array([int(b) for b in bs_sa], dtype=np.float64)
-            sa_energies.append(self.opt._compute_qubo_energy(bits_sa, qubo))
+            sa_energies.append(self.opt.compute_qubo_energy(bits_sa, qubo))
 
             bs_rand = random_sample_qubo(qubo, num_samples=300)
             bits_rand = np.array([int(b) for b in bs_rand], dtype=np.float64)
-            rand_energies.append(self.opt._compute_qubo_energy(bits_rand, qubo))
+            rand_energies.append(self.opt.compute_qubo_energy(bits_rand, qubo))
 
         self.opt._sim_num_sweeps = original_sweeps
 
