@@ -46,7 +46,7 @@
 | R-P-01 | 资源利用率提升 ≥30% | 性能 | `src/scheduler/env.py`<br>`src/scheduler/agent.py` | **已达成** | 消融实验 D4 | "PPO 综合奖励提升 88.3%（N=250）；多机器协同提升 86.3%（消融 D4）。利用率数据非来自50seed权威实验，10seed对比显示 PPO 42.5% vs FCFS 43.0%（需重算，详见 Issue #116）" | `results/reports/strategy_comparison.md`（奖励）<br>`results/reports/dqn_ppo_fcfs_comparison.md`（利用率） |
 | R-P-02 | 平均等待时间降低 ≥40% | 性能 | `src/scheduler/env.py`<br>`src/scheduler/agent.py` | **权衡边界** | D3奖励消融实验 | "PPO 等待时间 57.73 步高于 FCFS 38.22 步；D3消融（7预设×10seeds）证明PPO策略与原始奖励强耦合（91.7%量子分配），切换多目标权重不改变固定策略的动作分布，等待时间是多目标优化的权衡维度" | `results/reports/reward_ablation_d3.md`<br>`results/reports/d3_reward_ablation_report.md` |
 | R-P-03 | 调度决策延迟 < 100ms | 性能 | `src/scheduler/agent.py` | **已达成** | 性能测试 | "PPO 单次前向推理 < 10ms，满足实时调度需求" | `src/scheduler/agent.py` L200-400 |
-| R-P-04 | 适配 287 量子比特平台接口 | 性能 | `src/scheduler/env.py` | **已达成** | 真机可用性验证 | "系统已适配天衍-287 平台接口（MAX_QUBITS=287），284 次真机调用 100% 成功；真机任务规模受机时限制为 1-3 qubit" | `results/reports/real_machine_boundary_statement.md` |
+| R-P-04 | 适配 287 物理比特平台接口 | 性能 | `src/scheduler/env.py` | **已达成** | 真机可用性验证 | "系统已适配天衍-287 平台接口（MAX_QUBITS=287，105数据比特+182耦合比特），284 次真机调用 100% 成功；真机任务规模受机时限制为 1-3 qubit" | `results/reports/real_machine_boundary_statement.md` |
 | R-P-05 | 压力测试：4 种极端场景稳定性 | 性能 | `scripts/benchmarking/stress_test.py` | **已达成** | 压力测试 | "PPO 在 4 种压力场景下综合稳定性最强，量子波动场景比第二名提升 91.4%" | `results/reports/stress_test_report.md` |
 | R-P-06 | 多机器负载均衡（CV < 0.3） | 性能 | `src/scheduler/marl.py` | **已达成** | 多机调度实验 | "3 台机器负载变异系数 CV=0.246（仿真验证），调度策略实现良好均衡" | `results/reports/ablation_report.md` |
 
