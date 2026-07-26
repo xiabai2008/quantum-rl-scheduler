@@ -39,7 +39,7 @@ items:
   - id: WHITEPAPER
     name: 技术白皮书
     type: pdf
-    path: "技术白皮书_量子RL调度系统_v3.pdf"
+    path: "技术白皮书_量子RL调度系统_v5.pdf"
     requirements:
       min_pages: 20
       max_pages: 50
@@ -51,7 +51,7 @@ items:
   - id: PRESENTATION
     name: 答辩 PPT
     type: pptx
-    path: "答辩PPT_量子RL调度系统.pptx"
+    path: "答辩PPT_量子RL调度系统_v5.pptx"
     requirements:
       min_slides: 15
       max_slides: 20
