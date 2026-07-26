@@ -17,6 +17,7 @@ _real_clients 等），从而避免循环导入。
 
 import math
 import random
+from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any
 
 from loguru import logger
@@ -36,6 +37,7 @@ from src.scheduler.env_types import (
 
 if TYPE_CHECKING:
     # 仅用于类型标注，避免运行时循环导入
+    from src.api.types import TaskResult
     from src.scheduler.env import QuantumSchedulingEnv
 
 
@@ -137,16 +139,19 @@ def generate_qcis_circuit(
 # =============================================================================
 
 
-def parse_measurement_result(status: dict[str, Any]) -> dict[str, float]:
-    """从真机任务状态中解析测量概率分布。
+def parse_measurement_result(
+    status: "TaskResult | Mapping[str, Any]",
+) -> dict[str, float]:
+    """从统一任务结果或旧状态字典中解析测量概率分布。
 
-    天衍云 cqlib 返回的 status 字典可能包含：
+    Mock 与 cqlib 客户端的 ``TaskResult`` 以及兼容期旧字典可能包含：
     - ``probability``: 直接的概率分布字典 {"0": 0.5, "1": 0.5}
+    - ``counts``: 原始 shots 计数，在 probability 缺失时转换为概率
     - ``resultStatus``: 原始 shots 计数，需转换为概率
     - ``result``: 某些版本返回的嵌套结果
 
     Args:
-        status: get_task_status() 返回的状态字典
+        status: get_task_status() 返回的 ``TaskResult`` 或兼容字典
 
     Returns:
         归一化的概率分布字典 {"bitstring": probability}，空字典表示解析失败
@@ -155,7 +160,7 @@ def parse_measurement_result(status: dict[str, Any]) -> dict[str, float]:
 
     # 路径 1: 直接的 probability 字段
     raw_prob = status.get("probability")
-    if raw_prob and isinstance(raw_prob, dict):
+    if raw_prob and isinstance(raw_prob, Mapping):
         for key, val in raw_prob.items():
             try:
                 probability[str(key)] = float(val)
@@ -167,7 +172,17 @@ def parse_measurement_result(status: dict[str, Any]) -> dict[str, float]:
                 probability = {k: v / total for k, v in probability.items()}
             return probability
 
-    # 路径 2: resultStatus 原始 shots 计数
+    # 路径 2: 统一 TaskResult / Mock 的 counts 字段
+    raw_counts = status.get("counts")
+    if raw_counts and isinstance(raw_counts, Mapping):
+        try:
+            total_shots = sum(float(value) for value in raw_counts.values())
+            if total_shots > 0:
+                return {str(key): float(value) / total_shots for key, value in raw_counts.items()}
+        except (ValueError, TypeError):
+            pass
+
+    # 路径 3: resultStatus 原始 shots 计数
     result_status = status.get("resultStatus")
     if result_status and isinstance(result_status, str):
         try:
@@ -182,11 +197,11 @@ def parse_measurement_result(status: dict[str, Any]) -> dict[str, float]:
         except (json.JSONDecodeError, ValueError, TypeError):
             pass
 
-    # 路径 3: result 字段（嵌套 probability）
+    # 路径 4: result 字段（嵌套 probability）
     result = status.get("result")
-    if result and isinstance(result, dict):
+    if result and isinstance(result, Mapping):
         inner_prob = result.get("probability")
-        if inner_prob and isinstance(inner_prob, dict):
+        if inner_prob and isinstance(inner_prob, Mapping):
             for key, val in inner_prob.items():
                 try:
                     probability[str(key)] = float(val)

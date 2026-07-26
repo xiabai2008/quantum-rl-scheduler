@@ -10,6 +10,7 @@ if str(_PROJECT_ROOT) not in sys.path:
 
 import pytest
 
+from src.api.types import TaskResult
 from src.scheduler.env import QuantumSchedulingEnv
 from src.scheduler.env_real_machine import (
     FREE_TIER_MAX_QUBITS,
@@ -286,6 +287,38 @@ class TestParseMeasurementResult:
         status = {"probability": {"0": 0.3, "1": 0.7}}
         result = parse_measurement_result(status)
         assert result == {"0": 0.3, "1": 0.7}
+
+    def test_task_result_prefers_probability_over_counts(self):
+        """TaskResult 同时包含两者时必须优先采用真机 probability。"""
+        status = TaskResult(
+            task_id="real-1",
+            status="completed",
+            probability={"00": 0.25, "11": 0.75},
+            counts={"00": 90, "11": 10},
+            shots=100,
+            backend="tianyan-287",
+        )
+        assert parse_measurement_result(status) == {"00": 0.25, "11": 0.75}
+
+    def test_mock_counts_and_real_probability_are_consistent(self):
+        """Mock counts 与真机 probability 的统一结果应产生相同概率分布。"""
+        mock_result = TaskResult(
+            task_id="mock-1",
+            status="COMPLETED",
+            probability={},
+            counts={"00": 32, "11": 32},
+            shots=64,
+            backend="tianyan-simulator",
+        )
+        real_result = TaskResult(
+            task_id="real-1",
+            status="completed",
+            probability={"00": 0.5, "11": 0.5},
+            counts=None,
+            shots=64,
+            backend="tianyan-287",
+        )
+        assert parse_measurement_result(mock_result) == parse_measurement_result(real_result)
 
     def test_probability_normalization(self):
         """未归一化的 probability 自动归一化。"""
