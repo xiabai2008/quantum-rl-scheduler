@@ -38,7 +38,7 @@ feat / fix / docs / test / refactor / chore
 - 量子 赋能 AI：量子退火优化RL（探索性方向；当前使用经典模拟退火D-Wave neal，训练开销+74.5%，奖励提升+6.4%在5 seeds下p=0.190统计不显著）
 - 量化目标：资源利用率提升 ≥30%（等待时间为多目标优化中的权衡维度，非硬性指标）
 
-**目标平台**：天衍云平台真机"天衍-287"（287量子比特超导量子计算机）
+**目标平台**：天衍云平台真机"天衍-287"（105数据比特+182耦合比特超导量子计算机，搭载祖冲之三号同款芯片）
 
 **仓库地址**：<https://github.com/xiabai2008/quantum-rl-scheduler>
 
@@ -209,7 +209,7 @@ quantum-rl-scheduler/
 | RL  | Stable-Baselines3 (PPO/DQN/MAPPO)    | 双算法 + 多智能体    |
 | RL  | Gymnasium              | 环境封装             |
 | DL  | PyTorch ≥2.0                | 神经网络             |
-| 量子  | 天衍云 cqlib SDK              | 287量子比特超导处理器（可选，requirements-quantum.txt） |
+| 量子  | 天衍云 cqlib SDK              | 105数据比特+182耦合比特超导处理器（可选，requirements-quantum.txt） |
 | 量子  | D-Wave dimod / dwave-neal     | 量子退火（requirements.txt） |
 | Web | FastAPI + Uvicorn      | 监控界面（routes.py含/metrics） |
 | 前端  | Vue3 + Echarts         | 监控面板             |

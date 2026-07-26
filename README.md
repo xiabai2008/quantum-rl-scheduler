@@ -190,7 +190,7 @@ TIANYAN_API_KEY=你的真实API密钥
 | RL环境 | Gymnasium | 标准化调度环境 |
 | 深度学习 | PyTorch 2.0+ | 神经网络 |
 | 量子仿真 | Qiskit / PennyLane | 量子电路仿真 |
-| 量子真机 | 天衍云 cqlib SDK | 287量子比特超导处理器 |
+| 量子真机 | 天衍云 cqlib SDK | 105数据比特+182耦合比特超导处理器 |
 | 量子退火 | D-Wave dimod / neal | QUBO求解 |
 | Web后端 | FastAPI + Uvicorn | 监控API |
 | Web前端 | Vue3 + Echarts | 监控面板 |
