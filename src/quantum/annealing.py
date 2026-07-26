@@ -535,6 +535,165 @@ class QuantumAnnealingOptimizer:
     # ------------------------------------------------------------------
     # 方法 5: optimize_policy
     # ------------------------------------------------------------------
+    def _setup_head_only_params(
+        self,
+        policy_net: nn.Module,
+        head_only: bool,
+        max_head_tensors: int,
+    ) -> int:
+        """计算 head_only 模式下的参数张量起始索引（Issue #222 拆分）。
+
+        Args:
+            policy_net      : 策略网络
+            head_only       : 是否仅优化尾部参数
+            max_head_tensors: 最多优化的尾部参数张量数
+
+        Returns:
+            head_start_idx : 尾部参数的起始索引（非 head_only 模式返回 0）
+        """
+        if not head_only:
+            return 0
+
+        all_params = list(policy_net.parameters())
+        total_tensors = len(all_params)
+        n_head = min(max_head_tensors, total_tensors)
+        head_start_idx = total_tensors - n_head
+        head_param_count = sum(all_params[i].numel() for i in range(head_start_idx, total_tensors))
+        logger.info(
+            f"[退火] head_only 模式: 仅优化最后 {n_head}/{total_tensors} 个参数张量 "
+            f"({head_param_count} 个标量参数)"
+        )
+        return head_start_idx
+
+    def _compute_weight_delta_stats(
+        self,
+        current_weights: list[np.ndarray],
+        optimized_weights: list[np.ndarray],
+    ) -> tuple[float, float, np.ndarray]:
+        """计算两组权重的差异统计（Issue #222 拆分）。
+
+        Args:
+            current_weights : 原始权重列表
+            optimized_weights: 退火后权重列表
+
+        Returns:
+            (delta_l2, delta_max, delta_flat):
+                - delta_l2  : 权重差异的 L2 范数
+                - delta_max : 最大绝对差
+                - delta_flat: 展平的差异向量
+        """
+        delta_flat = np.concatenate(
+            [
+                (ow - cw).flatten()
+                for ow, cw in zip(optimized_weights, current_weights, strict=False)
+            ]
+        )
+        delta_l2 = float(np.linalg.norm(delta_flat))
+        delta_max = float(np.max(np.abs(delta_flat))) if delta_flat.size else 0.0
+        return delta_l2, delta_max, delta_flat
+
+    def _compute_actual_weight_diff(
+        self,
+        policy_net: nn.Module,
+        head_only: bool,
+        head_start_idx: int,
+        old_weights: list[np.ndarray],
+    ) -> float:
+        """计算应用权重更新后的实际 L2 变化量（Issue #222 拆分）。
+
+        用于无效化诊断：当 learning_rate 过小时，实际权重变化可能低于阈值。
+
+        Args:
+            policy_net    : 已应用更新的策略网络
+            head_only     : 是否仅优化尾部参数
+            head_start_idx: 尾部参数起始索引
+            old_weights   : 更新前的权重列表
+
+        Returns:
+            weight_l2_diff_iter: 实际权重 L2 变化量
+        """
+        if head_only:
+            all_params = list(policy_net.parameters())
+            head_params = all_params[head_start_idx:]
+            applied_weights = [p.detach().cpu().numpy().copy() for p in head_params]
+        else:
+            applied_weights = [p.detach().cpu().numpy().copy() for p in policy_net.parameters()]
+        actual_delta_flat = np.concatenate(
+            [(aw - ow).flatten() for aw, ow in zip(applied_weights, old_weights, strict=False)]
+        )
+        return float(np.linalg.norm(actual_delta_flat))
+
+    def _finalize_anneal_stats(
+        self,
+        initial_l2_norm: float,
+        initial_flat: np.ndarray,
+        initial_loss: float,
+        best_weights: list[np.ndarray] | None,
+        best_loss: float,
+        anneal_accepted: int,
+        anneal_rejected: int,
+        ineffective_count: int,
+    ) -> None:
+        """汇总退火统计并写入 _last_anneal_stats（Issue #222 拆分）。
+
+        Args:
+            initial_l2_norm    : 初始权重 L2 范数
+            initial_flat       : 初始权重展平向量
+            initial_loss       : 初始 loss
+            best_weights       : 最佳权重列表
+            best_loss          : 最佳 loss
+            anneal_accepted    : 接受次数
+            anneal_rejected    : 拒绝次数
+            ineffective_count  : 无效次数
+        """
+        total_anneals = anneal_accepted + anneal_rejected
+        accept_rate = anneal_accepted / total_anneals if total_anneals > 0 else 0.0
+        logger.info(
+            f"[退火] 接受/拒绝/无效统计: 接受={anneal_accepted}, "
+            f"拒绝={anneal_rejected}, 无效={ineffective_count}, "
+            f"接受率={accept_rate:.1%}, 求解器={self._last_solver}"
+        )
+
+        # 最终权重差异统计
+        final_flat = (
+            np.concatenate([w.flatten() for w in best_weights])
+            if best_weights is not None
+            else initial_flat
+        )
+        final_l2_norm = float(np.linalg.norm(final_flat))
+        weight_diff = final_flat - initial_flat
+        diff_l2 = float(np.linalg.norm(weight_diff))
+        diff_max = float(np.max(np.abs(weight_diff))) if weight_diff.size else 0.0
+        diff_relative = diff_l2 / (initial_l2_norm + 1e-12)
+
+        self._last_anneal_stats = {
+            "accepted": anneal_accepted,
+            "rejected": anneal_rejected,
+            "total": total_anneals,
+            "accept_rate": accept_rate,
+            "solver": self._last_solver,
+            "solver_type": self.solver_type,
+            "ineffective_count": ineffective_count,
+            "weight_l2_diff": diff_l2,
+        }
+
+        logger.info(
+            "[退火] 退火前后权重差异汇总: "
+            f"初始 L2={initial_l2_norm:.6f}, 最终 L2={final_l2_norm:.6f}, "
+            f"差异 L2={diff_l2:.6e}, 相对差异={diff_relative:.6e} "
+            f"({diff_relative * 100:.4f}%), 最大绝对差={diff_max:.6e}"
+        )
+        if diff_l2 > 0:
+            logger.info("[退火] ✅ 退火前后 PPO 网络权重确实不同（验收通过）")
+        else:
+            logger.warning("[退火] ⚠️ 退火前后权重完全相同，请检查退火是否生效")
+
+        logger.info(
+            f"量子退火策略优化完成: 最佳 loss={best_loss:.6f}, "
+            f"初始 loss={initial_loss:.6f}, "
+            f"改进: {((initial_loss - best_loss) / max(initial_loss, 1e-8) * 100):.2f}%"
+        )
+
     def optimize_policy(
         self,
         agent: Any,
@@ -630,20 +789,7 @@ class QuantumAnnealingOptimizer:
         # 如果启用了 head_only 模式，计算需要优化的参数张量索引范围
         # PPO 完整 policy 的参数顺序: [0-7: mlp_extractor, 8-9: action_net, 10-11: value_net]
         # 仅优化最后 max_head_tensors 个（action_net + value_net = 4 个张量, 260 参数）
-        if head_only:
-            all_params = list(policy_net.parameters())
-            total_tensors = len(all_params)
-            n_head = min(max_head_tensors, total_tensors)
-            head_start_idx = total_tensors - n_head
-            head_param_count = sum(
-                all_params[i].numel() for i in range(head_start_idx, total_tensors)
-            )
-            logger.info(
-                f"[退火] head_only 模式: 仅优化最后 {n_head}/{total_tensors} 个参数张量 "
-                f"({head_param_count} 个标量参数)"
-            )
-        else:
-            head_start_idx = 0
+        head_start_idx = self._setup_head_only_params(policy_net, head_only, max_head_tensors)
 
         best_loss = float("inf")
         best_weights = None
@@ -715,14 +861,9 @@ class QuantumAnnealingOptimizer:
             )
 
             # 退火前后权重差异（L2 范数 + 最大绝对差）
-            delta_flat = np.concatenate(
-                [
-                    (ow - cw).flatten()
-                    for ow, cw in zip(optimized_head_weights, current_weights, strict=False)
-                ]
+            delta_l2, delta_max, _delta_flat = self._compute_weight_delta_stats(
+                current_weights, optimized_head_weights
             )
-            delta_l2 = float(np.linalg.norm(delta_flat))
-            delta_max = float(np.max(np.abs(delta_flat))) if delta_flat.size else 0.0
             logger.info(
                 f"[退火] 迭代 {iteration + 1}/{num_iterations}: "
                 f"权重差异 L2={delta_l2:.6e}, 最大绝对差={delta_max:.6e}"
@@ -755,14 +896,9 @@ class QuantumAnnealingOptimizer:
             # 计算实际权重 L2 变化量（应用 learning_rate 缩放后的真实变化）
             # 当 learning_rate 过小时，w_final = w_old + lr * delta 的变化量极小，
             # 退火实质上是空操作。低于 min_effective_delta 则跳过接受/拒绝判定。
-            if head_only:
-                applied_weights = [p.detach().cpu().numpy().copy() for p in head_params]
-            else:
-                applied_weights = [p.detach().cpu().numpy().copy() for p in policy_net.parameters()]
-            actual_delta_flat = np.concatenate(
-                [(aw - ow).flatten() for aw, ow in zip(applied_weights, old_weights, strict=False)]
+            weight_l2_diff_iter = self._compute_actual_weight_diff(
+                policy_net, head_only, head_start_idx, old_weights
             )
-            weight_l2_diff_iter = float(np.linalg.norm(actual_delta_flat))
 
             if weight_l2_diff_iter < min_effective_delta:
                 # 退火更新量过小，标记为无效，跳过接受/拒绝判定
@@ -814,59 +950,21 @@ class QuantumAnnealingOptimizer:
                 callback(iteration, new_loss)
 
         # 退火接受/拒绝汇总（诊断 A/B 策略结果为何相同）
-        total_anneals = anneal_accepted + anneal_rejected
-        accept_rate = anneal_accepted / total_anneals if total_anneals > 0 else 0.0
-        logger.info(
-            f"[退火] 接受/拒绝/无效统计: 接受={anneal_accepted}, "
-            f"拒绝={anneal_rejected}, 无效={ineffective_count}, "
-            f"接受率={accept_rate:.1%}, 求解器={self._last_solver}"
-        )
-
         # 恢复到最佳权重
         if best_weights is not None:
             self._set_weights(policy_net, best_weights)
             logger.info(f"已恢复到最佳权重 (loss={best_loss:.6f})")
 
-        # 最终权重差异统计（退火前 initial_weights → 退火后 best_weights）
-        # 用 L2 范数和最大绝对差证明退火确实改变了 PPO 网络权重
-        final_flat = (
-            np.concatenate([w.flatten() for w in best_weights])
-            if best_weights is not None
-            else initial_flat
-        )
-        final_l2_norm = float(np.linalg.norm(final_flat))
-        weight_diff = final_flat - initial_flat
-        diff_l2 = float(np.linalg.norm(weight_diff))
-        diff_max = float(np.max(np.abs(weight_diff))) if weight_diff.size else 0.0
-        diff_relative = diff_l2 / (initial_l2_norm + 1e-12)
-
-        # 退火统计写入 _last_anneal_stats（Issue #194: 含无效化诊断字段）
-        self._last_anneal_stats = {
-            "accepted": anneal_accepted,
-            "rejected": anneal_rejected,
-            "total": total_anneals,
-            "accept_rate": accept_rate,
-            "solver": self._last_solver,
-            "solver_type": self.solver_type,
-            "ineffective_count": ineffective_count,
-            "weight_l2_diff": diff_l2,
-        }
-
-        logger.info(
-            "[退火] 退火前后权重差异汇总: "
-            f"初始 L2={initial_l2_norm:.6f}, 最终 L2={final_l2_norm:.6f}, "
-            f"差异 L2={diff_l2:.6e}, 相对差异={diff_relative:.6e} ({diff_relative * 100:.4f}%), "
-            f"最大绝对差={diff_max:.6e}"
-        )
-        if diff_l2 > 0:
-            logger.info("[退火] ✅ 退火前后 PPO 网络权重确实不同（验收通过）")
-        else:
-            logger.warning("[退火] ⚠️ 退火前后权重完全相同，请检查退火是否生效")
-
-        logger.info(
-            f"量子退火策略优化完成: 最佳 loss={best_loss:.6f}, "
-            f"初始 loss={initial_loss:.6f}, "
-            f"改进: {((initial_loss - best_loss) / max(initial_loss, 1e-8) * 100):.2f}%"
+        # 汇总退火统计并写入 _last_anneal_stats（Issue #222 拆分）
+        self._finalize_anneal_stats(
+            initial_l2_norm=initial_l2_norm,
+            initial_flat=initial_flat,
+            initial_loss=initial_loss,
+            best_weights=best_weights,
+            best_loss=best_loss,
+            anneal_accepted=anneal_accepted,
+            anneal_rejected=anneal_rejected,
+            ineffective_count=ineffective_count,
         )
 
         # 如果 agent 有 target_net，同步更新
