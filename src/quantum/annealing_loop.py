@@ -125,6 +125,39 @@ class AsyncAnnealingLoop:
         self._stop_event = threading.Event()
         self._thread: threading.Thread | None = None
 
+    def get_annealing_config(self) -> dict[str, Any]:
+        """返回异步退火闭环的完整参数配置（Issue #247）。
+
+        合并底层优化器参数与闭环控制参数，用于实验脚本输出
+        ``annealing_config`` 字段，确保退火配置可追溯、可复现。
+
+        Returns:
+            包含闭环参数与底层优化器参数的合并字典：
+            - ``annealing_mode``: 退火模式（head_only / hierarchical）
+            - ``initial_interval``: 初始触发间隔
+            - ``min_interval`` / ``max_interval``: 触发间隔范围
+            - ``eval_episodes`` / ``eval_deterministic``: 评估参数
+            - ``improvement_threshold``: 奖励提升阈值
+            - ``min_effective_reward_delta``: 介入率诊断阈值
+            - ``retry_delays``: 真机失败重试延迟
+            - ``optimizer_config``: 底层 QuantumAnnealingOptimizer 的参数（来自其 get_annealing_config）
+        """
+        optimizer_config: dict[str, Any] = {}
+        if hasattr(self.optimizer, "get_annealing_config"):
+            optimizer_config = self.optimizer.get_annealing_config()
+        return {
+            "annealing_mode": self.annealing_mode,
+            "initial_interval": self._current_interval,
+            "min_interval": self.min_interval,
+            "max_interval": self.max_interval,
+            "eval_episodes": self.eval_episodes,
+            "eval_deterministic": self.eval_deterministic,
+            "improvement_threshold": self.improvement_threshold,
+            "min_effective_reward_delta": self.min_effective_reward_delta,
+            "retry_delays": list(self.retry_delays),
+            "optimizer_config": optimizer_config,
+        }
+
     def start(self) -> None:
         """启动异步退火工作线程。"""
         if self._thread is not None and self._thread.is_alive():

@@ -140,6 +140,35 @@
 
 > **数据状态**：5 Seed 完整消融，数据最充分。
 
+### D5 附录：退火参数配置（Issue #247）
+
+为保障实验可复现性，以下列出 D5 消融实验使用的完整退火参数配置。该配置同时写入
+`results/ablation_annealing_multiseed_*.json` 的 `annealing_config` 字段。
+
+| 参数 | 值 | 说明 |
+|:--|:--|:--|
+| `num_qubits` | 16 | 量子比特数（QUBO 变量数） |
+| `annealing_time` | 20.0 μs | 退火时间（仅真机有效，本实验为仿真） |
+| `shots` | 1000 | 退火采样次数 |
+| `simulation_mode` | True | 仿真模式（使用 neal/numpy_sa） |
+| `solver_backend` | neal | 求解器后端（D-Wave neal 模拟退火） |
+| `sim_initial_temp` | 2.0 | 内置 SA 初始温度 |
+| `sim_cooling_rate` | 0.995 | 内置 SA 降温系数 |
+| `sim_num_sweeps` | 200 | 内置 SA 扫描次数 |
+| `n_bits_per_weight` | 4 | 每权重编码比特数（1 符号位 + 3 数值位） |
+| `anneal_interval` | 5000 步 | 退火触发间隔 |
+| `seeds` | [42, 123, 456, 789, 1024] | 5 个独立随机种子 |
+| `total_timesteps` | 50000 | 每组训练总步数 |
+| `eval_freq` | 5000 | 评估频率 |
+| `n_eval_episodes` | 5 | 评估回合数 |
+| `max_steps` | 100 | 单 episode 最大步数 |
+| `quantum_acceleration_enabled` | True | 全局退火加速开关（环境变量） |
+
+> **参数差异追溯**：当不同实验使用不同退火参数时，可通过对比各实验 JSON 输出中的
+> `annealing_config` 字段快速定位差异。例如 `annealing_lr_sweep_report.json` 会额外
+> 包含 `learning_rates_scanned` 字段，`hierarchical_annealing_report` 会标注
+> `annealing_mode`（head_only vs hierarchical）。
+
 ---
 
 ## 六、贡献度排序
