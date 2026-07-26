@@ -8,6 +8,8 @@ import FeatureImportance from './components/FeatureImportance.vue'
 import MachineStatus from './components/MachineStatus.vue'
 import DecisionMagnifier from './components/DecisionMagnifier.vue'
 import BattlePanel from './components/BattlePanel.vue'
+import TaskTimeline from './components/TaskTimeline.vue'
+import ResourceAllocation from './components/ResourceAllocation.vue'
 
 // ============ 响应式数据 ============
 const loading = ref(true)
@@ -297,6 +299,9 @@ defineExpose({
     <!-- 多机器对比视图（Issue #22） -->
     <MachineStatus :machines="status.real_machines" />
 
+    <!-- 资源分配（Issue #225：按机器量子比特分配 / 整体利用率） -->
+    <ResourceAllocation />
+
     <!-- 决策过程回放（Issue #22：时间轴滑动） -->
     <DecisionLog />
 
@@ -428,6 +433,9 @@ defineExpose({
       <!-- 任务队列（Issue #22：筛选+详情弹窗） -->
       <TaskQueue :tasks="tasks" />
     </div>
+
+    <!-- 任务执行时间线（Issue #225：实时甘特图） -->
+    <TaskTimeline :tasks="tasks" />
   </div>
 </template>
 
