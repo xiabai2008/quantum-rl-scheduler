@@ -85,6 +85,24 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
             # 客户端可发送 {"action": "ping"} 作为心跳
             if msg.get("action") == "ping":
                 await websocket.send_json({"type": "pong"})
+
+            # 客户端请求决策日志（Issue #161：实时调度过程可视化）
+            if msg.get("action") == "get_decisions":
+                await websocket.send_json(
+                    {
+                        "type": "decision_log",
+                        "decisions": state.get_decision_log(limit=200),
+                    }
+                )
+
+            # 客户端请求资源利用率历史（Issue #161：实时调度过程可视化）
+            if msg.get("action") == "get_resource_history":
+                await websocket.send_json(
+                    {
+                        "type": "resource_history",
+                        "history": state.get_resource_history(limit=100),
+                    }
+                )
     except WebSocketDisconnect:
         # 客户端主动断开：正常流程，无需告警
         pass
