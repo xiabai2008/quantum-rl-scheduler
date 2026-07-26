@@ -22,7 +22,6 @@ import math
 import os
 import random
 import time
-import warnings
 from typing import Any
 
 import numpy as np
@@ -80,6 +79,7 @@ class QuantumAnnealingOptimizer:
         shots: int = 1000,
         simulation_mode: bool = True,
         cqlib_client: Any = None,
+        config: dict | None = None,
     ):
         """
         初始化量子退火策略优化器
@@ -95,18 +95,64 @@ class QuantumAnnealingOptimizer:
                             否则降级为仿真并打印日志。默认 True。
             cqlib_client  : 天衍云 cqlib 客户端实例（可选）。simulation_mode=False
                             且客户端具备 submit_annealing_task 方法时尝试真机退火。
+            config        : 退火配置字典（可选，来自 config_loader.load_annealing_config）。
+                            提供时以配置中的参数为准；为 None 时回退到上述显式参数
+                            （向后兼容，原有调用方式行为不变）。
         """
-        self.num_qubits = num_qubits
-        self.annealing_time = annealing_time
-        self.shots = shots
-        self.simulation_mode = bool(simulation_mode)
+        # 配置驱动参数：config 优先，缺失时回退到显式参数（与历史硬编码默认值一致）
+        if config:
+            self._config: dict[str, Any] = {
+                "simulation_mode": config.get("simulation_mode", simulation_mode),
+                "num_qubits": config.get("num_qubits", num_qubits),
+                "shots": config.get("shots", shots),
+                "annealing_time": config.get("annealing_time", annealing_time),
+                "sim_initial_temp": config.get("sim_initial_temp", 2.0),
+                "sim_cooling_rate": config.get("sim_cooling_rate", 0.995),
+                "sim_num_sweeps": config.get("sim_num_sweeps", 200),
+                "reg_lambda": config.get("reg_lambda", 0.1),
+                "max_delta_ratio": config.get("max_delta_ratio", 0.1),
+                "accept_threshold_ratio": config.get("accept_threshold_ratio", 0.01),
+                "head_only": config.get("head_only", True),
+                "max_params_per_block": config.get("max_params_per_block", 200),
+                "block_strategy": config.get("block_strategy", "tensor_wise"),
+            }
+        else:
+            self._config = {
+                "simulation_mode": simulation_mode,
+                "num_qubits": num_qubits,
+                "shots": shots,
+                "annealing_time": annealing_time,
+                "sim_initial_temp": 2.0,
+                "sim_cooling_rate": 0.995,
+                "sim_num_sweeps": 200,
+                "reg_lambda": 0.1,
+                "max_delta_ratio": 0.1,
+                "accept_threshold_ratio": 0.01,
+                "head_only": True,
+                "max_params_per_block": 200,
+                "block_strategy": "tensor_wise",
+            }
+
+        self.num_qubits = int(self._config["num_qubits"])
+        self.annealing_time = float(self._config["annealing_time"])
+        self.shots = int(self._config["shots"])
+        self.simulation_mode = bool(self._config["simulation_mode"])
         self.cqlib_client = cqlib_client
 
+        # 内置模拟退火超参数（可由 config 覆盖）
+        self._sim_initial_temp = float(self._config["sim_initial_temp"])
+        self._sim_cooling_rate = float(self._config["sim_cooling_rate"])
+        self._sim_num_sweeps = int(self._config["sim_num_sweeps"])
+        # QUBO 构造 / 接受准则相关参数（可由 config 覆盖）
+        self._reg_lambda = float(self._config["reg_lambda"])
+        self._max_delta_ratio = float(self._config["max_delta_ratio"])
+        self._accept_threshold_ratio = float(self._config["accept_threshold_ratio"])
+
         # 检查比特编码精度，过低则发出警告
-        n_bits_per_weight = max(1, num_qubits // 4)
+        n_bits_per_weight = max(1, self.num_qubits // 4)
         if n_bits_per_weight < 4:
             logger.warning(
-                f"量子比特数 {num_qubits} 较低，每权重仅 {n_bits_per_weight} bit 编码 "
+                f"量子比特数 {self.num_qubits} 较低，每权重仅 {n_bits_per_weight} bit 编码 "
                 f"（1 符号位 + {n_bits_per_weight - 1} 数值位），精度可能不足。"
                 "建议 num_qubits ≥ 16 以获得更好的优化效果。"
             )
@@ -121,15 +167,36 @@ class QuantumAnnealingOptimizer:
         else:
             logger.info("使用内置 numpy 模拟退火求解器")
 
-        # 内置模拟退火超参数
-        self._sim_initial_temp = 2.0  # 初始温度
-        self._sim_cooling_rate = 0.995  # 降温系数
-        self._sim_num_sweeps = 200  # 扫描次数（减少以适应 QUBO 规模）
-
         # 记录最后一次 anneal 实际使用的求解器（供外部诊断）
         self._last_solver: str = "none"
         # 记录最后一次 optimize_policy 的退火统计（供外部诊断无效化/接受率）
         self._last_anneal_stats: dict[str, Any] = {}
+        # 量子加速降级事件日志（Issue #229）：记录每次降级的原因/求解器/QUBO 规模
+        self._degradation_log: list[dict[str, Any]] = []
+
+    # ------------------------------------------------------------------
+    # 降级事件记录（Issue #229）
+    # ------------------------------------------------------------------
+    def _record_degradation(self, reason: str, solver: str, qubo_size: int) -> None:
+        """
+        记录量子加速降级事件（Issue #229）。
+
+        同一降级原因仅记录一次并输出一次 WARNING 日志，避免每个退火迭代重复刷屏；
+        同时维护 self._degradation_log 供实验报告导出（degradation_log 字段）使用。
+
+        Args:
+            reason    : 降级原因（如 simulation_mode=True / cqlib_client is None /
+                        无 submit_annealing_task 接口 / 真机退火失败 ...）
+            solver   : 实际降级使用的求解器（neal_sa / numpy_sa）
+            qubo_size: 当前 QUBO 矩阵边长（N）
+        """
+        event = {"reason": reason, "solver": solver, "qubo_size": int(qubo_size)}
+        if not self._degradation_log or self._degradation_log[-1].get("reason") != reason:
+            self._degradation_log.append(event)
+            logger.warning(
+                f"[量子加速降级] 原因={reason}; 降级求解器={solver}; "
+                f"QUBO矩阵规模={qubo_size}x{qubo_size}"
+            )
 
     # ------------------------------------------------------------------
     # 方法 2: network_to_qubo
@@ -172,7 +239,7 @@ class QuantumAnnealingOptimizer:
         """
         # ---------- 步骤 1：参数配置 ----------
         n_bits_per_weight = max(1, self.num_qubits // 4)  # 增加比特数提高精度
-        reg_lambda = 0.1  # L2 正则化系数，防止更新过大
+        reg_lambda = self._reg_lambda  # L2 正则化系数，防止更新过大（可由 config 覆盖）
 
         # ---------- 步骤 2：展平所有权重和梯度为一维向量 ----------
         flat_weights = np.concatenate([w.flatten() for w in weights])
@@ -214,7 +281,7 @@ class QuantumAnnealingOptimizer:
         # 计算权重的全局统计量，用于归一化更新幅度
         weight_std = np.std(flat_weights) + 1e-8
         # 最大更新幅度限制为权重标准差的 10%（防止更新过大）
-        max_delta = weight_std * 0.1
+        max_delta = weight_std * self._max_delta_ratio
 
         for i in range(num_weights):
             w = flat_weights[i]
@@ -339,6 +406,13 @@ class QuantumAnnealingOptimizer:
             best_bitstring: 最优比特串，例如 "10110..."，长度为 N
         """
         n = qubo_matrix.shape[0]
+        solver = "neal_sa" if self.use_dw else "numpy_sa"
+
+        # 量子加速（真机退火）降级判定：记录降级原因、降级求解器与 QUBO 规模
+        if self.simulation_mode:
+            self._record_degradation("simulation_mode=True", solver, n)
+        elif self.cqlib_client is None:
+            self._record_degradation("cqlib_client is None", solver, n)
 
         # ---- 路径 1：真机退火（若配置启用且客户端支持） ----
         if not self.simulation_mode and self.cqlib_client is not None:
@@ -369,9 +443,13 @@ class QuantumAnnealingOptimizer:
                     return best_bitstring
                 except Exception as e:
                     # 真机退火涉及 cqlib SDK，异常类型无法穷举，保留宽捕获并记录日志
+                    self._record_degradation(
+                        f"真机退火失败 ({type(e).__name__}: {e})", solver, n
+                    )
                     logger.warning(f"[退火] 真机退火失败 ({type(e).__name__}: {e})，降级为仿真")
                     # 继续走下方仿真路径
             else:
+                self._record_degradation("无 submit_annealing_task 接口", solver, n)
                 logger.info(
                     "[退火] cqlib 为门控量子 SDK，无 submit_annealing_task 接口，"
                     "当前降级为仿真（numpy 模拟退火）"
@@ -457,9 +535,9 @@ class QuantumAnnealingOptimizer:
         if current_weights is not None:
             flat_current = np.concatenate([w.flatten() for w in current_weights])
             weight_std = np.std(flat_current) + 1e-8
-            max_delta = weight_std * 0.1
+            max_delta = weight_std * self._max_delta_ratio
         else:
-            max_delta = 0.1  # 默认值
+            max_delta = self._max_delta_ratio  # 默认值
 
         # 解码每个权重的比特编码为连续更新量
         delta_values = np.zeros(total_params, dtype=np.float64)
@@ -520,11 +598,11 @@ class QuantumAnnealingOptimizer:
         learning_rate: float = 0.01,
         callback: Any | None = None,
         replay_buffer: Any | None = None,
-        head_only: bool = True,
+        head_only: bool | None = None,
         max_head_tensors: int = 4,
         mode: str = "head_only",
-        max_params_per_block: int = 200,
-        block_strategy: str = "tensor_wise",
+        max_params_per_block: int | None = None,
+        block_strategy: str | None = None,
         min_effective_delta: float = 1e-4,
     ) -> Any:
         """
@@ -571,6 +649,14 @@ class QuantumAnnealingOptimizer:
         Returns:
             agent: 优化后的智能体（原地修改并返回）
         """
+        # 配置驱动：未显式指定时回退到 self._config（保持向后兼容）
+        if head_only is None:
+            head_only = bool(self._config["head_only"])
+        if max_params_per_block is None:
+            max_params_per_block = int(self._config["max_params_per_block"])
+        if block_strategy is None:
+            block_strategy = str(self._config["block_strategy"])
+
         # 模式路由：hierarchical 模式委托给独立方法
         if mode == "hierarchical":
             return self.optimize_policy_hierarchical(
@@ -585,9 +671,13 @@ class QuantumAnnealingOptimizer:
             )
 
         if not QUANTUM_ACCELERATION_ENABLED:
+            # 量子加速全局禁用：记录降级事件并返回原始 agent
+            self._record_degradation(
+                "QUANTUM_ACCELERATION_ENABLED 未设置", "无(跳过退火)", 0
+            )
             logger.warning(
-                "量子加速功能已禁用 (QUANTUM_ACCELERATION_ENABLED 未设置)。"
-                "跳过 optimize_policy，直接返回原始 agent。"
+                "量子加速功能已禁用 (QUANTUM_ACCELERATION_ENABLED 未设置)，"
+                "跳过 optimize_policy，直接返回原始 agent（降级为纯经典 RL）。"
             )
             return agent
 
@@ -761,7 +851,7 @@ class QuantumAnnealingOptimizer:
             loss_improvement = current_loss - new_loss
 
             # 接受准则：loss 下降，或上升幅度不超过阈值（早期探索）
-            accept_threshold = 0.01 * current_loss  # 允许 1% 的暂时上升
+            accept_threshold = self._accept_threshold_ratio * current_loss  # 允许 accept_threshold_ratio 比例的暂时上升
             if new_loss <= best_loss or loss_improvement > -accept_threshold:
                 # 接受更新
                 accepted = True
@@ -1052,7 +1142,7 @@ class QuantumAnnealingOptimizer:
             loss_improvement = best_loss - new_loss
 
             # 接受准则
-            accept_threshold = 0.01 * best_loss
+            accept_threshold = self._accept_threshold_ratio * best_loss
             if new_loss <= best_loss or loss_improvement > -accept_threshold:
                 accepted = True
                 if new_loss < best_loss:
@@ -1219,17 +1309,6 @@ class QuantumAnnealingOptimizer:
         return QuantumAnnealingOptimizer._get_policy_net(agent)
 
     @staticmethod
-    def _get_full_policy(agent: Any) -> nn.Module | None:
-        """[已弃用] 向后兼容别名，请使用 get_full_policy。"""
-        warnings.warn(
-            "QuantumAnnealingOptimizer._get_full_policy 已弃用，"
-            "请使用公共接口 get_full_policy。将在未来版本移除。",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return QuantumAnnealingOptimizer.get_full_policy(agent)
-
-    @staticmethod
     def extract_weights(
         network: nn.Module,
     ) -> tuple[list[np.ndarray], list[tuple[int, ...]]]:
@@ -1247,19 +1326,6 @@ class QuantumAnnealingOptimizer:
             weights.append(w)
             shapes.append(w.shape)
         return weights, shapes
-
-    @staticmethod
-    def _extract_weights(
-        network: nn.Module,
-    ) -> tuple[list[np.ndarray], list[tuple[int, ...]]]:
-        """[已弃用] 向后兼容别名，请使用 extract_weights。"""
-        warnings.warn(
-            "QuantumAnnealingOptimizer._extract_weights 已弃用，"
-            "请使用公共接口 extract_weights。将在未来版本移除。",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return QuantumAnnealingOptimizer.extract_weights(network)
 
     @staticmethod
     def _evaluate_network_quality(network: nn.Module) -> float:
@@ -1577,19 +1643,6 @@ class QuantumAnnealingOptimizer:
         best_bitstring = "".join(str(int(b)) for b in best_solution)
         return best_bitstring
 
-    def _numpy_simulated_annealing(
-        self,
-        qubo_matrix: np.ndarray,
-    ) -> str:
-        """[已弃用] 向后兼容别名，请使用 numpy_simulated_annealing。"""
-        warnings.warn(
-            "QuantumAnnealingOptimizer._numpy_simulated_annealing 已弃用，"
-            "请使用公共接口 numpy_simulated_annealing。将在未来版本移除。",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self.numpy_simulated_annealing(qubo_matrix)
-
     @staticmethod
     def compute_qubo_energy(solution: np.ndarray, qubo_matrix: np.ndarray) -> float:
         """
@@ -1604,20 +1657,6 @@ class QuantumAnnealingOptimizer:
         """
         return float(solution @ qubo_matrix @ solution)
 
-    @staticmethod
-    def _compute_qubo_energy(solution: np.ndarray, qubo_matrix: np.ndarray) -> float:
-        """[已弃用] 向后兼容别名，请使用 compute_qubo_energy。"""
-        warnings.warn(
-            "QuantumAnnealingOptimizer._compute_qubo_energy 已弃用，"
-            "请使用公共接口 compute_qubo_energy。将在未来版本移除。",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return QuantumAnnealingOptimizer.compute_qubo_energy(solution, qubo_matrix)
-
-
-# ============================================================================
-# Issue #45: QUBO 矩阵构建性能剖析与加速
 # ============================================================================
 # 以下函数面向"任务调度"场景的 QUBO 构建（输入为任务优先级与处理时间），
 # 与上方 QuantumAnnealingOptimizer.network_to_qubo（面向神经网络权重）不同。

@@ -66,6 +66,7 @@ class AsyncAnnealingLoop:
         queue_maxsize: int = 1,
         annealing_mode: str = "head_only",
         min_effective_reward_delta: float = 1.0,
+        config: dict | None = None,
     ):
         """
         初始化异步退火闭环
@@ -110,6 +111,9 @@ class AsyncAnnealingLoop:
         self.log_path = str(log_path)
         self.annealing_mode = str(annealing_mode)
 
+        # 退火配置（Issue #246）：可选，用于覆盖优化器的退火参数
+        self._config = dict(config) if config else {}
+
         self._current_interval = int(initial_interval)
         self._consecutive_good = 0
         self._consecutive_bad = 0
@@ -121,6 +125,8 @@ class AsyncAnnealingLoop:
         self._queue: queue.Queue[dict[str, Any]] = queue.Queue(maxsize=queue_maxsize)
         self._pending_result: dict[str, Any] | None = None
         self._history: list[dict[str, Any]] = []
+        # 量子加速降级事件聚合日志（Issue #229）：仅在首次出现某降级原因时记录
+        self._degradation_log: list[dict[str, Any]] = []
         self._lock = threading.Lock()
         self._stop_event = threading.Event()
         self._thread: threading.Thread | None = None
@@ -236,6 +242,13 @@ class AsyncAnnealingLoop:
                 alert_error("annealing", f"退火或评估失败: {type(e).__name__}: {e}", step=step)
                 continue
 
+            # 收集量子加速降级事件（仅记录新增的、不同的事件，避免每条刷屏）— Issue #229
+            opt_deg = getattr(self.optimizer, "_degradation_log", None)
+            if isinstance(opt_deg, list):
+                for ev in opt_deg:
+                    if ev not in self._degradation_log:
+                        self._degradation_log.append(ev)
+
             delta = new_reward - old_reward
             is_effective = self._update_interval(delta)
             impact_rate = self.get_impact_rate()
@@ -249,6 +262,7 @@ class AsyncAnnealingLoop:
                 "interval": self.get_current_interval(),
                 "effective": is_effective,
                 "impact_rate": impact_rate,
+                "degradation_log": copy.deepcopy(self._degradation_log),
             }
 
             with self._lock:
@@ -283,14 +297,18 @@ class AsyncAnnealingLoop:
         Returns:
             优化后的 agent_wrapper
         """
+        # 优先使用传入的 config 覆盖退火参数（Issue #246）
+        max_params_per_block = self._config.get("max_params_per_block", 200)
+        block_strategy = self._config.get("block_strategy", "tensor_wise")
+        head_only = self._config.get("head_only", True)
         if self.annealing_mode == "hierarchical":
             return self.optimizer.optimize_policy(
                 agent_wrapper,
                 mode="hierarchical",
-                max_params_per_block=200,
-                block_strategy="tensor_wise",
+                max_params_per_block=max_params_per_block,
+                block_strategy=block_strategy,
             )
-        return self.optimizer.optimize_policy(agent_wrapper, head_only=True)
+        return self.optimizer.optimize_policy(agent_wrapper, head_only=head_only)
 
     def _run_annealing_with_retries(self, agent_wrapper: Any, step: int) -> Any:
         """

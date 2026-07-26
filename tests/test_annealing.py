@@ -1365,5 +1365,54 @@ class TestSolverComparison(unittest.TestCase):
         np.testing.assert_array_almost_equal(net.bias.detach().numpy(), expected_b)
 
 
+# ============================================================
+# Issue #229: 量子加速降级日志
+# ============================================================
+class TestDegradationLogging(unittest.TestCase):
+    """验证量子加速不可用时记录降级告警（原因 + 求解器 + QUBO 规模）。"""
+
+    def test_degradation_logged_on_sim_fallback(self):
+        """仿真模式下 anneal 应记录降级事件（simulation_mode=True）。"""
+        opt = QuantumAnnealingOptimizer(simulation_mode=True)
+        # 4x4 全零 QUBO，验证降级事件被记录且包含 QUBO 规模
+        qubo = np.zeros((4, 4), dtype=np.float64)
+        bitstring = opt.anneal(qubo)
+        self.assertEqual(len(bitstring), 4)
+        self.assertTrue(len(opt._degradation_log) >= 1)
+        event = opt._degradation_log[0]
+        self.assertEqual(event["reason"], "simulation_mode=True")
+        self.assertIn(event["solver"], ("neal_sa", "numpy_sa"))
+        self.assertEqual(event["qubo_size"], 4)
+
+    def test_degradation_warning_emitted(self):
+        """降级时应通过 loguru 输出 WARNING 日志（含原因/求解器/QUBO 规模）。"""
+        import loguru
+
+        captured = []
+        sink_id = loguru.logger.add(
+            lambda msg: captured.append(str(msg)), level="WARNING"
+        )
+        try:
+            opt = QuantumAnnealingOptimizer(simulation_mode=True)
+            qubo = np.zeros((3, 3), dtype=np.float64)
+            opt.anneal(qubo)
+        finally:
+            loguru.logger.remove(sink_id)
+        self.assertTrue(
+            any("[量子加速降级]" in m and "QUBO矩阵规模" in m for m in captured),
+            f"未捕获降级告警，已捕获: {captured[:3]}",
+        )
+
+    def test_degradation_deduped_per_reason(self):
+        """同一降级原因仅记录一次（避免每个退火迭代刷屏）。"""
+        opt = QuantumAnnealingOptimizer(simulation_mode=True)
+        for size in (4, 5, 6):
+            qubo = np.zeros((size, size), dtype=np.float64)
+            opt.anneal(qubo)
+        # 原因均为 simulation_mode=True，仅应记录一次
+        reasons = [e["reason"] for e in opt._degradation_log]
+        self.assertEqual(reasons, ["simulation_mode=True"])
+
+
 if __name__ == "__main__":
     unittest.main()

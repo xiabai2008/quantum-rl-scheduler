@@ -1,9 +1,36 @@
 annealing:
-  annealing_time: 1.0
+  # 是否启用退火优化（仅供外部流程/调度开关使用，不影响 annealing.py 内部逻辑）
   enabled: true
-  num_qubits: 10
+  # 退火读取/采样次数（历史兼容字段；annealing.py 实际使用下方 shots）
   num_reads: 100
+  # ── 以下为 annealing.py 驱动参数（默认值与 annealing.py 硬编码默认值保持一致）──
+  # 仿真模式：true=纯仿真(numpy/neal)，false=尝试真机退火。默认 true，可选 true/false
   simulation_mode: true
+  # 量子比特数：决定 QUBO 变量规模，实际使用时会自动扩展以匹配策略网络权重总数。
+  # 默认 16，建议 ≥16（每权重约 4 bit：1 符号位 + 3 数值位），有效范围 ≥1
+  num_qubits: 16
+  # 退火采样次数（每次退火取能量最低解）。默认 1000，有效范围 ≥1
+  shots: 1000
+  # 退火时间（微秒），仅真机模式生效。默认 20.0，有效范围 >0
+  annealing_time: 20.0
+  # 内置 numpy 模拟退火初始温度。默认 2.0，有效范围 >0
+  sim_initial_temp: 2.0
+  # 内置 numpy 模拟退火降温系数（每轮乘性降温）。默认 0.995，有效范围 (0,1)
+  sim_cooling_rate: 0.995
+  # 内置 numpy 模拟退火扫描次数。默认 200，有效范围 ≥1
+  sim_num_sweeps: 200
+  # L2 正则化系数：防止权重更新幅度过大。默认 0.1，有效范围 ≥0
+  reg_lambda: 0.1
+  # 最大更新幅度比例：max_delta = weight_std * max_delta_ratio。默认 0.1，有效范围 ≥0
+  max_delta_ratio: 0.1
+  # 接受阈值比例：允许 loss 暂时上升 accept_threshold_ratio * 当前loss。默认 0.01，有效范围 ≥0
+  accept_threshold_ratio: 0.01
+  # 优化模式开关：是否仅优化网络尾部参数张量（head_only）。默认 true，可选 true/false
+  head_only: true
+  # 分层/分块模式每块最大参数数（仅 block_strategy=size_limited 生效）。默认 200，有效范围 ≥1
+  max_params_per_block: 200
+  # 分块策略："tensor_wise"（按张量分块）或 "size_limited"（按参数量动态分块）。默认 "tensor_wise"
+  block_strategy: tensor_wise
 cache:
   db: 0
   host: localhost
