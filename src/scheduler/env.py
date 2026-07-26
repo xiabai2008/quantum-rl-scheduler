@@ -455,8 +455,11 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
                     if action == ACTION_QUANTUM:
                         self._quantum_success += 1
                         self._route_to_machine(
-                            selected_machine, task, rng,
-                            rl_action=action, observation_snapshot=_obs_snapshot,
+                            selected_machine,
+                            task,
+                            rng,
+                            rl_action=action,
+                            observation_snapshot=_obs_snapshot,
                         )
                     elif action == ACTION_CLASSICAL:
                         self._classical_success += 1
@@ -464,8 +467,11 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
                     else:
                         self._hybrid_success += 1
                         self._route_to_machine(
-                            selected_machine, task, rng,
-                            rl_action=action, observation_snapshot=_obs_snapshot,
+                            selected_machine,
+                            task,
+                            rng,
+                            rl_action=action,
+                            observation_snapshot=_obs_snapshot,
                         )
 
                     machine_tag = (

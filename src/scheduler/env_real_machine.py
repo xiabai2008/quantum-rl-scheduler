@@ -432,7 +432,9 @@ def submit_to_real_machine(
         # real_task_id 为 None 表示提交被拒绝（如机器校准中），计入失败
         if real_task_id is not None:
             # 计算 machine_score（与 select_best_machine 评分公式一致）
-            machine_score = machine.fidelity * machine.available_ratio / (1.0 + machine.quantum_queue)
+            machine_score = (
+                machine.fidelity * machine.available_ratio / (1.0 + machine.quantum_queue)
+            )
             env._pending_real_tasks.append(
                 {
                     "task_id": str(real_task_id),
@@ -540,9 +542,7 @@ def poll_pending_real_tasks(env: "QuantumSchedulingEnv") -> float:
         # 客户端丢失（理论上不应发生），视为失败
         if client is None:
             total_feedback += REAL_MACHINE_FAIL_PENALTY * env.real_machine_feedback_weight
-            _record_causal_feedback(
-                env, pending, {}, REAL_MACHINE_FAIL_PENALTY, -1.0, "", "failed"
-            )
+            _record_causal_feedback(env, pending, {}, REAL_MACHINE_FAIL_PENALTY, -1.0, "", "failed")
             record_real_failure(env, machine_name, "客户端丢失")
             continue
 

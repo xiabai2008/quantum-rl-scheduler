@@ -1484,18 +1484,25 @@ class TestPydanticValidation:
 class TestAuthLayer:
     """verify_api_key 认证层测试（未配置/缺失/不匹配/匹配）。"""
 
+    @staticmethod
+    def _make_request(method: str = "POST") -> MagicMock:
+        """构造 mock Request 对象，指定 HTTP 方法。"""
+        req = MagicMock()
+        req.method = method
+        return req
+
     @pytest.mark.asyncio
     async def test_no_key_configured_allows(self, monkeypatch):
         """未配置 VIZ_API_KEY 时应放行（返回 None）。"""
         monkeypatch.delenv("VIZ_API_KEY", raising=False)
-        assert await verify_api_key(x_api_key=None) is None
+        assert await verify_api_key(self._make_request(), x_api_key=None) is None
 
     @pytest.mark.asyncio
     async def test_missing_header_rejected(self, monkeypatch):
         """配置密钥后缺失 X-API-Key 应抛 HTTPException 401。"""
         monkeypatch.setenv("VIZ_API_KEY", "secret-key-123")
         with pytest.raises(HTTPException) as exc:
-            await verify_api_key(x_api_key=None)
+            await verify_api_key(self._make_request("POST"), x_api_key=None)
         assert exc.value.status_code == 401
 
     @pytest.mark.asyncio
@@ -1503,20 +1510,26 @@ class TestAuthLayer:
         """配置密钥后不匹配的 X-API-Key 应抛 HTTPException 401。"""
         monkeypatch.setenv("VIZ_API_KEY", "secret-key-123")
         with pytest.raises(HTTPException) as exc:
-            await verify_api_key(x_api_key="wrong")
+            await verify_api_key(self._make_request("POST"), x_api_key="wrong")
         assert exc.value.status_code == 401
 
     @pytest.mark.asyncio
     async def test_correct_key_allows(self, monkeypatch):
         """配置密钥后匹配的 X-API-Key 应放行。"""
         monkeypatch.setenv("VIZ_API_KEY", "secret-key-123")
-        assert await verify_api_key(x_api_key="secret-key-123") is None
+        assert await verify_api_key(self._make_request("POST"), x_api_key="secret-key-123") is None
 
     @pytest.mark.asyncio
     async def test_empty_env_value_disables_auth(self, monkeypatch):
         """VIZ_API_KEY 为空字符串时应禁用认证。"""
         monkeypatch.setenv("VIZ_API_KEY", "")
-        assert await verify_api_key(x_api_key=None) is None
+        assert await verify_api_key(self._make_request(), x_api_key=None) is None
+
+    @pytest.mark.asyncio
+    async def test_get_request_bypasses_auth(self, monkeypatch):
+        """GET 请求应跳过认证（只读端点不受密钥影响）。"""
+        monkeypatch.setenv("VIZ_API_KEY", "secret-key-123")
+        assert await verify_api_key(self._make_request("GET"), x_api_key=None) is None
 
 
 class TestWebSocket:
