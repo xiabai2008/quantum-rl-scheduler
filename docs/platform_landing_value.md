@@ -1,9 +1,12 @@
 # 平台落地与商业价值量化分析
 
-> ⚠️ **本文档已废弃，请勿对外引用**
+> ⚠️ **本文档已归档，内容已合并**
 >
-> 权威价值口径请参见：[value_summary_for_defense.md](./value_summary_for_defense.md)
-> 本文档仅作历史归档保留，所有数字以权威版本为准。
+> 平台落地与价值量化的权威口径请参见：
+> - [technical_whitepaper.md（技术白皮书）](./technical_whitepaper.md) 第5-6章（真机验证+落地价值）
+> - [value_quantification.md（价值量化详细参考）](./value_quantification.md)（内部详细数据）
+>
+> 本文档仅作历史归档保留，生成于2026-07-23。
 
 > Issue #16 — 从技术指标换算为业务价值，支撑"落地与价值"评审维度
 >
