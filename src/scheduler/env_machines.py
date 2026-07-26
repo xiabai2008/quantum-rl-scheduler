@@ -94,7 +94,7 @@ def route_to_machine(
     task: Task,
     rng: np.random.Generator,
     rl_action: int = -1,
-    rl_action_prob: float = 0.0,
+    rl_action_prob: float | None = None,
     observation_snapshot: dict | None = None,
 ) -> None:
     """将任务路由到选定的量子机器，更新队列与调度记录。
@@ -112,7 +112,7 @@ def route_to_machine(
         task                : 被执行的任务
         rng                 : 随机数生成器（用于抽样是否上真机）
         rl_action           : RL 动作类型（0=classical, 1=quantum, 2=hybrid，默认 -1）
-        rl_action_prob      : 该动作被选择的概率（默认 0.0）
+        rl_action_prob      : 该动作被选择的概率（None 表示未从策略层获取）
         observation_snapshot: 观测向量摘要（默认 None）
     """
     if machine is None:
@@ -142,9 +142,7 @@ def route_to_machine(
         and env.real_submit_probability > 0.0
         and float(rng.random()) < env.real_submit_probability
     ):
-        env._submit_to_real_machine(
-            machine, task, rl_action, rl_action_prob, observation_snapshot
-        )
+        env._submit_to_real_machine(machine, task, rl_action, rl_action_prob, observation_snapshot)
 
 
 def recompute_aggregate(env: "QuantumSchedulingEnv") -> None:

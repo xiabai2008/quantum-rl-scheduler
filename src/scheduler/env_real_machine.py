@@ -368,7 +368,7 @@ def submit_to_real_machine(
     machine: QuantumMachine,
     task: Task,
     rl_action: int = -1,
-    rl_action_prob: float = 0.0,
+    rl_action_prob: float | None = None,
     observation_snapshot: dict[str, Any] | None = None,
 ) -> None:
     """
@@ -390,7 +390,7 @@ def submit_to_real_machine(
         machine             : 目标真机
         task                : 待提交任务
         rl_action           : RL 动作类型（0=classical, 1=quantum, 2=hybrid，默认 -1 表示未知）
-        rl_action_prob      : 该动作被选择的概率（默认 0.0）
+        rl_action_prob      : 该动作被选择的概率（None 表示 env 层未获取，可通过 env.set_action_prob() 设置）
         observation_snapshot: 观测向量摘要（队列长度、机器负载等关键字段，非完整向量）
     """
     # 降级保护：已知真机不可用时直接返回，不再消耗机时
@@ -432,7 +432,9 @@ def submit_to_real_machine(
         # real_task_id 为 None 表示提交被拒绝（如机器校准中），计入失败
         if real_task_id is not None:
             # 计算 machine_score（与 select_best_machine 评分公式一致）
-            machine_score = machine.fidelity * machine.available_ratio / (1.0 + machine.quantum_queue)
+            machine_score = (
+                machine.fidelity * machine.available_ratio / (1.0 + machine.quantum_queue)
+            )
             env._pending_real_tasks.append(
                 {
                     "task_id": str(real_task_id),
@@ -540,9 +542,7 @@ def poll_pending_real_tasks(env: "QuantumSchedulingEnv") -> float:
         # 客户端丢失（理论上不应发生），视为失败
         if client is None:
             total_feedback += REAL_MACHINE_FAIL_PENALTY * env.real_machine_feedback_weight
-            _record_causal_feedback(
-                env, pending, {}, REAL_MACHINE_FAIL_PENALTY, -1.0, "", "failed"
-            )
+            _record_causal_feedback(env, pending, {}, REAL_MACHINE_FAIL_PENALTY, -1.0, "", "failed")
             record_real_failure(env, machine_name, "客户端丢失")
             continue
 
@@ -742,7 +742,7 @@ def _record_causal_feedback(
         "submit_step": pending.get("submit_step", 0),
         "complete_step": env._current_step,
         "rl_action": pending.get("rl_action", -1),
-        "rl_action_prob": pending.get("rl_action_prob", 0.0),
+        "rl_action_prob": pending.get("rl_action_prob"),  # None 表示策略层未设置
         "task_id": pending.get("task_id_str", ""),
         "real_task_id": pending.get("task_id", ""),
         "machine_name": pending.get("machine_name", ""),

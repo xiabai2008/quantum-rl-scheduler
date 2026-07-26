@@ -234,6 +234,11 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
         # 跨 episode 累积，确保训练级硬上限不会被 reset 绕过。
         self._real_submission_attempts_total: int = 0
 
+        # RL 动作上下文（Issue #234）：训练循环在 env.step() 前调用
+        # set_action_prob() 设置当前动作概率，用于真机因果链记录。
+        # None 表示未设置（env 层无法获取策略层概率）。
+        self._current_action_prob: float | None = None
+
         # 内部状态
         self._current_step: int = 0
         self._task_queue: list[Task] = []
@@ -353,6 +358,7 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
         self._pending_real_tasks = []
         self._real_result_records = []
         self._real_feedback_log = []
+        self._current_action_prob = None
 
         # 随机初始化任务队列（5-20 个任务）
         self._task_queue = []
@@ -455,8 +461,12 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
                     if action == ACTION_QUANTUM:
                         self._quantum_success += 1
                         self._route_to_machine(
-                            selected_machine, task, rng,
-                            rl_action=action, observation_snapshot=_obs_snapshot,
+                            selected_machine,
+                            task,
+                            rng,
+                            rl_action=action,
+                            rl_action_prob=self._current_action_prob,
+                            observation_snapshot=_obs_snapshot,
                         )
                     elif action == ACTION_CLASSICAL:
                         self._classical_success += 1
@@ -464,8 +474,12 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
                     else:
                         self._hybrid_success += 1
                         self._route_to_machine(
-                            selected_machine, task, rng,
-                            rl_action=action, observation_snapshot=_obs_snapshot,
+                            selected_machine,
+                            task,
+                            rng,
+                            rl_action=action,
+                            rl_action_prob=self._current_action_prob,
+                            observation_snapshot=_obs_snapshot,
                         )
 
                     machine_tag = (
@@ -505,11 +519,26 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
         # 累计奖励
         self._episode_reward += reward
 
+        # 清除本步动作上下文（Issue #234）：step 完成后重置，
+        # 下一步需重新调用 set_action_prob() 设置
+        self._current_action_prob = None
+
         # 判断终止
         terminated = self._current_step >= self.max_steps
         truncated = False
 
         return self._get_observation(), reward, terminated, truncated, self._get_info()
+
+    def set_action_prob(self, prob: float | None = None) -> None:
+        """设置当前步 RL 动作的概率（Issue #234）。
+
+        训练循环在调用 ``env.step(action)`` 前调用此方法，
+        将 PPO 策略输出的动作概率传入环境，用于真机因果链记录。
+
+        Args:
+            prob: 动作被选择的概率（0-1），None 表示未知/未设置
+        """
+        self._current_action_prob = prob
 
     # -- 薄包装方法：委托给子模块，保留实例方法签名以兼容现有测试 --
 
@@ -548,7 +577,7 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
         task: Task,
         rng: np.random.Generator,
         rl_action: int = -1,
-        rl_action_prob: float = 0.0,
+        rl_action_prob: float | None = None,
         observation_snapshot: dict[str, Any] | None = None,
     ) -> None:
         route_to_machine(self, machine, task, rng, rl_action, rl_action_prob, observation_snapshot)
@@ -558,7 +587,7 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
         machine: QuantumMachine,
         task: Task,
         rl_action: int = -1,
-        rl_action_prob: float = 0.0,
+        rl_action_prob: float | None = None,
         observation_snapshot: dict[str, Any] | None = None,
     ) -> None:
         submit_to_real_machine(self, machine, task, rl_action, rl_action_prob, observation_snapshot)
