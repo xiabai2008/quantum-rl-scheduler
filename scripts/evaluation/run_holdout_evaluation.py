@@ -51,9 +51,9 @@ sys.path.insert(0, str(_PROJECT_ROOT / "scripts" / "evaluation"))
 
 from run_issue_38_67_experiments import (
     BaseStrategy,
-    build_strategies,
     DQNModelStrategy,
     PPOStrategy,
+    build_strategies,
 )
 
 from src.scheduler.env import QuantumSchedulingEnv
