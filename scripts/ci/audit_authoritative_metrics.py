@@ -65,9 +65,9 @@ AUDIT_EXEMPT_MARKER = "<!-- audit-exempt:"
 
 CANONICAL_RANKING = (
     "PPO",
+    "DQN",
     "SJF",
     "FCFS",
-    "DQN",
     "Random",
     "Greedy",
     "Quantum-Only",

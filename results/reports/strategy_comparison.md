@@ -100,6 +100,7 @@ python scripts/evaluation/statistical_significance.py \
 - PPO 模型: `deliverable_models/ppo_best_model_14dim.zip`（14维，Actor-Critic）
 - DQN 模型: `deliverable_models/dqn_best_model_14dim.zip`（14维，Dueling DQN）
 - 环境: `QuantumSchedulingEnv`（原生 14 维观测空间）
+- 兼容包装器: `Obs10Wrapper`（14→10 维兼容，用于加载 10 维旧模型；本次评估 PPO/DQN 均使用原生 14 维，无需 Obs10Wrapper）
 
 ---
 
