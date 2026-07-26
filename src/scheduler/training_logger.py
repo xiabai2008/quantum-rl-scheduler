@@ -10,7 +10,7 @@
 
 import json
 import os
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 from loguru import logger
