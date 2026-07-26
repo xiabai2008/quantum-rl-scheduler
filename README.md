@@ -342,7 +342,7 @@ python scripts/ci/validate_submission.py --pack
 | [退火显著性答辩策略](docs/annealing_significance-defense.md) | p=0.19应对话术 + 5类评委问题 |
 | [部署架构](docs/deployment_architecture.md) | 三阶段部署路径（原型→试点→生产） |
 | [跨硬件扩展性](docs/cross_hardware_scalability.md) | 三层解耦架构 + 扩展路径 |
-| [价值量化报告](docs/value_quantification.md) | 10项指标 + ROI分析 + VQE场景案例 |
+| [价值量化报告（权威版）](docs/value_summary_for_defense.md) | 答辩用权威价值口径：8策略排名+核心数字+诚实局限性 |
 | [公平调度报告](results/reports/fair_scheduling_report.md) | 5租户Jain's指数=0.9875 |
 | [D3奖励消融报告](results/reports/d3_reward_ablation_report.md) | 7预设×2策略×10seeds消融 |
 

@@ -1,5 +1,10 @@
 # 落地价值深度量化与行业场景锚定
 
+> ⚠️ **本文档已废弃，请勿对外引用**
+>
+> 权威价值口径请参见：[value_summary_for_defense.md](./value_summary_for_defense.md)
+> 本文档仅作历史归档保留，所有数字以权威版本为准。
+
 > Issue #25 — 从技术导向转向价值导向，用具体场景和量化数据说话
 >
 > **Issue #210 文档碎片化整理**：本文档为价值量化主题的"深度分析"分册，主文档为 [value_quantification.md](value_quantification.md)（基础价值量化，6节10项指标）。答辩摘要见 [value_summary_for_defense.md](value_summary_for_defense.md)。
