@@ -14,7 +14,11 @@ DAG Scheduler with Task Dependency Graph Support
 
 from collections import deque
 from dataclasses import asdict, dataclass, field
+from itertools import pairwise
 from typing import Any
+
+import numpy as np
+from loguru import logger
 
 __all__ = [
     "DAGScheduler",
@@ -75,6 +79,7 @@ class DAGScheduler:
         self.max_qubits: int = max_qubits
         self.completed: set[str] = set()
         self.failed: set[str] = set()
+        self._last_annealing_solver: str | None = None
         if tasks:
             for task in tasks:
                 self.add_task(task)
@@ -371,6 +376,303 @@ class DAGScheduler:
 
         schedule.sort(key=lambda x: (x["start_time"], x["machine_id"], x["task_id"]))
         return schedule
+
+    # ----------------------------------------------------------
+    # 时间索引 QUBO 调度（Issue #286）
+    # ----------------------------------------------------------
+
+    def build_scheduling_qubo(
+        self,
+        time_horizon: int,
+    ) -> tuple[np.ndarray, dict[int, tuple[str, int]]]:
+        """构建带唯一性、前驱与容量约束的时间索引 QUBO。
+
+        决策变量 ``x[i, t]`` 表示任务 ``i`` 是否在时间槽 ``t`` 开始。
+        矩阵采用对称 ``x.T @ Q @ x`` 约定，因此非对角有效系数平均
+        分配到上下三角。
+
+        Args:
+            time_horizon: 可选开始时间槽数量，必须为正整数。
+
+        Returns:
+            QUBO 对称矩阵，以及变量索引到 ``(task_id, slot)`` 的映射。
+
+        Raises:
+            ValueError: 时间范围非法或 DAG 不合法。
+        """
+        if time_horizon <= 0:
+            raise ValueError("time_horizon 必须为正整数")
+        self.validate_dag()
+
+        task_ids = list(self.tasks)
+        n_variables = len(task_ids) * time_horizon
+        if n_variables > 512:
+            logger.warning(
+                "[DAG-QUBO] 变量数 {} 超过 512，建议缩小任务数或 time_horizon",
+                n_variables,
+            )
+
+        variable_map = {
+            task_index * time_horizon + slot: (task_id, slot)
+            for task_index, task_id in enumerate(task_ids)
+            for slot in range(time_horizon)
+        }
+        qubo = np.zeros((n_variables, n_variables), dtype=np.float64)
+        if not task_ids:
+            return qubo, variable_map
+
+        max_priority = max(max(0, task.priority) for task in self.tasks.values())
+        constraint_penalty = float(max(100, 10 * time_horizon * (max_priority + 2) * len(task_ids)))
+
+        def variable_index(task_id: str, slot: int) -> int:
+            return task_ids.index(task_id) * time_horizon + slot
+
+        def add_pair(left: int, right: int, effective_coefficient: float) -> None:
+            if left == right:
+                qubo[left, left] += effective_coefficient
+                return
+            half = effective_coefficient / 2.0
+            qubo[left, right] += half
+            qubo[right, left] += half
+
+        # 目标：晚开始成本 + 高优先级任务更强的提前倾向。
+        for task_id in task_ids:
+            task = self.tasks[task_id]
+            priority_weight = 1.0 + max(0, task.priority)
+            for slot in range(time_horizon):
+                index = variable_index(task_id, slot)
+                qubo[index, index] += priority_weight * slot
+
+        # 唯一性：P * (sum_t x[i,t] - 1)^2。
+        for task_id in task_ids:
+            indices = [variable_index(task_id, slot) for slot in range(time_horizon)]
+            for index in indices:
+                qubo[index, index] -= constraint_penalty
+            for left_offset, left in enumerate(indices):
+                for right in indices[left_offset + 1 :]:
+                    add_pair(left, right, 2.0 * constraint_penalty)
+
+        # 前驱：后继开始早于前驱完成的组合增加硬惩罚。
+        for successor_id in task_ids:
+            successor = self.tasks[successor_id]
+            for predecessor_id in successor.dependencies:
+                predecessor = self.tasks[predecessor_id]
+                duration = max(0.0, predecessor.estimated_time)
+                for predecessor_slot in range(time_horizon):
+                    earliest_successor = predecessor_slot + duration
+                    for successor_slot in range(time_horizon):
+                        if successor_slot + 1e-12 >= earliest_successor:
+                            continue
+                        add_pair(
+                            variable_index(predecessor_id, predecessor_slot),
+                            variable_index(successor_id, successor_slot),
+                            2.0 * constraint_penalty,
+                        )
+
+        # 容量：所有重叠任务加入轻量二次拥塞成本；两任务合计已超容量时
+        # 再加入硬惩罚。拥塞项能表达三项及以上并发负载的二次增长，
+        # 最终仍由解码后的独立校验保证总和不超过容量。
+        capacity_scale = max(1, self.max_qubits) ** 2
+        for left_offset, left_id in enumerate(task_ids):
+            left_task = self.tasks[left_id]
+            left_qubits = max(0, left_task.qubits_required)
+            left_duration = max(0.0, left_task.estimated_time)
+            for right_id in task_ids[left_offset + 1 :]:
+                right_task = self.tasks[right_id]
+                right_qubits = max(0, right_task.qubits_required)
+                right_duration = max(0.0, right_task.estimated_time)
+                congestion_cost = (
+                    0.05 * constraint_penalty * left_qubits * right_qubits / capacity_scale
+                )
+                hard_conflict = left_qubits + right_qubits > self.max_qubits
+                for left_slot in range(time_horizon):
+                    left_finish = left_slot + left_duration
+                    for right_slot in range(time_horizon):
+                        right_finish = right_slot + right_duration
+                        overlaps = left_slot < right_finish and right_slot < left_finish
+                        if overlaps:
+                            effective_coefficient = congestion_cost
+                            if hard_conflict:
+                                effective_coefficient += 2.0 * constraint_penalty
+                            add_pair(
+                                variable_index(left_id, left_slot),
+                                variable_index(right_id, right_slot),
+                                effective_coefficient,
+                            )
+
+        return qubo, variable_map
+
+    def schedule_with_annealing(
+        self,
+        time_horizon: int = 10,
+        num_reads: int = 100,
+        fallback: bool = True,
+    ) -> list[dict[str, Any]]:
+        """使用 neal 或内置 NumPy 模拟退火求解时间索引 DAG QUBO。
+
+        Args:
+            time_horizon: 可选开始时间槽数量。
+            num_reads: 独立退火读取次数，必须为正整数。
+            fallback: 不可行或求解异常时是否回退到经典资源调度。
+
+        Returns:
+            与 :meth:`schedule_with_resources` 相同结构的调度列表。
+
+        Raises:
+            RuntimeError: 求解失败或结果不可行且 ``fallback=False``。
+            ValueError: ``time_horizon`` 或 ``num_reads`` 非法。
+        """
+        if num_reads <= 0:
+            raise ValueError("num_reads 必须为正整数")
+        qubo, variable_map = self.build_scheduling_qubo(time_horizon)
+        if not variable_map:
+            self._last_annealing_solver = None
+            return []
+
+        try:
+            bits = self._solve_scheduling_qubo(qubo, num_reads)
+            schedule = self._decode_scheduling_solution(bits, variable_map)
+            if self._is_scheduling_solution_feasible(schedule, time_horizon):
+                return schedule
+            raise RuntimeError("退火解未通过前驱或容量可行性校验")
+        except Exception as exc:
+            if not fallback:
+                raise RuntimeError("DAG QUBO 退火调度失败") from exc
+            logger.warning("[DAG-QUBO] {}，回退到经典资源调度", exc)
+            self._last_annealing_solver = "classical_fallback"
+            return self.schedule_with_resources(self.max_qubits, available_machines=1)
+
+    def _solve_scheduling_qubo(self, qubo: np.ndarray, num_reads: int) -> np.ndarray:
+        """优先使用 neal，导入或求解失败时使用 NumPy 模拟退火。"""
+        try:
+            import neal
+
+            qubo_dict: dict[tuple[int, int], float] = {}
+            for row in range(qubo.shape[0]):
+                diagonal = float(qubo[row, row])
+                if abs(diagonal) > 1e-12:
+                    qubo_dict[(row, row)] = diagonal
+                for column in range(row + 1, qubo.shape[0]):
+                    coefficient = float(qubo[row, column] + qubo[column, row])
+                    if abs(coefficient) > 1e-12:
+                        qubo_dict[(row, column)] = coefficient
+            sampleset = neal.SimulatedAnnealingSampler().sample_qubo(
+                qubo_dict,
+                num_reads=num_reads,
+            )
+            sample = sampleset.first.sample
+            self._last_annealing_solver = "neal"
+            return np.array(
+                [int(sample.get(index, 0)) for index in range(qubo.shape[0])],
+                dtype=np.int8,
+            )
+        except Exception as exc:
+            logger.warning("[DAG-QUBO] neal 不可用或求解失败：{}；使用 NumPy SA", exc)
+            self._last_annealing_solver = "numpy_sa"
+            return self._numpy_scheduling_annealing(qubo, num_reads)
+
+    @staticmethod
+    def _numpy_scheduling_annealing(
+        qubo: np.ndarray,
+        num_reads: int,
+    ) -> np.ndarray:
+        """轻量 NumPy 模拟退火兜底，不依赖 torch。"""
+        n_variables = qubo.shape[0]
+        rng = np.random.default_rng(42)
+        best = np.zeros(n_variables, dtype=np.int8)
+        best_energy = float(best @ qubo @ best)
+        sweeps = max(100, 20 * n_variables)
+        initial_temperature = max(1.0, float(np.max(np.abs(qubo))))
+
+        for _ in range(num_reads):
+            current: np.ndarray = np.asarray(
+                rng.integers(0, 2, size=n_variables),
+                dtype=np.int8,
+            )
+            current_energy = float(current @ qubo @ current)
+            for sweep in range(sweeps):
+                temperature = initial_temperature * (0.01 ** (sweep / max(1, sweeps - 1)))
+                index = int(rng.integers(0, n_variables))
+                diagonal = qubo[index, index]
+                local_field = diagonal + 2.0 * (
+                    float(np.dot(qubo[index], current)) - diagonal * current[index]
+                )
+                delta_energy = (1.0 - 2.0 * current[index]) * local_field
+                if delta_energy <= 0 or rng.random() < np.exp(-delta_energy / temperature):
+                    current[index] = 1 - current[index]
+                    current_energy += float(delta_energy)
+                    if current_energy < best_energy:
+                        best = current.copy()
+                        best_energy = current_energy
+        return best
+
+    def _decode_scheduling_solution(
+        self,
+        bits: np.ndarray,
+        variable_map: dict[int, tuple[str, int]],
+    ) -> list[dict[str, Any]]:
+        """将开始变量解码为单机调度；缺失或重复选择保留为不可行。"""
+        starts: dict[str, list[int]] = {task_id: [] for task_id in self.tasks}
+        for index, value in enumerate(bits):
+            if int(value) == 1 and index in variable_map:
+                task_id, slot = variable_map[index]
+                starts[task_id].append(slot)
+
+        schedule: list[dict[str, Any]] = []
+        for task_id, slots in starts.items():
+            for slot in slots:
+                finish = float(slot) + max(0.0, self.tasks[task_id].estimated_time)
+                schedule.append(
+                    {
+                        "task_id": task_id,
+                        "start_time": float(slot),
+                        "machine_id": 0,
+                        "estimated_finish": finish,
+                    }
+                )
+        schedule.sort(key=lambda item: (item["start_time"], item["task_id"]))
+        return schedule
+
+    def _is_scheduling_solution_feasible(
+        self,
+        schedule: list[dict[str, Any]],
+        time_horizon: int,
+    ) -> bool:
+        """独立校验唯一性、前驱时序、开始范围与总容量。"""
+        if len(schedule) != len(self.tasks):
+            return False
+        by_id: dict[str, dict[str, Any]] = {}
+        for item in schedule:
+            task_id = str(item["task_id"])
+            if task_id not in self.tasks or task_id in by_id:
+                return False
+            start = float(item["start_time"])
+            if start < 0 or start >= time_horizon:
+                return False
+            by_id[task_id] = item
+
+        for task_id, task in self.tasks.items():
+            start = float(by_id[task_id]["start_time"])
+            for dependency in task.dependencies:
+                dependency_finish = float(by_id[dependency]["estimated_finish"])
+                if start + 1e-12 < dependency_finish:
+                    return False
+
+        event_points = sorted(
+            {float(item[key]) for item in schedule for key in ("start_time", "estimated_finish")}
+        )
+        for left, right in pairwise(event_points):
+            if right <= left:
+                continue
+            midpoint = (left + right) / 2.0
+            used_qubits = sum(
+                max(0, self.tasks[str(item["task_id"])].qubits_required)
+                for item in schedule
+                if float(item["start_time"]) <= midpoint < float(item["estimated_finish"])
+            )
+            if used_qubits > self.max_qubits:
+                return False
+        return True
 
     # ----------------------------------------------------------
     # 量子退火辅助调度
