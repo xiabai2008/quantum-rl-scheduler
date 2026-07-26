@@ -219,6 +219,10 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             0% { transform: translate(-50%, -50%) scale(1); opacity: 0.6; }
             100% { transform: translate(-50%, -50%) scale(2.5); opacity: 0; }
         }
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
         .ws-status.disconnected::before { background: var(--error); }
         .ws-status.connected { color: var(--success); border-color: rgba(52,211,153,0.25); background: rgba(52,211,153,0.08); }
         .ws-status.disconnected { color: var(--error); border-color: rgba(248,113,113,0.2); }
@@ -982,6 +986,203 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             font-family: var(--font-mono);
         }
 
+        /* ===== 场景-算法决策树样式 ===== */
+        .dt-node {
+            display: inline-flex;
+            align-items: center;
+            padding: 8px 16px;
+            border-radius: var(--r-pill);
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.25s ease;
+            font-family: var(--font-sans);
+        }
+        .dt-root {
+            background: linear-gradient(135deg, rgba(167,139,250,0.2), rgba(59,201,219,0.15));
+            border: 1px solid rgba(167,139,250,0.35);
+            color: #c4b5fd;
+            box-shadow: 0 0 16px rgba(167,139,250,0.1);
+        }
+        .dt-root:hover {
+            border-color: rgba(167,139,250,0.5);
+            box-shadow: 0 0 24px rgba(167,139,250,0.2);
+            transform: translateY(-1px);
+        }
+        .dt-sub {
+            background: var(--surface-2);
+            border: 1px solid var(--line);
+            color: var(--ink-2);
+            font-size: 11px;
+            padding: 6px 12px;
+        }
+        .dt-branch {
+            padding: 10px 12px;
+            border-radius: var(--r-md);
+            cursor: pointer;
+            transition: all 0.2s ease;
+            border: 1px solid;
+        }
+        .dt-branch-warning {
+            background: rgba(251,191,36,0.06);
+            border-color: rgba(251,191,36,0.2);
+        }
+        .dt-branch-warning:hover {
+            background: rgba(251,191,36,0.1);
+            border-color: rgba(251,191,36,0.35);
+        }
+        .dt-branch-label {
+            font-weight: 600;
+            font-size: 12px;
+            color: var(--warning);
+            margin-bottom: 2px;
+        }
+        .dt-branch-desc {
+            font-size: 10px;
+            color: var(--ink-3);
+            margin-bottom: 4px;
+        }
+        .dt-recommend {
+            font-size: 11px;
+            font-family: var(--font-mono);
+        }
+        .dt-scenario {
+            padding: 10px 12px;
+            border-radius: var(--r-md);
+            background: var(--surface-2);
+            border: 1px solid var(--line);
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .dt-scenario:hover {
+            border-color: rgba(59,201,219,0.3);
+            background: rgba(59,201,219,0.06);
+            transform: translateY(-1px);
+        }
+        .dt-scenario.active {
+            border-color: rgba(59,201,219,0.5);
+            background: rgba(59,201,219,0.1);
+            box-shadow: 0 0 12px rgba(59,201,219,0.12);
+        }
+        .dt-sc-title {
+            font-weight: 600;
+            font-size: 12px;
+            color: var(--ink);
+            margin-bottom: 2px;
+        }
+        .dt-sc-desc {
+            font-size: 10px;
+            color: var(--ink-3);
+            margin-bottom: 6px;
+        }
+        .dt-sc-recommend {
+            font-size: 11px;
+            font-family: var(--font-mono);
+            color: var(--ink-2);
+        }
+        .dt-up {
+            color: var(--success);
+            font-weight: 600;
+        }
+        .dt-detail-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 11px;
+        }
+        .dt-detail-table th, .dt-detail-table td {
+            padding: 6px 8px;
+            text-align: left;
+            border-bottom: 1px solid var(--line);
+        }
+        .dt-detail-table th {
+            color: var(--ink-3);
+            font-weight: 500;
+            font-family: var(--font-mono);
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .dt-detail-table td {
+            color: var(--ink);
+        }
+        .dt-detail-table .rank-1 { color: #fbbf24; font-weight: 600; }
+        .dt-detail-table .rank-2 { color: #94a3b8; font-weight: 500; }
+        .dt-detail-table .rank-3 { color: #d97706; }
+        .dt-detail-conclusion {
+            margin-top: 10px;
+            padding: 8px 10px;
+            background: rgba(59,201,219,0.06);
+            border-left: 2px solid var(--brand);
+            border-radius: 0 4px 4px 0;
+            font-size: 11px;
+            color: var(--ink-2);
+            line-height: 1.6;
+        }
+
+        /* ===== 真机Demo面板样式 ===== */
+        .real-demo-btn {
+            width: 100%;
+            padding: 8px 12px;
+            margin-top: 10px;
+            background: linear-gradient(135deg, rgba(59,201,219,0.15), rgba(167,139,250,0.1));
+            border: 1px solid rgba(59,201,219,0.3);
+            border-radius: var(--r-md);
+            color: var(--brand);
+            font-size: 11px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-family: var(--font-sans);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+        }
+        .real-demo-btn:hover {
+            background: linear-gradient(135deg, rgba(59,201,219,0.25), rgba(167,139,250,0.15));
+            border-color: rgba(59,201,219,0.5);
+            box-shadow: 0 0 16px rgba(59,201,219,0.15);
+        }
+        .real-demo-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .real-demo-btn svg {
+            width: 14px;
+            height: 14px;
+        }
+        .real-submission-item {
+            padding: 6px 0;
+            border-bottom: 1px solid var(--line);
+            font-size: 10px;
+            font-family: var(--font-mono);
+        }
+        .real-submission-item:last-child {
+            border-bottom: none;
+        }
+        .real-sub-id {
+            color: var(--brand);
+            font-weight: 600;
+        }
+        .real-sub-status {
+            float: right;
+            padding: 1px 6px;
+            border-radius: var(--r-pill);
+            font-size: 9px;
+        }
+        .real-sub-status.success {
+            background: rgba(52,211,153,0.1);
+            color: var(--success);
+        }
+        .real-sub-status.pending {
+            background: rgba(251,191,36,0.1);
+            color: var(--warning);
+        }
+        .real-sub-meta {
+            color: var(--ink-3);
+            margin-top: 2px;
+        }
+
         /* ===== 响应式 ===== */
         @media (max-width: 1100px) {
             .main-content { grid-template-columns: 1fr; }
@@ -1209,6 +1410,83 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                 </div>
             </div>
 
+            <!-- 场景-算法决策树（交互式） -->
+            <div class="panel">
+                <div class="panel-header">
+                    <h2><span class="icon" style="background:linear-gradient(135deg,rgba(167,139,250,0.2),rgba(59,201,219,0.1));border-color:rgba(167,139,250,0.25);color:#a78bfa;"><svg viewBox="0 0 24 24"><circle cx="12" cy="4" r="2"/><circle cx="5" cy="12" r="2"/><circle cx="19" cy="12" r="2"/><circle cx="8" cy="20" r="2"/><circle cx="16" cy="20" r="2"/><path d="M12 6v2M6.5 10.5L10 8M17.5 10.5L14 8M6 14v3M18 14v3M9 18h6"/></svg></span> 场景-算法决策树</h2>
+                    <span class="badge" style="background:rgba(167,139,250,0.1);color:#a78bfa;border-color:rgba(167,139,250,0.2);">压力测试结论</span>
+                </div>
+                <div class="panel-body" style="padding:16px;">
+                    <div style="font-size:11px;color:var(--ink-3);margin-bottom:14px;line-height:1.6;">
+                        基于5场景×6策略压力测试（N=250）生成的调度策略推荐。点击场景卡片查看详细分析。
+                    </div>
+                    <div id="decision-tree-container">
+                        <!-- 决策树交互式节点 -->
+                        <div style="display:flex;flex-direction:column;gap:10px;">
+                            <!-- 根节点 -->
+                            <div style="display:flex;justify-content:center;">
+                                <div class="dt-node dt-root" onclick="dtSelectRoot()">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" style="margin-right:6px;vertical-align:-2px;"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 8v4l3 2" stroke="currentColor" stroke-width="2"/></svg>
+                                    系统状态判断
+                                </div>
+                            </div>
+                            <!-- 连接线 -->
+                            <div style="display:flex;justify-content:center;height:20px;position:relative;">
+                                <div style="width:1px;height:100%;background:linear-gradient(180deg,rgba(167,139,250,0.5),rgba(167,139,250,0.2));"></div>
+                            </div>
+                            <!-- 分支1：量子资源波动 -->
+                            <div style="display:flex;gap:12px;align-items:flex-start;">
+                                <div style="flex:1;display:flex;flex-direction:column;gap:8px;">
+                                    <div class="dt-branch dt-branch-warning" onclick="dtSelectScenario('volatile')">
+                                        <div class="dt-branch-label">量子资源波动</div>
+                                        <div class="dt-branch-desc">校准/维护/保真度下降</div>
+                                        <div class="dt-recommend" style="color:var(--brand);">→ 推荐 PPO <span style="color:var(--success);font-weight:600;">+91.4%</span></div>
+                                    </div>
+                                </div>
+                                <div style="display:flex;align-items:center;padding-top:12px;color:var(--ink-4);font-family:var(--font-mono);font-size:10px;">OR</div>
+                                <div style="flex:2;">
+                                    <!-- 子节点：负载模式判断 -->
+                                    <div class="dt-node dt-sub" style="margin-bottom:8px;">
+                                        <svg width="14" height="14" viewBox="0 0 24 24" style="margin-right:5px;vertical-align:-1px;"><rect x="4" y="4" width="16" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M9 9h6M9 12h6M9 15h4" stroke="currentColor" stroke-width="1.5"/></svg>
+                                        负载模式判断
+                                    </div>
+                                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+                                        <div class="dt-scenario" onclick="dtSelectScenario('balanced')" id="dt-sc-balanced">
+                                            <div class="dt-sc-title">均衡负载</div>
+                                            <div class="dt-sc-desc">日常稳态运行</div>
+                                            <div class="dt-sc-recommend">PPO <span class="dt-up">+88.3%</span></div>
+                                        </div>
+                                        <div class="dt-scenario" onclick="dtSelectScenario('high_load')" id="dt-sc-high_load">
+                                            <div class="dt-sc-title">高负载积压</div>
+                                            <div class="dt-sc-desc">批量任务/截止日</div>
+                                            <div class="dt-sc-recommend">PPO* <span class="dt-up">+156.5%</span></div>
+                                        </div>
+                                        <div class="dt-scenario" onclick="dtSelectScenario('tidal')" id="dt-sc-tidal">
+                                            <div class="dt-sc-title">潮汐波动</div>
+                                            <div class="dt-sc-desc">昼夜模式切换</div>
+                                            <div class="dt-sc-recommend">PPO <span class="dt-up">+34.0%</span></div>
+                                        </div>
+                                        <div class="dt-scenario" onclick="dtSelectScenario('burst')" id="dt-sc-burst">
+                                            <div class="dt-sc-title">突发洪峰</div>
+                                            <div class="dt-sc-desc">集体提交/作业洪峰</div>
+                                            <div class="dt-sc-recommend">PPO+限流</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- 场景详情展示区 -->
+                    <div id="dt-detail-panel" style="display:none;margin-top:14px;padding:12px 14px;background:var(--surface-2);border:1px solid var(--line);border-radius:var(--r-md);">
+                        <div id="dt-detail-content"></div>
+                    </div>
+                    <div style="margin-top:12px;padding:8px 10px;background:rgba(59,201,219,0.05);border:1px solid rgba(59,201,219,0.1);border-radius:6px;font-size:10px;color:var(--ink-3);line-height:1.6;">
+                        <strong style="color:var(--brand);">决策原则：</strong>
+                        PPO综合排名1.8/6，是唯一在所有5场景均进入前三的策略。Greedy在高负载场景领先4.9%但波动场景崩溃(-95.3%)。
+                    </div>
+                </div>
+            </div>
+
         </div>
 
         <!-- 右侧栏 -->
@@ -1301,6 +1579,62 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                                 PPO vs FCFS: <b style="color:var(--green-light);">+88.3%</b> (N=250, p&lt;0.001)
                             </div>
                         </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 天衍云真机状态 -->
+            <div class="panel">
+                <div class="panel-header">
+                    <h2><span class="icon" style="background:linear-gradient(135deg,rgba(59,201,219,0.2),rgba(167,139,250,0.1));border-color:rgba(167,139,250,0.25);color:#a78bfa;"><svg viewBox="0 0 24 24"><path d="M18 10a6 6 0 0 0-12 0c-2.2 0-4 1.8-4 4s1.8 4 4 4h12c2.2 0 4-1.8 4-4s-1.8-4-4-4z"/><path d="M12 14v4M12 10l-2 2M12 10l2 2" stroke-width="2"/></svg></span> 天衍量子云</h2>
+                    <span class="badge" id="real-machine-badge" style="background:rgba(52,211,153,0.1);color:var(--success);border-color:rgba(52,211,153,0.2);">284次·100%</span>
+                </div>
+                <div class="panel-body" style="font-size:12px;line-height:1.8;">
+                    <div id="real-machines-list">
+                        <div style="padding:8px 0;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;">
+                            <div>
+                                <div style="font-weight:600;color:var(--ink);font-size:12px;">天衍-S (tianyan_s)</div>
+                                <div style="font-size:10px;color:var(--ink-3);font-family:var(--font-mono);">287 qubit · cqlib SDK</div>
+                            </div>
+                            <span id="machine-tianyan_s-status" style="font-size:10px;padding:2px 8px;border-radius:999px;background:rgba(52,211,153,0.1);color:var(--success);font-family:var(--font-mono);">✓ 已验证</span>
+                        </div>
+                        <div style="padding:8px 0;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;">
+                            <div>
+                                <div style="font-weight:600;color:var(--ink);font-size:12px;">天衍-SW (tianyan_sw)</div>
+                                <div style="font-size:10px;color:var(--ink-3);font-family:var(--font-mono);">72 qubit · cqlib SDK</div>
+                            </div>
+                            <span id="machine-tianyan_sw-status" style="font-size:10px;padding:2px 8px;border-radius:999px;background:rgba(52,211,153,0.1);color:var(--success);font-family:var(--font-mono);">✓ 已验证</span>
+                        </div>
+                        <div style="padding:8px 0;display:flex;justify-content:space-between;align-items:center;">
+                            <div>
+                                <div style="font-weight:600;color:var(--ink);font-size:12px;">天衍-TN (tianyan_tn)</div>
+                                <div style="font-size:10px;color:var(--ink-3);font-family:var(--font-mono);">176 qubit · cqlib SDK</div>
+                            </div>
+                            <span id="machine-tianyan_tn-status" style="font-size:10px;padding:2px 8px;border-radius:999px;background:rgba(52,211,153,0.1);color:var(--success);font-family:var(--font-mono);">✓ 已验证</span>
+                        </div>
+                    </div>
+
+                    <!-- 真机Demo提交按钮 -->
+                    <button class="real-demo-btn" id="btn-real-demo" onclick="submitRealDemo()">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                        提交真机Demo任务
+                    </button>
+
+                    <!-- 最近真机提交记录 -->
+                    <div style="margin-top:12px;">
+                        <div style="font-size:10px;color:var(--ink-3);font-family:var(--font-mono);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">最近提交记录</div>
+                        <div id="real-submissions-list" style="max-height:120px;overflow-y:auto;">
+                            <div style="font-size:10px;color:var(--ink-4);text-align:center;padding:8px;">加载中...</div>
+                        </div>
+                    </div>
+
+                    <div style="margin-top:10px;padding:8px 10px;background:rgba(59,201,219,0.06);border:1px solid rgba(59,201,219,0.12);border-radius:6px;font-size:11px;color:var(--ink-2);line-height:1.6;">
+                        <strong style="color:var(--brand);">真机验证说明：</strong>
+                        已完成284次SDK全链路调用（认证→提交→轮询→结果），成功率100%。
+                        真机性能数据为探索性（5 seeds），核心性能claim基于N=250仿真统计结果。
+                        <span id="api-key-status" style="display:block;margin-top:4px;color:var(--warning);font-size:10px;">
+                            ⚠ 未配置TIANYAN_API_KEY，真机提交将使用Mock模式演示
+                        </span>
                     </div>
                 </div>
             </div>
@@ -2091,6 +2425,248 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     }
 
     // ================================================================
+    // 场景-算法决策树交互
+    // ================================================================
+    var dtScenarioData = {
+        balanced: {
+            title: "均衡负载场景",
+            desc: "任务到达率稳定，量子/经典任务比例均衡（日常科研计算、稳态运行）",
+            params: "arrival_rate=0.5, quantum_ratio=0.7, max_steps=200",
+            strategies: [
+                {rank:1, name:"PPO", reward:2746.94, lift:"+88.3%", note:"综合最优"},
+                {rank:2, name:"DQN", reward:1527.65, lift:"+4.7%", note:""},
+                {rank:3, name:"SJF", reward:1462.39, lift:"+0.2%", note:""},
+                {rank:4, name:"FCFS", reward:1458.77, lift:"基线", note:"工业界默认"},
+                {rank:5, name:"Random", reward:1247.17, lift:"-14.5%", note:""},
+                {rank:6, name:"Greedy", reward:-25.95, lift:"-101.8%", note:"此场景崩溃"}
+            ],
+            conclusion: "均衡负载下PPO大幅领先所有基线（+88.3%），是稳态运行的最优选择。统计显著性：Mann-Whitney U p=1.03×10⁻⁴²，效应量r=-0.71（大效应）。",
+            recommend: "PPO"
+        },
+        high_load: {
+            title: "高负载积压场景",
+            desc: "任务密集到达，队列持续积压（项目截止日前集中提交、批量任务）",
+            params: "arrival_rate=2.5, max_steps=80",
+            strategies: [
+                {rank:1, name:"Greedy", reward:1712.99, lift:"+169.6%", note:"极致吞吐但风险大"},
+                {rank:2, name:"PPO", reward:1628.74, lift:"+156.5%", note:"仅落后4.9%，不崩溃"},
+                {rank:3, name:"Random", reward:602.55, lift:"-5.1%", note:""},
+                {rank:4, name:"FCFS", reward:635.07, lift:"基线", note:""},
+                {rank:5, name:"SJF", reward:541.77, lift:"-14.7%", note:""}
+            ],
+            conclusion: "高负载下Greedy以4.9%微弱优势领先PPO，但Greedy在量子波动场景会崩溃（-95.3%）。PPO是稳定高吞吐的安全选择。生产建议：以PPO为主，监控到持续高负载时可临时切换Greedy，资源波动时立即切回。",
+            recommend: "PPO（稳定首选）/ Greedy（极致吞吐，需监控）"
+        },
+        tidal: {
+            title: "潮汐波动场景",
+            desc: "量子/经典任务比例周期性切换（白天量子实验多/夜间经典数据处理多）",
+            params: "前100步量子密集(90%)→后100步经典密集(90%)",
+            strategies: [
+                {rank:1, name:"Greedy", reward:2351.40, lift:"+65.9%", note:"响应最快"},
+                {rank:2, name:"SJF", reward:1662.66, lift:"+17.3%", note:"周期可预测时有效"},
+                {rank:3, name:"PPO", reward:1898.92, lift:"+34.0%", note:"自适应强，未专门调优"},
+                {rank:4, name:"FCFS", reward:1417.52, lift:"基线", note:""},
+                {rank:5, name:"Random", reward:1077.01, lift:"-24.0%", note:""}
+            ],
+            conclusion: "潮汐负载下Greedy响应最快，但PPO仍比FCFS高34%。若波动周期可预测，SJF/Greedy有优势；若波动模式不可预测，PPO的自适应能力更可靠。",
+            recommend: "已知周期→SJF/Greedy；未知模式→PPO"
+        },
+        burst: {
+            title: "突发洪峰场景",
+            desc: "短时间大量任务涌入后恢复平静（论文投稿前集体实验、课程作业集中提交）",
+            params: "脉冲式到达率（短期峰值3.0+）",
+            strategies: [
+                {rank:1, name:"FCFS", reward:"⭐⭐⭐⭐⭐", lift:"最稳定", note:"公平性保证，不会崩溃"},
+                {rank:2, name:"PPO", reward:"⭐⭐⭐⭐", lift:"吞吐高", note:"适应性强，配合限流更优"},
+                {rank:3, name:"Greedy", reward:"⭐⭐", lift:"初期快", note:"易陷入局部最优导致积压"},
+                {rank:4, name:"SJF", reward:"⭐⭐", lift:"需预知时长", note:"突发场景信息不足"}
+            ],
+            conclusion: "突发型任务到达时，FCFS提供最稳定的表现（公平性保证无饥饿）。PPO在吞吐量上仍有优势，但需要配合队列限流机制防止过载。",
+            recommend: "追求稳定→FCFS；追求消化速度→PPO+队列限流"
+        },
+        volatile: {
+            title: "量子资源波动场景",
+            desc: "量子计算机校准/维护/保真度下降导致资源可用性动态变化",
+            params: "模拟量子比特保真度波动、校准窗口、维护时段",
+            strategies: [
+                {rank:1, name:"PPO", reward:2997.68, lift:"+91.4%", note:"优势最大场景"},
+                {rank:2, name:"FCFS", reward:1566.39, lift:"基线", note:""},
+                {rank:3, name:"SJF", reward:1231.45, lift:"-21.4%", note:""},
+                {rank:4, name:"Random", reward:926.30, lift:"-40.9%", note:""},
+                {rank:5, name:"Greedy", reward:141.47, lift:"-91.0%", note:"此场景崩溃(-95.3%)"}
+            ],
+            conclusion: "PPO在量子资源波动场景优势最大（比FCFS高91.4%），验证了RL策略对动态资源状态的强适应性。Greedy在此场景崩溃（-95.3%），说明简单贪心规则无法应对资源可用性变化。这是PPO最具价值的应用场景。",
+            recommend: "PPO（强烈推荐）"
+        }
+    };
+
+    var dtActiveScenario = null;
+
+    function dtSelectRoot() {
+        // 点击根节点，收起详情
+        document.getElementById('dt-detail-panel').style.display = 'none';
+        document.querySelectorAll('.dt-scenario').forEach(function(el){ el.classList.remove('active'); });
+        document.querySelectorAll('.dt-branch').forEach(function(el){ el.style.borderColor = ''; });
+        dtActiveScenario = null;
+    }
+
+    function dtSelectScenario(key) {
+        var data = dtScenarioData[key];
+        if (!data) return;
+
+        // 高亮选中
+        document.querySelectorAll('.dt-scenario').forEach(function(el){ el.classList.remove('active'); });
+        document.querySelectorAll('.dt-branch').forEach(function(el){ el.style.borderColor = ''; });
+        var el = document.getElementById('dt-sc-' + key);
+        if (el) el.classList.add('active');
+
+        // 构建详情表格
+        var html = '<div style="font-weight:600;font-size:13px;color:var(--ink);margin-bottom:6px;">' + data.title + '</div>';
+        html += '<div style="font-size:11px;color:var(--ink-3);margin-bottom:10px;">' + data.desc + '</div>';
+        html += '<div style="font-size:10px;font-family:var(--font-mono);color:var(--ink-4);margin-bottom:12px;">参数: ' + data.params + '</div>';
+        html += '<table class="dt-detail-table"><thead><tr><th>排名</th><th>策略</th><th>平均奖励</th><th>相对FCFS</th><th>备注</th></tr></thead><tbody>';
+        data.strategies.forEach(function(s){
+            var rankClass = s.rank===1?'rank-1':s.rank===2?'rank-2':s.rank===3?'rank-3':'';
+            html += '<tr><td class="' + rankClass + '">' + (s.rank===1?'🥇':s.rank===2?'🥈':s.rank===3?'🥉':s.rank) + '</td>';
+            html += '<td>' + s.name + '</td>';
+            html += '<td style="font-family:var(--font-mono);">' + (typeof s.reward==='number'?s.reward.toFixed(2):s.reward) + '</td>';
+            html += '<td style="font-family:var(--font-mono);">' + s.lift + '</td>';
+            html += '<td style="color:var(--ink-3);font-size:10px;">' + s.note + '</td></tr>';
+        });
+        html += '</tbody></table>';
+        html += '<div class="dt-detail-conclusion"><strong style="color:var(--brand);">结论：</strong>' + data.conclusion + '<br><strong style="color:var(--success);margin-top:4px;display:inline-block;">推荐策略：' + data.recommend + '</strong></div>';
+
+        document.getElementById('dt-detail-content').innerHTML = html;
+        document.getElementById('dt-detail-panel').style.display = 'block';
+        dtActiveScenario = key;
+    }
+
+    // ================================================================
+    // 真机Demo功能
+    // ================================================================
+    var realDemoSubmitting = false;
+
+    function loadRealSubmissions() {
+        fetch('/api/real-submissions').then(function(r){return r.json();}).then(function(data){
+            var listEl = document.getElementById('real-submissions-list');
+            if (!listEl) return;
+            var subs = data.submissions || [];
+            if (subs.length === 0) {
+                listEl.innerHTML = '<div style="font-size:10px;color:var(--ink-4);text-align:center;padding:8px;">暂无真机提交记录</div>';
+                return;
+            }
+            var html = '';
+            subs.slice(0, 8).forEach(function(s){
+                var statusCls = s.status === 'completed' || s.status === 'success' ? 'success' : 'pending';
+                var statusText = s.status === 'completed' || s.status === 'success' ? '✓ 完成' : '⏳ 等待';
+                var time = s.timestamp || s.submit_time || '';
+                if (time) {
+                    try { time = new Date(time).toLocaleTimeString('zh-CN', {hour:'2-digit',minute:'2-digit',second:'2-digit'}); } catch(e){}
+                }
+                var machine = s.machine || s.backend || 'tianyan_s';
+                var taskId = s.task_id || s.id || '-';
+                html += '<div class="real-submission-item">';
+                html += '<span class="real-sub-id">' + taskId.substring(0,12) + '...</span>';
+                html += '<span class="real-sub-status ' + statusCls + '">' + statusText + '</span>';
+                html += '<div class="real-sub-meta">' + machine + ' · ' + time + '</div>';
+                html += '</div>';
+            });
+            listEl.innerHTML = html;
+        }).catch(function(){});
+    }
+
+    function loadRealMachines() {
+        fetch('/api/real-machines').then(function(r){return r.json();}).then(function(data){
+            var machines = data.machines || [];
+            var apiKeyStatus = document.getElementById('api-key-status');
+            var badge = document.getElementById('real-machine-badge');
+
+            if (machines.length > 0) {
+                // 有真机数据，更新状态
+                if (apiKeyStatus) {
+                    apiKeyStatus.style.display = 'none';
+                }
+                machines.forEach(function(m){
+                    var mid = m.id || m.name || '';
+                    var statusEl = document.getElementById('machine-' + mid + '-status');
+                    if (statusEl) {
+                        var isRunning = m.status === 'running' || m.status === 'online' || m.status === 'available';
+                        if (isRunning) {
+                            statusEl.style.background = 'rgba(52,211,153,0.1)';
+                            statusEl.style.color = 'var(--success)';
+                            statusEl.textContent = '● ' + (m.status || '运行中');
+                        } else if (m.status === 'calibrating') {
+                            statusEl.style.background = 'rgba(251,191,36,0.1)';
+                            statusEl.style.color = 'var(--warning)';
+                            statusEl.textContent = '◐ 校准中';
+                        } else if (m.status === 'maintenance') {
+                            statusEl.style.background = 'rgba(248,113,113,0.1)';
+                            statusEl.style.color = 'var(--error)';
+                            statusEl.textContent = '⚠ 维护中';
+                        } else {
+                            statusEl.textContent = m.status || '未知';
+                        }
+                    }
+                });
+                if (badge) {
+                    badge.textContent = machines.length + '台在线';
+                }
+            } else {
+                // 无真机连接（无API Key），保持Mock状态
+                if (apiKeyStatus) {
+                    apiKeyStatus.style.display = 'block';
+                }
+            }
+        }).catch(function(){});
+    }
+
+    function submitRealDemo() {
+        if (realDemoSubmitting) return;
+        realDemoSubmitting = true;
+        var btn = document.getElementById('btn-real-demo');
+        if (btn) {
+            btn.disabled = true;
+            btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="animation:spin 1s linear infinite;"><circle cx="12" cy="12" r="10" stroke-dasharray="40" stroke-dashoffset="10"/></svg> 提交中...';
+        }
+
+        // 提交一个Demo任务到真机（Mock模式：走仿真任务提交接口模拟真机流程）
+        var demoTask = {
+            user_id: 'demo_user',
+            task_type: 'quantum',
+            priority: 3,
+            qubit_count: 5,
+            circuit_depth: 20,
+            estimated_time: 30
+        };
+
+        fetch('/api/tasks', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(demoTask)
+        }).then(function(r){return r.json();}).then(function(data){
+            showToast('Demo任务已提交: ' + (data.task_id || '成功'), 'success');
+            // 添加一条Mock的真机提交记录
+            var listEl = document.getElementById('real-submissions-list');
+            if (listEl) {
+                var mockHtml = '<div class="real-submission-item" style="border-color:rgba(59,201,219,0.2);">';
+                mockHtml += '<span class="real-sub-id">' + (data.task_id||'DEMO-'+Date.now()).substring(0,12) + '...</span>';
+                mockHtml += '<span class="real-sub-status pending">⏳ Mock演示</span>';
+                mockHtml += '<div class="real-sub-meta">tianyan_s · ' + new Date().toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit',second:'2-digit'}) + ' (Demo模式)</div>';
+                mockHtml += '</div>';
+                listEl.insertAdjacentHTML('afterbegin', mockHtml);
+            }
+        }).catch(function(e){
+            showToast('提交失败: ' + e.message, 'error');
+        }).finally(function(){
+            realDemoSubmitting = false;
+            if (btn) {
+                btn.disabled = false;
+                btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg> 提交真机Demo任务';
+            }
+        });
+    }
+
+    // ================================================================
     // 初始化
     // ================================================================
     // ================================================================
@@ -2217,6 +2793,12 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
         // 连接WS
         connectWS();
+
+        // 加载真机状态和提交记录
+        loadRealMachines();
+        loadRealSubmissions();
+        setInterval(loadRealMachines, 15000);  // 每15秒刷新一次真机状态
+        setInterval(loadRealSubmissions, 10000);
 
         // 兜底HTTP轮询
         setTimeout(startHttpPolling, 5000);
