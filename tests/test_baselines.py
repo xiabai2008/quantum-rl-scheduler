@@ -13,6 +13,9 @@ Unit Tests for src/scheduler/baselines.py
 - TestMinMinScheduler        : Min-Min 最短任务优先、空列表边界（Issue #270）
 - TestRunBaselineComparison  : 多策略对比、返回结构完整
 - TestEdgeCases              : 空任务列表、单任务、所有任务相同属性
+- TestEnvBasedScheduler      : Gymnasium环境适配器（Issue #230）
+- TestBaselineRewardConsistency : 奖励一致性验证（Issue #233）
+- TestRunBaselineComparisonEnv  : use_env=True模式（Issue #231）
 """
 
 import unittest
@@ -21,6 +24,13 @@ from unittest.mock import patch
 from src.scheduler.baselines import (
     BaselineScheduler,
     EDFScheduler,
+    EnvBasedEDFScheduler,
+    EnvBasedFCFSScheduler,
+    EnvBasedGreedyScheduler,
+    EnvBasedHEFTScheduler,
+    EnvBasedMinMinScheduler,
+    EnvBasedScheduler,
+    EnvBasedSPTFScheduler,
     FCFSScheduler,
     HEFTScheduler,
     LIFOScheduler,
@@ -29,6 +39,7 @@ from src.scheduler.baselines import (
     RoundRobinScheduler,
     SPTFScheduler,
     get_all_baseline_schedulers,
+    get_all_env_based_schedulers,
     run_baseline_comparison,
 )
 
@@ -473,6 +484,57 @@ class TestEdgeCases(unittest.TestCase):
 
 
 # ============================================================
+# TestEnvBasedScheduler（Issue #230）
+# ============================================================
+class TestEnvBasedScheduler(unittest.TestCase):
+    """测试 EnvBasedScheduler Gymnasium 环境适配器（Issue #230/#270）。"""
+
+    def test_get_all_env_based_schedulers(self):
+        """get_all_env_based_schedulers 应返回 6 个 EnvBasedScheduler 实例。"""
+        schedulers = get_all_env_based_schedulers()
+        self.assertEqual(len(schedulers), 6)
+        names = {s.name for s in schedulers}
+        self.assertEqual(
+            names, {"FCFS", "SPTF", "EDF", "Greedy", "EnvBased-HEFT", "EnvBased-MinMin"}
+        )
+        for s in schedulers:
+            self.assertIsInstance(s, EnvBasedScheduler)
+
+    def test_select_action_returns_valid_action(self):
+        """所有 EnvBasedScheduler 子类应返回合法动作 [0, 1, 2]。"""
+        import numpy as np
+
+        from src.scheduler.env import QuantumSchedulingEnv
+
+        env = QuantumSchedulingEnv(max_steps=10, max_qubits=20, seed=42)
+        obs = env.reset(seed=42)[0]
+
+        for scheduler in get_all_env_based_schedulers():
+            scheduler.reset()
+            action = scheduler.select_action(obs, env)
+            self.assertIn(action, [0, 1, 2], f"{scheduler.name} 返回非法动作 {action}")
+
+    def test_env_based_scheduler_repr(self):
+        """EnvBasedScheduler 的 repr 应包含类名和策略名。"""
+        s = EnvBasedFCFSScheduler()
+        self.assertIn("FCFS", repr(s))
+        self.assertIn("EnvBasedFCFSScheduler", repr(s))
+
+    def test_base_class_raises_not_implemented(self):
+        """EnvBasedScheduler 基类 select_action 应抛出 NotImplementedError。"""
+        import numpy as np
+
+        s = EnvBasedScheduler("test")
+        with self.assertRaises(NotImplementedError):
+            s.select_action(np.zeros(14), None)
+
+    def test_reset_is_noop_for_base(self):
+        """EnvBasedScheduler.reset() 应为无操作，不抛异常。"""
+        s = EnvBasedFCFSScheduler()
+        s.reset()  # 不应抛异常
+
+
+# ============================================================
 # TestBaselineRewardConsistency (Issue #233)
 # ============================================================
 class TestBaselineRewardConsistency(unittest.TestCase):
@@ -701,6 +763,212 @@ class TestBaselineRewardConsistency(unittest.TestCase):
         for _name, metrics in results.items():
             self.assertIn("total_reward", metrics)
             self.assertGreaterEqual(metrics["total_reward"], 0.0)
+
+    def test_fcfs_reward_from_env(self):
+        """FCFS 在环境中运行时，reward 由 env.step() 返回，非独立公式。
+
+        验证方法：运行 FCFS 策略 10 步，检查 reward 值不是
+        独立公式 10.0 + priority*2.0 - wait*0.1 的结果。
+        """
+        from src.scheduler.env import QuantumSchedulingEnv
+
+        env = QuantumSchedulingEnv(max_steps=10, max_qubits=20, seed=42)
+        scheduler = EnvBasedFCFSScheduler()
+        obs = env.reset(seed=42)[0]
+
+        rewards = []
+        done = False
+        while not done:
+            action = scheduler.select_action(obs, env)
+            obs, reward, terminated, truncated, _info = env.step(action)
+            rewards.append(float(reward))
+            done = terminated or truncated
+
+        # 环境 reward 来自 compute_execution_reward：
+        #   classical=8.0, quantum=10*speedup+3 (speedup 2-5), hybrid=7*factor+3
+        # 独立公式 reward = 10 + priority*2 - wait*0.1 范围在 9.0~20.0
+        # 环境 reward classical=8.0，与独立公式不同
+        self.assertGreater(len(rewards), 0)
+        # 检查 reward 值来自环境（8.0 是 classical 基础奖励）
+        has_env_reward = any(abs(r - 8.0) < 0.01 or r >= 10.0 for r in rewards)
+        self.assertTrue(
+            has_env_reward,
+            f"reward 值 {rewards} 不符合环境奖励模式",
+        )
+
+    def test_reward_not_independent_formula(self):
+        """验证 reward 不是独立公式 10+priority*2-wait*0.1 的结果。
+
+        独立公式在 wait=0 时 reward = 10 + priority*2，
+        priority 范围 1-5，所以 reward 范围 12-20。
+        环境 classical reward = 8.0，不在此范围内。
+        """
+        from src.scheduler.env import QuantumSchedulingEnv
+
+        env = QuantumSchedulingEnv(max_steps=10, max_qubits=20, seed=42)
+        scheduler = EnvBasedFCFSScheduler()
+        obs = env.reset(seed=42)[0]
+
+        rewards = []
+        done = False
+        while not done:
+            action = scheduler.select_action(obs, env)
+            obs, reward, terminated, truncated, _info = env.step(action)
+            rewards.append(float(reward))
+            done = terminated or truncated
+
+        # 至少有一个 reward 不在独立公式范围 [12, 20] 内
+        has_non_formula = any(r < 12.0 or r > 20.0 for r in rewards)
+        self.assertTrue(
+            has_non_formula,
+            f"所有 reward {rewards} 都在独立公式范围 [12,20] 内，可能未使用环境 reward",
+        )
+
+    def test_sptf_reward_from_env(self):
+        """SPTF 在环境中运行时，reward 由 env.step() 返回。"""
+        from src.scheduler.env import QuantumSchedulingEnv
+
+        env = QuantumSchedulingEnv(max_steps=10, max_qubits=20, seed=42)
+        scheduler = EnvBasedSPTFScheduler()
+        obs = env.reset(seed=42)[0]
+
+        rewards = []
+        done = False
+        while not done:
+            action = scheduler.select_action(obs, env)
+            obs, reward, terminated, truncated, _info = env.step(action)
+            rewards.append(float(reward))
+            done = terminated or truncated
+
+        self.assertGreater(len(rewards), 0)
+        # 至少有一个 reward 不在独立公式范围 [12, 20] 内
+        has_non_formula = any(r < 12.0 or r > 20.0 for r in rewards)
+        self.assertTrue(
+            has_non_formula,
+            f"SPTF 所有 reward {rewards} 都在独立公式范围 [12,20] 内",
+        )
+
+    def test_edf_reward_from_env(self):
+        """EDF 在环境中运行时，reward 由 env.step() 返回。"""
+        from src.scheduler.env import QuantumSchedulingEnv
+
+        env = QuantumSchedulingEnv(max_steps=10, max_qubits=20, seed=42)
+        scheduler = EnvBasedEDFScheduler()
+        obs = env.reset(seed=42)[0]
+
+        rewards = []
+        done = False
+        while not done:
+            action = scheduler.select_action(obs, env)
+            obs, reward, terminated, truncated, _info = env.step(action)
+            rewards.append(float(reward))
+            done = terminated or truncated
+
+        self.assertGreater(len(rewards), 0)
+        # 至少有一个 reward 不在独立公式范围 [12, 20] 内
+        has_non_formula = any(r < 12.0 or r > 20.0 for r in rewards)
+        self.assertTrue(
+            has_non_formula,
+            f"EDF 所有 reward {rewards} 都在独立公式范围 [12,20] 内",
+        )
+
+    def test_all_baselines_produce_env_rewards(self):
+        """所有 6 个 EnvBasedScheduler 都应产生来自环境的 reward。"""
+        from src.scheduler.env import QuantumSchedulingEnv
+
+        for scheduler in get_all_env_based_schedulers():
+            env = QuantumSchedulingEnv(max_steps=10, max_qubits=20, seed=42)
+            scheduler.reset()
+            obs = env.reset(seed=42)[0]
+
+            rewards = []
+            done = False
+            while not done:
+                action = scheduler.select_action(obs, env)
+                obs, reward, terminated, truncated, _info = env.step(action)
+                rewards.append(float(reward))
+                done = terminated or truncated
+
+            self.assertGreater(len(rewards), 0, f"{scheduler.name} 未产生任何 reward")
+            # 至少有一个 reward 不在独立公式范围 [12, 20] 内
+            has_non_formula = any(r < 12.0 or r > 20.0 for r in rewards)
+            self.assertTrue(
+                has_non_formula,
+                f"{scheduler.name} 所有 reward {rewards} 都在独立公式范围 [12,20] 内",
+            )
+
+
+# ============================================================
+# TestRunBaselineComparisonEnv（Issue #231）
+# ============================================================
+class TestRunBaselineComparisonEnv(unittest.TestCase):
+    """测试 run_baseline_comparison 的 use_env=True 模式（Issue #231）。"""
+
+    def test_use_env_returns_env_based_mode(self):
+        """use_env=True 时结果应包含 comparison_mode='env_based'。"""
+        tasks = [_make_task("T1", priority=3, estimated_time=5.0, arrival_time=0.0)]
+        results = run_baseline_comparison(tasks, num_steps=10, use_env=True, seed=42)
+        for name, metrics in results.items():
+            self.assertEqual(
+                metrics["comparison_mode"],
+                "env_based",
+                f"{name} 应为 env_based 模式",
+            )
+
+    def test_use_env_returns_six_schedulers(self):
+        """use_env=True 时应返回 6 个 EnvBasedScheduler 策略。"""
+        tasks = [_make_task("T1", priority=3, estimated_time=5.0, arrival_time=0.0)]
+        results = run_baseline_comparison(tasks, num_steps=10, use_env=True, seed=42)
+        expected_names = {"FCFS", "SPTF", "EDF", "Greedy", "EnvBased-HEFT", "EnvBased-MinMin"}
+        self.assertEqual(set(results.keys()), expected_names)
+
+    def test_legacy_mode_returns_legacy(self):
+        """use_env=False 时结果应包含 comparison_mode='legacy'。"""
+        tasks = [_make_task("T1", priority=3, estimated_time=5.0, arrival_time=0.0)]
+        results = run_baseline_comparison(tasks, num_steps=10, use_env=False)
+        for name, metrics in results.items():
+            self.assertEqual(
+                metrics["comparison_mode"],
+                "legacy",
+                f"{name} 应为 legacy 模式",
+            )
+
+    def test_default_is_legacy(self):
+        """默认（不传 use_env）应为 legacy 模式（向后兼容）。"""
+        tasks = [_make_task("T1", priority=3, estimated_time=5.0, arrival_time=0.0)]
+        results = run_baseline_comparison(tasks, num_steps=10)
+        for _name, metrics in results.items():
+            self.assertEqual(metrics["comparison_mode"], "legacy")
+
+    def test_env_mode_reward_differs_from_legacy(self):
+        """env_based 模式的 reward 应与 legacy 模式不同（证明使用不同奖励函数）。"""
+        tasks = [
+            _make_task("T1", priority=3, estimated_time=5.0, arrival_time=0.0),
+            _make_task("T2", priority=5, estimated_time=3.0, arrival_time=0.0),
+        ]
+        legacy_results = run_baseline_comparison(tasks, num_steps=10, use_env=False)
+        env_results = run_baseline_comparison(tasks, num_steps=10, use_env=True, seed=42)
+
+        # FCFS 在两种模式下的 total_reward 应该不同
+        legacy_fcfs = legacy_results["FCFS"]["total_reward"]
+        env_fcfs = env_results.get("FCFS", {}).get("total_reward", 0.0)
+        self.assertNotEqual(
+            legacy_fcfs,
+            env_fcfs,
+            f"FCFS legacy reward={legacy_fcfs} 与 env reward={env_fcfs} 相同，"
+            "可能未使用不同奖励函数",
+        )
+
+    def test_env_mode_result_structure(self):
+        """use_env=True 结果应包含完整字段。"""
+        tasks = [_make_task("T1", priority=3, estimated_time=5.0, arrival_time=0.0)]
+        results = run_baseline_comparison(tasks, num_steps=10, use_env=True, seed=42)
+        for _name, metrics in results.items():
+            self.assertIn("total_reward", metrics)
+            self.assertIn("completed_tasks", metrics)
+            self.assertIn("avg_wait_time", metrics)
+            self.assertIn("throughput", metrics)
+            self.assertIn("comparison_mode", metrics)
 
 
 if __name__ == "__main__":

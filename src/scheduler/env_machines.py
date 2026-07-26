@@ -93,17 +93,27 @@ def route_to_machine(
     machine: QuantumMachine | None,
     task: Task,
     rng: np.random.Generator,
+    rl_action: int = -1,
+    rl_action_prob: float = 0.0,
+    observation_snapshot: dict | None = None,
 ) -> None:
     """将任务路由到选定的量子机器，更新队列与调度记录。
 
     若机器为真机模式（is_real=True 且已 attach 客户端），则以
     ``real_submit_probability`` 概率真正提交到天衍云真机，控制机时消耗。
 
+    RL 动作上下文（Issue #234）：将 ``rl_action``、``rl_action_prob``、
+    ``observation_snapshot`` 透传给 ``submit_to_real_machine``，
+    使 pending 记录包含完整因果链信息。
+
     Args:
-        env     : 调度环境实例
-        machine : 选定的量子机器（None 时不做任何操作）
-        task    : 被执行的任务
-        rng     : 随机数生成器（用于抽样是否上真机）
+        env                 : 调度环境实例
+        machine             : 选定的量子机器（None 时不做任何操作）
+        task                : 被执行的任务
+        rng                 : 随机数生成器（用于抽样是否上真机）
+        rl_action           : RL 动作类型（0=classical, 1=quantum, 2=hybrid，默认 -1）
+        rl_action_prob      : 该动作被选择的概率（默认 0.0）
+        observation_snapshot: 观测向量摘要（默认 None）
     """
     if machine is None:
         env._last_selected_machine = None
@@ -132,7 +142,9 @@ def route_to_machine(
         and env.real_submit_probability > 0.0
         and float(rng.random()) < env.real_submit_probability
     ):
-        env._submit_to_real_machine(machine, task)
+        env._submit_to_real_machine(
+            machine, task, rl_action, rl_action_prob, observation_snapshot
+        )
 
 
 def recompute_aggregate(env: "QuantumSchedulingEnv") -> None:

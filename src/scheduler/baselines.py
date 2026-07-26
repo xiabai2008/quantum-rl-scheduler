@@ -435,74 +435,134 @@ def get_all_baseline_schedulers() -> list[BaselineScheduler]:
     ]
 
 
-def run_baseline_comparison(tasks: list[dict], num_steps: int = 100) -> dict[str, dict]:
-    """用所有基线策略调度给定任务列表，返回对比结果。
+def run_baseline_comparison(
+    tasks: list[dict],
+    num_steps: int = 100,
+    use_env: bool = False,
+    env_config: dict | None = None,
+    seed: int = 42,
+) -> dict[str, dict]:
+    """用所有基线策略调度给定任务列表，返回对比结果（Issue #231）。
 
     模拟流程：每步从剩余任务队列中按策略选一个任务执行，完成后从队列移除，
     累计奖励 / 等待时间 / 完成数；最多执行 num_steps 步或队列清空为止。
 
-    奖励公式：reward = 10.0 + priority * 2.0 - wait * 0.1
+    **use_env=False（默认，向后兼容）**：
+        使用独立模拟流程，奖励公式：reward = 10.0 + priority * 2.0 - wait * 0.1
 
-        - 基础完成奖励 10.0
-        - 优先级加权（priority 1-5）
-        - 等待惩罚（每单位等待时间 -0.1）
+    **use_env=True（Issue #230/#231）**：
+        使用 ``EnvBasedScheduler`` 在 ``QuantumSchedulingEnv`` 中运行基线，
+        reward 由 ``env.step(action)`` 返回（即 ``env_reward.py`` 计算），
+        确保基线与 PPO 在相同奖励函数下对比。
 
     Args:
-        tasks     : 待调度任务列表
-        num_steps : 最大调度步数（默认 100）
+        tasks       : 待调度任务列表
+        num_steps   : 最大调度步数（默认 100）
+        use_env     : 是否使用 Gymnasium 环境模式（默认 False，向后兼容）
+        env_config  : 环境配置字典（仅 use_env=True 时使用），如 max_steps, max_qubits
+        seed        : 随机种子（仅 use_env=True 时使用）
 
     Returns:
-        ``{策略名: {total_reward, completed_tasks, avg_wait_time, throughput}}``
+        ``{策略名: {total_reward, completed_tasks, avg_wait_time, throughput, comparison_mode}}``
     """
-    results: dict[str, dict] = {}
-    available_resources: dict = {"qubits": 20, "classical_load": 0.0}
-    schedulers = get_all_baseline_schedulers()
+    if not use_env:
+        # 向后兼容：独立模拟流程
+        results: dict[str, dict] = {}
+        available_resources: dict = {"qubits": 20, "classical_load": 0.0}
+        schedulers = get_all_baseline_schedulers()
 
-    for scheduler in schedulers:
-        scheduler.reset()
-        # 深拷贝任务，避免跨策略污染
-        queue: list[dict] = [dict(t) for t in tasks]
+        for scheduler in schedulers:
+            scheduler.reset()
+            # 深拷贝任务，避免跨策略污染
+            queue: list[dict] = [dict(t) for t in tasks]
 
+            total_reward = 0.0
+            completed = 0
+            total_wait = 0.0
+            current_time = 0.0
+
+            for _step in range(num_steps):
+                if not queue:
+                    break
+                idx = scheduler.select_action(queue, available_resources)
+                if idx < 0 or idx >= len(queue):
+                    break
+                task = queue.pop(idx)
+                est = _get_float(task, "estimated_time", _DEFAULT_ESTIMATED_TIME)
+                arrival = _get_float(task, "arrival_time", _DEFAULT_ARRIVAL_TIME)
+                priority = _get_int(task, "priority", _DEFAULT_PRIORITY)
+
+                # 等待时间 = 当前时间 - 到达时间（不小于 0）
+                wait = max(0.0, current_time - arrival)
+                total_wait += wait
+                # 奖励：基础完成 + 优先级加权 - 等待惩罚
+                total_reward += 10.0 + priority * 2.0 - wait * 0.1
+                completed += 1
+                # 推进模拟时钟
+                current_time += est
+
+            avg_wait = total_wait / completed if completed > 0 else 0.0
+            throughput = completed / num_steps if num_steps > 0 else 0.0
+            results[scheduler.name] = {
+                "total_reward": total_reward,
+                "completed_tasks": completed,
+                "avg_wait_time": avg_wait,
+                "throughput": throughput,
+                "comparison_mode": "legacy",
+            }
+
+        return results
+
+    # use_env=True：Gymnasium 环境模式（Issue #230/#231）
+    from src.scheduler.env import QuantumSchedulingEnv
+
+    config = env_config or {}
+    max_steps = config.get("max_steps", num_steps)
+    max_qubits = config.get("max_qubits", 287)
+
+    env_results: dict[str, dict] = {}
+    env_schedulers = get_all_env_based_schedulers()
+
+    for env_scheduler in env_schedulers:
+        env_scheduler.reset()
+        env = QuantumSchedulingEnv(
+            max_steps=max_steps,
+            max_qubits=max_qubits,
+            seed=seed,
+        )
+
+        obs = env.reset(seed=seed)[0]
         total_reward = 0.0
         completed = 0
-        total_wait = 0.0
-        current_time = 0.0
+        done = False
 
-        for _step in range(num_steps):
-            if not queue:
-                break
-            idx = scheduler.select_action(queue, available_resources)
-            if idx < 0 or idx >= len(queue):
-                break
-            task = queue.pop(idx)
-            est = _get_float(task, "estimated_time", _DEFAULT_ESTIMATED_TIME)
-            arrival = _get_float(task, "arrival_time", _DEFAULT_ARRIVAL_TIME)
-            priority = _get_int(task, "priority", _DEFAULT_PRIORITY)
-
-            # 等待时间 = 当前时间 - 到达时间（不小于 0）
-            wait = max(0.0, current_time - arrival)
-            total_wait += wait
-            # 奖励：基础完成 + 优先级加权 - 等待惩罚
-            total_reward += 10.0 + priority * 2.0 - wait * 0.1
+        while not done:
+            action = env_scheduler.select_action(obs, env)
+            obs, reward, terminated, truncated, _info = env.step(action)
+            total_reward += float(reward)
             completed += 1
-            # 推进模拟时钟
-            current_time += est
+            done = terminated or truncated
 
-        avg_wait = total_wait / completed if completed > 0 else 0.0
-        throughput = completed / num_steps if num_steps > 0 else 0.0
-        results[scheduler.name] = {
+        env_results[env_scheduler.name] = {
             "total_reward": total_reward,
             "completed_tasks": completed,
-            "avg_wait_time": avg_wait,
-            "throughput": throughput,
+            "avg_wait_time": 0.0,
+            "throughput": completed / max_steps if max_steps > 0 else 0.0,
+            "comparison_mode": "env_based",
         }
 
-    return results
+    return env_results
 
 
 # ---------------------------------------------------------------------------
-# EnvBasedScheduler 层次（Issue #230/#270）
+# EnvBasedScheduler：将基线策略封装为 Gymnasium 环境动作选择器（Issue #230/#270）
 # ---------------------------------------------------------------------------
+# 与 BaselineScheduler 的区别：
+#   - BaselineScheduler.select_action(tasks, resources) -> int  操作任务列表索引
+#   - EnvBasedScheduler.select_action(observation, env) -> int  操作 Gymnasium 动作空间
+#
+# 在 Gymnasium 环境中运行时，reward 由 env.step(action) 返回（env_reward.py 计算），
+# 而非独立公式，确保基线与 PPO 在相同奖励函数下对比。
 
 # 动作常量（与 env_types.py 保持一致）
 _ACTION_CLASSICAL = 0
@@ -518,7 +578,10 @@ class EnvBasedScheduler:
     reward 由 ``env.step(action)`` 返回（即 ``env_reward.py`` 计算）。
 
     子类需实现 ``select_action(observation, env) -> int``，
-    在合法动作空间 [0, 1, 2] 中选择动作。
+    在合法动作空间 [0, 1, 2] 中选择动作：
+        - 0 (ACTION_CLASSICAL): 分配到经典计算资源
+        - 1 (ACTION_QUANTUM)  : 分配到量子计算资源
+        - 2 (ACTION_HYBRID)    : 混合执行
 
     Attributes:
         name: 策略名称，用于结果标识
@@ -545,88 +608,120 @@ class EnvBasedScheduler:
         raise NotImplementedError("子类必须实现 select_action")
 
     def reset(self) -> None:
-        """重置调度器内部状态。"""
+        """重置调度器内部状态。基类默认无操作。"""
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(name={self.name!r})"
 
 
 class EnvBasedFCFSScheduler(EnvBasedScheduler):
-    """FCFS 策略的环境适配器。
+    """FCFS 策略的 Gymnasium 环境适配器。
 
-    量子任务优先分配到量子资源；无量子任务时分配到经典。
+    策略逻辑：优先处理当前任务（先来先服务）。
+    若当前任务是量子类型且量子资源可用，选择量子动作；
+    若是经典类型，选择经典动作；
+    无当前任务时选择经典动作（空操作）。
     """
 
     def __init__(self) -> None:
-        """初始化 FCFS 环境策略。"""
-        super().__init__("EnvBased-FCFS")
+        super().__init__("FCFS")
 
     def select_action(self, observation: np.ndarray, env: Any) -> int:
-        """根据观测中任务类型选择动作。
+        # OBS_TASK_TYPE_QUANTUM=8, OBS_TASK_TYPE_CLASSICAL=9
+        is_quantum = observation[8] > 0.5
+        is_classical = observation[9] > 0.5
+        qubit_avail = observation[0]  # 量子比特可用比率
 
-        观测第 10 位（OBS_TASK_TYPE_QUANTUM）表示当前任务是否为量子任务。
-        """
-        obs_dim = len(observation) if hasattr(observation, "__len__") else 0
-        if obs_dim > 10 and float(observation[10]) > 0.5:
-            return _ACTION_QUANTUM
-        return _ACTION_CLASSICAL
+        if is_quantum and qubit_avail > 0.1:
+            return 1  # ACTION_QUANTUM
+        if is_classical:
+            return 0  # ACTION_CLASSICAL
+        # 无明确类型或量子资源不足，走经典
+        return 0
 
 
 class EnvBasedSPTFScheduler(EnvBasedScheduler):
-    """SPTF 策略的环境适配器。
+    """SPTF 策略的 Gymnasium 环境适配器。
 
-    量子任务的等效处理时间更短（量子加速比 2-5x），优先量子。
+    策略逻辑：最短处理时间优先。
+    量子任务通常有加速比（speedup 2-5x），等效处理时间更短，
+    因此量子任务可用时优先选择量子动作。
     """
 
     def __init__(self) -> None:
-        """初始化 SPTF 环境策略。"""
-        super().__init__("EnvBased-SPTF")
+        super().__init__("SPTF")
 
     def select_action(self, observation: np.ndarray, env: Any) -> int:
-        """量子任务优先量子动作以获得更短的等效处理时间。"""
-        obs_dim = len(observation) if hasattr(observation, "__len__") else 0
-        if obs_dim > 10 and float(observation[10]) > 0.5:
-            return _ACTION_QUANTUM
-        return _ACTION_CLASSICAL
+        is_quantum = observation[8] > 0.5
+        qubit_avail = observation[0]
+        fidelity = observation[3]  # 量子保真度
+
+        # 量子任务且资源充足且保真度合格 -> 量子（等效时间最短）
+        if is_quantum and qubit_avail > 0.2 and fidelity > 0.85:
+            return 1  # ACTION_QUANTUM
+        # 量子任务但资源不足 -> 混合
+        if is_quantum and qubit_avail > 0.05:
+            return 2  # ACTION_HYBRID
+        # 默认经典
+        return 0  # ACTION_CLASSICAL
 
 
 class EnvBasedEDFScheduler(EnvBasedScheduler):
-    """EDF 策略的环境适配器。
+    """EDF 策略的 Gymnasium 环境适配器。
 
-    紧急任务优先量子加速以尽快完成。
+    策略逻辑：最早截止时间优先。
+    紧急任务（高 urgency）优先选择量子加速以尽快完成。
     """
 
     def __init__(self) -> None:
-        """初始化 EDF 环境策略。"""
-        super().__init__("EnvBased-EDF")
+        super().__init__("EDF")
 
     def select_action(self, observation: np.ndarray, env: Any) -> int:
-        """紧急任务（高 urgency）优先量子动作。"""
-        obs_dim = len(observation) if hasattr(observation, "__len__") else 0
-        if obs_dim > 10 and float(observation[10]) > 0.5:
-            urgency = float(observation[13]) if obs_dim > 13 else 0.0
-            if urgency > 0.3:
-                return _ACTION_QUANTUM
-            return _ACTION_HYBRID
-        return _ACTION_CLASSICAL
+        urgency = observation[7]  # 当前任务紧急程度
+        is_quantum = observation[8] > 0.5
+        qubit_avail = observation[0]
+        fidelity = observation[3]
+
+        # 紧急任务且量子可用 -> 量子加速
+        if urgency > 0.5 and qubit_avail > 0.1 and fidelity > 0.8:
+            return 1  # ACTION_QUANTUM
+        # 量子任务且资源可用 -> 量子
+        if is_quantum and qubit_avail > 0.2:
+            return 1  # ACTION_QUANTUM
+        # 量子任务但资源紧张 -> 混合
+        if is_quantum and qubit_avail > 0.05:
+            return 2  # ACTION_HYBRID
+        # 默认经典
+        return 0  # ACTION_CLASSICAL
 
 
 class EnvBasedGreedyScheduler(EnvBasedScheduler):
-    """贪心策略的环境适配器。
+    """Greedy 策略的 Gymnasium 环境适配器。
 
-    贪心选择当前收益最高的动作。
+    策略逻辑：贪心选择当前收益最高的动作。
+    量子动作在保真度足够时有更高基础奖励（10*speedup），
+    但保真度低于 0.9 时奖励打 6 折。
     """
 
     def __init__(self) -> None:
-        """初始化贪心环境策略。"""
-        super().__init__("EnvBased-Greedy")
+        super().__init__("Greedy")
 
     def select_action(self, observation: np.ndarray, env: Any) -> int:
-        """贪心选择：量子可用且任务为量子时选量子，否则经典。"""
-        obs_dim = len(observation) if hasattr(observation, "__len__") else 0
-        if obs_dim > 10 and float(observation[10]) > 0.5:
-            qubit_avail = float(observation[6]) if obs_dim > 6 else 0.5
-            if qubit_avail > 0.3:
-                return _ACTION_QUANTUM
-            return _ACTION_HYBRID
-        return _ACTION_CLASSICAL
+        is_quantum = observation[8] > 0.5
+        qubit_avail = observation[0]
+        fidelity = observation[3]
+
+        # 量子任务且保真度高且资源充足 -> 量子（贪心追求最高奖励）
+        if is_quantum and fidelity > 0.9 and qubit_avail > 0.2:
+            return 1  # ACTION_QUANTUM
+        # 量子任务且保真度中等 -> 混合（避免低保真度打折）
+        if is_quantum and fidelity > 0.85 and qubit_avail > 0.1:
+            return 2  # ACTION_HYBRID
+        # 量子任务但条件不足 -> 经典
+        if is_quantum:
+            return 0  # ACTION_CLASSICAL
+        # 经典任务
+        return 0  # ACTION_CLASSICAL
 
 
 class EnvBasedHEFTScheduler(EnvBasedScheduler):
@@ -803,10 +898,10 @@ class EnvBasedMinMinScheduler(EnvBasedScheduler):
 
 
 def get_all_env_based_schedulers() -> list[EnvBasedScheduler]:
-    """返回所有环境适配基线策略的实例列表。
+    """返回所有 Gymnasium 环境适配的基线策略实例列表（Issue #230/#270）。
 
     Returns:
-        包含 6 个环境适配策略实例的列表（FCFS/SPTF/EDF/Greedy/HEFT/MinMin）
+        包含 6 个 EnvBasedScheduler 子类实例的列表（FCFS/SPTF/EDF/Greedy/HEFT/MinMin）
     """
     return [
         EnvBasedFCFSScheduler(),
