@@ -455,3 +455,81 @@ def compare_strategies(
         }
 
     return results
+
+
+def power_ttest(d: float, n1: int, n2: int, alpha: float = 0.05) -> float:
+    """计算两样本 t 检验的检验力（post-hoc power）。
+
+    基于非中心 t 分布（``scipy.stats.nct``）计算双侧检验力：
+    power = P(T > t_crit) + P(T < -t_crit)，其中非中心参数
+    ncp = |d| * sqrt(n1 * n2 / (n1 + n2))。
+
+    Args:
+        d: Cohen's d 效应量
+        n1: 第一组样本量
+        n2: 第二组样本量
+        alpha: 显著性水平（默认 0.05）
+
+    Returns:
+        检验力（0~1 之间）；样本不足或 d 为 nan 时返回 nan
+    """
+    if n1 < 2 or n2 < 2 or math.isnan(d):
+        return float("nan")
+    ncp = abs(d) * math.sqrt(n1 * n2 / (n1 + n2))
+    df = n1 + n2 - 2
+    t_crit = float(stats.t.ppf(1.0 - alpha / 2.0, df))
+    power = float(1.0 - stats.nct.cdf(t_crit, df, ncp) + stats.nct.cdf(-t_crit, df, ncp))
+    return power
+
+
+def minimum_detectable_effect(n1: int, n2: int, alpha: float = 0.05, power: float = 0.8) -> float:
+    """计算当前样本量下 80% 检验力可检测的最小 Cohen's d。
+
+    近似公式：MDES = (t_alpha + t_beta) * sqrt((n1 + n2) / (n1 * n2))
+    其中 t_alpha 为双侧临界值，t_beta 为对应检验力的非中心 t 分位数。
+
+    Args:
+        n1: 第一组样本量
+        n2: 第二组样本量
+        alpha: 显著性水平（默认 0.05）
+        power: 目标检验力（默认 0.8）
+
+    Returns:
+        最小可检测效应量（Cohen's d）；样本不足时返回 nan
+    """
+    if n1 < 2 or n2 < 2:
+        return float("nan")
+    df = n1 + n2 - 2
+    t_alpha = float(stats.t.ppf(1.0 - alpha / 2.0, df))
+    t_beta = float(stats.t.ppf(power, df))
+    mde = (t_alpha + t_beta) * math.sqrt((n1 + n2) / (n1 * n2))
+    return mde
+
+
+def sample_size_for_effect(
+    d: float, alpha: float = 0.05, power: float = 0.8, ratio: float = 1.0
+) -> int:
+    """计算检测指定效应量所需的每组样本量。
+
+    通过迭代求解：从 n=2 开始逐步增加，直到 ``power_ttest`` 达到目标检验力。
+    上限 100,000，防止无限循环。
+
+    Args:
+        d: Cohen's d 效应量（|d| > 0）
+        alpha: 显著性水平（默认 0.05）
+        power: 目标检验力（默认 0.8）
+        ratio: 两组样本量比 n2/n1（默认 1.0，即等样本量）
+
+    Returns:
+        第一组所需样本量；d 为 0 或 nan 时返回 0
+    """
+    if math.isnan(d) or d == 0.0:
+        return 0
+    for n in range(2, 100_000):
+        n1, n2 = n, int(n * ratio)
+        if n2 < 2:
+            continue
+        p = power_ttest(d, n1, n2, alpha)
+        if not math.isnan(p) and p >= power:
+            return n1
+    return 0

@@ -22,8 +22,11 @@ import pytest
 from src.utils.stats_significance import (
     cohen_d,
     compare_strategies,
+    minimum_detectable_effect,
     normality_test,
+    power_ttest,
     rank_biserial,
+    sample_size_for_effect,
 )
 
 
@@ -298,3 +301,59 @@ def test_result_contains_all_required_fields(rng: np.random.Generator) -> None:
     # interpretation 应为非空中文
     assert isinstance(pair["interpretation"], str)
     assert len(pair["interpretation"]) > 0
+
+
+# ---------------------------------------------------------------------------
+# 10. 检验力分析（Power Analysis）
+# ---------------------------------------------------------------------------
+
+
+class TestPowerAnalysis:
+    """统计检验力分析函数测试"""
+
+    def test_power_ttest_large_effect(self) -> None:
+        """大效应量（d=1.5）且 n=30+30，检验力应 > 0.95"""
+        power = power_ttest(d=1.5, n1=30, n2=30, alpha=0.05)
+        assert not math.isnan(power)
+        assert power > 0.95
+
+    def test_power_ttest_small_sample(self) -> None:
+        """中等效应量（d=0.5）且小样本 n=5+5，检验力应 < 0.5"""
+        power = power_ttest(d=0.5, n1=5, n2=5, alpha=0.05)
+        assert not math.isnan(power)
+        assert power < 0.5
+
+    def test_power_ttest_boundary(self) -> None:
+        """边界：n < 2 或 d 为 nan → 返回 nan"""
+        assert math.isnan(power_ttest(d=0.5, n1=1, n2=30))
+        assert math.isnan(power_ttest(d=0.5, n1=30, n2=1))
+        assert math.isnan(power_ttest(d=float("nan"), n1=30, n2=30))
+
+    def test_mde_decreases_with_n(self) -> None:
+        """样本量增大时，最小可检测效应量应单调递减"""
+        mde_small = minimum_detectable_effect(n1=10, n2=10, alpha=0.05, power=0.8)
+        mde_large = minimum_detectable_effect(n1=100, n2=100, alpha=0.05, power=0.8)
+        assert not math.isnan(mde_small)
+        assert not math.isnan(mde_large)
+        assert mde_large < mde_small
+
+    def test_mde_boundary(self) -> None:
+        """边界：n < 2 → 返回 nan"""
+        assert math.isnan(minimum_detectable_effect(n1=1, n2=10))
+        assert math.isnan(minimum_detectable_effect(n1=10, n2=1))
+
+    def test_sample_size_for_large_effect(self) -> None:
+        """大效应量（d=1.5）所需样本量应较小（< 10）"""
+        n = sample_size_for_effect(d=1.5, alpha=0.05, power=0.8, ratio=1.0)
+        assert n > 0
+        assert n < 10
+
+    def test_sample_size_for_small_effect(self) -> None:
+        """小效应量（d=0.2）所需样本量应较大（> 50）"""
+        n = sample_size_for_effect(d=0.2, alpha=0.05, power=0.8, ratio=1.0)
+        assert n > 50
+
+    def test_sample_size_boundary(self) -> None:
+        """边界：d=0 或 nan → 返回 0"""
+        assert sample_size_for_effect(d=0.0) == 0
+        assert sample_size_for_effect(d=float("nan")) == 0
