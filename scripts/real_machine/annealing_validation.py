@@ -525,6 +525,20 @@ def save_results(
             "real_task_count": REAL_TASK_COUNT,
             "qcis": QCIS_CIRCUIT,
         },
+        "annealing_config": {
+            "experiment": "annealing_validation_real_machine",
+            "qubo_size": QUBO_SIZE,
+            "num_reads": NUM_READS,
+            "annealing_time": ANNEALING_TIME,
+            "simulation_mode": True,
+            "solvers_compared": ["brute_force", "simulated_annealing", "dwave_neal"],
+            "real_machine_shots": REAL_SHOTS,
+            "real_task_count": REAL_TASK_COUNT,
+            "note": (
+                "本脚本使用独立退火函数（simulated_annealing_solve / dwave_neal_solve），"
+                "不经过 QuantumAnnealingOptimizer 类；annealing_config 字段为脚本实际参数。"
+            ),
+        },
         "qubo_matrix": qubo_matrix.tolist(),
         "results": {
             "brute_force": brute_result,

@@ -102,6 +102,8 @@ class QuantumAnnealingOptimizer:
                             且客户端具备 submit_annealing_task 方法时尝试真机退火。
             n_bits_per_weight: 每个权重的编码位数（默认 4），其中 1 位为符号位。
             max_qubo_memory_mb: 单个 QUBO 矩阵允许的最大内存（MiB，默认 64）。
+                                当 n_bits_per_weight 较大（如 8）时，QUBO 矩阵
+                                规模为 (num_weights * n_bits)²，此参数防止内存溢出。
         """
         if n_bits_per_weight < 2:
             raise ValueError("n_bits_per_weight 必须至少为 2（1 个符号位 + 1 个数值位）")
@@ -110,7 +112,7 @@ class QuantumAnnealingOptimizer:
         self.num_qubits = num_qubits
         self.n_bits_per_weight = n_bits_per_weight
         self.max_qubo_memory_mb = max_qubo_memory_mb
-        self.last_qubo_memory_bytes = 0
+        self.last_qubo_memory_bytes: int = 0
         self.annealing_time = annealing_time
         self.shots = shots
         self.simulation_mode = bool(simulation_mode)
@@ -153,6 +155,50 @@ class QuantumAnnealingOptimizer:
         self._last_solver: str = "none"
         # 记录最后一次 optimize_policy 的退火统计（供外部诊断无效化/接受率）
         self._last_anneal_stats: dict[str, Any] = {}
+
+    # ------------------------------------------------------------------
+    # 方法 1.1: get_annealing_config（Issue #247 退火参数可追溯）
+    # ------------------------------------------------------------------
+    def get_annealing_config(self) -> dict[str, Any]:
+        """返回当前退火优化器的完整参数配置（Issue #247）。
+
+        用于实验脚本在输出 JSON 中填充 ``annealing_config`` 字段，
+        确保不同实验使用的退火参数可追溯、可复现。
+
+        Returns:
+            包含全部退火参数的字典，字段说明：
+            - ``num_qubits``: 量子比特数
+            - ``annealing_time``: 退火时间（μs，仅真机有效）
+            - ``shots``: 采样次数
+            - ``simulation_mode``: 是否仿真模式
+            - ``solver_backend``: 求解器后端（"neal" / "numpy_sa"）
+            - ``sim_initial_temp``: 内置 SA 初始温度
+            - ``sim_cooling_rate``: 内置 SA 降温系数
+            - ``sim_num_sweeps``: 内置 SA 扫描次数
+            - ``n_bits_per_weight``: 每权重编码比特数
+            - ``max_qubo_memory_mb``: QUBO 矩阵内存上限（MiB）
+            - ``last_qubo_memory_bytes``: 最近一次 QUBO 矩阵实际内存（字节）
+            - ``last_solver``: 最后一次实际使用的求解器
+            - ``quantum_acceleration_enabled``: 全局加速开关
+        """
+        return {
+            "num_qubits": self.num_qubits,
+            "annealing_time": self.annealing_time,
+            "shots": self.shots,
+            "simulation_mode": self.simulation_mode,
+            "solver_backend": "neal" if self.use_dw else "numpy_sa",
+            "sim_initial_temp": self._sim_initial_temp,
+            "sim_cooling_rate": self._sim_cooling_rate,
+            "sim_num_sweeps": self._sim_num_sweeps,
+            "n_bits_per_weight": self.n_bits_per_weight,
+            "max_qubo_memory_mb": self.max_qubo_memory_mb,
+            "last_qubo_memory_bytes": self.last_qubo_memory_bytes,
+            "last_solver": self._last_solver,
+            "quantum_acceleration_enabled": os.environ.get(
+                "QUANTUM_ACCELERATION_ENABLED", "0"
+            ).lower()
+            in ("1", "true", "yes"),
+        }
 
     # ------------------------------------------------------------------
     # 方法 2: network_to_qubo
@@ -224,8 +270,12 @@ class QuantumAnnealingOptimizer:
         # 总比特数 = 权重数 × 每权重编码比特数
         # 编码格式：1 bit 符号位 + (n_bits-1) bit 数值位
         total_bits = num_weights * n_bits_per_weight
+
+        # QUBO 内存预估与保护（Issue #239）：
+        # QUBO 矩阵大小为 total_bits × total_bits × float64，
+        # 当 n_bits_per_weight=8 且参数量较大时可能超出内存限制。
         estimated_bytes = total_bits * total_bits * np.dtype(np.float64).itemsize
-        self.last_qubo_memory_bytes = estimated_bytes
+        self.last_qubo_memory_bytes = int(estimated_bytes)
         estimated_mb = estimated_bytes / (1024 * 1024)
         logger.info(
             f"QUBO 内存预估: {total_bits}² float64 = {estimated_mb:.2f} MiB "
@@ -234,7 +284,8 @@ class QuantumAnnealingOptimizer:
         if estimated_mb > self.max_qubo_memory_mb:
             raise MemoryError(
                 f"QUBO 矩阵预计占用 {estimated_mb:.2f} MiB，"
-                f"超过配置上限 {self.max_qubo_memory_mb:.2f} MiB"
+                f"超过配置上限 {self.max_qubo_memory_mb:.2f} MiB。"
+                f"可减小 n_bits_per_weight 或增大 max_qubo_memory_mb。"
             )
 
         logger.debug(
@@ -464,10 +515,21 @@ class QuantumAnnealingOptimizer:
         deltas: list[np.ndarray],
         max_delta: float = 0.1,
     ) -> str:
-        """将权重更新量编码为符号-数值比特串。
+        """将权重更新量编码为符号-数值比特串（Issue #239）。
 
         该方法与 :meth:`bitstring_to_weights` 使用相同的定点数约定，
         可用于验证 4/8 bit 等配置下的量化往返误差。
+
+        编码格式：每权重 n_bits_per_weight 位 = 1 符号位 + (n-1) 数值位。
+        数值位采用二进制小数编码（MSB = 1/2, LSB = 1/2^m），
+        与 ``bitstring_to_weights`` 的解码逻辑严格对应。
+
+        Args:
+            deltas    : 权重更新量列表，每个元素为 numpy array。
+            max_delta : 更新量的最大幅度，用于归一化。默认 0.1。
+
+        Returns:
+            编码后的比特串，长度 = sum(prod(shape)) × n_bits_per_weight。
         """
         if max_delta <= 0:
             raise ValueError("max_delta 必须大于 0")
@@ -475,13 +537,13 @@ class QuantumAnnealingOptimizer:
         magnitude_bits = self.n_bits_per_weight - 1
         scale = 2**magnitude_bits
         max_encoded = scale - 1
-        flat_deltas = np.concatenate([delta.flatten() for delta in deltas])
+        flat_deltas = np.concatenate([d.flatten() for d in deltas])
         encoded: list[str] = []
 
-        for delta in flat_deltas:
-            sign = "1" if delta < 0 else "0"
-            quantized = round(min(abs(float(delta)) / max_delta, 1.0) * scale)
-            quantized = min(quantized, max_encoded)
+        for value in flat_deltas:
+            sign = "1" if value < 0 else "0"
+            quantized = round(min(abs(float(value)) / max_delta, 1.0) * scale)
+            quantized = min(int(quantized), max_encoded)
             encoded.append(f"{sign}{quantized:0{magnitude_bits}b}")
 
         return "".join(encoded)

@@ -616,9 +616,20 @@ def main() -> int:
 
     # 保存报告
     if args.output:
+        # 收集完整退火参数配置（Issue #247）
+        _cfg_optimizer = QuantumAnnealingOptimizer(num_qubits=16)
+        annealing_config = _cfg_optimizer.get_annealing_config()
+        annealing_config.update(
+            {
+                "experiment": "compare_hierarchical_annealing",
+                "modes_compared": list({r.mode for r in report.results}),
+            }
+        )
+
         report_data = {
             "title": report.title,
             "summary": report.summary,
+            "annealing_config": annealing_config,
             "results": [
                 {
                     "mode": r.mode,

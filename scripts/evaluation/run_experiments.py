@@ -87,9 +87,7 @@ def run_env_based_baseline_comparison(
 
         for ep in range(episodes):
             scheduler.reset()
-            env = QuantumSchedulingEnv(
-                max_steps=tasks_per_episode, max_qubits=287, seed=seed + ep
-            )
+            env = QuantumSchedulingEnv(max_steps=tasks_per_episode, max_qubits=287, seed=seed + ep)
             obs = env.reset(seed=seed + ep)[0]
             total_reward = 0.0
             done = False

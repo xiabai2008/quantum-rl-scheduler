@@ -98,6 +98,18 @@ class LROverrideOptimizer:
         """获取最后一次退火的统计信息。"""
         return getattr(self._base, "_last_anneal_stats", {})
 
+    def get_annealing_config(self) -> dict[str, Any]:
+        """透传底层优化器的退火配置（Issue #247）。
+
+        在返回的配置中追加 ``injected_learning_rate`` 字段，
+        标识本包装器注入的学习率，便于实验结果追溯。
+        """
+        cfg: dict[str, Any] = {}
+        if hasattr(self._base, "get_annealing_config"):
+            cfg = self._base.get_annealing_config()
+        cfg["injected_learning_rate"] = self._learning_rate
+        return cfg
+
 
 def _evaluate_model(model: Any, env: Any, n_episodes: int = 5) -> float:
     """
@@ -404,10 +416,35 @@ def main(
     # 生成报告
     _generate_report(all_results, lr_list, output_path)
 
-    # 保存原始数据 JSON
+    # 收集退火参数配置（Issue #247）
+    # 用第一个学习率构造一个临时优化器实例以获取标准配置模板，
+    # 并标注本扫描实验覆盖的学习率列表
+    _cfg_optimizer = QuantumAnnealingOptimizer(
+        num_qubits=16,
+        annealing_time=20.0,
+        shots=1000,
+        simulation_mode=True,
+    )
+    annealing_config = _cfg_optimizer.get_annealing_config()
+    annealing_config.update(
+        {
+            "experiment": "annealing_lr_sweep",
+            "learning_rates_scanned": lr_list,
+            "seeds": seed_list,
+            "total_timesteps": timesteps,
+            "anneal_interval": anneal_interval,
+            "eval_episodes": DEFAULT_EVAL_EPISODES,
+        }
+    )
+
+    # 保存原始数据 JSON（含 annealing_config 字段，Issue #247）
     json_path = output_path.replace(".md", ".json")
+    json_payload = {
+        "annealing_config": annealing_config,
+        "results": all_results,
+    }
     with open(json_path, "w", encoding="utf-8") as f:
-        json.dump(all_results, f, ensure_ascii=False, indent=2)
+        json.dump(json_payload, f, ensure_ascii=False, indent=2)
     logger.info(f"原始数据已保存: {json_path}")
 
     # 终端汇总

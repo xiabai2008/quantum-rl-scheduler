@@ -142,9 +142,7 @@ def route_to_machine(
         and env.real_submit_probability > 0.0
         and float(rng.random()) < env.real_submit_probability
     ):
-        env._submit_to_real_machine(
-            machine, task, rl_action, rl_action_prob, observation_snapshot
-        )
+        env._submit_to_real_machine(machine, task, rl_action, rl_action_prob, observation_snapshot)
 
 
 def recompute_aggregate(env: "QuantumSchedulingEnv") -> None:

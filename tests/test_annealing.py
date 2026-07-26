@@ -114,6 +114,70 @@ class TestQuantumAnnealingOptimizerInit(unittest.TestCase):
 
 
 # ============================================================
+# get_annealing_config (Issue #247)
+# ============================================================
+class TestGetAnnealingConfig(unittest.TestCase):
+    """Issue #247: 验证 get_annealing_config 返回完整退火参数配置。"""
+
+    def test_returns_dict_with_required_fields(self):
+        """应返回包含全部必需字段的字典。"""
+        optimizer = QuantumAnnealingOptimizer(num_qubits=16, simulation_mode=True)
+        cfg = optimizer.get_annealing_config()
+        required = {
+            "num_qubits",
+            "annealing_time",
+            "shots",
+            "simulation_mode",
+            "solver_backend",
+            "sim_initial_temp",
+            "sim_cooling_rate",
+            "sim_num_sweeps",
+            "n_bits_per_weight",
+            "last_solver",
+            "quantum_acceleration_enabled",
+        }
+        self.assertTrue(required.issubset(cfg.keys()), f"缺少字段: {required - set(cfg.keys())}")
+
+    def test_num_qubits_reflected(self):
+        """num_qubits 应反映构造参数。"""
+        optimizer = QuantumAnnealingOptimizer(num_qubits=24, simulation_mode=True)
+        cfg = optimizer.get_annealing_config()
+        self.assertEqual(cfg["num_qubits"], 24)
+        self.assertEqual(cfg["n_bits_per_weight"], 4)  # 默认值 4
+
+    def test_solver_backend_is_string(self):
+        """solver_backend 应为字符串。"""
+        optimizer = QuantumAnnealingOptimizer(simulation_mode=True)
+        cfg = optimizer.get_annealing_config()
+        self.assertIsInstance(cfg["solver_backend"], str)
+        self.assertIn(cfg["solver_backend"], {"neal", "numpy_sa"})
+
+    def test_quantum_acceleration_enabled_reflects_env(self):
+        """quantum_acceleration_enabled 应反映环境变量。"""
+        old = os.environ.get("QUANTUM_ACCELERATION_ENABLED")
+        try:
+            os.environ["QUANTUM_ACCELERATION_ENABLED"] = "1"
+            optimizer = QuantumAnnealingOptimizer(simulation_mode=True)
+            cfg = optimizer.get_annealing_config()
+            self.assertTrue(cfg["quantum_acceleration_enabled"])
+
+            os.environ["QUANTUM_ACCELERATION_ENABLED"] = "0"
+            cfg2 = optimizer.get_annealing_config()
+            self.assertFalse(cfg2["quantum_acceleration_enabled"])
+        finally:
+            if old is None:
+                os.environ.pop("QUANTUM_ACCELERATION_ENABLED", None)
+            else:
+                os.environ["QUANTUM_ACCELERATION_ENABLED"] = old
+
+    def test_last_solver_initial_value(self):
+        """初始 last_solver 应为 'none'。"""
+        optimizer = QuantumAnnealingOptimizer(simulation_mode=True)
+        cfg = optimizer.get_annealing_config()
+        self.assertEqual(cfg["last_solver"], "none")
+
+
+# ============================================================
 # network_to_qubo ??
 # ============================================================
 class TestNetworkToQubo(unittest.TestCase):

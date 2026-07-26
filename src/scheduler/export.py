@@ -350,7 +350,7 @@ class ModelExporter:
 
         try:
             with th.no_grad():
-                traced = th.jit.trace(wrapper, dummy_input)  # type: ignore[no-untyped-call]
+                traced = th.jit.trace(wrapper, dummy_input)
             traced.save(ts_path)
             logger.info(f"TorchScript 导出成功: {ts_path}")
             return ts_path
@@ -397,7 +397,7 @@ class ModelExporter:
                 details["torchscript"] = {"valid": False, "error": "文件不存在"}
             else:
                 try:
-                    loaded = th.jit.load(torchscript_path)  # type: ignore[no-untyped-call]
+                    loaded = th.jit.load(torchscript_path)
                     loaded.eval()
                     with th.no_grad():
                         ts_output = loaded(obs_tensor).numpy()

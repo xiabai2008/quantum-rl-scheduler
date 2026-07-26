@@ -730,6 +730,22 @@ def run_experiment(seeds: list[int], total_timesteps: int) -> dict[str, Any]:
         equal_var=False,
     )
 
+    # 收集完整退火参数配置（Issue #247）
+    _cfg_optimizer = QuantumAnnealingOptimizer(
+        num_qubits=ANNEAL_QUBITS,
+        annealing_time=20.0,
+        shots=1000,
+        simulation_mode=True,
+    )
+    annealing_config = _cfg_optimizer.get_annealing_config()
+    annealing_config.update(
+        {
+            "experiment": "annealing_solver_comparison",
+            "strategies": list(STRATEGIES),
+            "anneal_interval": ANNEAL_INTERVAL,
+        }
+    )
+
     report: dict[str, Any] = {
         "timestamp": timestamp,
         "config": {
@@ -741,6 +757,7 @@ def run_experiment(seeds: list[int], total_timesteps: int) -> dict[str, Any]:
             "anneal_qubits": ANNEAL_QUBITS,
             "hidden_layers": [16, 16],
         },
+        "annealing_config": annealing_config,
         "rewards": {
             s: {
                 "per_seed": all_results[s],
