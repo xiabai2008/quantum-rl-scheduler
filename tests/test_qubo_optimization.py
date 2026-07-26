@@ -259,6 +259,7 @@ class TestQuboMatrixProperties:
 # 仅使用 numpy + 标准库，不引入 hypothesis 等新依赖。
 # =============================================================================
 
+
 class TestQuboFormalProperties:
     """QUBO 矩阵的数学形式化性质（对称性、能量公式）"""
 
@@ -288,13 +289,9 @@ class TestQuboFormalProperties:
                 x = rng.integers(0, 2, size=n).astype(np.float64)
                 energy = float(x @ qubo @ x)
                 diag = sum(qubo[i, i] * x[i] for i in range(n))
-                off = 2.0 * sum(
-                    qubo[i, j] * x[i] * x[j] for i in range(n) for j in range(i + 1, n)
-                )
+                off = 2.0 * sum(qubo[i, j] * x[i] * x[j] for i in range(n) for j in range(i + 1, n))
                 expected = diag + off
-                assert abs(energy - expected) < 1e-9, (
-                    f"能量公式不匹配: {energy} vs {expected}"
-                )
+                assert abs(energy - expected) < 1e-9, f"能量公式不匹配: {energy} vs {expected}"
 
 
 class TestQuboPropertyBased:
@@ -314,22 +311,18 @@ class TestQuboPropertyBased:
             assert np.isreal(energy), "能量必须为实数"
 
     def test_qubo_property_network_to_qubo_symmetric(self) -> None:
-        # 对若干合成输入构建 QUBO，断言结果为对称实矩阵。
-        # network_to_qubo 是类方法（无法直接作为模块函数 import），
-        # 不可用时回退到本测试文件已使用的 build_qubo_matrix_optimized 构建器。
-        try:
-            from src.quantum.annealing import network_to_qubo  # type: ignore
+        """验证 QuantumAnnealingOptimizer.network_to_qubo 生成的 QUBO 矩阵对称。
 
-            builder = network_to_qubo
-        except ImportError:
-            builder = build_qubo_matrix_optimized
+        network_to_qubo 是实例方法，需实例化 QuantumAnnealingOptimizer 后调用。
+        """
+        from src.quantum.annealing import QuantumAnnealingOptimizer
 
+        optimizer = QuantumAnnealingOptimizer(simulation_mode=True)
         rng = np.random.default_rng(seed=2024)
         for _ in range(20):
             n = int(rng.integers(4, 14))
-            priorities = rng.uniform(1.0, 10.0, size=n)
-            times = rng.uniform(1.0, 20.0, size=n)
-            penalty = float(rng.uniform(1.0, 50.0))
-            qubo = builder(priorities, times, penalty=penalty)
+            # network_to_qubo 接收权重列表，生成 QUBO 矩阵
+            weights = [rng.uniform(-1.0, 1.0, size=n) for _ in range(2)]
+            qubo = optimizer.network_to_qubo(weights)
             assert np.all(np.isreal(qubo)), "QUBO 矩阵应为实数矩阵"
             assert np.allclose(qubo, qubo.T, atol=1e-12), "QUBO 矩阵必须对称"

@@ -7,6 +7,7 @@ Issue #260: CI 覆盖率评论助手。
 - 使用环境变量 GITHUB_TOKEN 鉴权、PR_NUMBER 指定目标 PR。
 - 在 PR 事件之外（如 push to main）或缺少参数时安全跳过，不报错。
 """
+
 import os
 import subprocess
 import sys

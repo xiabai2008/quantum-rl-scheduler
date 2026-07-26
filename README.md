@@ -224,8 +224,8 @@ TIANYAN_API_KEY=你的真实API密钥
 > 并作为名为 `coverage-xml` 的 artifact 上传，可在 Actions 页面下载查看本次构建的覆盖率快照；
 > 在 PR 中还会由 `ci(#253,#260)` 自动发布一条覆盖率评论（当前展示本次构建的总行覆盖率）。
 > **QUBO 形式化验证（Issue #253）**：CI 会运行 `tests/test_qubo_optimization.py` 中
-> `-k "formal or property"` 选中的 QUBO 形式化/属性测试（hypothesis 属性测试），
-> 并显示 hypothesis 统计与反例，便于失败时排查。
+> `-k "formal or property"` 选中的 QUBO 形式化/属性测试（基于 numpy 随机种子的属性测试），
+> 验证 QUBO 矩阵对称性、能量公式正确性等数学性质。
 
 ## 工程韧性
 
