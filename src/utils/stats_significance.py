@@ -455,3 +455,91 @@ def compare_strategies(
         }
 
     return results
+
+
+def power_ttest(d: float, n1: int, n2: int, alpha: float = 0.05) -> float:
+    """计算两样本 t 检验的事后检验力（post-hoc power）
+
+    基于非中心 t 分布（non-central t distribution）计算在给定效应量 Cohen's d、
+    样本量 n1/n2 与显著性水平 α 下的双侧 t 检验检验力。
+
+    Args:
+        d: Cohen's d 效应量（取绝对值，符号不影响检验力）
+        n1: 第一组样本量
+        n2: 第二组样本量
+        alpha: 显著性水平（默认 0.05）
+
+    Returns:
+        检验力（0-1 之间）；样本不足（n<2）或 d 为 NaN 时返回 nan
+    """
+    if n1 < 2 or n2 < 2 or math.isnan(d):
+        return float("nan")
+    # 非中心参数 ncp = |d| * sqrt(n1*n2 / (n1+n2))
+    ncp = abs(d) * math.sqrt(n1 * n2 / (n1 + n2))
+    df = n1 + n2 - 2
+    t_crit = float(stats.t.ppf(1.0 - alpha / 2.0, df))
+    # 双侧检验力 = P(T > t_crit | ncp) + P(T < -t_crit | ncp)
+    # 注意：当 ncp 较大时 scipy.stats.nct.cdf 在 -t_crit 处可能返回 nan（数值下溢），
+    # 用 survival function (sf = 1 - cdf) 与 cdf 分别计算并容错。
+    right_tail = float(stats.nct.sf(t_crit, df, ncp))
+    left_tail_cdf = stats.nct.cdf(-t_crit, df, ncp)
+    # ncp 远大于 -t_crit 时左尾概率可忽略（scipy 在数值下溢时返回 nan）
+    left_tail = 0.0 if math.isnan(left_tail_cdf) else float(left_tail_cdf)
+    power = right_tail + left_tail
+    # 数值精度保护
+    if power > 1.0:
+        power = 1.0
+    if power < 0.0:
+        power = 0.0
+    return power
+
+
+def minimum_detectable_effect(n1: int, n2: int, alpha: float = 0.05, power: float = 0.8) -> float:
+    """计算给定样本量下的最小可检测效应量（MDES, Cohen's d）
+
+    使用经典近似公式：MDES ≈ (t_{α/2} + t_{power}) * sqrt((n1+n2)/(n1*n2))
+
+    Args:
+        n1: 第一组样本量
+        n2: 第二组样本量
+        alpha: 显著性水平（默认 0.05）
+        power: 目标检验力（默认 0.8）
+
+    Returns:
+        在指定检验力下可检测的最小 Cohen's d；样本不足时返回 nan
+    """
+    if n1 < 2 or n2 < 2:
+        return float("nan")
+    df = n1 + n2 - 2
+    t_alpha = float(stats.t.ppf(1.0 - alpha / 2.0, df))
+    t_beta = float(stats.t.ppf(power, df))
+    mde = (t_alpha + t_beta) * math.sqrt((n1 + n2) / (n1 * n2))
+    return mde
+
+
+def sample_size_for_effect(
+    d: float, alpha: float = 0.05, power: float = 0.8, ratio: float = 1.0
+) -> int:
+    """计算检测指定效应量所需的每组样本量
+
+    通过迭代求解：找到最小的 n1，使得 power_ttest(d, n1, n2=ratio*n1, alpha) >= power。
+
+    Args:
+        d: 目标 Cohen's d 效应量（取绝对值）
+        alpha: 显著性水平（默认 0.05）
+        power: 目标检验力（默认 0.8）
+        ratio: n2/n1 的比例（默认 1.0，即等样本量）
+
+    Returns:
+        第一组所需样本量 n1；d 为 0/NaN 或无法达到目标检验力时返回 0
+    """
+    if math.isnan(d) or d == 0:
+        return 0
+    for n in range(2, 100000):
+        n1, n2 = n, int(n * ratio)
+        if n2 < 2:
+            continue
+        p = power_ttest(d, n1, n2, alpha)
+        if not math.isnan(p) and p >= power:
+            return n1
+    return 0
