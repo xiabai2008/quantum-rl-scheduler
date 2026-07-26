@@ -1,6 +1,9 @@
 # 部署指南（Issue #214）
 
 > 本文档覆盖量子RL调度系统的生产部署，包括环境分级配置、健康检查、Prometheus 告警规则与 Docker 部署流程。
+>
+> **相关文档**：
+> - 架构设计与生产化路径：见 [deployment_architecture.md](deployment_architecture.md)（Issue #210 文档碎片化整理：本文档聚焦实操部署，架构设计见另一份文档）
 
 ## 1. 环境分级配置
 

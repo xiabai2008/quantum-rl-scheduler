@@ -87,6 +87,7 @@ class FakeOptimizer:
         self.weight_boost = float(weight_boost)
         self.simulation_mode = bool(simulation_mode)
         self.last_kwargs: dict[str, Any] = {}
+        self.solver_type: str = "numpy_sa"
 
     def optimize_policy(self, agent: Any, **kwargs: Any) -> Any:
         """模拟退火优化：增加 policy.weight，支持按次数失败。"""
@@ -502,6 +503,201 @@ def test_impact_rate_low_when_delta_below_threshold(tmp_path):
     # delta = 0.3 (0.1 * 3 steps) < 1.0 -> 无效
     assert history[0]["effective"] is False
     assert history[0]["impact_rate"] == 0.0
+
+
+# ============================================================
+# Issue #226: solver_type 追踪测试
+# ============================================================
+
+
+def test_solver_type_in_history_records(tmp_path):
+    """验证退火历史记录中包含 solver_type 字段（Issue #226）。"""
+    optimizer = FakeOptimizer(weight_boost=1.0)
+    env = FakeEnv()
+    loop = AsyncAnnealingLoop(
+        optimizer,
+        env,
+        eval_episodes=2,
+        initial_interval=100,
+        retry_delays=[0.0, 0.0],
+        log_path=str(tmp_path / "solver_type_log.json"),
+    )
+    loop.start()
+
+    model = FakeModel(weight=0.0)
+    loop.submit(model.policy, step=10)
+    loop.shutdown()
+
+    history = loop.get_history()
+    assert len(history) == 1
+    assert "solver_type" in history[0]
+    assert history[0]["solver_type"] == "numpy_sa"
+
+
+# ============================================================
+# Issue #220: 锁内深拷贝优化测试
+# ============================================================
+
+
+def test_peek_pending_result_deepcopy_outside_lock():
+    """验证 peek_pending_result 在锁外执行深拷贝。
+
+    Issue #220 要求：原实现在 self._lock 锁内执行 copy.deepcopy()，
+    修改后应在锁内只获取引用，在锁外执行深拷贝。
+    """
+    optimizer = FakeOptimizer()
+    env = FakeEnv()
+    loop = AsyncAnnealingLoop(optimizer, env, retry_delays=[0.0, 0.0])
+
+    # 设置一个 pending_result
+    test_result = {"step": 10, "state_dict": {"weight": 1.0}, "delta": 0.5}
+    with loop._lock:
+        loop._pending_result = test_result
+
+    # 调用 peek_pending_result
+    peeked = loop.peek_pending_result()
+    assert peeked is not None
+    assert peeked["step"] == 10
+    # 应返回深拷贝，修改不影响原对象
+    peeked["step"] = 999
+    assert loop._pending_result["step"] == 10  # 原对象未被修改
+
+
+def test_peek_pending_result_returns_none_when_empty():
+    """验证 pending_result 为 None 时 peek_pending_result 返回 None。"""
+    optimizer = FakeOptimizer()
+    env = FakeEnv()
+    loop = AsyncAnnealingLoop(optimizer, env, retry_delays=[0.0, 0.0])
+    assert loop._pending_result is None
+    assert loop.peek_pending_result() is None
+
+
+def test_policy_snapshot_class():
+    """验证 PolicySnapshot 类的基本功能。"""
+    from src.scheduler.async_annealing_callback import PolicySnapshot
+
+    state_dict = {"weight": 0.5}
+    policy_ref = FakePolicy(weight=0.5)
+    snapshot = PolicySnapshot(state_dict=state_dict, policy_ref=policy_ref)
+
+    assert snapshot.state_dict == state_dict
+    assert snapshot.policy_ref is policy_ref
+
+
+def test_callback_submits_policy_snapshot():
+    """验证 callback 提交的是 PolicySnapshot 而非 deepcopy 后的 policy。
+
+    Issue #220 要求：使用 state_dict() + clone() 替代 copy.deepcopy。
+    """
+    optimizer = FakeOptimizer()
+    env = FakeEnv()
+    loop = AsyncAnnealingLoop(optimizer, env, initial_interval=10, retry_delays=[0.0, 0.0])
+
+    callback = AsyncAnnealingCallback(loop, verbose=0)
+    callback._init_callback()
+    callback.model = FakeModel(weight=0.0)
+
+    callback.n_calls = 10
+    # 用 mock 替换 loop.submit，验证提交的是 PolicySnapshot
+    with patch.object(loop, "submit", return_value=True) as mock_submit:
+        callback._on_step()
+        assert mock_submit.call_count == 1
+        submitted_policy, submitted_step = mock_submit.call_args.args
+        # 应提交 PolicySnapshot 实例，而非 FakePolicy 实例
+        from src.scheduler.async_annealing_callback import PolicySnapshot
+
+        assert isinstance(submitted_policy, PolicySnapshot)
+        # state_dict 应包含权重
+        assert "weight" in submitted_policy.state_dict
+        assert submitted_step == 10
+
+    loop.shutdown()
+
+
+def test_worker_loop_handles_policy_snapshot():
+    """验证 worker_loop 能正确处理 PolicySnapshot（首次 deepcopy，后续 load_state_dict）。"""
+    from src.scheduler.async_annealing_callback import PolicySnapshot
+
+    optimizer = FakeOptimizer(weight_boost=1.0)
+    env = FakeEnv()
+    loop = AsyncAnnealingLoop(optimizer, env, initial_interval=10, retry_delays=[0.0, 0.0])
+    loop.start()
+
+    # 首次提交 PolicySnapshot
+    model = FakeModel(weight=0.0)
+    snapshot = PolicySnapshot(
+        state_dict=model.policy.state_dict(),
+        policy_ref=model.policy,
+    )
+    loop.submit(snapshot, step=10)
+    loop.shutdown()
+
+    # worker_loop 应正确处理 PolicySnapshot，产生 history 记录
+    history = loop.get_history()
+    assert len(history) == 1
+    assert history[0]["step"] == 10
+    # FakeOptimizer weight_boost=1.0，FakeEnv max_steps=3
+    # delta = 3.0 (new) - 0.0 (old) = 3.0
+    assert history[0]["delta"] == 3.0
+
+
+def test_worker_loop_handles_legacy_policy_object():
+    """验证 worker_loop 仍兼容旧模式（直接传 policy 对象）。"""
+    optimizer = FakeOptimizer(weight_boost=1.0)
+    env = FakeEnv()
+    loop = AsyncAnnealingLoop(optimizer, env, initial_interval=10, retry_delays=[0.0, 0.0])
+    loop.start()
+
+    # 旧模式：直接传 policy 对象
+    model = FakeModel(weight=0.0)
+    loop.submit(model.policy, step=10)
+    loop.shutdown()
+
+    history = loop.get_history()
+    assert len(history) == 1
+    assert history[0]["step"] == 10
+    assert history[0]["delta"] == 3.0
+
+
+def test_worker_loop_reuses_eval_policy_for_multiple_snapshots():
+    """验证 worker_loop 在多次提交 PolicySnapshot 时复用 eval_policy 实例。
+
+    Issue #220 优化点：首次 deepcopy 创建持久化 eval_policy，
+    后续仅 load_state_dict 更新权重，避免重复深拷贝。
+    """
+    from src.scheduler.async_annealing_callback import PolicySnapshot
+
+    optimizer = FakeOptimizer(weight_boost=0.0)  # 不改变权重，便于复用
+    env = FakeEnv()
+    loop = AsyncAnnealingLoop(optimizer, env, initial_interval=10, retry_delays=[0.0, 0.0])
+    loop.start()
+
+    # 第一次提交
+    model1 = FakeModel(weight=0.0)
+    snapshot1 = PolicySnapshot(
+        state_dict=model1.policy.state_dict(),
+        policy_ref=model1.policy,
+    )
+    loop.submit(snapshot1, step=10)
+
+    # 等待 worker 处理完第一个任务
+    import time as _time
+
+    _time.sleep(0.3)
+
+    # 第二次提交
+    model2 = FakeModel(weight=2.0)
+    snapshot2 = PolicySnapshot(
+        state_dict=model2.policy.state_dict(),
+        policy_ref=model2.policy,
+    )
+    loop.submit(snapshot2, step=20)
+    loop.shutdown()
+
+    # 两次任务都应正常处理
+    history = loop.get_history()
+    assert len(history) == 2
+    assert {h["step"] for h in history} == {10, 20}
 
 
 if __name__ == "__main__":

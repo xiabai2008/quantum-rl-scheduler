@@ -14,6 +14,7 @@ Observation Builder Module for Quantum-Classical Hybrid Task Scheduling Environm
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
+from numpy.typing import NDArray
 
 from src.scheduler.env_types import (
     MAX_QUEUE_SIZE,
@@ -40,7 +41,7 @@ if TYPE_CHECKING:
     from src.scheduler.env import QuantumSchedulingEnv
 
 
-def get_observation(env: "QuantumSchedulingEnv") -> np.ndarray:
+def get_observation(env: "QuantumSchedulingEnv") -> NDArray[Any]:
     """
     构建并返回当前 14 维状态向量（扩展版：包含物理噪声和拓扑特征）。
 
@@ -64,9 +65,9 @@ def get_observation(env: "QuantumSchedulingEnv") -> np.ndarray:
         env: 调度环境实例
 
     Returns:
-        np.ndarray: 形状 (14,)，dtype=float32，值域 [0, 1]
+        NDArray[Any]: 形状 (14,)，dtype=float32，值域 [0, 1]
     """
-    obs: np.ndarray = np.zeros(OBS_DIM, dtype=np.float32)
+    obs: NDArray[Any] = np.zeros(OBS_DIM, dtype=np.float32)
 
     obs[OBS_QUBIT_AVAILABILITY] = float(np.clip(env._quantum.available_ratio, 0.0, 1.0))
 
@@ -103,37 +104,32 @@ def get_observation(env: "QuantumSchedulingEnv") -> np.ndarray:
         obs[OBS_TASK_TYPE_CLASSICAL] = 0.0
 
     # 阶段1：物理噪声特征（所有机器加权平均）
+    # 性能优化（Issue #219）：
+    # - total_qubits 是机器静态属性，初始化后不变，使用 env._total_qubits_cache 缓存值
+    # - 加权平均改用 numpy 向量化（np.average + weights），替代 Python for 循环
     if env._machines:
-        total_q = sum(m.total_qubits for m in env._machines)
+        total_q = getattr(env, "_total_qubits_cache", None) or sum(
+            m.total_qubits for m in env._machines
+        )
         if total_q > 0:
+            # 构建一次 numpy 数组，4 个特征共用，避免重复循环
+            qubits_arr = np.array([m.total_qubits for m in env._machines], dtype=np.float64)
+            single_arr = np.array([m.single_gate_fidelity for m in env._machines], dtype=np.float64)
+            two_arr = np.array([m.two_gate_fidelity for m in env._machines], dtype=np.float64)
+            coupling_arr = np.array([m.coupling_density for m in env._machines], dtype=np.float64)
+            conn_arr = np.array([m.avg_connectivity for m in env._machines], dtype=np.float64)
             obs[OBS_SINGLE_GATE_FIDELITY] = float(
-                np.clip(
-                    sum(m.single_gate_fidelity * m.total_qubits for m in env._machines) / total_q,
-                    0.0,
-                    1.0,
-                )
+                np.clip(np.average(single_arr, weights=qubits_arr), 0.0, 1.0)
             )
             obs[OBS_TWO_GATE_FIDELITY] = float(
-                np.clip(
-                    sum(m.two_gate_fidelity * m.total_qubits for m in env._machines) / total_q,
-                    0.0,
-                    1.0,
-                )
+                np.clip(np.average(two_arr, weights=qubits_arr), 0.0, 1.0)
             )
             # 阶段2：拓扑特征（所有机器加权平均）
             obs[OBS_COUPLING_DENSITY] = float(
-                np.clip(
-                    sum(m.coupling_density * m.total_qubits for m in env._machines) / total_q,
-                    0.0,
-                    1.0,
-                )
+                np.clip(np.average(coupling_arr, weights=qubits_arr), 0.0, 1.0)
             )
             obs[OBS_AVG_CONNECTIVITY] = float(
-                np.clip(
-                    sum(m.avg_connectivity * m.total_qubits for m in env._machines) / total_q,
-                    0.0,
-                    1.0,
-                )
+                np.clip(np.average(conn_arr, weights=qubits_arr), 0.0, 1.0)
             )
 
     return obs

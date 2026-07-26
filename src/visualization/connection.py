@@ -5,6 +5,8 @@ WebSocket 连接管理器
 广播失败的单个连接会被自动移除，不影响其他连接。
 """
 
+from typing import Any
+
 from fastapi import WebSocket
 from loguru import logger
 
@@ -25,7 +27,7 @@ class ConnectionManager:
         if websocket in self.active_connections:
             self.active_connections.remove(websocket)
 
-    async def broadcast(self, message: dict) -> None:
+    async def broadcast(self, message: dict[str, Any]) -> None:
         """向所有连接的客户端广播消息"""
         disconnected = []
         for connection in self.active_connections:

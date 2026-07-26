@@ -22,8 +22,11 @@ import pytest
 from src.utils.stats_significance import (
     cohen_d,
     compare_strategies,
+    minimum_detectable_effect,
     normality_test,
+    power_ttest,
     rank_biserial,
+    sample_size_for_effect,
 )
 
 
@@ -298,3 +301,108 @@ def test_result_contains_all_required_fields(rng: np.random.Generator) -> None:
     # interpretation 应为非空中文
     assert isinstance(pair["interpretation"], str)
     assert len(pair["interpretation"]) > 0
+
+
+# ---------------------------------------------------------------------------
+# 10. 检验力分析（Power Analysis）
+# ---------------------------------------------------------------------------
+
+
+class TestPowerAnalysis:
+    """Power Analysis 函数测试（Issue #211）"""
+
+    def test_power_ttest_large_effect(self) -> None:
+        """d=1.5, n1=n2=30 → 检验力应 > 0.95"""
+        power = power_ttest(d=1.5, n1=30, n2=30, alpha=0.05)
+        assert not math.isnan(power)
+        assert power > 0.95
+
+    def test_power_ttest_small_sample(self) -> None:
+        """d=0.5, n1=n2=5 → 检验力应 < 0.5（小样本+中效应）"""
+        power = power_ttest(d=0.5, n1=5, n2=5, alpha=0.05)
+        assert not math.isnan(power)
+        assert power < 0.5
+
+    def test_power_ttest_sign_invariance(self) -> None:
+        """检验力应与 d 的符号无关（取绝对值）"""
+        p_pos = power_ttest(d=1.0, n1=20, n2=20)
+        p_neg = power_ttest(d=-1.0, n1=20, n2=20)
+        assert math.isclose(p_pos, p_neg, rel_tol=1e-9)
+
+    def test_power_ttest_zero_effect(self) -> None:
+        """d=0 → 检验力 = α（无效应时拒绝原假设的概率等于显著性水平）"""
+        power = power_ttest(d=0.0, n1=30, n2=30, alpha=0.05)
+        # d=0 时检验力应等于 α（双侧检验，约 0.05）
+        assert math.isclose(power, 0.05, abs_tol=0.01)
+
+    def test_power_ttest_too_few_samples(self) -> None:
+        """n1 < 2 或 n2 < 2 → 返回 nan"""
+        assert math.isnan(power_ttest(d=1.0, n1=1, n2=30))
+        assert math.isnan(power_ttest(d=1.0, n1=30, n2=1))
+
+    def test_power_ttest_nan_d(self) -> None:
+        """d=NaN → 返回 nan"""
+        assert math.isnan(power_ttest(d=float("nan"), n1=30, n2=30))
+
+    def test_power_increases_with_n(self) -> None:
+        """固定 d 时，检验力随样本量增加而单调递增"""
+        d = 0.5
+        powers = [power_ttest(d, n, n) for n in (10, 30, 100, 500)]
+        for i in range(len(powers) - 1):
+            assert powers[i] < powers[i + 1]
+
+    def test_power_increases_with_d(self) -> None:
+        """固定 n 时，检验力随效应量增加而单调递增"""
+        n1, n2 = 30, 30
+        powers = [power_ttest(d, n1, n2) for d in (0.2, 0.5, 0.8, 1.5)]
+        for i in range(len(powers) - 1):
+            assert powers[i] < powers[i + 1]
+
+    def test_mde_decreases_with_n(self) -> None:
+        """MDES 随样本量增加而单调递减（更多样本→能检测更小效应）"""
+        mde_small = minimum_detectable_effect(n1=10, n2=10)
+        mde_large = minimum_detectable_effect(n1=100, n2=100)
+        assert mde_small > mde_large
+
+    def test_mde_too_few_samples(self) -> None:
+        """n1 < 2 或 n2 < 2 → 返回 nan"""
+        assert math.isnan(minimum_detectable_effect(n1=1, n2=30))
+        assert math.isnan(minimum_detectable_effect(n1=30, n2=1))
+
+    def test_mde_positive(self) -> None:
+        """MDES 应为正数"""
+        mde = minimum_detectable_effect(n1=50, n2=50)
+        assert not math.isnan(mde)
+        assert mde > 0
+
+    def test_sample_size_for_large_effect(self) -> None:
+        """d=1.5（大效应）→ 所需样本量应较小（< 10）"""
+        n = sample_size_for_effect(d=1.5, alpha=0.05, power=0.8)
+        assert n > 0
+        assert n < 10
+
+    def test_sample_size_for_small_effect(self) -> None:
+        """d=0.2（小效应）→ 所需样本量应较大（> 100）"""
+        n = sample_size_for_effect(d=0.2, alpha=0.05, power=0.8)
+        assert n > 100
+
+    def test_sample_size_decreases_with_d(self) -> None:
+        """样本量需求随效应量增大而减少"""
+        n_small = sample_size_for_effect(d=0.2)
+        n_medium = sample_size_for_effect(d=0.5)
+        n_large = sample_size_for_effect(d=0.8)
+        assert n_small > n_medium > n_large
+
+    def test_sample_size_zero_effect(self) -> None:
+        """d=0 或 NaN → 返回 0"""
+        assert sample_size_for_effect(d=0.0) == 0
+        assert sample_size_for_effect(d=float("nan")) == 0
+
+    def test_sample_size_achieves_target_power(self) -> None:
+        """返回的样本量应确实达到目标检验力"""
+        d = 0.5
+        target_power = 0.8
+        n = sample_size_for_effect(d=d, alpha=0.05, power=target_power)
+        assert n > 0
+        actual_power = power_ttest(d, n, n, alpha=0.05)
+        assert actual_power >= target_power - 0.01  # 允许数值误差

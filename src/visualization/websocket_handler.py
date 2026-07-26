@@ -13,6 +13,7 @@ WebSocket 端点处理
 
 import json
 import os
+from typing import Any
 
 from fastapi import WebSocket, WebSocketDisconnect
 from loguru import logger
@@ -29,11 +30,16 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
     - 状态更新（status_update）
     - 新任务通知（task_added）
     - 策略变更通知（strategy_changed）
+
+    连接清理（Issue #216）：
+        使用 try/finally 确保任何异常（包括非 WebSocketDisconnect 的异常，
+        如 RuntimeError / ConnectionError / asyncio.CancelledError）都会
+        调用 ``manager.disconnect(websocket)``，避免连接泄漏。
     """
     await state.manager.connect(websocket)
     try:
         # 连接后立即发送当前状态 + PPO 数据
-        ppo_stats: dict = {}
+        ppo_stats: dict[str, Any] = {}
         try:
             report_dir = os.path.join(_app._PROJECT_ROOT, "results")
             json_files = sorted(
@@ -57,8 +63,8 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
         await websocket.send_json(
             {
                 "type": "init",
-                "status": state.system_status,
-                "tasks": state.task_queue,
+                "status": state.get_system_status(),
+                "tasks": state.get_task_queue(),
                 "ppo_stats": ppo_stats,
             }
         )
@@ -80,4 +86,13 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
             if msg.get("action") == "ping":
                 await websocket.send_json({"type": "pong"})
     except WebSocketDisconnect:
+        # 客户端主动断开：正常流程，无需告警
+        pass
+    except Exception as e:
+        # 非 WebSocketDisconnect 异常（如 RuntimeError / ConnectionError /
+        # asyncio.CancelledError）：记录日志，避免静默泄漏（Issue #216）
+        logger.warning(f"[Web] WebSocket 异常关闭: {type(e).__name__}: {e}")
+    finally:
+        # 无论何种异常，都确保从 ConnectionManager 清理连接（Issue #216）
+        # disconnect 内部已处理"连接不在列表"的情况，重复调用安全
         state.manager.disconnect(websocket)

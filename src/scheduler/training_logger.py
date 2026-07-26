@@ -14,6 +14,7 @@ from typing import Any
 
 import numpy as np
 from loguru import logger
+from numpy.typing import NDArray
 from stable_baselines3.common.callbacks import BaseCallback
 
 try:
@@ -94,7 +95,7 @@ class TrainingMetricsLogger:
         else:
             self._append_jsonl({"type": "scalar", **record})
 
-    def log_histogram(self, tag: str, values: np.ndarray, step: int) -> None:
+    def log_histogram(self, tag: str, values: NDArray[Any], step: int) -> None:
         """记录直方图（如奖励分布、Q 值分布）。
 
         Args:
@@ -181,7 +182,7 @@ class TrainingMetricsLogger:
         episode: int,
         reward: float,
         length: int,
-        info: dict | None = None,
+        info: dict[str, Any] | None = None,
     ) -> None:
         """记录 Episode 级指标。
 
@@ -218,7 +219,7 @@ class TrainingMetricsLogger:
             self._writer.close()
         self._closed = True
 
-    def get_summary(self) -> dict[str, list[dict]]:
+    def get_summary(self) -> dict[str, list[dict[str, Any]]]:
         """返回所有已记录的指标摘要。
 
         JSONL 降级模式下从文件读取；TensorBoard 模式下返回内存缓存。
@@ -241,9 +242,9 @@ class TrainingMetricsLogger:
         with open(self._jsonl_path, "a", encoding="utf-8") as f:
             f.write(json.dumps(record, ensure_ascii=False) + "\n")
 
-    def _read_summary_from_jsonl(self) -> dict[str, list[dict]]:
+    def _read_summary_from_jsonl(self) -> dict[str, list[dict[str, Any]]]:
         """从 JSONL 降级文件解析所有记录并按类型分组。"""
-        summary: dict[str, list[dict]] = {
+        summary: dict[str, list[dict[str, Any]]] = {
             "scalars": [],
             "histograms": [],
             "texts": [],
@@ -335,7 +336,7 @@ class TensorboardCallback(BaseCallback):
         episode: int,
         reward: float,
         length: int,
-        info: dict | None = None,
+        info: dict[str, Any] | None = None,
     ) -> None:
         """Episode 结束时记录指标。
 

@@ -6,6 +6,8 @@
 > **负责人**: 瑞哥（xiabai2008）
 > **最后更新**: 2026-07-25
 
+> **Issue #210 文档碎片化整理**：本文档为代码冻结主题的主文档（实操检查清单，6 大类 25 项）。流程与例外审批机制见 [code_freeze_policy.md](code_freeze_policy.md)（分册）。简化版流程见 [代码冻结流程.md](代码冻结流程.md)（分册）。
+
 本文档是 8/15 代码冻结前的完整检查清单，覆盖 6 大类共 25 项检查。每项须由指定负责人执行验证命令并确认通过后方可打标签冻结。
 
 ---
@@ -54,9 +56,9 @@
 
 ### 2.2 测试覆盖率达标
 
-- [ ] **测试覆盖率 >= 70%**（当前实际 91%，门槛不可低于 70%）
+- [ ] **测试覆盖率 >= 80%**（当前实际 93.58%，门槛不可低于 80%，与 pyproject.toml `fail_under=80` 一致）
   - 负责人：工程组
-  - 验证命令：`pytest tests/ --cov=src --cov-fail-under=70 --cov-report=term-missing`
+  - 验证命令：`pytest tests/ --cov=src --cov-fail-under=80 --cov-report=term-missing`
 
 ### 2.3 ruff 零错误确认
 

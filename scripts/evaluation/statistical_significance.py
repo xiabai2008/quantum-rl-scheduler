@@ -33,14 +33,23 @@ if str(PROJECT_ROOT) not in sys.path:
 
 import click
 
-from src.utils.stats_significance import compare_strategies
+from src.utils.stats_significance import (
+    compare_strategies,
+    minimum_detectable_effect,
+    power_ttest,
+    sample_size_for_effect,
+)
 
 
 def _load_rewards(input_path: Path) -> dict[str, list[float]]:
     """从 JSON 文件加载策略奖励数据
 
+    支持两种 JSON 结构：
+    1. 直接格式：``{策略名: [奖励列表]}``
+    2. 包装格式：``{config: ..., rewards: {策略名: [奖励列表]}, seed_details: ...}``
+
     Args:
-        input_path: JSON 文件路径，顶层为 {策略名: [奖励列表]}
+        input_path: JSON 文件路径
 
     Returns:
         ``{策略名: [float, ...]}`` 字典；非列表/非数值项会被跳过并告警
@@ -52,7 +61,12 @@ def _load_rewards(input_path: Path) -> dict[str, list[float]]:
         raw = json.load(f)
 
     if not isinstance(raw, dict):
-        raise click.ClickException("输入 JSON 顶层必须是对象 {策略名: [奖励列表]}")
+        raise click.ClickException("输入 JSON 顶层必须是对象")
+
+    # 检测包装格式：如果存在 "rewards" 键且其值为 dict，则使用 rewards 字段
+    if "rewards" in raw and isinstance(raw["rewards"], dict):
+        click.echo(f"检测到包装格式，使用 'rewards' 字段（共 {len(raw['rewards'])} 个策略）")
+        raw = raw["rewards"]
 
     cleaned: dict[str, list[float]] = {}
     for name, rewards in raw.items():
@@ -167,6 +181,72 @@ def _generate_markdown_report(
     lines.append("- **置信区间**：均值差的 95% CI")
     lines.append("- **Cohen's d 等级**：< 0.2 可忽略，0.2-0.5 小，0.5-0.8 中，≥ 0.8 大")
     lines.append("- **rank-biserial 等级**：< 0.1 可忽略，0.1-0.3 小，0.3-0.5 中，≥ 0.5 大")
+    lines.append("")
+
+    # 五、检验力分析
+    lines.append("## 五、检验力分析（Power Analysis）")
+    lines.append("")
+    lines.append(
+        "> 检验力（Power）= 1 - β，表示当原假设为假时正确拒绝原假设的概率。通常要求 power ≥ 0.80。"
+    )
+    lines.append(">")
+    lines.append(
+        "> 此处对每个比较对计算：(1) 当前样本量下的事后检验力；"
+        "(2) 达到 80% 检验力所需的每组样本量；(3) 当前样本量下的最小可检测效应量（MDES）。"
+    )
+    lines.append(">")
+    lines.append("> 注意：检验力分析基于 Cohen's d 与双侧 t 检验近似；非参数检验的检验力仅供参考。")
+    lines.append("")
+    lines.append(
+        "| 对比 | 效应量 (Cohen's d 或 rank-biserial) | 当前 N1/N2 | 当前检验力 | "
+        "80% 检验力所需 N/组 | 当前样本量 MDES (d) |"
+    )
+    lines.append("|:--|:--:|:--:|:--:|:--:|:--:|")
+    for pair, info in results.items():
+        effect = info["effect_size"]
+        n1_key, n2_key = pair.split(" vs ")
+        n1 = len(data.get(n1_key, []))
+        n2 = len(data.get(n2_key, []))
+        # 检验力（基于 |d|，对非参数检验用 |effect| 近似）
+        if math.isnan(effect):
+            power_str = "N/A"
+            mdes_str = "N/A"
+            need_n_str = "N/A"
+        else:
+            pwr = power_ttest(effect, n1, n2, alpha=alpha)
+            power_str = f"{pwr:.4f}" if not math.isnan(pwr) else "N/A"
+            mdes = minimum_detectable_effect(n1, n2, alpha=alpha, power=0.8)
+            mdes_str = f"{mdes:.4f}" if not math.isnan(mdes) else "N/A"
+            # 80% 检验力所需样本量（使用当前效应量绝对值）
+            need_n = sample_size_for_effect(abs(effect), alpha=alpha, power=0.8)
+            need_n_str = str(need_n) if need_n > 0 else "N/A"
+        lines.append(
+            f"| {pair} | {info['effect_size_type']}={effect:.4f} | {n1}/{n2} | "
+            f"{power_str} | {need_n_str} | {mdes_str} |"
+        )
+    lines.append("")
+    # 文字解读
+    lines.append("### 文字解读")
+    lines.append("")
+    # 寻找关键对比（PPO vs FCFS，按字母序可能为 "FCFS vs PPO"）
+    ppo_vs_fcfs = results.get("PPO vs FCFS") or results.get("FCFS vs PPO")
+    if ppo_vs_fcfs is not None and not math.isnan(ppo_vs_fcfs["effect_size"]):
+        effect_val = ppo_vs_fcfs["effect_size"]
+        n1 = len(data.get("PPO", []))
+        n2 = len(data.get("FCFS", []))
+        pwr = power_ttest(effect_val, n1, n2, alpha=alpha)
+        need_n = sample_size_for_effect(abs(effect_val), alpha=alpha, power=0.8)
+        lines.append(
+            f"- **PPO vs FCFS**：{ppo_vs_fcfs['effect_size_type']}={effect_val:.4f}"
+            f"（大效应），当前 N1={n1}, N2={n2} 的检验力 = {pwr:.4f}"
+            f"（{'远超' if pwr > 0.99 else '达到'} 80% 标准）；"
+            f"检测该效应量仅需每组约 {need_n} 个样本。"
+        )
+    lines.append(
+        "- 检验力 < 0.80 的对比：表明当前样本量不足以可靠检测该效应量，"
+        "对应的不显著结论需要谨慎解读（可能存在检验力不足导致假阴性）。"
+    )
+    lines.append("- 检验力 ≥ 0.99 且显著的对比：核心结论极其稳健，样本量远超检测该效应所需。")
     lines.append("")
     lines.append("---")
     lines.append(f"*报告自动生成 | 数据源: {input_path}*")

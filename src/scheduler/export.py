@@ -23,6 +23,7 @@ from typing import Any, cast
 import numpy as np
 import torch as th
 from loguru import logger
+from numpy.typing import NDArray
 from torch import nn
 
 # 项目根目录（本文件位于 <root>/src/scheduler/export.py）
@@ -198,8 +199,8 @@ class ModelExporter:
             obs_space = model.observation_space
             if hasattr(obs_space, "shape") and obs_space.shape:
                 return tuple(obs_space.shape)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"输入形状推断失败，使用默认值 {_DEFAULT_INPUT_SHAPE}: {e}")
         return _DEFAULT_INPUT_SHAPE
 
     def _resolve_shape(self, input_shape: tuple[int, ...]) -> tuple[int, ...]:
@@ -227,8 +228,8 @@ class ModelExporter:
                         f"从模型观测空间推断输入形状: {inferred}（覆盖默认 {input_shape}）"
                     )
                     return inferred
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"输出形状推断失败，使用输入值 {input_shape}: {e}")
         return input_shape
 
     def _make_dummy_input(self, input_shape: tuple[int, ...] | None = None) -> th.Tensor:
@@ -349,7 +350,7 @@ class ModelExporter:
 
         try:
             with th.no_grad():
-                traced = th.jit.trace(wrapper, dummy_input)
+                traced = th.jit.trace(wrapper, dummy_input)  # type: ignore[no-untyped-call]
             traced.save(ts_path)
             logger.info(f"TorchScript 导出成功: {ts_path}")
             return ts_path
@@ -361,8 +362,8 @@ class ModelExporter:
         self,
         onnx_path: str | None = None,
         torchscript_path: str | None = None,
-        test_input: np.ndarray | None = None,
-    ) -> dict:
+        test_input: NDArray[Any] | None = None,
+    ) -> dict[str, Any]:
         """
         验证导出的模型与原始 SB3 模型输出一致性。
 
@@ -386,7 +387,7 @@ class ModelExporter:
         obs_tensor = th.as_tensor(test_input).float()
         original_output = self._get_original_output(obs_tensor).numpy()
 
-        diffs: list[np.ndarray] = []
+        diffs: list[NDArray[Any]] = []
         details: dict[str, Any] = {}
 
         # 验证 TorchScript
@@ -396,7 +397,7 @@ class ModelExporter:
                 details["torchscript"] = {"valid": False, "error": "文件不存在"}
             else:
                 try:
-                    loaded = th.jit.load(torchscript_path)
+                    loaded = th.jit.load(torchscript_path)  # type: ignore[no-untyped-call]
                     loaded.eval()
                     with th.no_grad():
                         ts_output = loaded(obs_tensor).numpy()
@@ -476,7 +477,7 @@ class ModelExporter:
             "details": details,
         }
 
-    def export_all(self, input_shape: tuple[int, ...] = (14,)) -> dict:
+    def export_all(self, input_shape: tuple[int, ...] = (14,)) -> dict[str, Any]:
         """
         同时导出 ONNX + TorchScript 并验证。
 
@@ -526,7 +527,7 @@ def export_model(
     model_path: str,
     output_dir: str = "models/exported",
     formats: list[str] | None = None,
-) -> dict:
+) -> dict[str, Any]:
     """
     便捷函数：导出模型到指定格式。
 
