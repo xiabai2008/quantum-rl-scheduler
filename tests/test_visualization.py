@@ -234,8 +234,8 @@ async def test_update_status(async_client):
 
 @pytest.mark.asyncio
 async def test_api_key_auth_disabled(async_client, monkeypatch):
-    """未配置 VISUALIZATION_API_KEY 时认证禁用，无 X-API-Key 也能访问 POST 端点。"""
-    monkeypatch.delenv("VISUALIZATION_API_KEY", raising=False)
+    """未配置 VIZ_API_KEY 时认证禁用，无 X-API-Key 也能访问 POST 端点。"""
+    monkeypatch.delenv("VIZ_API_KEY", raising=False)
     resp = await async_client.post("/api/strategy", params={"strategy": "FCFS"})
     assert resp.status_code == 200
     assert resp.json()["success"] is True
@@ -243,8 +243,8 @@ async def test_api_key_auth_disabled(async_client, monkeypatch):
 
 @pytest.mark.asyncio
 async def test_api_key_auth_enabled(async_client, monkeypatch):
-    """配置 VISUALIZATION_API_KEY 后，携带正确 X-API-Key 应访问成功。"""
-    monkeypatch.setenv("VISUALIZATION_API_KEY", "secret-key-123")
+    """配置 VIZ_API_KEY 后，携带正确 X-API-Key 应访问成功。"""
+    monkeypatch.setenv("VIZ_API_KEY", "secret-key-123")
     resp = await async_client.post(
         "/api/strategy",
         params={"strategy": "FCFS"},
@@ -256,8 +256,8 @@ async def test_api_key_auth_enabled(async_client, monkeypatch):
 
 @pytest.mark.asyncio
 async def test_api_key_auth_wrong_key(async_client, monkeypatch):
-    """配置 VISUALIZATION_API_KEY 后，错误 X-API-Key 应返回 401。"""
-    monkeypatch.setenv("VISUALIZATION_API_KEY", "secret-key-123")
+    """配置 VIZ_API_KEY 后，错误 X-API-Key 应返回 401。"""
+    monkeypatch.setenv("VIZ_API_KEY", "secret-key-123")
     resp = await async_client.post(
         "/api/strategy",
         params={"strategy": "FCFS"},
@@ -269,8 +269,8 @@ async def test_api_key_auth_wrong_key(async_client, monkeypatch):
 
 @pytest.mark.asyncio
 async def test_api_key_auth_missing_header(async_client, monkeypatch):
-    """配置 VISUALIZATION_API_KEY 后，缺少 X-API-Key 头应返回 401。"""
-    monkeypatch.setenv("VISUALIZATION_API_KEY", "secret-key-123")
+    """配置 VIZ_API_KEY 后，缺少 X-API-Key 头应返回 401。"""
+    monkeypatch.setenv("VIZ_API_KEY", "secret-key-123")
     resp = await async_client.post("/api/strategy", params={"strategy": "FCFS"})
     assert resp.status_code == 401
     assert "API" in resp.json()["detail"]
@@ -279,7 +279,7 @@ async def test_api_key_auth_missing_header(async_client, monkeypatch):
 @pytest.mark.asyncio
 async def test_api_key_auth_protects_all_post_endpoints(async_client, monkeypatch):
     """配置密钥后，所有 POST 端点（tasks/strategy/update）都应受认证保护。"""
-    monkeypatch.setenv("VISUALIZATION_API_KEY", "secret-key-123")
+    monkeypatch.setenv("VIZ_API_KEY", "secret-key-123")
     # POST /api/tasks 无头应 401
     resp_tasks = await async_client.post(
         "/api/tasks",
@@ -309,7 +309,7 @@ async def test_api_key_auth_protects_all_post_endpoints(async_client, monkeypatc
 @pytest.mark.asyncio
 async def test_api_key_auth_does_not_affect_get(async_client, monkeypatch):
     """配置密钥后，GET 端点（status/tasks/metrics）不应受认证影响。"""
-    monkeypatch.setenv("VISUALIZATION_API_KEY", "secret-key-123")
+    monkeypatch.setenv("VIZ_API_KEY", "secret-key-123")
     # GET /api/status 无头应 200
     assert (await async_client.get("/api/status")).status_code == 200
     # GET /api/tasks 无头应 200
@@ -321,7 +321,7 @@ async def test_api_key_auth_does_not_affect_get(async_client, monkeypatch):
 @pytest.mark.asyncio
 async def test_input_validation_empty_task(async_client, monkeypatch):
     """POST /api/tasks 空 user_id 应被 Pydantic 拒绝（422）。"""
-    monkeypatch.delenv("VISUALIZATION_API_KEY", raising=False)
+    monkeypatch.delenv("VIZ_API_KEY", raising=False)
     payload = {
         "user_id": "",
         "task_type": "quantum",
@@ -337,7 +337,7 @@ async def test_input_validation_empty_task(async_client, monkeypatch):
 @pytest.mark.asyncio
 async def test_input_validation_empty_task_type(async_client, monkeypatch):
     """POST /api/tasks 空 task_type 应被 Pydantic 拒绝（422）。"""
-    monkeypatch.delenv("VISUALIZATION_API_KEY", raising=False)
+    monkeypatch.delenv("VIZ_API_KEY", raising=False)
     payload = {
         "user_id": "user_001",
         "task_type": "",
@@ -353,7 +353,7 @@ async def test_input_validation_empty_task_type(async_client, monkeypatch):
 @pytest.mark.asyncio
 async def test_input_validation_qubit_count_exceeds_limit(async_client, monkeypatch):
     """POST /api/tasks qubit_count 超过 287 上限应被拒绝（422）。"""
-    monkeypatch.delenv("VISUALIZATION_API_KEY", raising=False)
+    monkeypatch.delenv("VIZ_API_KEY", raising=False)
     payload = {
         "user_id": "user_001",
         "task_type": "quantum",
@@ -369,7 +369,7 @@ async def test_input_validation_qubit_count_exceeds_limit(async_client, monkeypa
 @pytest.mark.asyncio
 async def test_input_validation_oversized_user_id(async_client, monkeypatch):
     """POST /api/tasks 超长 user_id（>128 字符）应被拒绝（422）。"""
-    monkeypatch.delenv("VISUALIZATION_API_KEY", raising=False)
+    monkeypatch.delenv("VIZ_API_KEY", raising=False)
     payload = {
         "user_id": "a" * 200,
         "task_type": "quantum",
@@ -1088,7 +1088,7 @@ class TestTasksEndpoint:
     @pytest.mark.asyncio
     async def test_post_success_returns_task_id(self, async_client, monkeypatch):
         """POST /api/tasks 成功应返回 task_id 且以 QTASK- 开头。"""
-        monkeypatch.delenv("VISUALIZATION_API_KEY", raising=False)
+        monkeypatch.delenv("VIZ_API_KEY", raising=False)
         payload = {
             "user_id": "test_user",
             "task_type": "quantum",
@@ -1106,7 +1106,7 @@ class TestTasksEndpoint:
     @pytest.mark.asyncio
     async def test_post_invalid_priority_too_high(self, async_client, monkeypatch):
         """priority=6 超过上限应返回 422。"""
-        monkeypatch.delenv("VISUALIZATION_API_KEY", raising=False)
+        monkeypatch.delenv("VIZ_API_KEY", raising=False)
         payload = {
             "user_id": "u",
             "task_type": "quantum",
@@ -1120,7 +1120,7 @@ class TestTasksEndpoint:
     @pytest.mark.asyncio
     async def test_post_invalid_priority_too_low(self, async_client, monkeypatch):
         """priority=0 低于下限应返回 422。"""
-        monkeypatch.delenv("VISUALIZATION_API_KEY", raising=False)
+        monkeypatch.delenv("VIZ_API_KEY", raising=False)
         payload = {
             "user_id": "u",
             "task_type": "quantum",
@@ -1134,7 +1134,7 @@ class TestTasksEndpoint:
     @pytest.mark.asyncio
     async def test_post_invalid_qubit_count(self, async_client, monkeypatch):
         """qubit_count=0 低于下限应返回 422。"""
-        monkeypatch.delenv("VISUALIZATION_API_KEY", raising=False)
+        monkeypatch.delenv("VIZ_API_KEY", raising=False)
         payload = {
             "user_id": "u",
             "task_type": "quantum",
@@ -1148,7 +1148,7 @@ class TestTasksEndpoint:
     @pytest.mark.asyncio
     async def test_post_increases_task_count(self, async_client, monkeypatch):
         """提交任务后任务总数应增加 1。"""
-        monkeypatch.delenv("VISUALIZATION_API_KEY", raising=False)
+        monkeypatch.delenv("VIZ_API_KEY", raising=False)
         before = len((await async_client.get("/api/tasks")).json())
         await async_client.post(
             "/api/tasks",
@@ -1278,7 +1278,7 @@ class TestStrategyEndpoint:
     @pytest.mark.asyncio
     async def test_known_strategy_switches(self, async_client, monkeypatch):
         """已知策略应切换成功且更新 current_strategy。"""
-        monkeypatch.delenv("VISUALIZATION_API_KEY", raising=False)
+        monkeypatch.delenv("VIZ_API_KEY", raising=False)
         resp = await async_client.post("/api/strategy", params={"strategy": "PPO"})
         assert resp.status_code == 200
         data = resp.json()
@@ -1290,7 +1290,7 @@ class TestStrategyEndpoint:
     @pytest.mark.asyncio
     async def test_unknown_strategy_fails(self, async_client, monkeypatch):
         """未知策略应返回 success=False 且不修改 current_strategy。"""
-        monkeypatch.delenv("VISUALIZATION_API_KEY", raising=False)
+        monkeypatch.delenv("VIZ_API_KEY", raising=False)
         before = (await async_client.get("/api/status")).json()["current_strategy"]
         resp = await async_client.post("/api/strategy", params={"strategy": "NonExistent"})
         assert resp.status_code == 200
@@ -1301,7 +1301,7 @@ class TestStrategyEndpoint:
     @pytest.mark.asyncio
     async def test_auth_missing_returns_401(self, async_client, monkeypatch):
         """配置密钥后缺少 X-API-Key 应返回 401。"""
-        monkeypatch.setenv("VISUALIZATION_API_KEY", "secret-key-123")
+        monkeypatch.setenv("VIZ_API_KEY", "secret-key-123")
         resp = await async_client.post("/api/strategy", params={"strategy": "FCFS"})
         assert resp.status_code == 401
 
@@ -1312,7 +1312,7 @@ class TestUpdateEndpoint:
     @pytest.mark.asyncio
     async def test_update_success(self, async_client, monkeypatch):
         """合法 payload 应更新系统状态字段。"""
-        monkeypatch.delenv("VISUALIZATION_API_KEY", raising=False)
+        monkeypatch.delenv("VIZ_API_KEY", raising=False)
         payload = {
             "qubit_utilization": 0.77,
             "queue_length": 9,
@@ -1330,7 +1330,7 @@ class TestUpdateEndpoint:
     @pytest.mark.asyncio
     async def test_qubit_utilization_out_of_bounds(self, async_client, monkeypatch):
         """qubit_utilization>1.0 应返回 422。"""
-        monkeypatch.delenv("VISUALIZATION_API_KEY", raising=False)
+        monkeypatch.delenv("VIZ_API_KEY", raising=False)
         payload = {
             "qubit_utilization": 1.5,
             "queue_length": 1,
@@ -1342,7 +1342,7 @@ class TestUpdateEndpoint:
     @pytest.mark.asyncio
     async def test_negative_queue_length_out_of_bounds(self, async_client, monkeypatch):
         """queue_length<0 应返回 422。"""
-        monkeypatch.delenv("VISUALIZATION_API_KEY", raising=False)
+        monkeypatch.delenv("VIZ_API_KEY", raising=False)
         payload = {
             "qubit_utilization": 0.5,
             "queue_length": -1,
@@ -1354,7 +1354,7 @@ class TestUpdateEndpoint:
     @pytest.mark.asyncio
     async def test_average_wait_time_out_of_bounds(self, async_client, monkeypatch):
         """average_wait_time>86400 应返回 422。"""
-        monkeypatch.delenv("VISUALIZATION_API_KEY", raising=False)
+        monkeypatch.delenv("VIZ_API_KEY", raising=False)
         payload = {
             "qubit_utilization": 0.5,
             "queue_length": 1,
@@ -1366,7 +1366,7 @@ class TestUpdateEndpoint:
     @pytest.mark.asyncio
     async def test_auth_missing_returns_401(self, async_client, monkeypatch):
         """配置密钥后缺少 X-API-Key 应返回 401。"""
-        monkeypatch.setenv("VISUALIZATION_API_KEY", "secret-key-123")
+        monkeypatch.setenv("VIZ_API_KEY", "secret-key-123")
         resp = await async_client.post(
             "/api/update",
             json={
@@ -1486,14 +1486,14 @@ class TestAuthLayer:
 
     @pytest.mark.asyncio
     async def test_no_key_configured_allows(self, monkeypatch):
-        """未配置 VISUALIZATION_API_KEY 时应放行（返回 None）。"""
-        monkeypatch.delenv("VISUALIZATION_API_KEY", raising=False)
+        """未配置 VIZ_API_KEY 时应放行（返回 None）。"""
+        monkeypatch.delenv("VIZ_API_KEY", raising=False)
         assert await verify_api_key(x_api_key=None) is None
 
     @pytest.mark.asyncio
     async def test_missing_header_rejected(self, monkeypatch):
         """配置密钥后缺失 X-API-Key 应抛 HTTPException 401。"""
-        monkeypatch.setenv("VISUALIZATION_API_KEY", "secret-key-123")
+        monkeypatch.setenv("VIZ_API_KEY", "secret-key-123")
         with pytest.raises(HTTPException) as exc:
             await verify_api_key(x_api_key=None)
         assert exc.value.status_code == 401
@@ -1501,7 +1501,7 @@ class TestAuthLayer:
     @pytest.mark.asyncio
     async def test_wrong_key_rejected(self, monkeypatch):
         """配置密钥后不匹配的 X-API-Key 应抛 HTTPException 401。"""
-        monkeypatch.setenv("VISUALIZATION_API_KEY", "secret-key-123")
+        monkeypatch.setenv("VIZ_API_KEY", "secret-key-123")
         with pytest.raises(HTTPException) as exc:
             await verify_api_key(x_api_key="wrong")
         assert exc.value.status_code == 401
@@ -1509,13 +1509,13 @@ class TestAuthLayer:
     @pytest.mark.asyncio
     async def test_correct_key_allows(self, monkeypatch):
         """配置密钥后匹配的 X-API-Key 应放行。"""
-        monkeypatch.setenv("VISUALIZATION_API_KEY", "secret-key-123")
+        monkeypatch.setenv("VIZ_API_KEY", "secret-key-123")
         assert await verify_api_key(x_api_key="secret-key-123") is None
 
     @pytest.mark.asyncio
     async def test_empty_env_value_disables_auth(self, monkeypatch):
-        """VISUALIZATION_API_KEY 为空字符串时应禁用认证。"""
-        monkeypatch.setenv("VISUALIZATION_API_KEY", "")
+        """VIZ_API_KEY 为空字符串时应禁用认证。"""
+        monkeypatch.setenv("VIZ_API_KEY", "")
         assert await verify_api_key(x_api_key=None) is None
 
 
@@ -1577,7 +1577,7 @@ class TestWebSocket:
     @pytest.mark.asyncio
     async def test_post_task_triggers_broadcast(self, async_client, monkeypatch):
         """POST /api/tasks 应调用 manager.broadcast 广播 task_added 消息。"""
-        monkeypatch.delenv("VISUALIZATION_API_KEY", raising=False)
+        monkeypatch.delenv("VIZ_API_KEY", raising=False)
         broadcast_mock = AsyncMock()
         monkeypatch.setattr(app_module.manager, "broadcast", broadcast_mock)
         await async_client.post(
@@ -1674,7 +1674,7 @@ class TestExplainabilityEndpoints:
     @pytest.mark.asyncio
     async def test_explainability_returns_feature_contributions(self, async_client, monkeypatch):
         """存在含 feature_contributions 的决策日志时，应返回对应记录。"""
-        monkeypatch.delenv("VISUALIZATION_API_KEY", raising=False)
+        monkeypatch.delenv("VIZ_API_KEY", raising=False)
         app_module._decision_log.clear()
         app_module._decision_log.extend(
             [
@@ -1706,7 +1706,7 @@ class TestExplainabilityEndpoints:
     @pytest.mark.asyncio
     async def test_explainability_empty_log(self, async_client, monkeypatch):
         """空决策日志时应返回 count=0 的空列表。"""
-        monkeypatch.delenv("VISUALIZATION_API_KEY", raising=False)
+        monkeypatch.delenv("VIZ_API_KEY", raising=False)
         app_module._decision_log.clear()
         resp = await async_client.get("/api/explainability")
         assert resp.status_code == 200
@@ -1717,7 +1717,7 @@ class TestExplainabilityEndpoints:
     @pytest.mark.asyncio
     async def test_explainability_limit_param(self, async_client, monkeypatch):
         """limit 参数应正确限制返回数量。"""
-        monkeypatch.delenv("VISUALIZATION_API_KEY", raising=False)
+        monkeypatch.delenv("VIZ_API_KEY", raising=False)
         app_module._decision_log.clear()
         for i in range(10):
             app_module._decision_log.append(
@@ -1736,7 +1736,7 @@ class TestExplainabilityEndpoints:
     @pytest.mark.asyncio
     async def test_explainability_summary_returns_ranking(self, async_client, monkeypatch):
         """应返回全局特征重要性降序排名。"""
-        monkeypatch.delenv("VISUALIZATION_API_KEY", raising=False)
+        monkeypatch.delenv("VIZ_API_KEY", raising=False)
         app_module._decision_log.clear()
         app_module._decision_log.extend(
             [
@@ -1767,7 +1767,7 @@ class TestExplainabilityEndpoints:
     @pytest.mark.asyncio
     async def test_explainability_summary_empty_log(self, async_client, monkeypatch):
         """空决策日志时 summary 应返回空列表和 0。"""
-        monkeypatch.delenv("VISUALIZATION_API_KEY", raising=False)
+        monkeypatch.delenv("VIZ_API_KEY", raising=False)
         app_module._decision_log.clear()
         resp = await async_client.get("/api/explainability/summary")
         assert resp.status_code == 200

@@ -3,7 +3,7 @@
 Quantum RL-driven Scheduling System for Tianyan Cloud Platform
 """
 
-__version__ = "0.1.0"
+__version__ = "0.5.0"
 __author__ = "揭榜挂帅参赛团队"
 __project_name__ = "量子RL驱动的天衍云平台智能调度系统"
 

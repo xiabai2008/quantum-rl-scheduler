@@ -1,4 +1,4 @@
-﻿# =============================================================================
+# =============================================================================
 # 量子RL调度系统 — CI/CD 持续集成流水线
 # Quantum RL Scheduler — CI/CD Pipeline
 #
@@ -227,6 +227,9 @@ jobs:
     needs: test  # 在测试通过后运行
     # 在 main 分支推送和 PR 时均运行（Issue #176: 扩展到 PR 检测测试质量退化）
     if: github.event_name == 'push' || github.event_name == 'pull_request'
+    # mutmut 3.x trampoline 与 src-layout 不兼容（pyproject.toml 注释），
+    # CI 无法自动执行手动 import 改写，暂不阻断 PR。
+    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
 
@@ -244,7 +247,6 @@ jobs:
 
       - name: Run mutation testing
         run: mutmut run
-        continue-on-error: true  # mutmut 3.x src-layout incompat
 
       - name: Show mutation results
         run: mutmut results
@@ -289,7 +291,6 @@ jobs:
       - name: Track and compare benchmarks
         run: |
           python scripts/ci/benchmark_tracker.py benchmark_results.json --report
-        continue-on-error: true  # micro-bench variance, non-blocking
 
       - name: Generate performance trend chart
         run: |

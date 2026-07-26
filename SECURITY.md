@@ -3,7 +3,7 @@
 > 本文件定义 **量子RL驱动的天衍云平台智能调度系统** 的安全规范与漏洞报告流程。
 > GitHub 会在仓库 Security tab 自动展示此文件内容。
 
-**最后更新**：2026-07-25（验证报告v3：API密钥轮换至新密钥；.env.example补充VISUALIZATION_API_KEY配置项）
+**最后更新**：2026-07-26（Issue #203：VISUALIZATION_API_KEY 统一为 VIZ_API_KEY，与 settings.py 一致）
 
 ---
 
@@ -77,7 +77,7 @@
 | `TIANYAN_API_TOKEN` | API 密钥别名 | `.env` | 90 天 |
 | `TIANYAN_API_SECRET` | 双因子认证密钥 | `.env` | 90 天 |
 | `TIANYAN_APP_ID` | 应用级鉴权 ID | `.env` | 按需 |
-| `VISUALIZATION_API_KEY` | Web 可视化面板 API 认证密钥 | `.env` | 按需 |
+| `VIZ_API_KEY` | Web 可视化面板 API 认证密钥 | `.env` | 按需 |
 
 ### 3.3 凭证泄露应急
 
@@ -105,7 +105,7 @@
 | 2026-07-25 | `scripts/testing/test_cqlib.py` 硬编码 API 密钥 | 移除硬编码，改用 `os.environ.get("TIANYAN_API_KEY")` + 缺失校验 | `bf5d141` |
 | 2026-07-25 | `.gitignore` 全局 `*.json` 模式过宽 | 替换为精确敏感文件模式（`config/secrets.json` 等） | `bf5d141` |
 | 2026-07-25 | API 密钥轮换（旧密钥在代码历史中暴露） | 在天衍云平台吊销旧密钥，生成新密钥并更新 `.env` | v3修复 |
-| 2026-07-25 | `.env.example` 缺少 `VISUALIZATION_API_KEY` 配置项 | 补充可视化面板认证密钥配置说明 | v3修复 |
+| 2026-07-25 | `.env.example` 缺少 `VIZ_API_KEY` 配置项 | 补充可视化面板认证密钥配置说明 | v3修复 |
 
 ---
 
