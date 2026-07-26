@@ -214,6 +214,7 @@ class RealMachineCallback(BaseCallback):
         self.shots = int(shots)
         self.real_times: list[dict[str, Any]] = []
         self._warned_no_client = False
+        self._seed = getattr(env, '_seed', 'N/A')
 
     def _on_step(self) -> bool:
         """每步触发：达到 interval 时按 prob 概率提交真机任务。"""
@@ -267,6 +268,7 @@ class RealMachineCallback(BaseCallback):
             "latency_s": 0.0,
             "status": "failed",
             "real_task_id": None,
+            "seed": self._seed,
         }
         try:
             real_tid = client.submit_quantum_task(
@@ -281,14 +283,14 @@ class RealMachineCallback(BaseCallback):
                 logger.info(
                     f"[RealCallback] step={self.n_calls} machine={machine_name} "
                     f"tid={real_tid} latency={record['latency_s']}s "
-                    f"task={task_id_str}"
+                    f"task={task_id_str} seed={self._seed}"
                 )
         except Exception as e:
             # 真机 API 提交可能因网络/认证/服务端等多种原因失败，无法精确收窄
             record["latency_s"] = round(time.time() - t0, 3)
             record["status"] = f"error: {str(e)[:80]}"
             if self.verbose:
-                logger.error(f"[RealCallback] step={self.n_calls} 提交失败: {e}")
+                logger.error(f"[RealCallback] step={self.n_calls} 提交失败: {e} seed={self._seed}")
 
         self.real_times.append(record)
         return True

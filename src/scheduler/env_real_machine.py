@@ -424,9 +424,10 @@ def submit_to_real_machine(
                 }
             )
             if env.use_real_machine:
+                seed_info = f", seed={getattr(env, '_seed', 'N/A')}" if hasattr(env, '_seed') else ""
                 logger.debug(
                     f"[真机闭环] 任务 {task.task_id} 已提交 {machine.name} "
-                    f"(real_task_id={real_task_id})，等待结果轮询"
+                    f"(real_task_id={real_task_id}, step={env._current_step}{seed_info})，等待结果轮询"
                 )
         else:
             # 提交被拒绝（非异常），计入失败并触发降级判断
@@ -461,12 +462,13 @@ def record_real_failure(
         and not env._real_machine_degraded
     ):
         env._real_machine_degraded = True
+        seed_info = f", seed={getattr(env, '_seed', 'N/A')}" if hasattr(env, '_seed') else ""
         logger.warning(
             f"[真机闭环] 连续失败 {env._real_consecutive_failures} 次，"
-            f"已自动降级到 Mock 模式（最后失败: {machine_name} - {reason}）"
+            f"已自动降级到 Mock 模式（最后失败: {machine_name} - {reason}{seed_info}）"
         )
         env._render_log.append(
-            f"[真机闭环] 已降级到 Mock（连续失败 {env._real_consecutive_failures} 次）"
+            f"[真机闭环] 已降级到 Mock（连续失败 {env._real_consecutive_failures} 次{seed_info}）"
         )
 
 
@@ -531,10 +533,11 @@ def poll_pending_real_tasks(env: "QuantumSchedulingEnv") -> float:
             actual_duration = status.get("execution_time_s", None)
             _update_task_duration(env, task_id_str, actual_duration)
 
+            seed_info = f", seed={getattr(env, '_seed', 'N/A')}" if hasattr(env, '_seed') else ""
             logger.debug(
                 f"[真机闭环] 任务 {task_id_str} 真机执行成功 "
                 f"(machine={machine_name}, real_task_id={real_task_id}, "
-                f"fidelity={fidelity:.4f}, reward={reward_delta:.4f})"
+                f"fidelity={fidelity:.4f}, reward={reward_delta:.4f}{seed_info})"
             )
         elif status_str == "error":
             # 真机失败：负向反馈 + 降级判断

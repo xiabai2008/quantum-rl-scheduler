@@ -510,6 +510,7 @@ class MultiMachineCqlibCoordinator:
         self._clients: dict[str, CqlibTianyanClient] = {}
         self._submit_count: dict[str, int] = dict.fromkeys(self.machine_names, 0)
         self._fail_count: dict[str, int] = dict.fromkeys(self.machine_names, 0)
+        self._seed_submit_stats: dict[int | str, dict[str, int]] = {}
 
         logger.info(f"[MultiMachine] 纳管 {len(self.machine_names)} 台机器: {self.machine_names}")
 
@@ -531,6 +532,7 @@ class MultiMachineCqlibCoordinator:
         qcis: str,
         shots: int = 512,
         task_name: str = "MultiMachine_Task",
+        seed: int | str | None = None,
     ) -> str | None:
         """向指定机器提交量子任务。
 
@@ -539,6 +541,7 @@ class MultiMachineCqlibCoordinator:
             qcis        : QCIS 指令字符串
             shots       : 测量次数
             task_name   : 任务名称
+            seed        : 可选的随机种子（用于调试追踪）
 
         Returns:
             task_id 字符串；提交失败返回 None
@@ -547,6 +550,10 @@ class MultiMachineCqlibCoordinator:
             client = self._get_client(machine_name)
             task_id = client.submit_quantum_task(qcis=qcis, shots=shots, task_name=task_name)
             self._submit_count[machine_name] = self._submit_count.get(machine_name, 0) + 1
+            if seed is not None:
+                if seed not in self._seed_submit_stats:
+                    self._seed_submit_stats[seed] = {"submit": 0, "fail": 0}
+                self._seed_submit_stats[seed]["submit"] += 1
             # 提交成功后记录配额消耗（仅当 task_id 非 None 时）
             if self._quota_tracker is not None and task_id is not None:
                 self._quota_tracker.consume(shots=shots, tasks=1)
@@ -554,6 +561,10 @@ class MultiMachineCqlibCoordinator:
         except Exception as e:
             # 涉及客户端获取（ValueError）与提交，异常类型无法穷举，保留宽捕获并记录日志
             self._fail_count[machine_name] = self._fail_count.get(machine_name, 0) + 1
+            if seed is not None:
+                if seed not in self._seed_submit_stats:
+                    self._seed_submit_stats[seed] = {"submit": 0, "fail": 0}
+                self._seed_submit_stats[seed]["fail"] += 1
             logger.error(f"[MultiMachine] {machine_name} 提交失败: {e}")
             return None
 
@@ -587,6 +598,14 @@ class MultiMachineCqlibCoordinator:
             }
             for name in self.machine_names
         }
+
+    def get_seed_stats(self) -> dict[int | str, dict[str, int]]:
+        """返回按 seed 分组的真机提交统计（Issue #241）。
+
+        Returns:
+            {seed: {"submit": n, "fail": m}} 映射
+        """
+        return dict(self._seed_submit_stats)
 
     def as_client_map(self) -> dict[str, CqlibTianyanClient]:
         """返回 {machine_name: client} 映射，便于注入 env.attach_real_clients。
