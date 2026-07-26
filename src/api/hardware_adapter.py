@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import uuid
 from abc import ABC, abstractmethod
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from enum import Enum
 from typing import Any, ClassVar
 
@@ -90,7 +90,7 @@ class QuantumHardwareBackend(ABC):
         """
 
     @abstractmethod
-    def get_task_status(self, task_id: str) -> dict[str, Any]:
+    def get_task_status(self, task_id: str) -> Mapping[str, Any]:
         """查询任务状态（非阻塞）。
 
         Args:
