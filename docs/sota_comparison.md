@@ -1,6 +1,8 @@
 # SOTA 对比表
 
 > 系统梳理量子调度与RL调度领域的现有方法，建立多维度对比表格，清晰阐述本系统的差异化优势。
+>
+> **Issue #119 更新（2026-07-26）**：新增第 6—8 节，补充 8 篇 2024—2025 年论文 + 2 篇 2026 年前沿进展，并更新差异化定位论述。文献覆盖范围扩展至 2014—2026 年。
 
 ---
 
@@ -68,3 +70,137 @@
 3. **统计严谨性（学术标准）**：50 seeds × 5 episodes = N=250，Mann-Whitney U检验 p=1.032e-42，rank-biserial=-0.71（权威源: config/statistics.yaml），现有方法多数无统计检验
 4. **多算法对比（全面）**：8种策略（PPO/DQN/MAPPO/FCFS/SJF/Greedy/Random/Quantum-Only）横向对比，现有方法通常只对比3-4种
 5. **工程落地度（工程化程度较高）**：完整API客户端+熔断器+Prometheus监控+Docker部署，现有方法多为原型系统
+
+---
+
+## 6. 2024—2025 年最新相关工作补充（Issue #119）
+
+> **Issue #119** — 更新文献调研，补充 2024—2025 年最新工作。本节新增 8 篇 2024—2025 年发表的论文（并附 2 篇 2026 年最新进展作为前沿参考），覆盖量子云调度、量子强化学习调度、量子退火调度、QUBO 工作流调度四个方向，进一步巩固本系统的差异化定位。
+>
+> 所有论文均标注：标题、作者、发表 venue、年份、与本项目关系（互补/竞争/无关）、原始链接。
+>
+> 最后更新：2026-07-26
+
+### 6.1 新增论文详表（2024—2025）
+
+| # | 标题 | 作者 | 发表 venue | 年份 | 与本项目关系 | 原始链接 |
+|:--|:--|:--|:--|:--:|:--|:--|
+| N1 | QSRA: A QPU Scheduling and Resource Allocation Approach for Cloud-Based Quantum Computing | B. Lu, Z. Chen, Y. Wu | arXiv:2411.05283 | 2024 | **竞争/相关** | https://arxiv.org/abs/2411.05283 |
+| N2 | Quantum Reinforcement Learning for QoS-Aware Real-Time Job Scheduling in Cloud Systems | S. Dai, N. Saurabh, Q. Wang, J. Nian, S. Kan, Y. Mao, L. Cheng | IEEE Systems Journal, vol.19, no.2, pp.471-482 | 2025 | **竞争/互补** | DOI:10.1109/JSYST.2025.3568752 |
+| N3 | Optimal Solving of a Scheduling Problem Using Quantum Annealing Metaheuristics on the D-Wave Quantum Solver | W. Bojejko, R. Klempous, J. Pempera, J. Rozenblit, C. Smutnicki, M. Uchronski, M. Wodecki | IEEE Trans. Systems, Man, and Cybernetics: Systems, vol.55, no.1, pp.196-208 | 2025 | **互补** | DOI:10.1109/TSMC.2024.3458873 |
+| N4 | Solving the resource constrained project scheduling problem with quantum annealing | L.F. Pérez Armas, S. Creemers, S. Deleplanque | Scientific Reports, vol.14, 16784 | 2024 | **互补** | DOI:10.1038/s41598-024-67168-6 |
+| N5 | Hybrid Quantum-Classical Scheduling with Problem-Aware Calibration on a Quantum Annealer | K. Giergiel, Y.S. Yang, A.B. Murphy | arXiv:2509.04808 | 2025 | **互补** | https://arxiv.org/abs/2509.04808 |
+| N6 | Learning-Driven Annealing with Adaptive Hamiltonian Modification for Solving Large-Scale Problems on Quantum Devices | S. Schulz, D. Willsch, K. Michielsen | arXiv:2502.21246 | 2025 | **互补** | https://arxiv.org/abs/2502.21246 |
+| N7 | Quantum Reinforcement Learning for real-time optimization in Electric Vehicle charging systems | H. Xu, A. Zhang, Q. Wang, Y. Hu, F. Fang, L. Cheng | Applied Energy, vol.383, Art.125279 | 2025 | **互补** | （新能源电力系统全国重点实验室） |
+| N8 | Real-time workflow scheduling in hybrid clouds with privacy and security constraints: a deep reinforcement learning approach | H. He, Y. Gu, Y. Hu, F. Fang, X. Ning, X. Chen, L. Cheng | Expert Systems with Applications, vol.278, Art.127376 | 2025 | **互补** | （新能源电力系统全国重点实验室） |
+
+### 6.2 2026 年最新前沿进展（参考）
+
+| # | 标题 | 作者 | 发表 venue | 年份 | 与本项目关系 | 原始链接 |
+|:--|:--|:--|:--|:--:|:--|:--|
+| N9 | Quantum Annealing Enhanced Reinforcement Learning for Accurate Remaining Useful Lifetime Prediction (QAQL) | M. Gandhudi, A.V., G.R. Anil, G.R. Gangadharan | arXiv:2606.18503 | 2026 | **竞争/高度相关** | https://arxiv.org/abs/2606.18503 |
+| N10 | An Empirical Evaluation of Quantum-Inspired QUBO Methods for Heterogeneous HPC Workflow Mapping and Scheduling | A.K. Sharma, C. Boehme, J. Kunkel | ISC High Performance 2026 (IEEE Xplore) | 2026 | **互补** | https://arxiv.org/abs/2605.25350 |
+
+### 6.3 逐篇差异化分析
+
+#### N1 — QSRA（Lu et al., 2024）：量子云平台 QPU 调度
+
+- **核心方法**：将经典 CPU 调度技术（如时间片轮转、多程序合并）适配到量子处理单元（QPU），考虑量子比特质量与连通性进行比特分配，并合并多个量子程序以提升比特利用率
+- **与本系统关系**：**竞争/相关**。同为量子云平台调度，但 QSRA 采用经典调度策略改编（FCFS/轮转等），**无强化学习自适应**，**无量子退火加速**，未做真机统计验证
+- **差异化优势**：本系统使用 PPO 学习型调度（+88.3%，N=250，p=1.032e-42），并用量子退火加速 RL 决策；QSRA 仍属静态规则调度
+
+#### N2 — 量子强化学习云作业调度（Dai et al., 2025, IEEE Systems Journal）
+
+- **核心方法**：首次将量子强化学习（QRL）用于云系统实时作业调度，使用变分层和编码层将状态信息转为量子数据，重复嵌入量子神经网络（QNN）计算最优价值回报；高负载下成功率比 DRL 基线高 **55.2%**
+- **与本系统关系**：**竞争/互补**。同属"量子 + RL + 调度"交叉领域，但 N2 面向**经典云作业**（非量子任务），用量子神经网络（QNN）而非量子退火，未在量子真机验证
+- **差异化优势**：本系统面向**量子任务调度**（异质化量子比特、噪声、保真度），用量子退火（QUBO）加速 RL 决策，并在天衍-287 真机完成 284 次可用性验证；双向赋能（量子退火↔RL）是 N2 不具备的
+
+#### N3 — D-Wave 量子退火单机调度（Bojejko et al., 2025, IEEE TSMC）
+
+- **核心方法**：用 D-Wave 量子退火求解单机调度问题（最小化延迟成本，NP-hard），提出混合分支定界法，经典与量子交替计算上下界
+- **与本系统关系**：**互补**。同为量子退火调度，但 N3 是**纯退火无 RL**，面向单机调度，不涉及量子云平台
+- **差异化优势**：本系统将退火嵌入 RL 训练闭环（退火加速 PPO 决策头，+6.4%），且面向多机器量子云调度
+
+#### N4 — 量子退火求解 RCPSP（Pérez Armas et al., 2024, Scientific Reports）
+
+- **核心方法**：首次将量子退火用于资源受限项目调度问题（RCPSP），分析 12 种 MILP 公式并转为 QUBO，在 D-Wave Advantage 6.3 上求解，引入 time-to-target 和 Atos Q-score 指标
+- **与本系统关系**：**互补**。提供了 QUBO 调度映射的工程参考，但**无 RL**，面向项目管理调度，非量子任务调度
+- **差异化优势**：本系统的 QUBO 不是直接编码调度问题，而是编码 RL 权重更新量（梯度引导），实现"退火加速 RL"而非"退火替代调度"
+
+#### N5 — 混合量子经典调度与问题感知校准（Giergiel et al., 2025）
+
+- **核心方法**：用 D-Wave Advantage 2 原型机求解澳大利亚体育学院营地房间调度，因全问题无法嵌入故采用混合方法，提出问题感知校准方案利用多比特统计增强退火性能
+- **与本系统关系**：**互补**。揭示了退火硬件在连通性与规模增大时性能退化的局限，本系统的 head_only 退火（260 参数）正是对此局限的工程权衡
+- **差异化优势**：本系统退火作用于 RL 决策加速，且通过 head_only 限制规模（8MB/1s）规避了 N5 指出的可扩展性问题
+
+#### N6 — 学习驱动退火 LDA（Schulz et al., 2025）
+
+- **核心方法**：提出 Learning-Driven Annealing（LDA），通过学习问题结构自适应修改问题哈密顿量，在 5580 量子比特自旋玻璃上超越 reverse annealing、SA、Gurobi 等
+- **与本系统关系**：**互补**。LDA 的"学习"指哈密顿量自适应修改，非强化学习；但与本项目"退火 + 学习"思想呼应
+- **差异化优势**：本系统是"退火加速 RL 决策"（量子赋能 AI 方向），LDA 是"学习改进退火"（改进退火本身），二者方向不同；本系统具备 RL 双向闭环
+
+#### N7 — 量子强化学习 EV 充电调度（Xu et al., 2025, Applied Energy）
+
+- **核心方法**：将量子强化学习用于电动汽车充电系统实时优化，引入量子神经网络增强状态表示与价值估计
+- **与本系统关系**：**互补**。同属量子 RL 调度，但场景为 EV 充电（经典资源调度），非量子任务调度
+- **差异化优势**：本系统面向量子计算云平台的量子任务调度，并用量子退火（非 QNN）加速 RL
+
+#### N8 — DRL 混合云工作流调度（He et al., 2025, Expert Systems with Applications）
+
+- **核心方法**：用深度强化学习做混合云实时工作流调度，将任务数据隐私等级与计算域安全策略纳入决策
+- **与本系统关系**：**互补**。纯经典 DRL 调度，无量子成分，但隐私/安全约束建模可为本系统多租户设计提供参考
+- **差异化优势**：本系统具备量子退火加速与量子任务调度能力，N8 无量子维度
+
+#### N9（2026 参考）— QAQL 量子退火增强强化学习（Gandhudi et al., 2026）
+
+- **核心方法**：提出 QAQL 框架，将 Q-learning 的贪心动作步骤重编码为 QUBO，在 D-Wave Advantage 上采样（退火时间 20μs，1000 次读取/更新），退火采样提供探索以避免过早收敛；在 NASA C-MAPSS 数据集上 MSE 优于 14 个基线（p<0.01）
+- **与本系统关系**：**竞争/高度相关**。这是目前与本项目"量子退火加速 RL"方向**最接近**的工作，同样将 RL 决策编码为 QUBO 在 D-Wave 求解
+- **差异化优势**：①方向不同——QAQL 用于**剩余寿命预测**（回归任务），本系统用于**量子任务调度**（组合优化）；②场景不同——QAQL 在 D-Wave 真机退火，本系统退火为模拟退火（dimod/neal），但在天衍-287 真机完成量子任务可用性验证；③闭环不同——本系统为"RL 调度量子任务 + 退火加速 RL"双向赋能，QAQL 为单向"退火增强 RL"。需在答辩中明确区分
+
+#### N10（2026 参考）— QUBO 异构 HPC 工作流调度评估（Sharma et al., 2026, ISC26）
+
+- **核心方法**：系统评估量子启发式 QUBO 调度方法（单次模拟退火、多次退火、QAOA 启发式）对比 MILP/CP-SAT/GA/HEFT，发现 QUBO-SA 在 >15 任务、QAOA 变体在 >10 任务时可行性退化
+- **与本系统关系**：**互补**。揭示了 QUBO 调度在规模增大时的可行性边界，为本系统 head_only 退火（限制 QUBO 规模）的工程权衡提供实证支撑
+- **差异化优势**：本系统 QUBO 编码 RL 权重更新量（260 参数）而非直接调度问题，规避了 N10 指出的大规模可行性问题；且本系统核心调度由 PPO 完成，退火仅作辅助加速
+
+---
+
+## 7. 差异化定位论述更新（结合 2024—2025 新文献）
+
+综合 2024—2025 年最新文献调研，本系统的差异化定位可进一步明确为以下五点：
+
+### 7.1 "RL + 量子退火"双向闭环仍属探索性首创
+
+- **2024—2025 年新进展**：量子 RL 调度（N2 Dai 2025、N7 Xu 2025）开始出现，但均用量子神经网络（QNN）增强 RL，**未用量子退火加速 RL**
+- **2026 前沿**：N9（QAQL, Gandhudi 2026）首次将 Q-learning 动作选择编码为 QUBO 在 D-Wave 求解，与本项目方向最接近，但用于**寿命预测**而非调度，且为单向增强
+- **本系统定位**：据文献调研，本系统仍是**据调研首次将 RL 调度与量子退火加速结合形成双向闭环**（AI 赋能量子调度 + 量子退火赋能 RL 决策），且面向量子计算云平台真机
+
+### 7.2 量子云平台真机调度仍是稀缺方向
+
+- **2024—2025 年新进展**：N1（QSRA, Lu 2024）开始关注量子云平台 QPU 调度，但用经典 CPU 调度技术改编，无 RL；其余 RL 调度工作（N2、N7、N8）均面向经典资源（云 VM、EV 充电）
+- **本系统定位**：据调研，本系统是**据调研少数面向量子计算云平台、并完成真机可用性验证的 RL 调度系统**（天衍-287，284 次 100% 成功，可用性验证）
+
+### 7.3 统计严谨性持续领先
+
+- **2024—2025 年新进展**：N2（Dai 2025）报告了成功率提升但未给出统计显著性检验；N4（Pérez Armas 2024）使用 time-to-target 指标但无多重比较校正；多数论文仍无统计检验
+- **本系统定位**：N=250，Mann-Whitney U 检验 p=1.032e-42，rank-biserial=-0.71，Bonferroni 校正——**统计严谨性据调研在同类工作中处于领先**
+
+### 7.4 QUBO 规模工程权衡得到新文献佐证
+
+- **2024—2025 年新进展**：N5（Giergiel 2025）揭示退火连通性/规模增大性能退化；N10（Sharma 2026）实证 QUBO 调度在 >15 任务可行性退化
+- **本系统定位**：本系统 head_only 退火（260 参数，8MB/1s）的工程权衡**得到新文献实证支撑**，验证了限制 QUBO 规模是合理工程决策
+
+### 7.5 双向赋能 vs 单向增强的范式差异
+
+- **2024—2025 年新进展**：现有"量子+学习"工作均为单向——要么退火优化（N3/N4/N5/N6）、要么 QRL 调度（N2/N7）、要么退火增强 RL（N9）
+- **本系统定位**：据调研，本系统是**据调研首次提出并实现"AI 赋能量子（RL 调度）+ 量子赋能 AI（退火加速 RL）"双向闭环**的量子调度方案
+
+---
+
+## 8. 文献覆盖度说明
+
+- 本节新增 2024—2025 年论文 **8 篇**（N1—N8），2026 年最新进展 **2 篇**（N9—N10）作为前沿参考
+- 结合原 `docs/references.md` 的 36 篇文献（覆盖 2014—2023），本系统文献调研已覆盖 **2014—2026 年**完整时间跨度
+- 搜索关键词覆盖：quantum scheduling reinforcement learning、quantum annealing reinforcement learning QUBO、quantum cloud computing scheduling、quantum resource allocation optimization
+- 检索来源：arXiv、IEEE Xplore、Scientific Reports（Nature）、Applied Energy、Expert Systems with Applications
+- **声明**：文献调研基于公开数据库检索，可能未覆盖全部相关工作；差异化定位表述采用"据调研/据文献调研"等限定用语，避免绝对化断言

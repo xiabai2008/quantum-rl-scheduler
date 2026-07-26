@@ -662,6 +662,107 @@ class TestOptimizePolicyAndHelpers(unittest.TestCase):
         np.testing.assert_array_almost_equal(net.weight.detach().numpy(), np.full((1, 2), 2.0))
         np.testing.assert_array_almost_equal(net.bias.detach().numpy(), np.full(1, 2.0))
 
+    # ============================================================
+    # Issue #194: 退火无效化诊断指标 (min_effective_delta) 测试
+    # ============================================================
+
+    def test_min_effective_delta_param_accepted(self):
+        """min_effective_delta 参数被正确接受且不报错。"""
+        agent = MagicMock()
+        agent.policy_net = nn.Sequential(nn.Linear(4, 8), nn.ReLU(), nn.Linear(8, 2))
+        with patch.object(annealing_mod, "QUANTUM_ACCELERATION_ENABLED", True):
+            result = self.opt.optimize_policy(
+                agent,
+                num_iterations=1,
+                learning_rate=0.01,
+                head_only=False,
+                min_effective_delta=1e-4,
+            )
+        self.assertIs(result, agent)
+
+    def test_last_anneal_stats_has_ineffective_fields(self):
+        """optimize_policy 完成后 _last_anneal_stats 包含 ineffective_count 和 weight_l2_diff 字段。"""
+
+        class MockAgent:
+            def __init__(self):
+                self.policy_net = nn.Sequential(
+                    nn.Linear(4, 8), nn.ReLU(), nn.Linear(8, 2)
+                )
+
+        agent = MockAgent()
+        with patch.object(annealing_mod, "QUANTUM_ACCELERATION_ENABLED", True):
+            self.opt.optimize_policy(
+                agent,
+                num_iterations=2,
+                learning_rate=0.01,
+                head_only=False,
+                min_effective_delta=1e-4,
+            )
+        stats = self.opt._last_anneal_stats
+        self.assertIn("ineffective_count", stats)
+        self.assertIn("weight_l2_diff", stats)
+        self.assertIsInstance(stats["ineffective_count"], int)
+        self.assertIsInstance(stats["weight_l2_diff"], float)
+
+    def test_ineffective_count_with_large_threshold(self):
+        """min_effective_delta 设为极大值时，所有迭代都应被标记为无效。"""
+
+        class MockAgent:
+            def __init__(self):
+                self.policy_net = nn.Sequential(
+                    nn.Linear(4, 8), nn.ReLU(), nn.Linear(8, 2)
+                )
+
+        agent = MockAgent()
+        with patch.object(annealing_mod, "QUANTUM_ACCELERATION_ENABLED", True):
+            self.opt.optimize_policy(
+                agent,
+                num_iterations=3,
+                learning_rate=0.01,
+                head_only=False,
+                # 极大阈值：任何权重变化都无法超过
+                min_effective_delta=1e10,
+            )
+        stats = self.opt._last_anneal_stats
+        # 3 次迭代全部无效
+        self.assertEqual(stats["ineffective_count"], 3)
+        # 无效迭代不计入 accepted 或 rejected
+        self.assertEqual(stats["accepted"], 0)
+        self.assertEqual(stats["rejected"], 0)
+
+    def test_ineffective_count_zero_with_large_learning_rate(self):
+        """learning_rate 足够大时，ineffective_count 应为 0。"""
+
+        class MockAgent:
+            def __init__(self):
+                self.policy_net = nn.Sequential(
+                    nn.Linear(4, 8), nn.ReLU(), nn.Linear(8, 2)
+                )
+
+        agent = MockAgent()
+        with patch.object(annealing_mod, "QUANTUM_ACCELERATION_ENABLED", True):
+            self.opt.optimize_policy(
+                agent,
+                num_iterations=2,
+                # 大学习率确保权重变化超过阈值
+                learning_rate=1.0,
+                head_only=False,
+                min_effective_delta=1e-8,
+            )
+        stats = self.opt._last_anneal_stats
+        self.assertEqual(stats["ineffective_count"], 0)
+
+    def test_min_effective_delta_default_value(self):
+        """min_effective_delta 默认值为 1e-4，保持向后兼容。"""
+        agent = MagicMock()
+        agent.policy_net = nn.Linear(4, 2)
+        with patch.object(annealing_mod, "QUANTUM_ACCELERATION_ENABLED", True):
+            # 不传 min_effective_delta，使用默认值
+            self.opt.optimize_policy(agent, num_iterations=1, head_only=False)
+        stats = self.opt._last_anneal_stats
+        # 默认值下应正常执行，字段存在
+        self.assertIn("ineffective_count", stats)
+
 
 # ============================================================
 # Issue #148: ??/?? QUBO ????

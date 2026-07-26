@@ -1,0 +1,68 @@
+[
+  {
+    "learning_rate": 0.01,
+    "seed": 42,
+    "total_triggers": 0,
+    "effective_triggers": 0,
+    "impact_rate": 0.0,
+    "ineffective_count": 0,
+    "weight_l2_diff": 0.0,
+    "final_reward": -131.51436446787346,
+    "train_time_s": 25.47209906578064
+  },
+  {
+    "learning_rate": 0.01,
+    "seed": 123,
+    "total_triggers": 0,
+    "effective_triggers": 0,
+    "impact_rate": 0.0,
+    "ineffective_count": 0,
+    "weight_l2_diff": 0.0,
+    "final_reward": -131.51436446787346,
+    "train_time_s": 19.865934371948242
+  },
+  {
+    "learning_rate": 0.1,
+    "seed": 42,
+    "total_triggers": 0,
+    "effective_triggers": 0,
+    "impact_rate": 0.0,
+    "ineffective_count": 0,
+    "weight_l2_diff": 0.0,
+    "final_reward": 1915.664763981414,
+    "train_time_s": 20.013208389282227
+  },
+  {
+    "learning_rate": 0.1,
+    "seed": 123,
+    "total_triggers": 0,
+    "effective_triggers": 0,
+    "impact_rate": 0.0,
+    "ineffective_count": 0,
+    "weight_l2_diff": 0.0,
+    "final_reward": -131.51436446787346,
+    "train_time_s": 20.667550325393677
+  },
+  {
+    "learning_rate": 0.5,
+    "seed": 42,
+    "total_triggers": 0,
+    "effective_triggers": 0,
+    "impact_rate": 0.0,
+    "ineffective_count": 0,
+    "weight_l2_diff": 0.0,
+    "final_reward": -131.51436446787346,
+    "train_time_s": 20.69085693359375
+  },
+  {
+    "learning_rate": 0.5,
+    "seed": 123,
+    "total_triggers": 0,
+    "effective_triggers": 0,
+    "impact_rate": 0.0,
+    "ineffective_count": 0,
+    "weight_l2_diff": 0.0,
+    "final_reward": -131.51436446787346,
+    "train_time_s": 20.285102367401123
+  }
+]

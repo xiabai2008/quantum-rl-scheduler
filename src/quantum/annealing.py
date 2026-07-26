@@ -128,6 +128,8 @@ class QuantumAnnealingOptimizer:
 
         # 记录最后一次 anneal 实际使用的求解器（供外部诊断）
         self._last_solver: str = "none"
+        # 记录最后一次 optimize_policy 的退火统计（供外部诊断无效化/接受率）
+        self._last_anneal_stats: dict[str, Any] = {}
 
     # ------------------------------------------------------------------
     # 方法 2: network_to_qubo
@@ -523,6 +525,7 @@ class QuantumAnnealingOptimizer:
         mode: str = "head_only",
         max_params_per_block: int = 200,
         block_strategy: str = "tensor_wise",
+        min_effective_delta: float = 1e-4,
     ) -> Any:
         """
         主优化循环：用量子退火加速策略更新（v2 - 梯度引导）
@@ -540,6 +543,13 @@ class QuantumAnnealingOptimizer:
             - "hierarchical": 分层/分块退火，逐块 QUBO → 全量网络覆盖，突破 OOM
             - "full": 全量单次 QUBO（仅在小网络 <200 参数时使用）
 
+        无效化诊断 (min_effective_delta)：
+            当 learning_rate 过小（如默认 0.01）时，实际权重更新量
+            w_final = w_old + lr * delta 的 L2 范数可能低于 min_effective_delta，
+            此时退火更新实质上是空操作。该方法会在每次迭代后计算实际权重 L2
+            变化量，低于阈值则标记为 ineffective 并跳过接受/拒绝判定，
+            最终统计 ineffective_count 写入 _last_anneal_stats。
+
         Args:
             agent               : RL 智能体（需具有 policy_net 属性，为 nn.Module）
             num_iterations      : 量子退火优化迭代次数（默认 10）
@@ -553,6 +563,10 @@ class QuantumAnnealingOptimizer:
             mode                : 优化模式: "head_only" / "hierarchical" / "full"
             max_params_per_block: hierarchical 模式时每块最大参数数（默认 200）
             block_strategy      : hierarchical 模式的分块策略: "tensor_wise" / "size_limited"
+            min_effective_delta : 单次迭代实际权重 L2 变化量的下限阈值（默认 1e-4）。
+                                  低于此值时该次迭代被标记为 ineffective（无效），
+                                  跳过接受/拒绝判定，用于诊断 learning_rate 过小导致的
+                                  退火无效化问题。
 
         Returns:
             agent: 优化后的智能体（原地修改并返回）
@@ -567,6 +581,7 @@ class QuantumAnnealingOptimizer:
                 replay_buffer=replay_buffer,
                 max_params_per_block=max_params_per_block,
                 block_strategy=block_strategy,
+                min_effective_delta=min_effective_delta,
             )
 
         if not QUANTUM_ACCELERATION_ENABLED:
@@ -614,6 +629,8 @@ class QuantumAnnealingOptimizer:
         # 统计退火接受/拒绝次数（供外部诊断为何不同策略训练结果相同）
         anneal_accepted = 0
         anneal_rejected = 0
+        # 统计退火无效化次数（Issue #194: 诊断 learning_rate 过小导致退火空操作）
+        ineffective_count = 0
 
         # 初始评估
         initial_loss = self._evaluate_network_quality(policy_net)
@@ -712,6 +729,40 @@ class QuantumAnnealingOptimizer:
                     learning_rate=learning_rate,
                 )
 
+            # ---- 步骤 6.5: 无效化诊断（Issue #194）----
+            # 计算实际权重 L2 变化量（应用 learning_rate 缩放后的真实变化）
+            # 当 learning_rate 过小时，w_final = w_old + lr * delta 的变化量极小，
+            # 退火实质上是空操作。低于 min_effective_delta 则跳过接受/拒绝判定。
+            if head_only:
+                applied_weights = [
+                    p.detach().cpu().numpy().copy() for p in head_params
+                ]
+            else:
+                applied_weights = [
+                    p.detach().cpu().numpy().copy() for p in policy_net.parameters()
+                ]
+            actual_delta_flat = np.concatenate(
+                [
+                    (aw - ow).flatten()
+                    for aw, ow in zip(applied_weights, old_weights, strict=False)
+                ]
+            )
+            weight_l2_diff_iter = float(np.linalg.norm(actual_delta_flat))
+
+            if weight_l2_diff_iter < min_effective_delta:
+                # 退火更新量过小，标记为无效，跳过接受/拒绝判定
+                ineffective_count += 1
+                history.append((iteration, current_loss, current_loss, False))
+                logger.warning(
+                    f"  迭代 {iteration + 1}/{num_iterations}: "
+                    f"实际权重变化 L2={weight_l2_diff_iter:.6e} "
+                    f"< 阈值 {min_effective_delta:.6e}，标记为无效 (ineffective)，"
+                    f"跳过接受/拒绝判定"
+                )
+                if callback is not None:
+                    callback(iteration, current_loss)
+                continue
+
             # ---- 步骤 7: 评估更新后的 loss，决定是否接受 ----
             new_loss = self._evaluate_network_quality(policy_net)
             loss_improvement = current_loss - new_loss
@@ -750,15 +801,9 @@ class QuantumAnnealingOptimizer:
         # 退火接受/拒绝汇总（诊断 A/B 策略结果为何相同）
         total_anneals = anneal_accepted + anneal_rejected
         accept_rate = anneal_accepted / total_anneals if total_anneals > 0 else 0.0
-        self._last_anneal_stats = {
-            "accepted": anneal_accepted,
-            "rejected": anneal_rejected,
-            "total": total_anneals,
-            "accept_rate": accept_rate,
-            "solver": self._last_solver,
-        }
         logger.info(
-            f"[退火] 接受/拒绝统计: 接受={anneal_accepted}, 拒绝={anneal_rejected}, "
+            f"[退火] 接受/拒绝/无效统计: 接受={anneal_accepted}, "
+            f"拒绝={anneal_rejected}, 无效={ineffective_count}, "
             f"接受率={accept_rate:.1%}, 求解器={self._last_solver}"
         )
 
@@ -779,6 +824,18 @@ class QuantumAnnealingOptimizer:
         diff_l2 = float(np.linalg.norm(weight_diff))
         diff_max = float(np.max(np.abs(weight_diff))) if weight_diff.size else 0.0
         diff_relative = diff_l2 / (initial_l2_norm + 1e-12)
+
+        # 退火统计写入 _last_anneal_stats（Issue #194: 含无效化诊断字段）
+        self._last_anneal_stats = {
+            "accepted": anneal_accepted,
+            "rejected": anneal_rejected,
+            "total": total_anneals,
+            "accept_rate": accept_rate,
+            "solver": self._last_solver,
+            "ineffective_count": ineffective_count,
+            "weight_l2_diff": diff_l2,
+        }
+
         logger.info(
             "[退火] 退火前后权重差异汇总: "
             f"初始 L2={initial_l2_norm:.6f}, 最终 L2={final_l2_norm:.6f}, "
@@ -815,6 +872,7 @@ class QuantumAnnealingOptimizer:
         replay_buffer: Any | None = None,
         max_params_per_block: int = 200,
         block_strategy: str = "tensor_wise",
+        min_effective_delta: float = 1e-4,
     ) -> Any:
         """
         分层/分块量子退火策略优化（突破 head_only 限制，全量网络退火）
@@ -850,6 +908,9 @@ class QuantumAnnealingOptimizer:
             replay_buffer       : 可选，经验回放缓冲区
             max_params_per_block: 每块最大参数数（仅在 size_limited 策略下生效，默认 200）
             block_strategy      : 分块策略，默认 "tensor_wise"
+            min_effective_delta : 单次迭代实际权重 L2 变化量的下限阈值（默认 1e-4）。
+                                  低于此值时该轮迭代被标记为 ineffective（无效），
+                                  跳过接受/拒绝判定。
 
         Returns:
             agent: 优化后的智能体
@@ -887,11 +948,16 @@ class QuantumAnnealingOptimizer:
         initial_loss = self._evaluate_network_quality(policy_net)
         best_loss = initial_loss
         best_weights, _ = self.extract_weights(policy_net)
+        # 保存初始权重快照，用于最终计算退火前后权重差异（Issue #194）
+        initial_weights_hier = [w.copy() for w in best_weights]
 
         logger.info(
             f"[分层退火] 初始 loss={initial_loss:.6f}, "
             f"全量参数={total_params_count}, 分块数={len(blocks)}"
         )
+
+        # 统计退火无效化次数（Issue #194）
+        hierarchical_ineffective_count = 0
 
         for iteration in range(num_iterations):
             # 保存本轮开始前的全量权重（用于可能的回滚）
@@ -964,6 +1030,32 @@ class QuantumAnnealingOptimizer:
                     f"ΔL2={block_delta_l2:.6e}"
                 )
 
+            # --- 无效化诊断（Issue #194）---
+            # 计算本轮全量网络实际权重 L2 变化量（应用 learning_rate 缩放后）
+            current_all_weights, _ = self.extract_weights(policy_net)
+            hier_delta_flat = np.concatenate(
+                [
+                    (cw - ow).flatten()
+                    for cw, ow in zip(
+                        current_all_weights, old_all_weights, strict=False
+                    )
+                ]
+            )
+            hier_weight_l2_diff = float(np.linalg.norm(hier_delta_flat))
+
+            if hier_weight_l2_diff < min_effective_delta:
+                # 本轮退火更新量过小，标记为无效，跳过接受/拒绝判定
+                hierarchical_ineffective_count += 1
+                logger.warning(
+                    f"[分层退火] 轮次 {iteration + 1}/{num_iterations}: "
+                    f"实际权重变化 L2={hier_weight_l2_diff:.6e} "
+                    f"< 阈值 {min_effective_delta:.6e}，标记为无效 (ineffective)，"
+                    f"跳过接受/拒绝判定"
+                )
+                if callback is not None:
+                    callback(iteration, initial_loss)
+                continue
+
             # --- 评估本轮全量更新后的 loss ---
             new_loss = self._evaluate_network_quality(policy_net)
             loss_improvement = best_loss - new_loss
@@ -996,11 +1088,32 @@ class QuantumAnnealingOptimizer:
             self._set_weights(policy_net, best_weights)
             logger.info(f"[分层退火] 已恢复到最佳权重 (loss={best_loss:.6f})")
 
+        # 最终权重差异统计（Issue #194）
+        final_hier_weights, _ = self.extract_weights(policy_net)
+        final_hier_flat = np.concatenate([w.flatten() for w in final_hier_weights])
+        init_hier_flat = np.concatenate([w.flatten() for w in initial_weights_hier])
+        hier_weight_diff = final_hier_flat - init_hier_flat
+        hier_diff_l2 = float(np.linalg.norm(hier_weight_diff))
+
+        # 写入退火统计（与 optimize_policy 保持一致的诊断字段）
+        self._last_anneal_stats = {
+            "accepted": num_iterations - hierarchical_ineffective_count,
+            "rejected": 0,
+            "total": num_iterations,
+            "accept_rate": (num_iterations - hierarchical_ineffective_count)
+            / max(num_iterations, 1),
+            "solver": self._last_solver,
+            "ineffective_count": hierarchical_ineffective_count,
+            "weight_l2_diff": hier_diff_l2,
+        }
+
         final_improvement = (initial_loss - best_loss) / max(initial_loss, 1e-8) * 100
         logger.info(
             f"[分层退火] 完成: 初始 loss={initial_loss:.6f}, "
             f"最佳 loss={best_loss:.6f}, 改进={final_improvement:.2f}%, "
-            f"处理了 {len(blocks)} 个参数块 × {num_iterations} 轮"
+            f"处理了 {len(blocks)} 个参数块 × {num_iterations} 轮, "
+            f"无效轮次={hierarchical_ineffective_count}, "
+            f"最终权重差异 L2={hier_diff_l2:.6e}"
         )
 
         # 同步 target_net
