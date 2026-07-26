@@ -93,13 +93,24 @@ class TestQuantumAnnealingOptimizerInit(unittest.TestCase):
         self.assertEqual(opt.num_qubits, 4)
 
     def test_n_bits_per_weight_derived_from_num_qubits(self):
-        """????????? num_qubits // 4(??? 1)?"""
-        # ?? network_to_qubo ???????????
+        """编码精度不再隐式依赖 num_qubits。"""
         weights = [np.array([0.1, 0.2])]
-        for nq, expected_nbits in [(16, 4), (8, 2), (4, 1), (32, 8)]:
+        for nq in (4, 8, 16, 32):
             opt = QuantumAnnealingOptimizer(num_qubits=nq)
             Q = opt.network_to_qubo(weights)
-            self.assertEqual(Q.shape[0], 2 * expected_nbits)
+            self.assertEqual(opt.n_bits_per_weight, 4)
+            self.assertEqual(Q.shape, (8, 8))
+
+    def test_n_bits_per_weight_is_configurable(self):
+        opt = QuantumAnnealingOptimizer(num_qubits=16, n_bits_per_weight=8)
+        weights = [np.array([0.1, -0.2])]
+
+        self.assertEqual(opt.n_bits_per_weight, 8)
+        self.assertEqual(opt.network_to_qubo(weights).shape, (16, 16))
+
+    def test_n_bits_per_weight_rejects_sign_only_encoding(self):
+        with self.assertRaisesRegex(ValueError, "至少为 2"):
+            QuantumAnnealingOptimizer(n_bits_per_weight=1)
 
 
 # ============================================================

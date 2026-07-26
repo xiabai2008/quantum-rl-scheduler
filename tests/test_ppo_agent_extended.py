@@ -90,6 +90,7 @@ def test_init_keeps_hyperparameters_and_builds_simulated_annealer(
         shots=5,
         simulation_mode=True,
         cqlib_client=None,
+        n_bits_per_weight=4,
     )
 
 

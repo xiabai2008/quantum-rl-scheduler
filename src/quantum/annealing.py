@@ -68,6 +68,7 @@ class QuantumAnnealingOptimizer:
 
     Attributes:
         num_qubits    : 量子比特数，决定 QUBO 问题的规模
+        n_bits_per_weight: 每个权重的编码位数（1 个符号位 + 数值位）
         annealing_time: 退火时间（微秒），仅在真机模式下生效
         shots         : 每次退火的采样次数，用于统计最优解
         use_dw        : 是否使用 D-Wave SDK 仿真器（优先级高于 numpy 仿真）
@@ -82,6 +83,7 @@ class QuantumAnnealingOptimizer:
         shots: int = 1000,
         simulation_mode: bool = True,
         cqlib_client: Any = None,
+        n_bits_per_weight: int = 4,
     ):
         """
         初始化量子退火策略优化器
@@ -97,21 +99,28 @@ class QuantumAnnealingOptimizer:
                             否则降级为仿真并打印日志。默认 True。
             cqlib_client  : 天衍云 cqlib 客户端实例（可选）。simulation_mode=False
                             且客户端具备 submit_annealing_task 方法时尝试真机退火。
+            n_bits_per_weight: 每个权重的编码位数（默认 4），其中 1 位为符号位。
         """
+        if n_bits_per_weight < 2:
+            raise ValueError("n_bits_per_weight 必须至少为 2（1 个符号位 + 1 个数值位）")
         self.num_qubits = num_qubits
+        self.n_bits_per_weight = n_bits_per_weight
         self.annealing_time = annealing_time
         self.shots = shots
         self.simulation_mode = bool(simulation_mode)
         self.cqlib_client = cqlib_client
 
         # 检查比特编码精度，过低则发出警告
-        n_bits_per_weight = max(1, num_qubits // 4)
-        if n_bits_per_weight < 4:
+        if self.n_bits_per_weight < 4:
             logger.warning(
-                f"量子比特数 {num_qubits} 较低，每权重仅 {n_bits_per_weight} bit 编码 "
-                f"（1 符号位 + {n_bits_per_weight - 1} 数值位），精度可能不足。"
-                "建议 num_qubits ≥ 16 以获得更好的优化效果。"
+                f"每权重仅 {self.n_bits_per_weight} bit 编码 "
+                f"（1 符号位 + {self.n_bits_per_weight - 1} 数值位），精度可能不足。"
+                "建议 n_bits_per_weight ≥ 4 以获得更好的优化效果。"
             )
+        logger.info(
+            f"权重编码精度: {self.n_bits_per_weight} bit "
+            f"（1 符号位 + {self.n_bits_per_weight - 1} 数值位）"
+        )
 
         # 自动选择求解器：
         #   优先使用 D-Wave neal 模拟退火器（如果 SDK 可用）
@@ -179,7 +188,7 @@ class QuantumAnnealingOptimizer:
             QUBO 矩阵 Q，形状为 (N, N)，其中 N 为编码后的总比特数
         """
         # ---------- 步骤 1：参数配置 ----------
-        n_bits_per_weight = max(1, self.num_qubits // 4)  # 增加比特数提高精度
+        n_bits_per_weight = self.n_bits_per_weight
         reg_lambda = 0.1  # L2 正则化系数，防止更新过大
 
         # ---------- 步骤 2：展平所有权重和梯度为一维向量 ----------
@@ -458,7 +467,7 @@ class QuantumAnnealingOptimizer:
         Returns:
             weights: 解码后的权重列表（或权重更新量列表）
         """
-        n_bits_per_weight = max(1, self.num_qubits // 4)
+        n_bits_per_weight = self.n_bits_per_weight
 
         # 将比特串转为 bit 数组
         bits = np.array([int(b) for b in bitstring], dtype=np.float64)
@@ -1046,7 +1055,7 @@ class QuantumAnnealingOptimizer:
         all_params = list(policy_net.parameters())
         total_tensors = len(all_params)
         total_params_count = sum(p.numel() for p in all_params)
-        n_bits_per_weight = max(1, self.num_qubits // 4)
+        n_bits_per_weight = self.n_bits_per_weight
 
         blocks = self._create_param_blocks(all_params, block_strategy, max_params_per_block)
 

@@ -73,6 +73,11 @@ class AnnealingConfig(BaseModel):
 
     annealing_time: float = Field(default=1.0, gt=0, description="退火时间（微秒）")
     enabled: bool = Field(default=True, description="退火开关")
+    n_bits_per_weight: int = Field(
+        default=4,
+        ge=2,
+        description="每个权重的编码位数（1 个符号位 + 数值位）",
+    )
     num_qubits: int = Field(default=10, ge=1, description="退火量子比特数")
     num_reads: int = Field(default=100, ge=1, description="退火读取次数")
     simulation_mode: bool = Field(default=True, description="仿真模式")
