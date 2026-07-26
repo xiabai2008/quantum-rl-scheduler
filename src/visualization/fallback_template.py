@@ -594,6 +594,30 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             gap: 16px;
         }
 
+        /* ===== 饼图图例 ===== */
+        .pie-legend-item {
+            display: flex; align-items: center; gap: 10px;
+            font-size: 12px;
+            padding: 6px 0;
+        }
+        .pie-dot {
+            width: 10px; height: 10px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+        .pie-label {
+            flex: 1;
+            color: var(--ink-2);
+            font-family: var(--font-sans);
+        }
+        .pie-value {
+            font-family: var(--font-mono);
+            color: var(--ink);
+            font-size: 12px;
+            font-weight: 600;
+            font-variant-numeric: tabular-nums;
+        }
+
         /* ===== 决策日志 ===== */
         .decision-list {
             max-height: 260px;
@@ -1142,6 +1166,38 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                 </div>
             </div>
 
+            <!-- 调度决策分布饼图 -->
+            <div class="panel">
+                <div class="panel-header">
+                    <h2><span class="icon icon-explain"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 3v9l6 4" stroke-width="2"/><path d="M12 3a9 9 0 0 1 6.5 15.5" stroke-dasharray="2 2" opacity="0.5"/></svg></span> 调度决策分布</h2>
+                    <span class="badge" id="pie-total">0 次决策</span>
+                </div>
+                <div class="panel-body" style="padding:16px;">
+                    <div style="display:flex;align-items:center;gap:24px;">
+                        <div style="flex-shrink:0;position:relative;">
+                            <canvas id="decision-pie-canvas" width="160" height="160" style="display:block;"></canvas>
+                        </div>
+                        <div style="flex:1;display:flex;flex-direction:column;gap:10px;" id="pie-legend">
+                            <div class="pie-legend-item">
+                                <span class="pie-dot" style="background:#3bc9db;box-shadow:0 0 8px rgba(59,201,219,0.4);"></span>
+                                <span class="pie-label">量子资源</span>
+                                <span class="pie-value" id="pie-quantum">0 (0%)</span>
+                            </div>
+                            <div class="pie-legend-item">
+                                <span class="pie-dot" style="background:#a78bfa;box-shadow:0 0 8px rgba(167,139,250,0.4);"></span>
+                                <span class="pie-label">经典资源</span>
+                                <span class="pie-value" id="pie-classical">0 (0%)</span>
+                            </div>
+                            <div class="pie-legend-item">
+                                <span class="pie-dot" style="background:#fbbf24;box-shadow:0 0 8px rgba(251,191,36,0.4);"></span>
+                                <span class="pie-label">混合执行</span>
+                                <span class="pie-value" id="pie-hybrid">0 (0%)</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- 策略排名 -->
             <div class="panel">
                 <div class="panel-header">
@@ -1664,11 +1720,14 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         badge.textContent = arr.length+' 条';
         decisionLog = arr.slice(-20);
         var html = '';
+        // 统计决策类型用于饼图
+        var counts = {0:0, 1:0, 2:0};
         for (var i=decisionLog.length-1; i>=Math.max(0,decisionLog.length-15); i--) {
             var d = decisionLog[i];
             var actLabel = d.action_label || actionText(d.action).text;
             var actCls = d.action === 0 ? 'action-classical' : d.action === 1 ? 'action-quantum' : 'action-hybrid';
             var rwd = d.reward||0;
+            counts[d.action] = (counts[d.action]||0) + 1;
             html += '<div class="decision-item">'+
                 '<div class="decision-step">#'+(d.step||i)+'</div>'+
                 '<div class="decision-content">'+
@@ -1678,6 +1737,101 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                 '</div></div>';
         }
         list.innerHTML = html;
+
+        // 更新决策分布饼图（统计全部决策，不只最近15条）
+        var allCounts = {0:0, 1:0, 2:0};
+        for (var j=0; j<arr.length; j++) {
+            var a = arr[j].action;
+            if (a === 0 || a === 1 || a === 2) allCounts[a]++;
+        }
+        updateDecisionPie(allCounts, arr.length);
+    }
+
+    // 绘制调度决策分布饼图
+    function updateDecisionPie(counts, total) {
+        var canvas = document.getElementById('decision-pie-canvas');
+        if (!canvas) return;
+        var ctx = canvas.getContext('2d');
+        var dpr = window.devicePixelRatio || 1;
+        var size = 160;
+        canvas.width = size * dpr;
+        canvas.height = size * dpr;
+        canvas.style.width = size + 'px';
+        canvas.style.height = size + 'px';
+        ctx.scale(dpr, dpr);
+
+        var cx = size/2, cy = size/2, r = size/2 - 8;
+        var innerR = r * 0.58; // 环形图
+
+        var colors = [
+            {main: '#a78bfa', glow: 'rgba(167,139,250,0.3)'}, // 0=经典-紫
+            {main: '#3bc9db', glow: 'rgba(59,201,219,0.3)'}, // 1=量子-青
+            {main: '#fbbf24', glow: 'rgba(251,191,36,0.3)'}   // 2=混合-琥珀
+        ];
+        var labels = ['经典资源', '量子资源', '混合执行'];
+        var values = [counts[0]||0, counts[1]||0, counts[2]||0];
+        var sum = values[0]+values[1]+values[2];
+        if (sum === 0) sum = 1;
+
+        // 更新图例数字
+        document.getElementById('pie-total').textContent = total + ' 次决策';
+        document.getElementById('pie-quantum').textContent = values[1]+' ('+((values[1]/sum)*100).toFixed(0)+'%)';
+        document.getElementById('pie-classical').textContent = values[0]+' ('+((values[0]/sum)*100).toFixed(0)+'%)';
+        document.getElementById('pie-hybrid').textContent = values[2]+' ('+((values[2]/sum)*100).toFixed(0)+'%)';
+
+        ctx.clearRect(0, 0, size, size);
+
+        // 绘制发光外环
+        var grd = ctx.createRadialGradient(cx, cy, innerR, cx, cy, r+4);
+        grd.addColorStop(0, 'rgba(59,201,219,0.02)');
+        grd.addColorStop(1, 'rgba(59,201,219,0.08)');
+        ctx.fillStyle = grd;
+        ctx.beginPath();
+        ctx.arc(cx, cy, r+4, 0, Math.PI*2);
+        ctx.fill();
+
+        var startAngle = -Math.PI/2;
+        for (var i=0; i<3; i++) {
+            if (values[i] === 0) continue;
+            var sliceAngle = (values[i]/sum) * Math.PI*2;
+            var endAngle = startAngle + sliceAngle;
+
+            // 扇区发光
+            ctx.shadowColor = colors[i].glow;
+            ctx.shadowBlur = 8;
+
+            ctx.beginPath();
+            ctx.moveTo(cx, cy);
+            ctx.arc(cx, cy, r, startAngle, endAngle);
+            ctx.closePath();
+            ctx.fillStyle = colors[i].main;
+            ctx.fill();
+
+            ctx.shadowBlur = 0;
+            startAngle = endAngle;
+        }
+
+        // 内圆（挖空成环形）- 所有扇区绘制完后再挖
+        ctx.beginPath();
+        ctx.arc(cx, cy, innerR, 0, Math.PI*2);
+        ctx.fillStyle = getComputedStyle(document.body).getPropertyValue('--surface').trim() || '#0e1422';
+        ctx.fill();
+
+        // 中心圆
+        ctx.beginPath();
+        ctx.arc(cx, cy, innerR-2, 0, Math.PI*2);
+        ctx.fillStyle = 'rgba(7,11,20,0.8)';
+        ctx.fill();
+
+        // 中心文字
+        ctx.fillStyle = 'rgba(230,237,243,0.9)';
+        ctx.font = '600 18px JetBrains Mono, monospace';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(total, cx, cy-4);
+        ctx.fillStyle = 'rgba(230,237,243,0.4)';
+        ctx.font = '400 9px Inter, sans-serif';
+        ctx.fillText('DECISIONS', cx, cy+12);
     }
 
     function renderExplainability(data) {

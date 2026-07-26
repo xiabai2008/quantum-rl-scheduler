@@ -52,13 +52,17 @@ def check_python_version():
 def check_dependencies():
     """检查关键依赖是否已安装"""
     print("\n[2/5] 检查依赖包...")
+    # 必需依赖（启动Web服务器必须）
     required = {
         "fastapi": "fastapi",
         "uvicorn": "uvicorn",
-        "stable_baselines3": "stable-baselines3",
-        "gymnasium": "gymnasium",
         "numpy": "numpy",
         "pydantic": "pydantic",
+    }
+    # 可选依赖（PPO模型推理需要，懒加载）
+    optional = {
+        "stable_baselines3": "stable-baselines3",
+        "gymnasium": "gymnasium",
     }
     missing = []
     for import_name, pkg_name in required.items():
@@ -66,22 +70,47 @@ def check_dependencies():
             __import__(import_name)
             print(f"  ✅ {pkg_name}")
         except ImportError:
-            print(f"  ❌ {pkg_name} 未安装")
+            print(f"  ❌ {pkg_name} 未安装 (必需)")
             missing.append(pkg_name)
+    for import_name, pkg_name in optional.items():
+        try:
+            __import__(import_name)
+            print(f"  ✅ {pkg_name}")
+        except ImportError:
+            print(f"  ⚠️  {pkg_name} 未安装 (可选，用于PPO推理)")
 
     if missing:
-        print(f"\n  ⚠️  缺少 {len(missing)} 个依赖包，正在自动安装...")
+        print(f"\n  ⚠️  缺少 {len(missing)} 个必需依赖包，正在自动安装...")
         try:
             subprocess.check_call(
                 [sys.executable, "-m", "pip", "install", *missing],
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.PIPE,
             )
-            print("  ✅ 依赖安装完成")
+            print("  ✅ 必需依赖安装完成")
         except subprocess.CalledProcessError as e:
             print(f"  ❌ 自动安装失败: {e}")
             print(f"     请手动运行: pip install {' '.join(missing)}")
             return False
+
+    # 尝试自动安装可选依赖
+    opt_missing = []
+    for import_name, pkg_name in optional.items():
+        try:
+            __import__(import_name)
+        except ImportError:
+            opt_missing.append(pkg_name)
+    if opt_missing:
+        print(f"\n  ℹ️  正在安装可选依赖 ({', '.join(opt_missing)})...")
+        try:
+            subprocess.check_call(
+                [sys.executable, "-m", "pip", "install", *opt_missing],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.PIPE,
+            )
+            print("  ✅ 可选依赖安装完成")
+        except subprocess.CalledProcessError:
+            print("  ⚠️  可选依赖安装失败，PPO推理功能将不可用（Demo展示不受影响）")
     return True
 
 
@@ -170,7 +199,7 @@ def wait_for_server(port, timeout=60):
     import urllib.error
     import urllib.request
 
-    url = f"http://127.0.0.1:{port}/health"
+    url = f"http://127.0.0.1:{port}/"
     start = time.time()
 
     while time.time() - start < timeout:
