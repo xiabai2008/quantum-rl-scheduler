@@ -2,6 +2,7 @@
 快速生成Dashboard所需的仿真对比数据。
 基于多seed统计验证（N=250）的权威结果。
 """
+
 import json
 import os
 from datetime import datetime
@@ -100,4 +101,6 @@ print(f"   包含 {len(strategies_data)} 个策略的权威数据（50 seeds × 
 print()
 print("策略排名：")
 for name, data in sorted(strategies_data.items(), key=lambda x: x[1]["avg_reward"], reverse=True):
-    print(f"  {data['rank']}. {name:20s} 奖励={data['avg_reward']:>8.2f} ± {data['std_reward']:.0f}")
+    print(
+        f"  {data['rank']}. {name:20s} 奖励={data['avg_reward']:>8.2f} ± {data['std_reward']:.0f}"
+    )
