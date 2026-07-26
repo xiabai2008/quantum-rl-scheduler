@@ -30,6 +30,7 @@ scheduler:
 annealing:
   enabled: true
   annealing_time: 2.0
+  n_bits_per_weight: 4
   num_qubits: 10
   num_reads: 200
   simulation_mode: false

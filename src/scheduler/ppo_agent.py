@@ -97,6 +97,7 @@ class PPOAgent:
                 shots=kwargs.get("anneal_shots", 1000),
                 simulation_mode=kwargs.get("anneal_simulation_mode", True),
                 cqlib_client=kwargs.get("anneal_cqlib_client"),
+                n_bits_per_weight=kwargs.get("anneal_n_bits_per_weight", 4),
             )
             sim_tag = "仿真" if self.annealing_optimizer.simulation_mode else "真机"
             logger.info(
