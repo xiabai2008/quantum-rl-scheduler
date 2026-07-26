@@ -22,7 +22,6 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
-import numpy as np
 
 __all__ = [
     "ACTION_CLASSICAL",
