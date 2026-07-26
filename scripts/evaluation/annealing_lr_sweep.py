@@ -151,10 +151,7 @@ def _run_single(
         包含诊断指标的字典：total_triggers, effective_triggers,
         impact_rate, ineffective_count, weight_l2_diff, final_reward
     """
-    logger.info(
-        f"  开始训练: lr={learning_rate}, seed={seed}, "
-        f"timesteps={timesteps}"
-    )
+    logger.info(f"  开始训练: lr={learning_rate}, seed={seed}, timesteps={timesteps}")
 
     env = QuantumSchedulingEnv(max_steps=100, seed=seed)
 
@@ -254,9 +251,7 @@ def _generate_report(
     lines: list[str] = []
     lines.append("# 量子退火学习率扫描实验报告（Issue #194）\n")
     lines.append(f"> **生成时间**: {time.strftime('%Y-%m-%d %H:%M:%S')}\n")
-    lines.append(
-        "> **实验目的**: 诊断退火权重更新放大机制，找出使退火产生实质影响的最优学习率\n\n"
-    )
+    lines.append("> **实验目的**: 诊断退火权重更新放大机制，找出使退火产生实质影响的最优学习率\n\n")
     lines.append("---\n\n")
 
     lines.append("## 一、实验设计\n\n")
@@ -271,7 +266,9 @@ def _generate_report(
     lines.append(
         "| 学习率 | Seed | 触发次数 | 有效触发 | 介入率 | 无效次数 | 权重L2差异 | 最终奖励 |"
     )
-    lines.append("|--------|------|----------|----------|--------|----------|------------|----------|\n")
+    lines.append(
+        "|--------|------|----------|----------|--------|----------|------------|----------|\n"
+    )
     for r in results:
         lines.append(
             f"| {r['learning_rate']} | {r['seed']} | "
@@ -282,9 +279,7 @@ def _generate_report(
     lines.append("")
 
     lines.append("## 三、按学习率汇总（mean ± std）\n\n")
-    lines.append(
-        "| 学习率 | 触发次数 | 有效触发 | 介入率 | 无效次数 | 最终奖励 |"
-    )
+    lines.append("| 学习率 | 触发次数 | 有效触发 | 介入率 | 无效次数 | 最终奖励 |")
     lines.append("|--------|----------|----------|--------|----------|----------|\n")
     for lr in learning_rates:
         lr_results = [r for r in results if r["learning_rate"] == lr]
@@ -311,10 +306,7 @@ def _generate_report(
         "1. **lr=0.01（默认）**: 退火更新量仅为 delta 的 1%，"
         "无效次数高，介入率低，证实了退火几乎无效的根因。\n"
     )
-    lines.append(
-        "2. **lr 增大后**: 无效次数下降，介入率上升，"
-        "退火对 RL 训练产生实质影响。\n"
-    )
+    lines.append("2. **lr 增大后**: 无效次数下降，介入率上升，退火对 RL 训练产生实质影响。\n")
     lines.append(
         "3. **最优学习率**: 需在介入率与训练稳定性之间权衡，"
         "建议选取介入率最高且最终奖励不下降的 lr 值。\n"
@@ -398,9 +390,7 @@ def main(
         logger.info(f"学习率 = {lr}")
         logger.info(f"{'=' * 50}")
         for seed in seed_list:
-            log_dir = os.path.join(
-                PROJECT_ROOT, "logs", f"lr_sweep_lr{lr}_seed{seed}"
-            )
+            log_dir = os.path.join(PROJECT_ROOT, "logs", f"lr_sweep_lr{lr}_seed{seed}")
             os.makedirs(log_dir, exist_ok=True)
             result = _run_single(
                 learning_rate=lr,
