@@ -227,6 +227,9 @@ jobs:
     needs: test  # 在测试通过后运行
     # 在 main 分支推送和 PR 时均运行（Issue #176: 扩展到 PR 检测测试质量退化）
     if: github.event_name == 'push' || github.event_name == 'pull_request'
+    # mutmut 3.x trampoline 与 src-layout 不兼容（pyproject.toml 注释），
+    # CI 无法自动执行手动 import 改写，暂不阻断 PR。
+    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
 
@@ -239,6 +242,7 @@ jobs:
         run: |
           pip install --upgrade pip
           pip install -r requirements.txt
+          pip install -r requirements-dev.txt
           pip install mutmut
 
       - name: Run mutation testing
@@ -275,6 +279,7 @@ jobs:
         run: |
           pip install --upgrade pip
           pip install -r requirements.txt
+          pip install -r requirements-dev.txt
 
       - name: Run benchmarks
         run: |

@@ -14,12 +14,12 @@
     或双击运行（如果.py关联了Python）
 """
 
-import sys
 import os
-import time
 import subprocess
-import webbrowser
+import sys
 import threading
+import time
+import webbrowser
 from pathlib import Path
 
 
@@ -53,12 +53,12 @@ def check_dependencies():
     """检查关键依赖是否已安装"""
     print("\n[2/5] 检查依赖包...")
     required = {
-        'fastapi': 'fastapi',
-        'uvicorn': 'uvicorn',
-        'stable_baselines3': 'stable-baselines3',
-        'gymnasium': 'gymnasium',
-        'numpy': 'numpy',
-        'pydantic': 'pydantic',
+        "fastapi": "fastapi",
+        "uvicorn": "uvicorn",
+        "stable_baselines3": "stable-baselines3",
+        "gymnasium": "gymnasium",
+        "numpy": "numpy",
+        "pydantic": "pydantic",
     }
     missing = []
     for import_name, pkg_name in required.items():
@@ -73,9 +73,9 @@ def check_dependencies():
         print(f"\n  ⚠️  缺少 {len(missing)} 个依赖包，正在自动安装...")
         try:
             subprocess.check_call(
-                [sys.executable, "-m", "pip", "install"] + missing,
+                [sys.executable, "-m", "pip", "install", *missing],
                 stdout=subprocess.DEVNULL,
-                stderr=subprocess.PIPE
+                stderr=subprocess.PIPE,
             )
             print("  ✅ 依赖安装完成")
         except subprocess.CalledProcessError as e:
@@ -93,7 +93,7 @@ def check_model():
     model_path = model_dir / "ppo_best_model_14dim.zip"
 
     if model_path.exists():
-        size_mb = model_path.stat().st_size / (1024*1024)
+        size_mb = model_path.stat().st_size / (1024 * 1024)
         print(f"  ✅ 找到模型: {model_path.name} ({size_mb:.1f} MB)")
         return True
     else:
@@ -112,10 +112,11 @@ def check_model():
 def find_free_port(start_port=8000, max_tries=10):
     """寻找可用端口"""
     import socket
+
     for port in range(start_port, start_port + max_tries):
         try:
             with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-                s.bind(('0.0.0.0', port))
+                s.bind(("0.0.0.0", port))
                 return port
         except OSError:
             continue
@@ -134,11 +135,16 @@ def start_server(port):
 
     # 启动uvicorn
     cmd = [
-        sys.executable, "-m", "uvicorn",
+        sys.executable,
+        "-m",
+        "uvicorn",
         "src.visualization.app:app",
-        "--host", "0.0.0.0",
-        "--port", str(port),
-        "--log-level", "warning"
+        "--host",
+        "0.0.0.0",
+        "--port",
+        str(port),
+        "--log-level",
+        "warning",
     ]
 
     print(f"  执行: {' '.join(cmd)}")
@@ -151,7 +157,7 @@ def start_server(port):
             env=env,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
-            text=True
+            text=True,
         )
         return proc
     except Exception as e:
@@ -161,8 +167,8 @@ def start_server(port):
 
 def wait_for_server(port, timeout=60):
     """等待服务器启动"""
-    import urllib.request
     import urllib.error
+    import urllib.request
 
     url = f"http://127.0.0.1:{port}/health"
     start = time.time()
@@ -177,7 +183,7 @@ def wait_for_server(port, timeout=60):
         time.sleep(1)
 
         # 检查进程是否还在运行
-        if hasattr(wait_for_server, 'proc') and wait_for_server.proc.poll() is not None:
+        if hasattr(wait_for_server, "proc") and wait_for_server.proc.poll() is not None:
             return False
 
     return False
@@ -185,11 +191,13 @@ def wait_for_server(port, timeout=60):
 
 def open_browser_delayed(port, delay=5):
     """延迟打开浏览器，等待服务器就绪"""
+
     def _open():
         time.sleep(delay)
         url = f"http://127.0.0.1:{port}"
         print(f"\n[5/5] 自动打开浏览器: {url}")
         webbrowser.open(url)
+
     t = threading.Thread(target=_open, daemon=True)
     t.start()
 
@@ -276,7 +284,7 @@ def main():
             if line:
                 # 只打印错误和关键信息
                 line_lower = line.lower()
-                if 'error' in line_lower or 'warning' in line_lower or 'started' in line_lower:
+                if "error" in line_lower or "warning" in line_lower or "started" in line_lower:
                     print(f"  [server] {line.rstrip()}")
             if proc.poll() is not None:
                 print("\n  ❌ 服务器进程已退出")
