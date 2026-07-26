@@ -36,7 +36,7 @@ from __future__ import annotations
 import json
 import os
 import random
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 import torch
@@ -158,7 +158,10 @@ class MultiAgentEnvWrapper:
             形状 (local_obs_dim * num_agents,) 的 float32 向量
         """
         local_obs = self.get_local_observations()
-        return np.concatenate([local_obs[name] for name in self.machine_names]).astype(np.float32)  # type: ignore[no-any-return]
+        return cast(
+            np.ndarray,
+            np.concatenate([local_obs[name] for name in self.machine_names]).astype(np.float32),
+        )
 
     # ------------------------------------------------------------------
     # 动作聚合与路由
