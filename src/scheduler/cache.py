@@ -16,13 +16,15 @@ LRU + TTL + 余弦相似度缓存，用于复用相似状态的决策结果以�
 import threading
 import time
 from collections import OrderedDict
+from typing import Any
 
 import numpy as np
+from numpy.typing import NDArray
 
 # ---------------------------------------------------------------------------
 # 缓存条目类型：(action, cached_flat_state, put_timestamp)
 # ---------------------------------------------------------------------------
-_CacheEntry = tuple[int, np.ndarray, float]
+_CacheEntry = tuple[int, NDArray[Any], float]
 
 # 零向量范数保护阈值，避免除零
 _EPSILON = 1e-12
@@ -86,7 +88,7 @@ class SchedulerCache:
     # ------------------------------------------------------------------
     # 公开接口
     # ------------------------------------------------------------------
-    def get(self, state: np.ndarray) -> int | None:
+    def get(self, state: NDArray[Any]) -> int | None:
         """
         查找相似状态的缓存决策。
 
@@ -135,7 +137,7 @@ class SchedulerCache:
             self._misses += 1
             return None
 
-    def put(self, state: np.ndarray, action: int) -> None:
+    def put(self, state: NDArray[Any], action: int) -> None:
         """
         存入一条调度决策缓存。
 
@@ -203,7 +205,7 @@ class SchedulerCache:
     # 内部辅助方法
     # ------------------------------------------------------------------
     @staticmethod
-    def _flatten(state: np.ndarray) -> np.ndarray:
+    def _flatten(state: NDArray[Any]) -> NDArray[Any]:
         """
         将状态向量转换为 float64 一维数组。
 
@@ -213,11 +215,11 @@ class SchedulerCache:
         Returns:
             float64 一维数组（flatten 后的副本）
         """
-        flat: np.ndarray = np.asarray(state, dtype=np.float64).flatten()
+        flat: NDArray[Any] = np.asarray(state, dtype=np.float64).flatten()
         return flat
 
     @staticmethod
-    def _cosine_similarity(a: np.ndarray, b: np.ndarray) -> float:
+    def _cosine_similarity(a: NDArray[Any], b: NDArray[Any]) -> float:
         """
         计算两个一维向量的余弦相似度。
 

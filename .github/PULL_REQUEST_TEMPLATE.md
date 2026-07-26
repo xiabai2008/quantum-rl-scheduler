@@ -18,15 +18,15 @@ Closes #
 
 ## 改动内容
 <!-- 列出主要改动点 -->
-- 
-- 
-- 
+-
+-
+-
 
 ## 验证
 <!-- 附上测试命令和结果，确保 CI 能通过 -->
 ```bash
 # 测试命令
-pytest tests/ --cov=src --cov-fail-under=60
+pytest tests/ --cov=src --cov-fail-under=80
 ruff check src/ scripts/ tests/
 mypy src/
 ```
@@ -40,7 +40,7 @@ mypy src/
 <!-- 提交前请确认 -->
 - [ ] 代码通过 `ruff check src/ scripts/ tests/`
 - [ ] 代码通过 `ruff format src/ scripts/ tests/`（已格式化）
-- [ ] 测试通过 `pytest tests/ --cov=src --cov-fail-under=60`
+- [ ] 测试通过 `pytest tests/ --cov=src --cov-fail-under=80`
 - [ ] 添加了必要的测试用例
 - [ ] 更新了相关文档（如需要）
 - [ ] Commit 格式符合 Conventional Commits（`<type>: <描述>`）
@@ -48,8 +48,8 @@ mypy src/
 
 ## Review 要点
 <!-- 告诉 Reviewer 重点看哪些地方 -->
-- 
-- 
+-
+-
 
 ## 截图/演示
 <!-- 如果涉及 UI 变化，拖拽截图到此处 -->

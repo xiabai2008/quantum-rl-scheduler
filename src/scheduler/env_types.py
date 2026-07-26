@@ -199,7 +199,7 @@ class QuantumMachine:
     fidelity: float = 0.98
     quantum_queue: int = 0
     available: bool = True
-    supported_gates: tuple = ("H", "CZ", "M")
+    supported_gates: tuple[str, ...] = ("H", "CZ", "M")
     is_real: bool = False
     # 物理噪声特征（阶段1）
     single_gate_fidelity: float = 0.99

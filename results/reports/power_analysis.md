@@ -1,36 +1,8 @@
-# 统计显著性检验报告（多Seed验证）
+# 策略对比统计显著性检验报告
 
-> 本报告为提交清单 `EXP_STAT` 必需文件，使用 250 次独立episode验证PPO相对于基线策略的统计显著性。
-
-> **数据来源**: `results/multiseed_evaluation/rewards_multiseed.json`（相对仓库根目录）
+> **数据来源**: `results\multiseed_evaluation\rewards_multiseed.json`
 > **显著性水平 α**: 0.05
 > **比较次数**: 28（Bonferroni 校正后 α = 0.0018）
-
----
-
-
-## 零、权威实验数字（多 Seed 验证）
-
-> **实验配置**: 50 seeds × 5 episodes = 250 次独立运行
-> **环境**: 14 维观测空间（原生 14 维环境）
-> **任务规模**: 每 episode 200 步，泊松到达 λ=0.5，量子任务占比 70%
-> **PPO 模型**: `deliverable_models/ppo_best_model_14dim.zip`（14维，Actor-Critic）
-> **DQN 模型**: `deliverable_models/dqn_best_model_14dim.zip`（14维，Double DQN + reward clip）
-> **显著性水平**: α = 0.05（Bonferroni 校正）
-
-| 排名 | 策略 | 平均奖励 | 标准差 | 标准误 | 提升 vs FCFS | 提升% 95% CI |
-|:--:|:--|:--:|:--:|:--:|:--:|:--:|
-| 1 | PPO | 2746.94 | 1160.72 | 73.41 | +88.3% | [+78.5%, +98.2%] |
-| 2 | DQN | 1527.65 | 124.02 | 7.84 | +4.7% | [+3.6%, +6.0%] |
-| 3 | SJF | 1462.39 | 134.32 | 8.50 | +0.2% | [-1.0%, +1.5%] |
-| 4 | FCFS | 1458.77 | 60.47 | 3.82 | 基线 | — |
-| 5 | Random | 1247.17 | 385.76 | 24.40 | -14.5% | [-17.8%, -11.2%] |
-| 6 | Greedy | -25.95 | 625.52 | 39.56 | -101.8% | [-107.0%, -96.5%] |
-| 7 | Quantum-Only | -920.54 | 232.68 | 14.72 | -163.1% | [-165.0%, -161.1%] |
-| 8 | Classical-Only | -1128.29 | 59.46 | 3.76 | -177.3% | [-178.0%, -176.7%] |
-
-**核心结论：PPO 平均奖励 2746.94 vs FCFS 1458.77，提升 +88.3%，95% CI: [+78.5%, +98.2%]**
-（N=250 次独立episode，α=0.05，Bonferroni多重比较校正）
 
 ---
 
@@ -208,5 +180,50 @@
 - **Cohen's d 等级**：< 0.2 可忽略，0.2-0.5 小，0.5-0.8 中，≥ 0.8 大
 - **rank-biserial 等级**：< 0.1 可忽略，0.1-0.3 小，0.3-0.5 中，≥ 0.5 大
 
+## 五、检验力分析（Power Analysis）
+
+> 检验力（Power）= 1 - β，表示当原假设为假时正确拒绝原假设的概率。通常要求 power ≥ 0.80。
+>
+> 此处对每个比较对计算：(1) 当前样本量下的事后检验力；(2) 达到 80% 检验力所需的每组样本量；(3) 当前样本量下的最小可检测效应量（MDES）。
+>
+> 注意：检验力分析基于 Cohen's d 与双侧 t 检验近似；非参数检验的检验力仅供参考。
+
+| 对比 | 效应量 (Cohen's d 或 rank-biserial) | 当前 N1/N2 | 当前检验力 | 80% 检验力所需 N/组 | 当前样本量 MDES (d) |
+|:--|:--:|:--:|:--:|:--:|:--:|
+| DQN vs FCFS | rank-biserial correlation=0.3541 | 250/250 | 0.9768 | 127 | 0.2511 |
+| DQN vs Random | rank-biserial correlation=0.5379 | 250/250 | 1.0000 | 56 | 0.2511 |
+| DQN vs Quantum-Only | rank-biserial correlation=1.0000 | 250/250 | 1.0000 | 17 | 0.2511 |
+| DQN vs Classical-Only | rank-biserial correlation=1.0000 | 250/250 | 1.0000 | 17 | 0.2511 |
+| DQN vs Greedy | rank-biserial correlation=0.9850 | 250/250 | 1.0000 | 18 | 0.2511 |
+| DQN vs SJF | rank-biserial correlation=0.3478 | 250/250 | 0.9727 | 131 | 0.2511 |
+| DQN vs PPO | rank-biserial correlation=-0.6852 | 250/250 | 1.0000 | 35 | 0.2511 |
+| FCFS vs Random | rank-biserial correlation=0.4553 | 250/250 | 0.9991 | 77 | 0.2511 |
+| FCFS vs Quantum-Only | rank-biserial correlation=1.0000 | 250/250 | 1.0000 | 17 | 0.2511 |
+| FCFS vs Classical-Only | rank-biserial correlation=1.0000 | 250/250 | 1.0000 | 17 | 0.2511 |
+| FCFS vs Greedy | rank-biserial correlation=0.9797 | 250/250 | 1.0000 | 18 | 0.2511 |
+| FCFS vs SJF | rank-biserial correlation=0.1004 | 250/250 | 0.2015 | 1559 | 0.2511 |
+| FCFS vs PPO | rank-biserial correlation=-0.7081 | 250/250 | 1.0000 | 33 | 0.2511 |
+| Random vs Quantum-Only | rank-biserial correlation=1.0000 | 250/250 | 1.0000 | 17 | 0.2511 |
+| Random vs Classical-Only | Cohen's d=8.6070 | 250/250 | 1.0000 | 2 | 0.2511 |
+| Random vs Greedy | Cohen's d=2.4499 | 250/250 | 1.0000 | 4 | 0.2511 |
+| Random vs SJF | rank-biserial correlation=-0.4251 | 250/250 | 0.9973 | 88 | 0.2511 |
+| Random vs PPO | Cohen's d=-1.7341 | 250/250 | 1.0000 | 7 | 0.2511 |
+| Quantum-Only vs Classical-Only | rank-biserial correlation=0.6518 | 250/250 | 1.0000 | 38 | 0.2511 |
+| Quantum-Only vs Greedy | rank-biserial correlation=-0.8150 | 250/250 | 1.0000 | 25 | 0.2511 |
+| Quantum-Only vs SJF | rank-biserial correlation=-1.0000 | 250/250 | 1.0000 | 17 | 0.2511 |
+| Quantum-Only vs PPO | rank-biserial correlation=-0.9991 | 250/250 | 1.0000 | 17 | 0.2511 |
+| Classical-Only vs Greedy | Cohen's d=-2.4810 | 250/250 | 1.0000 | 4 | 0.2511 |
+| Classical-Only vs SJF | rank-biserial correlation=-1.0000 | 250/250 | 1.0000 | 17 | 0.2511 |
+| Classical-Only vs PPO | Cohen's d=-4.7154 | 250/250 | 1.0000 | 3 | 0.2511 |
+| Greedy vs SJF | rank-biserial correlation=-0.9764 | 250/250 | 1.0000 | 18 | 0.2511 |
+| Greedy vs PPO | Cohen's d=-2.9741 | 250/250 | 1.0000 | 4 | 0.2511 |
+| SJF vs PPO | rank-biserial correlation=-0.7098 | 250/250 | 1.0000 | 33 | 0.2511 |
+
+### 文字解读
+
+- **PPO vs FCFS**：rank-biserial correlation=-0.7081（大效应），当前 N1=250, N2=250 的检验力 = 1.0000（远超 80% 标准）；检测该效应量仅需每组约 33 个样本。
+- 检验力 < 0.80 的对比：表明当前样本量不足以可靠检测该效应量，对应的不显著结论需要谨慎解读（可能存在检验力不足导致假阴性）。
+- 检验力 ≥ 0.99 且显著的对比：核心结论极其稳健，样本量远超检测该效应所需。
+
 ---
-*报告自动生成 | 数据源: C:\Users\HZR\Desktop\揭榜挂帅擂台赛\quantum-rl-scheduler\results\multiseed_evaluation\rewards_multiseed.json*
+*报告自动生成 | 数据源: results\multiseed_evaluation\rewards_multiseed.json*

@@ -42,6 +42,12 @@ class TestQuantumAnnealingOptimizerInit(unittest.TestCase):
         self.assertTrue(opt.simulation_mode)
         self.assertIsNone(opt.cqlib_client)
 
+    def test_solver_type_initial_value(self):
+        """solver_type 初始值应为 'none'。"""
+        opt = QuantumAnnealingOptimizer()
+        self.assertEqual(opt.solver_type, "none")
+        self.assertEqual(opt._last_solver, "none")
+
     def test_custom_init(self):
         """????????????"""
         opt = QuantumAnnealingOptimizer(
@@ -404,6 +410,77 @@ class TestAnneal(unittest.TestCase):
         result = opt.anneal(Q)
         self.assertEqual(len(result), 2)
         self.assertTrue(set(result).issubset({"0", "1"}))
+
+    def test_solver_type_numpy_sa(self):
+        """numpy 模拟退火路径应设置 solver_type='numpy_sa'。"""
+        # 强制使用 numpy 路径（即使 neal 可用）
+        with patch.object(annealing_mod, "_DWAVE_AVAILABLE", False):
+            opt = QuantumAnnealingOptimizer(num_qubits=16, shots=10)
+            opt._sim_num_sweeps = 20
+            Q = opt.network_to_qubo(self.weights)
+            opt.anneal(Q)
+            self.assertEqual(opt.solver_type, "numpy_sa")
+            self.assertEqual(opt._last_solver, "numpy_sa")
+
+    def test_solver_type_neal_sa(self):
+        """neal 模拟退火路径应设置 solver_type='neal_sa'。"""
+        if not annealing_mod._DWAVE_AVAILABLE:
+            self.skipTest("D-Wave neal 未安装，跳过 neal 路径测试")
+        opt = QuantumAnnealingOptimizer(num_qubits=16, shots=10)
+        opt._sim_num_sweeps = 20
+        Q = opt.network_to_qubo(self.weights)
+        opt.anneal(Q)
+        self.assertEqual(opt.solver_type, "neal_sa")
+        self.assertEqual(opt._last_solver, "neal_sa")
+
+    def test_solver_type_real_quantum_string(self):
+        """真机退火返回字符串时 solver_type='real_quantum'。"""
+        client = MagicMock()
+        client.submit_annealing_task = MagicMock(return_value="1010")
+        opt = QuantumAnnealingOptimizer(simulation_mode=False, cqlib_client=client)
+        Q = np.array([[1.0, 0.5], [0.5, 1.0]])
+        opt.anneal(Q)
+        self.assertEqual(opt.solver_type, "real_quantum")
+        self.assertEqual(opt._last_solver, "real_quantum")
+
+    def test_solver_type_real_quantum_dict(self):
+        """真机退火返回含 bitstring 的 dict 时 solver_type='real_quantum'。"""
+        client = MagicMock()
+        client.submit_annealing_task = MagicMock(return_value={"bitstring": "01"})
+        opt = QuantumAnnealingOptimizer(simulation_mode=False, cqlib_client=client)
+        Q = np.array([[1.0, 0.5], [0.5, 1.0]])
+        opt.anneal(Q)
+        self.assertEqual(opt.solver_type, "real_quantum")
+
+    def test_solver_type_fallback_empty_dict(self):
+        """真机退火返回空 bitstring 降级时 solver_type='numpy_sa'。"""
+        client = MagicMock()
+        client.submit_annealing_task = MagicMock(return_value={"bitstring": ""})
+        opt = QuantumAnnealingOptimizer(simulation_mode=False, cqlib_client=client)
+        opt._sim_num_sweeps = 5
+        Q = np.array([[1.0, 0.5], [0.5, 1.0]])
+        opt.anneal(Q)
+        self.assertEqual(opt.solver_type, "numpy_sa")
+
+    def test_solver_type_fallback_unknown_type(self):
+        """真机退火返回无法识别类型降级时 solver_type='numpy_sa'。"""
+        client = MagicMock()
+        client.submit_annealing_task = MagicMock(return_value=12345)
+        opt = QuantumAnnealingOptimizer(simulation_mode=False, cqlib_client=client)
+        opt._sim_num_sweeps = 5
+        Q = np.array([[1.0, 0.5], [0.5, 1.0]])
+        opt.anneal(Q)
+        self.assertEqual(opt.solver_type, "numpy_sa")
+
+    def test_solver_type_fallback_on_exception(self):
+        """真机退火异常降级后 solver_type 应为仿真求解器。"""
+        client = MagicMock()
+        client.submit_annealing_task = MagicMock(side_effect=RuntimeError("boom"))
+        opt = QuantumAnnealingOptimizer(simulation_mode=False, cqlib_client=client)
+        opt._sim_num_sweeps = 5
+        Q = np.array([[1.0, 0.5], [0.5, 1.0]])
+        opt.anneal(Q)
+        self.assertIn(opt.solver_type, ("numpy_sa", "neal_sa"))
 
 
 # ============================================================
@@ -1363,6 +1440,147 @@ class TestSolverComparison(unittest.TestCase):
         expected_b = np.full(2, 0.1, dtype=np.float32)
         np.testing.assert_array_almost_equal(net.weight.detach().numpy(), expected_w)
         np.testing.assert_array_almost_equal(net.bias.detach().numpy(), expected_b)
+
+
+# ============================================================
+# Issue #222: optimize_policy 子方法单元测试
+# ============================================================
+class TestOptimizePolicySubMethods(unittest.TestCase):
+    """Issue #222: 验证从 optimize_policy 拆分出的子方法。"""
+
+    def setUp(self):
+        self.optimizer = QuantumAnnealingOptimizer(num_qubits=8)
+        # 4 个参数张量：[Linear(4,8).weight, Linear(4,8).bias, Linear(8,2).weight, Linear(8,2).bias]
+        self.policy_net = nn.Sequential(nn.Linear(4, 8), nn.ReLU(), nn.Linear(8, 2))
+
+    def test_setup_head_only_params_returns_zero_when_not_head_only(self):
+        """非 head_only 模式应返回 0。"""
+        idx = self.optimizer._setup_head_only_params(
+            self.policy_net, head_only=False, max_head_tensors=4
+        )
+        self.assertEqual(idx, 0)
+
+    def test_setup_head_only_params_returns_correct_index(self):
+        """head_only 模式应返回正确的尾部参数起始索引。"""
+        # 共 4 个参数张量，max_head_tensors=2 -> head_start_idx=2
+        idx = self.optimizer._setup_head_only_params(
+            self.policy_net, head_only=True, max_head_tensors=2
+        )
+        self.assertEqual(idx, 2)
+
+    def test_setup_head_only_params_clamps_max_head_tensors(self):
+        """max_head_tensors 超过参数张量数时应被截断。"""
+        # 4 个参数张量，max_head_tensors=100 -> 应取 min(100, 4)=4 -> head_start_idx=0
+        idx = self.optimizer._setup_head_only_params(
+            self.policy_net, head_only=True, max_head_tensors=100
+        )
+        self.assertEqual(idx, 0)
+
+    def test_compute_weight_delta_stats_returns_correct_l2(self):
+        """_compute_weight_delta_stats 应正确计算 L2 范数和最大绝对差。"""
+        current = [np.array([1.0, 2.0]), np.array([3.0])]
+        optimized = [np.array([1.5, 2.5]), np.array([2.5])]
+        delta_l2, delta_max, delta_flat = self.optimizer._compute_weight_delta_stats(
+            current, optimized
+        )
+        # delta = [0.5, 0.5, -0.5], L2 = sqrt(0.25*3) = sqrt(0.75)
+        expected_l2 = float(np.sqrt(0.75))
+        self.assertAlmostEqual(delta_l2, expected_l2, places=6)
+        self.assertAlmostEqual(delta_max, 0.5, places=6)
+        np.testing.assert_array_almost_equal(delta_flat, [0.5, 0.5, -0.5])
+
+    def test_compute_weight_delta_stats_empty_input(self):
+        """空输入应返回 0 而非抛异常。"""
+        delta_l2, delta_max, _ = self.optimizer._compute_weight_delta_stats(
+            [np.array([])], [np.array([])]
+        )
+        self.assertEqual(delta_l2, 0.0)
+        self.assertEqual(delta_max, 0.0)
+
+    def test_compute_actual_weight_diff_head_only(self):
+        """head_only 模式应只计算尾部参数的差异。"""
+        # 先记录初始权重
+        old_weights = [p.detach().cpu().numpy().copy() for p in self.policy_net.parameters()]
+        # 修改最后一个参数张量（bias of Linear(8,2)）
+        last_param = list(self.policy_net.parameters())[-1]
+        with torch.no_grad():
+            last_param.add_(0.5)
+
+        head_start_idx = self.optimizer._setup_head_only_params(
+            self.policy_net, head_only=True, max_head_tensors=2
+        )
+        diff = self.optimizer._compute_actual_weight_diff(
+            self.policy_net,
+            head_only=True,
+            head_start_idx=head_start_idx,
+            old_weights=old_weights[head_start_idx:],
+        )
+        # 修改了 2 个 bias 各 +0.5，L2 = sqrt(0.5^2 * 2) = sqrt(0.5)
+        expected_diff = float(np.sqrt(0.5))
+        self.assertAlmostEqual(diff, expected_diff, places=5)
+
+    def test_compute_actual_weight_diff_full_network(self):
+        """非 head_only 模式应计算全部参数的差异。"""
+        old_weights = [p.detach().cpu().numpy().copy() for p in self.policy_net.parameters()]
+        # 修改第一个参数张量
+        first_param = next(iter(self.policy_net.parameters()))
+        with torch.no_grad():
+            first_param.add_(0.1)
+
+        diff = self.optimizer._compute_actual_weight_diff(
+            self.policy_net,
+            head_only=False,
+            head_start_idx=0,
+            old_weights=old_weights,
+        )
+        # 修改了 Linear(4,8).weight 共 32 个参数各 +0.1
+        expected_diff = float(np.sqrt(0.1**2 * 32))
+        self.assertAlmostEqual(diff, expected_diff, places=5)
+
+    def test_finalize_anneal_stats_writes_last_anneal_stats(self):
+        """_finalize_anneal_stats 应正确写入 _last_anneal_stats 字典。"""
+        initial_flat = np.array([1.0, 2.0, 3.0])
+        best_weights = [np.array([1.1, 2.1, 3.1])]
+
+        self.optimizer._finalize_anneal_stats(
+            initial_l2_norm=float(np.linalg.norm(initial_flat)),
+            initial_flat=initial_flat,
+            initial_loss=1.0,
+            best_weights=best_weights,
+            best_loss=0.5,
+            anneal_accepted=5,
+            anneal_rejected=3,
+            ineffective_count=2,
+        )
+
+        stats = self.optimizer._last_anneal_stats
+        self.assertEqual(stats["accepted"], 5)
+        self.assertEqual(stats["rejected"], 3)
+        self.assertEqual(stats["total"], 8)
+        self.assertAlmostEqual(stats["accept_rate"], 5 / 8, places=6)
+        self.assertEqual(stats["ineffective_count"], 2)
+        self.assertGreater(stats["weight_l2_diff"], 0.0)
+
+    def test_finalize_anneal_stats_with_none_best_weights(self):
+        """best_weights 为 None 时应回退到 initial_flat 并报告 0 差异。"""
+        initial_flat = np.array([1.0, 2.0, 3.0])
+
+        self.optimizer._finalize_anneal_stats(
+            initial_l2_norm=float(np.linalg.norm(initial_flat)),
+            initial_flat=initial_flat,
+            initial_loss=1.0,
+            best_weights=None,
+            best_loss=1.0,
+            anneal_accepted=0,
+            anneal_rejected=0,
+            ineffective_count=0,
+        )
+
+        stats = self.optimizer._last_anneal_stats
+        self.assertEqual(stats["accepted"], 0)
+        self.assertEqual(stats["total"], 0)
+        self.assertEqual(stats["accept_rate"], 0.0)
+        self.assertEqual(stats["weight_l2_diff"], 0.0)
 
 
 if __name__ == "__main__":

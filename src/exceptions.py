@@ -17,6 +17,7 @@ __all__ = [
     "SchedulingError",
     "TaskParseError",
     "TianyanAPIError",
+    "is_transient_exception",
 ]
 
 
@@ -42,7 +43,56 @@ class TianyanAPIError(QuantumSchedulerError):
     """天衍云 API 异常
 
     用于天衍云平台 API 调用失败的场景，如鉴权失败、请求超时、服务端错误等。
+
+    通过 ``is_transient`` 属性区分暂时性错误（网络超时、5xx）和永久性错误
+    （认证失败、参数错误），调用方可据此决定是否重试或立即降级（Issue #218）。
+
+    Args:
+        message: 异常描述信息
+        code: 错误码（关键字参数，默认 "TIANYAN_API_ERROR"）
+        retryable: 该异常是否可重试（关键字参数，默认 False）
+        is_transient: 是否为暂时性错误（网络抖动、服务端 5xx）。
+                      True 时不应计入连续失败计数，避免误触发降级。
+                      默认 False（保守起见视为永久性错误）。
     """
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        code: str = "TIANYAN_API_ERROR",
+        retryable: bool = False,
+        is_transient: bool = False,
+    ) -> None:
+        self.is_transient = bool(is_transient)
+        # 暂时性错误默认可重试；永久性错误沿用 retryable 参数
+        super().__init__(
+            message,
+            code=code,
+            retryable=retryable or self.is_transient,
+        )
+
+
+def is_transient_exception(exc: Exception) -> bool:
+    """判断异常是否为暂时性错误（Issue #218）。
+
+    暂时性错误包括：
+    - ``TianyanAPIError`` 且 ``is_transient=True``
+    - 网络相关异常（``ConnectionError`` / ``TimeoutError`` / ``OSError``）
+    - ``RateLimitError``（429 限流，重试即可）
+
+    Args:
+        exc: 捕获到的异常实例
+
+    Returns:
+        bool: True 表示暂时性错误（不应触发降级）
+    """
+    if isinstance(exc, TianyanAPIError):
+        return exc.is_transient
+    if isinstance(exc, RateLimitError):
+        return True
+    # 网络抖动相关异常（包括 ConnectionError / TimeoutError，二者均为 OSError 子类）
+    return isinstance(exc, OSError)
 
 
 class CircuitOpenError(QuantumSchedulerError):

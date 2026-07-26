@@ -15,6 +15,7 @@ from typing import Any, Protocol
 
 import numpy as np
 from loguru import logger
+from numpy.typing import NDArray
 
 from src.scheduler.env import QuantumSchedulingEnv
 
@@ -26,7 +27,7 @@ class PredictableModel(Protocol):
     包括 SB3 的 PPO/DQN 模型以及项目内的 PPOAgent/DQNAgent 包装器。
     """
 
-    def predict(self, obs: np.ndarray, deterministic: bool = True) -> Any:
+    def predict(self, obs: NDArray[Any], deterministic: bool = True) -> Any:
         """根据观测返回动作预测。
 
         Args:

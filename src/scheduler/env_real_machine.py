@@ -440,10 +440,21 @@ def submit_to_real_machine(
             # 提交被拒绝（非异常），计入失败并触发降级判断
             record_real_failure(env, machine.name, "提交被拒绝（返回 None）")
     except Exception as e:
-        # 真机 API 提交可能因网络/认证/服务端等多种原因失败，无法精确收窄
-        logger.error(f"[真机] {machine.name} 提交失败: {e}")
-        env._render_log.append(f"[真机] {machine.name} 提交失败: {str(e)[:60]}")
-        record_real_failure(env, machine.name, f"提交异常: {str(e)[:60]}")
+        # 真机 API 提交失败：区分暂时性错误与永久性错误（Issue #218）
+        # - 暂时性错误（网络超时/连接错误/服务端 5xx）：不计入连续失败，仅记录日志，
+        #   避免网络抖动误触发降级
+        # - 永久性错误（认证失败/参数错误）：计入连续失败，可能触发降级
+        from src.exceptions import is_transient_exception
+
+        if is_transient_exception(e):
+            logger.warning(
+                f"[真机] {machine.name} 提交遭遇暂时性错误，不计入连续失败: {type(e).__name__}: {e}"
+            )
+            env._render_log.append(f"[真机] {machine.name} 暂时性错误（已忽略）: {str(e)[:60]}")
+        else:
+            logger.error(f"[真机] {machine.name} 提交失败: {e}")
+            env._render_log.append(f"[真机] {machine.name} 提交失败: {str(e)[:60]}")
+            record_real_failure(env, machine.name, f"提交异常: {str(e)[:60]}")
 
 
 def record_real_failure(

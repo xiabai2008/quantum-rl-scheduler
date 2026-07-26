@@ -72,7 +72,7 @@ def find_latest_checkpoint(checkpoint_dir: str = "models/") -> str | None:
 
 def resume_training(
     model_path: str,
-    env: gym.Env,
+    env: gym.Env[Any, Any],
     total_timesteps: int,
     additional_timesteps: int = 0,
     checkpoint_callback: BaseCallback | None = None,
@@ -167,7 +167,7 @@ def resume_training(
 
 def auto_resume_train(
     algorithm: str = "ppo",
-    env: gym.Env | None = None,
+    env: gym.Env[Any, Any] | None = None,
     total_timesteps: int = 50000,
     checkpoint_dir: str = "models/",
     checkpoint_freq: int = 5000,

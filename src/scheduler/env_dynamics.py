@@ -178,6 +178,12 @@ def pick_next_task(env: "QuantumSchedulingEnv") -> None:
 
     优先调度紧急程度最高的任务（priority 降序、wait_steps 降序）。
 
+    性能优化（Issue #219）：
+        原实现使用 ``list.sort()`` 全量排序（O(n log n)）后 ``pop(0)``（O(n) 移位），
+        但每步仅需取出一个最紧急任务，无需排序整个队列。改为 ``max()``（O(n)） +
+        ``list.remove()``（O(n)），总体 O(n)，比原实现快约 log(n) 倍。
+        对于 200 步 × 250 次运行的评估场景，可显著降低 step() 耗时。
+
     Args:
         env: 调度环境实例
     """
@@ -185,6 +191,9 @@ def pick_next_task(env: "QuantumSchedulingEnv") -> None:
         env._current_task = None
         return
 
-    # 按紧急程度和等待时间排序，选出最紧急的任务
-    env._task_queue.sort(key=lambda t: (-t.priority, -t.wait_steps, -t.urgency))
-    env._current_task = env._task_queue.pop(0)
+    # 用 max() 选出最紧急的任务，避免全量排序（Issue #219）
+    # 排序键：priority 降序、wait_steps 降序、urgency 降序
+    # max() 默认取最大，因此排序键直接用正值（与原 sort 的负值取反逻辑等价）
+    best_task = max(env._task_queue, key=lambda t: (t.priority, t.wait_steps, t.urgency))
+    env._task_queue.remove(best_task)
+    env._current_task = best_task

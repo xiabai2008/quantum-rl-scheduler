@@ -72,13 +72,13 @@ async def root() -> HTMLResponse:
 
 
 @router.get("/api/status")
-async def get_status() -> dict:
+async def get_status(_auth: None = Depends(verify_api_key)) -> dict:
     """获取当前系统状态（JSON）"""
-    return state.system_status
+    return state.get_system_status()
 
 
 @router.get("/api/real-machines")
-async def get_real_machines() -> dict:
+async def get_real_machines(_auth: None = Depends(verify_api_key)) -> dict:
     """查询天衍云真实量子计算机状态（实时轮询 cqlib）。
 
     返回 ``[{id, type, status, name}]``，其中 status 为
@@ -94,7 +94,7 @@ async def get_real_machines() -> dict:
 
 
 @router.get("/api/real-submissions")
-async def get_real_submissions() -> dict:
+async def get_real_submissions(_auth: None = Depends(verify_api_key)) -> dict:
     """查询最近的真机提交记录（从 results/real_times.json 读取）。"""
     records = _app._load_real_submissions()
     return {
@@ -104,7 +104,7 @@ async def get_real_submissions() -> dict:
 
 
 @router.get("/api/tasks")
-async def get_tasks(status: str | None = None) -> list[dict]:
+async def get_tasks(status: str | None = None, _auth: None = Depends(verify_api_key)) -> list[dict]:
     """
     获取任务列表
     - status=pending: 只返回等待中的任务
@@ -113,12 +113,12 @@ async def get_tasks(status: str | None = None) -> list[dict]:
     - 不传: 返回全部任务
     """
     if status:
-        return [t for t in state.task_queue if t["status"] == status]
-    return state.task_queue
+        return [t for t in state.get_task_queue() if t["status"] == status]
+    return state.get_task_queue()
 
 
 @router.post("/api/tasks")
-async def submit_task(task: TaskSubmit, _auth: None = Depends(verify_api_key)) -> dict:
+async def submit_task(task: TaskSubmit, _auth: None = Depends(verify_api_key)) -> dict[str, Any]:
     """提交新任务"""
     new_task = {
         "task_id": "QTASK-" + uuid.uuid4().hex[:8],
@@ -131,46 +131,42 @@ async def submit_task(task: TaskSubmit, _auth: None = Depends(verify_api_key)) -
         "estimated_time": task.estimated_time,
         "arrival_time": datetime.now().isoformat(),
     }
-    state.task_queue.append(new_task)
-    # 更新系统状态中的队列长度
-    state.system_status["queue_length"] = len(
-        [t for t in state.task_queue if t["status"] == "pending"]
-    )
-    state.system_status["last_update"] = datetime.now().isoformat()
+    state.append_task(new_task)
     # 广播更新
     await state.manager.broadcast(
         {
             "type": "task_added",
             "task": new_task,
-            "status": state.system_status,
+            "status": state.get_system_status(),
         }
     )
     return {"message": "任务提交成功", "task_id": new_task["task_id"]}
 
 
 @router.get("/api/metrics")
-async def get_metrics() -> str:
+async def get_metrics(_auth: None = Depends(verify_api_key)) -> str:
     """返回 Prometheus 格式的指标（可选功能）"""
+    status = state.get_system_status()
     lines = [
         "# HELP quantum_scheduler_qubit_utilization 量子比特利用率 0~1",
         "# TYPE quantum_scheduler_qubit_utilization gauge",
-        f"quantum_scheduler_qubit_utilization {state.system_status['qubit_utilization']:.4f}",
+        f"quantum_scheduler_qubit_utilization {status['qubit_utilization']:.4f}",
         "",
         "# HELP quantum_scheduler_queue_length 任务队列长度",
         "# TYPE quantum_scheduler_queue_length gauge",
-        f"quantum_scheduler_queue_length {state.system_status['queue_length']}",
+        f"quantum_scheduler_queue_length {status['queue_length']}",
         "",
         "# HELP quantum_scheduler_completed_tasks 已完成任务总数",
         "# TYPE quantum_scheduler_completed_tasks counter",
-        f"quantum_scheduler_completed_tasks {state.system_status['completed_tasks']}",
+        f"quantum_scheduler_completed_tasks {status['completed_tasks']}",
         "",
         "# HELP quantum_scheduler_avg_wait_time 平均等待时间(秒)",
         "# TYPE quantum_scheduler_avg_wait_time gauge",
-        f"quantum_scheduler_avg_wait_time {state.system_status['average_wait_time']:.2f}",
+        f"quantum_scheduler_avg_wait_time {status['average_wait_time']:.2f}",
         "",
         "# HELP quantum_scheduler_current_step 当前调度步数",
         "# TYPE quantum_scheduler_current_step counter",
-        f"quantum_scheduler_current_step {state.system_status['current_step']}",
+        f"quantum_scheduler_current_step {status['current_step']}",
     ]
     return "\n".join(lines)
 
@@ -191,7 +187,7 @@ async def metrics() -> Response:
 
 
 @router.get("/health", tags=["运维"])
-async def health() -> dict:
+async def health() -> dict[str, Any]:
     """存活探针（Liveness Probe）。
 
     只要进程在运行就返回 200，用于判断应用是否还活着。
@@ -204,7 +200,7 @@ async def health() -> dict:
 
 
 @router.get("/ready", tags=["运维"])
-async def ready() -> dict:
+async def ready() -> dict[str, Any]:
     """就绪探针（Readiness Probe）。
 
     检查应用关键依赖是否就绪：FastAPI app、Prometheus 注册表、
@@ -251,39 +247,44 @@ async def ready() -> dict:
 
 
 @router.post("/api/strategy")
-async def switch_strategy(strategy: str, _auth: None = Depends(verify_api_key)) -> dict:
+async def switch_strategy(strategy: str, _auth: None = Depends(verify_api_key)) -> dict[str, Any]:
     """切换调度策略"""
-    if strategy not in state.system_status["strategy_options"]:
+    current_status = state.get_system_status()
+    if strategy not in current_status["strategy_options"]:
         return {"message": f"未知策略: {strategy}", "success": False}
-    old = state.system_status["current_strategy"]
-    state.system_status["current_strategy"] = strategy
-    state.system_status["last_update"] = datetime.now().isoformat()
+    old = current_status["current_strategy"]
+    state.update_system_status({"current_strategy": strategy})
     await state.manager.broadcast(
         {
             "type": "strategy_changed",
             "old_strategy": old,
             "new_strategy": strategy,
-            "status": state.system_status,
+            "status": state.get_system_status(),
         }
     )
     return {"message": f"策略切换: {old} -> {strategy}", "success": True}
 
 
 @router.post("/api/update")
-async def update_status(update: SystemStatusUpdate, _auth: None = Depends(verify_api_key)) -> dict:
+async def update_status(
+    update: SystemStatusUpdate, _auth: None = Depends(verify_api_key)
+) -> dict[str, Any]:
     """更新系统状态（供调度引擎调用）"""
-    state.system_status["qubit_utilization"] = update.qubit_utilization
-    state.system_status["queue_length"] = update.queue_length
-    state.system_status["completed_tasks"] = update.completed_tasks
-    state.system_status["average_wait_time"] = update.average_wait_time
-    state.system_status["last_update"] = datetime.now().isoformat()
+    state.update_system_status(
+        {
+            "qubit_utilization": update.qubit_utilization,
+            "queue_length": update.queue_length,
+            "completed_tasks": update.completed_tasks,
+            "average_wait_time": update.average_wait_time,
+        }
+    )
     await state.manager.broadcast(
         {
             "type": "status_update",
-            "status": state.system_status,
+            "status": state.get_system_status(),
         }
     )
-    return {"message": "状态更新成功", "status": state.system_status}
+    return {"message": "状态更新成功", "status": state.get_system_status()}
 
 
 # ============================================================
@@ -292,7 +293,7 @@ async def update_status(update: SystemStatusUpdate, _auth: None = Depends(verify
 
 
 @router.get("/api/ppo/comparison")
-async def get_ppo_comparison() -> dict:
+async def get_ppo_comparison(_auth: None = Depends(verify_api_key)) -> dict:
     """返回 PPO 与其他策略的对比数据（从 v4 报告中读取）"""
     report_dir = os.path.join(_app._PROJECT_ROOT, "results")
     json_files = sorted(
@@ -341,7 +342,7 @@ async def get_ppo_comparison() -> dict:
 
 
 @router.get("/api/ppo/predict")
-async def ppo_predict() -> dict:
+async def ppo_predict(_auth: None = Depends(verify_api_key)) -> dict:
     """使用 PPO 模型对当前环境状态进行一次推理预测"""
     model = _app._get_ppo_model()
     if model is None:
@@ -367,7 +368,7 @@ async def ppo_predict() -> dict:
 
 
 @router.get("/api/ppo/stats")
-async def ppo_stats() -> dict:
+async def ppo_stats(_auth: None = Depends(verify_api_key)) -> dict:
     """返回 PPO 关键性能指标"""
     report_dir = os.path.join(_app._PROJECT_ROOT, "results")
     json_files = sorted(
@@ -428,7 +429,7 @@ async def ppo_stats() -> dict:
 
 
 @router.get("/api/quota")
-async def get_quota() -> dict:
+async def get_quota(_auth: None = Depends(verify_api_key)) -> dict:
     """获取天衍云真机配额使用状态（Issue #103）。
 
     返回配额总量、已用、剩余、使用比例、预警等级等信息，
@@ -445,7 +446,7 @@ async def get_quota() -> dict:
 
 
 @router.get("/api/resource-history")
-async def get_resource_history() -> dict:
+async def get_resource_history(_auth: None = Depends(verify_api_key)) -> dict:
     """获取资源利用率历史趋势数据（Issue #22）。
 
     返回最近 100 个数据点的资源利用率历史，供前端 Echarts 折线图渲染。
@@ -455,11 +456,11 @@ async def get_resource_history() -> dict:
         包含 history 列表的字典，每项含 step/qubit_utilization/queue_length/
         completed_tasks/average_wait_time 字段
     """
-    return {"history": state._resource_history[-100:]}
+    return {"history": state.get_resource_history(100)}
 
 
 @router.get("/api/decision-log")
-async def get_decision_log() -> dict:
+async def get_decision_log(_auth: None = Depends(verify_api_key)) -> dict:
     """获取调度决策日志（Issue #22）。
 
     返回最近的决策记录列表，供前端决策过程回放组件渲染。
@@ -468,11 +469,11 @@ async def get_decision_log() -> dict:
     Returns:
         包含 decisions 列表的字典
     """
-    return {"decisions": state._decision_log[-200:]}
+    return {"decisions": state.get_decision_log(200)}
 
 
 @router.get("/api/machines-comparison")
-async def get_machines_comparison() -> dict:
+async def get_machines_comparison(_auth: None = Depends(verify_api_key)) -> dict:
     """获取多机器对比数据（Issue #22）。
 
     聚合当前所有量子机器的关键指标（总量子比特、可用比率、保真度、
@@ -481,8 +482,9 @@ async def get_machines_comparison() -> dict:
     Returns:
         包含 machines 列表的字典
     """
+    current_status = state.get_system_status()
     machines: list[dict[str, Any]] = []
-    for m in state.system_status.get("real_machines", []):
+    for m in current_status.get("real_machines", []):
         machines.append(
             {
                 "name": m.get("name", "unknown"),
@@ -499,7 +501,7 @@ async def get_machines_comparison() -> dict:
 
 
 @router.get("/api/tenants")
-async def get_tenants() -> dict:
+async def get_tenants(_auth: None = Depends(verify_api_key)) -> dict:
     """获取多租户配额状态（Issue #97）。
 
     返回所有租户的配额配置与运行时使用状态。
@@ -518,7 +520,7 @@ async def get_tenants() -> dict:
 
 
 @router.get("/api/explainability")
-async def get_explainability(limit: int = 20) -> dict:
+async def get_explainability(limit: int = 20, _auth: None = Depends(verify_api_key)) -> dict:
     """获取最近决策的特征贡献度摘要（Issue #73）。
 
     从决策日志中提取包含 feature_contributions 的记录，
@@ -530,7 +532,7 @@ async def get_explainability(limit: int = 20) -> dict:
     Returns:
         包含 decisions 列表和 count 的字典
     """
-    decisions = state._decision_log[-min(limit, 200) :]
+    decisions = state.get_decision_log(min(limit, 200))
     result = [
         {
             "step": d.get("step"),
@@ -546,7 +548,7 @@ async def get_explainability(limit: int = 20) -> dict:
 
 
 @router.get("/api/explainability/summary")
-async def get_explainability_summary() -> dict:
+async def get_explainability_summary(_auth: None = Depends(verify_api_key)) -> dict:
     """获取当前会话的全局特征重要性排名（Issue #73）。
 
     聚合所有包含特征贡献度的决策记录，计算各特征的平均贡献度，
@@ -555,7 +557,7 @@ async def get_explainability_summary() -> dict:
     Returns:
         包含 feature_importance 列表和 total_decisions 的字典
     """
-    records = [d for d in state._decision_log if "feature_contributions" in d]
+    records = [d for d in state.get_decision_log() if "feature_contributions" in d]
     if not records:
         return {"feature_importance": [], "total_decisions": 0}
 
@@ -582,7 +584,7 @@ async def get_explainability_summary() -> dict:
 
 
 @router.get("/api/explainability/latest")
-async def get_explainability_latest() -> dict:
+async def get_explainability_latest(_auth: None = Depends(verify_api_key)) -> dict:
     """获取最新一条决策的完整可解释性数据（Day2-3-10）。
 
     返回最近一条包含 feature_contributions 的决策记录，
@@ -592,7 +594,7 @@ async def get_explainability_latest() -> dict:
     Returns:
         包含 latest 决策记录的字典；无记录时返回 empty=True
     """
-    for d in reversed(state._decision_log):
+    for d in reversed(state.get_decision_log()):
         if "feature_contributions" in d:
             return {
                 "empty": False,
@@ -607,7 +609,7 @@ async def get_explainability_latest() -> dict:
 
 
 @router.post("/api/battle/start")
-async def battle_start(_auth: None = Depends(verify_api_key)) -> dict:
+async def battle_start(_auth: None = Depends(verify_api_key)) -> dict[str, Any]:
     """启动 PPO vs FCFS 对战（Day4-7-11）。
 
     初始化两个独立的调度环境实例，分别使用 PPO 和 FCFS 策略。
@@ -620,25 +622,27 @@ async def battle_start(_auth: None = Depends(verify_api_key)) -> dict:
         from src.scheduler.env import QuantumSchedulingEnv
 
         # 创建两个独立环境（相同 seed 确保公平对比）
-        state._battle_state["ppo_env"] = QuantumSchedulingEnv(max_qubits=20, seed=42)
-        state._battle_state["fcfs_env"] = QuantumSchedulingEnv(max_qubits=20, seed=42)
+        battle = state.get_battle_state_ref()
+        with state.state_lock:
+            battle["ppo_env"] = QuantumSchedulingEnv(max_qubits=20, seed=42)
+            battle["fcfs_env"] = QuantumSchedulingEnv(max_qubits=20, seed=42)
 
-        state._battle_state["ppo_obs"], _ = state._battle_state["ppo_env"].reset()
-        state._battle_state["fcfs_obs"], _ = state._battle_state["fcfs_env"].reset()
+            battle["ppo_obs"], _ = battle["ppo_env"].reset()
+            battle["fcfs_obs"], _ = battle["fcfs_env"].reset()
 
-        state._battle_state["running"] = True
-        state._battle_state["step"] = 0
-        state._battle_state["ppo_reward"] = 0.0
-        state._battle_state["fcfs_reward"] = 0.0
-        state._battle_state["ppo_history"] = []
-        state._battle_state["fcfs_history"] = []
+            battle["running"] = True
+            battle["step"] = 0
+            battle["ppo_reward"] = 0.0
+            battle["fcfs_reward"] = 0.0
+            battle["ppo_history"] = []
+            battle["fcfs_history"] = []
 
         return {
             "success": True,
             "message": "对战已启动",
             "step": 0,
-            "ppo_obs": state._battle_state["ppo_obs"].tolist()[:5],
-            "fcfs_obs": state._battle_state["fcfs_obs"].tolist()[:5],
+            "ppo_obs": battle["ppo_obs"].tolist()[:5],
+            "fcfs_obs": battle["fcfs_obs"].tolist()[:5],
         }
     except Exception as e:
         logger.error(f"[Web] 对战启动失败: {e}")
@@ -646,7 +650,7 @@ async def battle_start(_auth: None = Depends(verify_api_key)) -> dict:
 
 
 @router.post("/api/battle/step")
-async def battle_step(_auth: None = Depends(verify_api_key)) -> dict:
+async def battle_step(_auth: None = Depends(verify_api_key)) -> dict[str, Any]:
     """推进对战一步（Day4-7-11）。
 
     PPO 使用模型预测动作，FCFS 使用固定策略（始终选择动作 0=经典资源）。
@@ -655,7 +659,8 @@ async def battle_step(_auth: None = Depends(verify_api_key)) -> dict:
     Returns:
         包含本步两个策略的 reward/action/util 和累积奖励的字典
     """
-    if not state._battle_state["running"]:
+    battle = state.get_battle_state_ref()
+    if not battle["running"]:
         return {"error": "对战未启动，请先调用 /api/battle/start"}
 
     try:
@@ -667,63 +672,61 @@ async def battle_step(_auth: None = Depends(verify_api_key)) -> dict:
         ppo_done = False
 
         if model is not None:
-            ppo_action, _ = model.predict(state._battle_state["ppo_obs"], deterministic=True)
-            new_obs, reward, terminated, truncated, _info = state._battle_state["ppo_env"].step(
-                int(ppo_action)
-            )
+            ppo_action, _ = model.predict(battle["ppo_obs"], deterministic=True)
+            new_obs, reward, terminated, truncated, _info = battle["ppo_env"].step(int(ppo_action))
             ppo_step_reward = float(reward)
             ppo_util = float(new_obs[0])  # 量子比特可用率
-            state._battle_state["ppo_reward"] += ppo_step_reward
-            state._battle_state["ppo_obs"] = new_obs
+            battle["ppo_reward"] += ppo_step_reward
+            battle["ppo_obs"] = new_obs
             ppo_done = terminated or truncated
             if ppo_done:
-                state._battle_state["ppo_obs"], _ = state._battle_state["ppo_env"].reset()
+                battle["ppo_obs"], _ = battle["ppo_env"].reset()
 
         # --- FCFS 策略（固定选择经典资源=动作0） ---
         fcfs_action = 0
-        new_obs, reward, terminated, truncated, _info = state._battle_state["fcfs_env"].step(0)
+        new_obs, reward, terminated, truncated, _info = battle["fcfs_env"].step(0)
         fcfs_step_reward = float(reward)
         fcfs_util = float(new_obs[0])
-        state._battle_state["fcfs_reward"] += fcfs_step_reward
-        state._battle_state["fcfs_obs"] = new_obs
+        battle["fcfs_reward"] += fcfs_step_reward
+        battle["fcfs_obs"] = new_obs
         fcfs_done = terminated or truncated
         if fcfs_done:
-            state._battle_state["fcfs_obs"], _ = state._battle_state["fcfs_env"].reset()
+            battle["fcfs_obs"], _ = battle["fcfs_env"].reset()
 
         # 更新步数
-        state._battle_state["step"] += 1
-        step = state._battle_state["step"]
+        battle["step"] += 1
+        step = battle["step"]
 
         # 记录历史
         ppo_entry = {
             "step": step,
             "reward": round(ppo_step_reward, 4),
-            "cumulative": round(state._battle_state["ppo_reward"], 2),
+            "cumulative": round(battle["ppo_reward"], 2),
             "action": int(ppo_action),
             "util": round(ppo_util, 4),
         }
         fcfs_entry = {
             "step": step,
             "reward": round(fcfs_step_reward, 4),
-            "cumulative": round(state._battle_state["fcfs_reward"], 2),
+            "cumulative": round(battle["fcfs_reward"], 2),
             "action": int(fcfs_action),
             "util": round(fcfs_util, 4),
         }
-        state._battle_state["ppo_history"].append(ppo_entry)
-        state._battle_state["fcfs_history"].append(fcfs_entry)
+        battle["ppo_history"].append(ppo_entry)
+        battle["fcfs_history"].append(fcfs_entry)
 
         # 限制历史长度
-        if len(state._battle_state["ppo_history"]) > 200:
-            state._battle_state["ppo_history"] = state._battle_state["ppo_history"][-200:]
-            state._battle_state["fcfs_history"] = state._battle_state["fcfs_history"][-200:]
+        if len(battle["ppo_history"]) > 200:
+            battle["ppo_history"] = battle["ppo_history"][-200:]
+            battle["fcfs_history"] = battle["fcfs_history"][-200:]
 
         return {
             "step": step,
             "ppo": ppo_entry,
             "fcfs": fcfs_entry,
-            "ppo_total": round(state._battle_state["ppo_reward"], 2),
-            "fcfs_total": round(state._battle_state["fcfs_reward"], 2),
-            "gap": round(state._battle_state["ppo_reward"] - state._battle_state["fcfs_reward"], 2),
+            "ppo_total": round(battle["ppo_reward"], 2),
+            "fcfs_total": round(battle["fcfs_reward"], 2),
+            "gap": round(battle["ppo_reward"] - battle["fcfs_reward"], 2),
         }
     except Exception as e:
         logger.error(f"[Web] 对战步进失败: {e}")
@@ -731,34 +734,26 @@ async def battle_step(_auth: None = Depends(verify_api_key)) -> dict:
 
 
 @router.get("/api/battle/status")
-async def battle_status() -> dict:
+async def battle_status(_auth: None = Depends(verify_api_key)) -> dict:
     """获取对战当前状态（Day4-7-11）。
 
     Returns:
         包含 running/step/累积奖励/历史数据的字典
     """
+    battle = state.get_battle_state_ref()
     return {
-        "running": state._battle_state["running"],
-        "step": state._battle_state["step"],
-        "ppo_total": round(state._battle_state["ppo_reward"], 2),
-        "fcfs_total": round(state._battle_state["fcfs_reward"], 2),
-        "gap": round(state._battle_state["ppo_reward"] - state._battle_state["fcfs_reward"], 2),
-        "ppo_history": state._battle_state["ppo_history"][-50:],
-        "fcfs_history": state._battle_state["fcfs_history"][-50:],
+        "running": battle["running"],
+        "step": battle["step"],
+        "ppo_total": round(battle["ppo_reward"], 2),
+        "fcfs_total": round(battle["fcfs_reward"], 2),
+        "gap": round(battle["ppo_reward"] - battle["fcfs_reward"], 2),
+        "ppo_history": battle["ppo_history"][-50:],
+        "fcfs_history": battle["fcfs_history"][-50:],
     }
 
 
 @router.post("/api/battle/reset")
-async def battle_reset(_auth: None = Depends(verify_api_key)) -> dict:
+async def battle_reset(_auth: None = Depends(verify_api_key)) -> dict[str, Any]:
     """重置对战状态（Day4-7-11）。"""
-    state._battle_state["running"] = False
-    state._battle_state["step"] = 0
-    state._battle_state["ppo_reward"] = 0.0
-    state._battle_state["fcfs_reward"] = 0.0
-    state._battle_state["ppo_history"] = []
-    state._battle_state["fcfs_history"] = []
-    state._battle_state["ppo_env"] = None
-    state._battle_state["fcfs_env"] = None
-    state._battle_state["ppo_obs"] = None
-    state._battle_state["fcfs_obs"] = None
+    state.reset_battle_state()
     return {"success": True, "message": "对战已重置"}
