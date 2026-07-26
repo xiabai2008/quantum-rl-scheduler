@@ -12,7 +12,7 @@ Tianyan Cloud Platform API Client
 import os
 import random
 import time
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterator, Mapping
 from contextlib import contextmanager
 from time import monotonic
 from typing import Any, TypeVar, cast
@@ -1059,7 +1059,11 @@ class TianyanClient:
                 raise TianyanAPIError(
                     status_code=400,
                     message=f"任务 {task_id} 执行失败: {error_msg}",
-                    response_body=status_info.to_dict(),
+                    response_body=(
+                        status_info.to_dict()
+                        if isinstance(status_info, TaskResult)
+                        else dict(cast(Mapping[str, Any], status_info))
+                    ),
                 )
 
             logger.debug(f"任务 {task_id} 状态={status}，{poll_interval}s 后再次查询")

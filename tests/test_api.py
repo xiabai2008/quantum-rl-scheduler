@@ -518,6 +518,10 @@ class TestTianyanClientMockDelegation(unittest.TestCase):
         with patch("time.sleep"), self.assertRaises(TianyanAPIError) as ctx:
             self.client.wait_for_task("tid", poll_interval=0.1, timeout=2.0)
         self.assertEqual(ctx.exception.status_code, 400)
+        self.assertEqual(
+            ctx.exception.response_body,
+            {"status": "FAILED", "error": "boom"},
+        )
 
     def test_wait_for_task_mock_timeout_raises(self):
         """Mock 模式下超时应抛出 TianyanAPIError(408)。"""
