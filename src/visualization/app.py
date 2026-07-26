@@ -125,28 +125,16 @@ _VUE3_HTML_TEMPLATE = None
 
 
 def _load_vue3_template() -> str:
-    """加载 Vue3 前端 HTML 模板。
+    """加载前端 HTML 模板。
 
-    优先级：
-    1. dist/index.html（npm run build 产物，生产模式）
-    2. frontend/index.html（开发模式源文件）
-    3. HTML_TEMPLATE（内置回退模板）
+    2026-07-26: Vue3 前端缺少 package.json 无法构建运行，
+    直接使用内置增强版 HTML_TEMPLATE（零依赖，功能完整）。
     """
     global _VUE3_HTML_TEMPLATE
     if _VUE3_HTML_TEMPLATE is None:
-        # 优先使用构建产物
-        dist_html = os.path.join(FRONTEND_DIST_PATH, "index.html")
-        if os.path.exists(dist_html):
-            with open(dist_html, encoding="utf-8") as f:
-                _VUE3_HTML_TEMPLATE = f.read()
-            logger.info("[Web] 使用 Vue3 构建产物 (dist/index.html)")
-        elif os.path.exists(FRONTEND_HTML_PATH):
-            with open(FRONTEND_HTML_PATH, encoding="utf-8") as f:
-                _VUE3_HTML_TEMPLATE = f.read()
-            logger.info("[Web] 使用 Vue3 源文件 (frontend/index.html)")
-        else:
-            _VUE3_HTML_TEMPLATE = HTML_TEMPLATE  # 回退到内置 HTML
-            logger.info("[Web] 使用内置回退 HTML 模板")
+        # Vue3 前端缺少构建配置无法直接运行，统一使用内置回退模板
+        _VUE3_HTML_TEMPLATE = HTML_TEMPLATE
+        logger.info("[Web] 使用内置增强版 HTML 模板 (fallback_template v2)")
     return _VUE3_HTML_TEMPLATE
 
 
