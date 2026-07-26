@@ -714,7 +714,9 @@ class TestOptimizePolicyAndHelpers(unittest.TestCase):
         Q = np.array([[1.0, 0.5], [0.5, 2.0]])
         d = self.opt._matrix_to_qubo_dict(Q)
         self.assertAlmostEqual(d[(0, 0)], 1.0)
-        self.assertAlmostEqual(d[(0, 1)], 0.5)
+        # Symmetric x^T Q x stores half of the effective pair coefficient
+        # in each triangle, while dimod expects that coefficient once.
+        self.assertAlmostEqual(d[(0, 1)], 1.0)
         self.assertAlmostEqual(d[(1, 1)], 2.0)
 
     def test_apply_weights_v2_updates_with_learning_rate(self):

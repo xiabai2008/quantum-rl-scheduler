@@ -162,6 +162,7 @@ class QuantumAnnealingOptimizer:
         weights: list[np.ndarray],
         gradients: list[np.ndarray] | None = None,
         td_errors: np.ndarray | None = None,
+        regularization_strength: float = 0.1,
     ) -> np.ndarray:
         """
         将神经网络权重列表映射为 QUBO 矩阵（优化版 v2）
@@ -189,13 +190,16 @@ class QuantumAnnealingOptimizer:
                        若提供，QUBO 将以梯度下降方向为目标。
                        若未提供，退化为基于权重大小的编码。
             td_errors: 可选，TD 误差数组，用于调整各参数的重要性权重。
+            regularization_strength: L2 更新正则化系数，必须非负。
 
         Returns:
             QUBO 矩阵 Q，形状为 (N, N)，其中 N 为编码后的总比特数
         """
         # ---------- 步骤 1：参数配置 ----------
         n_bits_per_weight = self.n_bits_per_weight
-        reg_lambda = 0.1  # L2 正则化系数，防止更新过大
+        if regularization_strength < 0:
+            raise ValueError("regularization_strength 必须非负")
+        reg_lambda = regularization_strength
 
         # ---------- 步骤 2：展平所有权重和梯度为一维向量 ----------
         flat_weights = np.concatenate([w.flatten() for w in weights])
@@ -301,7 +305,9 @@ class QuantumAnnealingOptimizer:
             for mag_idx in range(magnitude_bits):
                 bit_k = 1 + mag_idx
                 bit_val = max_delta / (2 ** (mag_idx + 1))
-                Q[sign_idx, bit_k] = 2.0 * target_delta_direction * bit_val * imp
+                # Q 为对称矩阵且能量按 x^T Q x 计算，非对角项会出现两次，
+                # 因此矩阵单边系数应为目标交叉项系数的一半。
+                Q[sign_idx, bit_k] = target_delta_direction * bit_val * imp
                 Q[bit_k, sign_idx] = Q[sign_idx, bit_k]
 
             # 2. 数值位之间的耦合（L2 正则化的二次项）
@@ -312,7 +318,7 @@ class QuantumAnnealingOptimizer:
                     val1 = max_delta / (2 ** (mk1 + 1))
                     val2 = max_delta / (2 ** (mk2 + 1))
                     # 交叉项来自 L2 正则化: (sum b_i v_i)^2 = sum b_i^2 v_i^2 + 2 sum_{i<j} b_i b_j v_i v_j
-                    coupling = 2.0 * reg_lambda * val1 * val2
+                    coupling = reg_lambda * val1 * val2
                     Q[b1 + base_idx, b2 + base_idx] = coupling
                     Q[b2 + base_idx, b1 + base_idx] = coupling
 
@@ -1675,7 +1681,7 @@ class QuantumAnnealingOptimizer:
         qubo_dict = {}
         for i in range(n):
             for j in range(i, n):
-                val = qubo_matrix[i, j]
+                val = qubo_matrix[i, i] if i == j else qubo_matrix[i, j] + qubo_matrix[j, i]
                 if abs(val) > 1e-12:  # 跳过零值项以节省内存
                     qubo_dict[(i, j)] = float(val)
         return qubo_dict
@@ -1724,9 +1730,13 @@ class QuantumAnnealingOptimizer:
                 flip_idx = random.randint(0, n - 1)
 
                 # 计算翻转后的能量变化（向量化，避免 Python 层内循环）
-                # ΔE = (1 - 2*x[flip]) * (Σ_j Q[flip,j] * x[j])
+                # 对称矩阵能量 E=x^TQx：
+                # ΔE=(1-2*x_i)*(Q_ii + 2*Σ_{j≠i}Q_ij*x_j)
                 delta = 1.0 - 2.0 * current_solution[flip_idx]
-                linear_term = np.dot(qubo_matrix[flip_idx], current_solution)
+                linear_term = qubo_matrix[flip_idx, flip_idx] + 2.0 * (
+                    np.dot(qubo_matrix[flip_idx], current_solution)
+                    - qubo_matrix[flip_idx, flip_idx] * current_solution[flip_idx]
+                )
                 delta_energy = delta * linear_term
 
                 # Metropolis 准则：以概率 min(1, exp(-ΔE/T)) 接受新解

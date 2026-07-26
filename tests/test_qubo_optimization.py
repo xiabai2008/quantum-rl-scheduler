@@ -10,16 +10,30 @@ Issue #45: QUBO 矩阵构建性能剖析与加速 — 测试模块
     - TestQuboMatrixProperties     : 对称性、对角线值、非负性、非对角公式
 """
 
+from itertools import pairwise
+
 import numpy as np
 import pytest
 
 from src.quantum.annealing import (
+    QuantumAnnealingOptimizer,
     benchmark_qubo_versions,
     build_qubo_matrix,
     build_qubo_matrix_optimized,
     find_optimal_qubo_params,
     profile_qubo_construction,
 )
+
+
+def _exact_minimum_bitstring(qubo: np.ndarray) -> str:
+    """穷举小型 QUBO，返回确定性的最低能量比特串。"""
+    n_variables = qubo.shape[0]
+    candidates = (
+        np.array(list(np.binary_repr(value, width=n_variables)), dtype=np.float64)
+        for value in range(2**n_variables)
+    )
+    best = min(candidates, key=lambda bits: float(bits @ qubo @ bits))
+    return "".join(str(int(bit)) for bit in best)
 
 
 @pytest.fixture
@@ -326,3 +340,77 @@ class TestQuboPropertyBased:
             qubo = optimizer.network_to_qubo(weights)
             assert np.all(np.isreal(qubo)), "QUBO 矩阵应为实数矩阵"
             assert np.allclose(qubo, qubo.T, atol=1e-12), "QUBO 矩阵必须对称"
+
+
+class TestNetworkQuboFormalVerification:
+    """Issue #251：网络权重 QUBO 的构造性数学验证。"""
+
+    @staticmethod
+    def _known_problem() -> tuple[
+        QuantumAnnealingOptimizer,
+        list[np.ndarray],
+        list[np.ndarray],
+    ]:
+        optimizer = QuantumAnnealingOptimizer(
+            n_bits_per_weight=4,
+            simulation_mode=True,
+        )
+        weights = [np.array([-1.0, 1.0], dtype=np.float64)]
+        gradients = [np.array([1.0, -1.0], dtype=np.float64)]
+        return optimizer, weights, gradients
+
+    def test_qubo_optimal_matches_gradient_descent(self) -> None:
+        optimizer, weights, gradients = self._known_problem()
+        qubo = optimizer.network_to_qubo(weights, gradients=gradients)
+
+        bitstring = _exact_minimum_bitstring(qubo)
+        delta = optimizer.bitstring_to_weights(bitstring, [(2,)])[0]
+
+        assert float(np.dot(delta, gradients[0])) < 0
+        assert delta[0] < 0 < delta[1]
+
+    def test_qubo_energy_monotonicity(self) -> None:
+        optimizer, weights, gradients = self._known_problem()
+        qubo = optimizer.network_to_qubo(weights, gradients=gradients)
+
+        energies = []
+        for magnitude in range(8):
+            first_weight = f"1{magnitude:03b}"
+            second_weight = "0000"
+            bits = np.array(list(first_weight + second_weight), dtype=np.float64)
+            energies.append(float(bits @ qubo @ bits))
+
+        assert all(later < earlier for earlier, later in pairwise(energies))
+
+    def test_qubo_encoding_roundtrip(self) -> None:
+        optimizer = QuantumAnnealingOptimizer(n_bits_per_weight=8)
+        original = [np.array([-0.071, -0.02, 0.0, 0.047], dtype=np.float64)]
+
+        encoded = optimizer.weight_deltas_to_bitstring(original, max_delta=0.1)
+        decoded = optimizer.bitstring_to_weights(encoded, [(4,)])[0]
+
+        assert np.allclose(decoded, original[0], atol=0.1 / 128 / 2)
+
+    def test_qubo_regularization_effect(self) -> None:
+        optimizer, weights, gradients = self._known_problem()
+        weak_qubo = optimizer.network_to_qubo(
+            weights,
+            gradients=gradients,
+            regularization_strength=0.1,
+        )
+        strong_qubo = optimizer.network_to_qubo(
+            weights,
+            gradients=gradients,
+            regularization_strength=100.0,
+        )
+
+        weak_delta = optimizer.bitstring_to_weights(
+            _exact_minimum_bitstring(weak_qubo),
+            [(2,)],
+        )[0]
+        strong_delta = optimizer.bitstring_to_weights(
+            _exact_minimum_bitstring(strong_qubo),
+            [(2,)],
+        )[0]
+
+        assert np.linalg.norm(strong_delta) < np.linalg.norm(weak_delta)
