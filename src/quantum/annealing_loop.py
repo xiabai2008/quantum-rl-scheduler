@@ -192,9 +192,21 @@ class AsyncAnnealingLoop:
             return result
 
     def peek_pending_result(self) -> dict[str, Any] | None:
-        """查看当前待回写的优化结果，但不清空。"""
+        """查看当前待回写的优化结果，但不清空。
+
+        性能优化（Issue #220）：
+            原实现在 ``self._lock`` 锁内执行 ``copy.deepcopy()``，深拷贝包含
+            完整 ``state_dict``（神经网络权重）的字典可能耗时数十到数百毫秒，
+            持锁期间会阻塞 ``get_pending_result()`` 和 ``_update_interval()``。
+
+            改为在锁内只获取引用，在锁外执行深拷贝，显著降低锁持有时间。
+            引用本身在 CPython 中是原子操作，锁外深拷贝期间即使有其他线程
+            修改 ``_pending_result``，也只是产生两个独立的快照，不影响正确性。
+        """
         with self._lock:
-            return copy.deepcopy(self._pending_result) if self._pending_result is not None else None
+            ref = self._pending_result
+        # 深拷贝在锁外执行，避免长时间持锁阻塞并发访问
+        return copy.deepcopy(ref) if ref is not None else None
 
     def get_current_interval(self) -> int:
         """获取当前自适应退火触发间隔。"""
@@ -207,19 +219,29 @@ class AsyncAnnealingLoop:
             return copy.deepcopy(self._history)
 
     def _worker_loop(self) -> None:
-        """退火工作线程主循环：消费队列任务并完成优化、评估、记录。"""
+        """退火工作线程主循环：消费队列任务并完成优化、评估、记录。
+
+        性能优化（Issue #220）：
+            支持接收 ``PolicySnapshot`` 快照（仅含 state_dict），避免训练线程
+            深拷贝整个 policy 对象。worker 线程首次收到快照时通过 deepcopy
+            创建持久化 eval_policy 实例，后续仅 load_state_dict 更新权重。
+        """
+        # 持久化 eval_policy 实例（Issue #220）
+        # 首次收到 PolicySnapshot 时通过 deepcopy(policy_ref) 创建，
+        # 后续快照仅通过 load_state_dict 更新权重，避免重复深拷贝。
+        eval_policy: Any = None
+
         while not self._stop_event.is_set() or not self._queue.empty():
             try:
                 task = self._queue.get(timeout=0.5)
             except queue.Empty:
                 continue
 
-            eval_policy = task["policy"]
+            policy_or_snapshot = task["policy"]
             step = task["step"]
 
             try:
-                # 确保策略网络在 CPU 评估模式，避免影响训练设备上的张量
-                eval_policy = eval_policy.cpu().eval()
+                eval_policy = self._prepare_eval_policy(policy_or_snapshot, eval_policy)
             except (AttributeError, RuntimeError) as e:
                 logger.error(f"[退火闭环] 步数 {step}: 准备策略网络失败 ({type(e).__name__}: {e})")
                 continue
@@ -274,6 +296,43 @@ class AsyncAnnealingLoop:
                 f"介入率={impact_rate:.1%}, "
                 f"求解器={solver_type}"
             )
+
+    def _prepare_eval_policy(
+        self,
+        policy_or_snapshot: Any,
+        existing_eval_policy: Any,
+    ) -> Any:
+        """根据传入的 policy 或 PolicySnapshot 准备 eval_policy 实例（Issue #220）。
+
+        两种模式：
+        - **旧模式**（直接传 policy 对象）：``.cpu().eval()`` 后返回，与原行为一致
+        - **新模式**（传 PolicySnapshot）：
+            - 首次（``existing_eval_policy is None``）：通过 ``deepcopy(policy_ref)``
+              创建持久化实例，``.cpu().eval()`` 后 ``load_state_dict`` 加载快照权重
+            - 后续：直接 ``load_state_dict`` 更新 ``existing_eval_policy`` 权重，
+              避免重复深拷贝
+
+        Args:
+            policy_or_snapshot: policy 对象或 PolicySnapshot 实例
+            existing_eval_policy: worker_loop 中持久化的 eval_policy（首次为 None）
+
+        Returns:
+            准备好的 eval_policy 实例
+        """
+        # 检测是否为 PolicySnapshot（避免 import 循环，使用鸭子类型）
+        if hasattr(policy_or_snapshot, "state_dict") and hasattr(policy_or_snapshot, "policy_ref"):
+            # 新模式：PolicySnapshot
+            if existing_eval_policy is None:
+                # 首次：deepcopy policy_ref 创建持久化实例
+                eval_policy = copy.deepcopy(policy_or_snapshot.policy_ref).cpu().eval()
+            else:
+                # 后续：复用持久化实例，仅更新权重
+                eval_policy = existing_eval_policy.cpu().eval()
+            eval_policy.load_state_dict(policy_or_snapshot.state_dict)
+            return eval_policy
+
+        # 旧模式：直接传 policy 对象（向后兼容）
+        return policy_or_snapshot.cpu().eval()
 
     def _optimize_policy_call(self, agent_wrapper: Any) -> Any:
         """

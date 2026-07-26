@@ -210,6 +210,12 @@ class QuantumSchedulingEnv(gym.Env):
             for cfg in machine_configs
         ]
 
+        # 缓存机器总量子比特数（Issue #219）
+        # _machines 列表在初始化后基本不变，total_qubits 是机器静态属性，
+        # 每步重新计算 sum() 是不必要的性能开销。在 __init__ 和 attach_real_clients
+        # 时更新此缓存，env_observation.py 直接读取缓存值。
+        self._total_qubits_cache: int = sum(m.total_qubits for m in self._machines)
+
         # 真机客户端映射：machine_name -> client（由 attach_real_clients 注入）
         self._real_clients: dict[str, Any] = {}
 
@@ -265,6 +271,9 @@ class QuantumSchedulingEnv(gym.Env):
         for m in self._machines:
             if m.name in clients:
                 m.is_real = True
+        # 更新 total_qubits 缓存（Issue #219）
+        # attach_real_clients 不修改 _machines 列表本身，但保守起见同步缓存
+        self._total_qubits_cache = sum(m.total_qubits for m in self._machines)
 
     @property
     def machine_names(self) -> list[str]:

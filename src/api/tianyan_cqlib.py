@@ -97,14 +97,62 @@ class CqlibTianyanClient:
         return self._platform
 
     def authenticate(self) -> bool:
-        """验证 API Key 有效性"""
+        """验证 API Key 有效性。
+
+        异常分类（Issue #218）：
+        - 网络异常（ConnectionError/TimeoutError/OSError）：返回 False 但不记录为
+          认证失败，调用方可通过 ``authenticate_strict()`` 区分网络问题和凭证错误。
+        - 认证错误（凭证无效/权限不足）：记录 ERROR 级别日志，明确为永久性错误。
+
+        Returns:
+            bool: True 表示认证成功，False 表示失败（含网络问题和凭证错误）
+        """
         try:
             _ = self.platform
             return True
+        except OSError as e:
+            # 网络问题：连接超时/拒绝/不可达，不应被视为认证失败
+            logger.warning(f"[Cqlib] 认证时遭遇网络问题（不计入凭证失败）: {type(e).__name__}: {e}")
+            return False
         except Exception as e:
             # cqlib 平台连接异常类型无法穷举，保留宽捕获并记录日志
-            logger.error(f"[Cqlib] 认证失败: {e}")
+            # 默认视为永久性错误（凭证无效/权限不足等）
+            logger.error(f"[Cqlib] 认证失败（凭证或服务端问题）: {e}")
             return False
+
+    def authenticate_strict(self) -> tuple[bool, str | None, bool]:
+        """严格认证：返回认证结果、错误信息和是否为暂时性错误（Issue #218）。
+
+        与 ``authenticate()`` 的区别：调用方可以基于返回的三元组明确区分
+        "网络问题"（暂时性，可重试）和"凭证错误"（永久性，应降级）。
+
+        Returns:
+            tuple[bool, str | None, bool]:
+            - 成功标志（True 表示认证通过）
+            - 错误信息（成功时为 None）
+            - 是否为暂时性错误（True 表示网络/服务端问题，可重试）
+        """
+        try:
+            _ = self.platform
+            return True, None, False
+        except OSError as e:
+            # 网络问题：暂时性错误，不应触发降级
+            return False, f"网络异常: {type(e).__name__}: {e}", True
+        except Exception as e:
+            # cqlib 平台连接异常：默认视为永久性错误
+            err_msg = str(e)
+            # 部分关键字提示为暂时性服务端错误（5xx）
+            transient_keywords = (
+                "internal server error",
+                "service unavailable",
+                "gateway timeout",
+                "bad gateway",
+                "server error",
+                "服务繁忙",
+                "暂时不可用",
+            )
+            is_transient = any(kw in err_msg.lower() for kw in transient_keywords)
+            return False, f"认证失败: {err_msg}", is_transient
 
     def list_backends(self) -> list[dict[str, Any]]:
         """列出所有可用的量子计算机"""

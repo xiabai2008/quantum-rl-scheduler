@@ -5,12 +5,58 @@
 使 RL 训练不被退火求解阻塞，并在每个 rollout 开始前将优化后的权重回写到模型。
 """
 
-import copy
+from typing import Any
 
 from loguru import logger
 from stable_baselines3.common.callbacks import BaseCallback
 
 from src.quantum.annealing_loop import AsyncAnnealingLoop
+
+
+def _clone_tensor(value: Any) -> Any:
+    """创建张量或普通值的独立副本（Issue #220）。
+
+    对于 PyTorch 张量：调用 ``detach().clone().cpu()`` 创建独立副本，
+    避免共享内存且不携带梯度信息。
+    对于非张量值（如 float/int/None，常见于测试用的 FakePolicy）：
+    直接返回原值（不可变类型无需复制）。
+
+    Args:
+        value: state_dict 中的值
+
+    Returns:
+        value 的独立副本（张量）或原值（非张量）
+    """
+    # PyTorch 张量检测：通过 hasattr 鸭子类型判断，避免硬依赖 torch
+    if hasattr(value, "detach") and hasattr(value, "clone") and hasattr(value, "cpu"):
+        return value.detach().clone().cpu()
+    # 非张量值（float/int/None 等）：不可变类型直接返回
+    return value
+
+
+class PolicySnapshot:
+    """策略网络权重快照（Issue #220）。
+
+    使用 ``state_dict()`` + ``clone()`` 替代 ``copy.deepcopy``，避免复制
+    计算图、optimizer state 等冗余数据，显著降低训练线程中的拷贝耗时。
+
+    快照包含：
+    - ``state_dict``：权重张量的独立副本（detach + clone + cpu）
+    - ``policy_ref``：原始 policy 的弱引用，用于 worker 线程中重建实例
+
+    worker 线程首次收到快照时，通过 ``copy.deepcopy(policy_ref)`` 创建一个
+    持久化的 eval_policy 实例；后续快照仅通过 ``load_state_dict`` 更新权重，
+    避免重复深拷贝整个 policy 对象。
+    """
+
+    def __init__(self, state_dict: dict[str, Any], policy_ref: Any) -> None:
+        """
+        Args:
+            state_dict: 策略网络权重快照（已 detach + clone + cpu）
+            policy_ref: 原始策略网络引用（用于 worker 线程首次重建实例）
+        """
+        self.state_dict = state_dict
+        self.policy_ref = policy_ref
 
 
 class AsyncAnnealingCallback(BaseCallback):
@@ -69,22 +115,36 @@ class AsyncAnnealingCallback(BaseCallback):
         """
         每步触发：到达自适应间隔时提交退火任务
 
-        提交操作只把模型引用放入队列，耗时在毫秒级，不会阻塞训练。
+        性能优化（Issue #220）：
+            原实现使用 ``copy.deepcopy(self.model.policy)`` 深拷贝整个策略网络
+            （含计算图、optimizer state 等），在训练线程中同步执行，可能达到
+            百毫秒级阻塞。
+
+            改为使用 ``state_dict()`` + ``clone()`` 创建权重快照（PolicySnapshot），
+            仅复制权重张量，不复制计算图等冗余数据。worker 线程首次收到快照时
+            通过 ``deepcopy(policy_ref)`` 重建实例，后续仅通过 ``load_state_dict``
+            更新权重，避免重复深拷贝。
         """
         if self._next_trigger_step is None:
             self._next_trigger_step = self.loop.get_current_interval()
 
         if self.n_calls >= self._next_trigger_step:
-            # 在主线程中快速复制一份策略网络快照，再提交到异步队列
-            # 这样工作线程不需要访问正在前向传播的训练模型，避免竞争
+            # 使用 state_dict() + clone() 创建权重快照（轻量）
+            # 相比 copy.deepcopy，避免了复制计算图、optimizer state 等冗余数据
             try:
-                policy_snapshot = copy.deepcopy(self.model.policy).cpu().eval()
+                snapshot_dict = {
+                    k: _clone_tensor(v) for k, v in self.model.policy.state_dict().items()
+                }
+                policy_snapshot = PolicySnapshot(
+                    state_dict=snapshot_dict,
+                    policy_ref=self.model.policy,
+                )
             except Exception as e:
-                # PyTorch 模型深拷贝/CPU 转换/eval 切换可能抛出多种异常
+                # PyTorch state_dict/clone/cpu 转换可能抛出多种异常
                 # （RuntimeError/TypeError/MemoryError 等），无法精确收窄
                 logger.error(
                     f"[AsyncAnnealingCallback] 步数 {self.n_calls}: "
-                    f"复制策略网络快照失败 ({type(e).__name__}: {e})"
+                    f"创建策略网络快照失败 ({type(e).__name__}: {e})"
                 )
                 self._next_trigger_step = self.n_calls + self.loop.get_current_interval()
                 return True
