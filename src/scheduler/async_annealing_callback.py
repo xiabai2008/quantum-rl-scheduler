@@ -25,33 +25,43 @@ class AsyncAnnealingCallback(BaseCallback):
         3. _on_training_end: 关闭异步退火工作线程
 
     Attributes:
-        loop          : 异步退火闭环控制器
-        verbose       : 日志详细程度
+        loop            : 异步退火闭环控制器
+        verbose         : 日志详细程度
+        annealing_mode  : 退火模式（透传给 loop），"head_only" / "hierarchical"
     """
 
     def __init__(
         self,
         loop: AsyncAnnealingLoop,
         verbose: int = 0,
+        annealing_mode: str = "head_only",
     ):
         """
         初始化异步退火回调
 
         Args:
-            loop   : AsyncAnnealingLoop 实例
-            verbose: 日志详细程度，0=静默，1=打印关键事件
+            loop           : AsyncAnnealingLoop 实例
+            verbose        : 日志详细程度，0=静默，1=打印关键事件
+            annealing_mode : 退火模式，透传给 AsyncAnnealingLoop。
+                             "head_only"（默认，仅尾部参数）或
+                             "hierarchical"（分层分块全量退火）。
+                             在 _init_callback 中应用到 loop，启动工作线程前生效。
         """
         super().__init__(verbose)
         self.loop = loop
+        self.annealing_mode = str(annealing_mode)
         self._next_trigger_step: int | None = None
 
     def _init_callback(self) -> None:
-        """回调初始化：启动异步退火工作线程并设置首次触发步数。"""
+        """回调初始化：透传退火模式、启动异步退火工作线程并设置首次触发步数。"""
+        # 透传退火模式到 loop（在启动工作线程前生效）
+        self.loop.annealing_mode = self.annealing_mode
         self.loop.start()
         self._next_trigger_step = self.loop.get_current_interval()
         if self.verbose:
             logger.info(
                 f"[AsyncAnnealingCallback] 异步退火回调已启动，"
+                f"退火模式={self.annealing_mode}, "
                 f"首次触发步数={self._next_trigger_step}"
             )
 
@@ -130,4 +140,4 @@ class AsyncAnnealingCallback(BaseCallback):
 
 
 if __name__ == "__main__":
-    print("AsyncAnnealingCallback 模块已加载，请配合 AsyncAnnealingLoop 使用")
+    logger.info("AsyncAnnealingCallback 模块已加载，请配合 AsyncAnnealingLoop 使用")

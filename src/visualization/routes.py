@@ -4,9 +4,16 @@ REST API 路由处理器
 使用 APIRouter 定义所有 HTTP 路由，并在 app.py 中通过 ``app.include_router(router)``
 注册。路由路径与原 app.py 完全一致，保持向后兼容。
 
-为兼容测试对 app 模块全局状态的 monkeypatch，本模块通过 ``_app`` 引用访问
-app 模块上的共享状态与辅助函数（system_status / task_queue / manager /
-_get_ppo_model / _PROJECT_ROOT 等），确保运行时看到的总是 app 模块当前绑定。
+共享状态访问（Issue #179）：
+    共享全局状态（``system_status`` / ``task_queue`` / ``manager`` /
+    ``_resource_history`` / ``_decision_log`` / ``_battle_state``）从
+    ``state.py`` 直接导入，不再通过 ``_app`` 中转，减少循环依赖耦合。
+
+    辅助函数（``_get_ppo_model`` / ``_get_real_machines_status`` /
+    ``_load_real_submissions`` / ``_get_quota_tracker`` / ``_load_vue3_template``）
+    及懒加载状态（``_ppo_env``）和路径常量（``_PROJECT_ROOT``）仍通过
+    ``_app`` 访问——这些符号被测试通过 ``monkeypatch.setattr(app_module, ...)``
+    替换，必须保留在 app 模块上。
 """
 
 import json
@@ -21,6 +28,7 @@ from loguru import logger
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 
 import src.visualization.app as _app
+from src.visualization import state
 from src.visualization.models import SystemStatusUpdate, TaskSubmit
 
 router = APIRouter()
@@ -66,7 +74,7 @@ async def root() -> HTMLResponse:
 @router.get("/api/status")
 async def get_status() -> dict:
     """获取当前系统状态（JSON）"""
-    return _app.system_status
+    return state.system_status
 
 
 @router.get("/api/real-machines")
@@ -105,8 +113,8 @@ async def get_tasks(status: str | None = None) -> list[dict]:
     - 不传: 返回全部任务
     """
     if status:
-        return [t for t in _app.task_queue if t["status"] == status]
-    return _app.task_queue
+        return [t for t in state.task_queue if t["status"] == status]
+    return state.task_queue
 
 
 @router.post("/api/tasks")
@@ -123,18 +131,18 @@ async def submit_task(task: TaskSubmit, _auth: None = Depends(verify_api_key)) -
         "estimated_time": task.estimated_time,
         "arrival_time": datetime.now().isoformat(),
     }
-    _app.task_queue.append(new_task)
+    state.task_queue.append(new_task)
     # 更新系统状态中的队列长度
-    _app.system_status["queue_length"] = len(
-        [t for t in _app.task_queue if t["status"] == "pending"]
+    state.system_status["queue_length"] = len(
+        [t for t in state.task_queue if t["status"] == "pending"]
     )
-    _app.system_status["last_update"] = datetime.now().isoformat()
+    state.system_status["last_update"] = datetime.now().isoformat()
     # 广播更新
-    await _app.manager.broadcast(
+    await state.manager.broadcast(
         {
             "type": "task_added",
             "task": new_task,
-            "status": _app.system_status,
+            "status": state.system_status,
         }
     )
     return {"message": "任务提交成功", "task_id": new_task["task_id"]}
@@ -146,23 +154,23 @@ async def get_metrics() -> str:
     lines = [
         "# HELP quantum_scheduler_qubit_utilization 量子比特利用率 0~1",
         "# TYPE quantum_scheduler_qubit_utilization gauge",
-        f"quantum_scheduler_qubit_utilization {_app.system_status['qubit_utilization']:.4f}",
+        f"quantum_scheduler_qubit_utilization {state.system_status['qubit_utilization']:.4f}",
         "",
         "# HELP quantum_scheduler_queue_length 任务队列长度",
         "# TYPE quantum_scheduler_queue_length gauge",
-        f"quantum_scheduler_queue_length {_app.system_status['queue_length']}",
+        f"quantum_scheduler_queue_length {state.system_status['queue_length']}",
         "",
         "# HELP quantum_scheduler_completed_tasks 已完成任务总数",
         "# TYPE quantum_scheduler_completed_tasks counter",
-        f"quantum_scheduler_completed_tasks {_app.system_status['completed_tasks']}",
+        f"quantum_scheduler_completed_tasks {state.system_status['completed_tasks']}",
         "",
         "# HELP quantum_scheduler_avg_wait_time 平均等待时间(秒)",
         "# TYPE quantum_scheduler_avg_wait_time gauge",
-        f"quantum_scheduler_avg_wait_time {_app.system_status['average_wait_time']:.2f}",
+        f"quantum_scheduler_avg_wait_time {state.system_status['average_wait_time']:.2f}",
         "",
         "# HELP quantum_scheduler_current_step 当前调度步数",
         "# TYPE quantum_scheduler_current_step counter",
-        f"quantum_scheduler_current_step {_app.system_status['current_step']}",
+        f"quantum_scheduler_current_step {state.system_status['current_step']}",
     ]
     return "\n".join(lines)
 
@@ -245,17 +253,17 @@ async def ready() -> dict:
 @router.post("/api/strategy")
 async def switch_strategy(strategy: str, _auth: None = Depends(verify_api_key)) -> dict:
     """切换调度策略"""
-    if strategy not in _app.system_status["strategy_options"]:
+    if strategy not in state.system_status["strategy_options"]:
         return {"message": f"未知策略: {strategy}", "success": False}
-    old = _app.system_status["current_strategy"]
-    _app.system_status["current_strategy"] = strategy
-    _app.system_status["last_update"] = datetime.now().isoformat()
-    await _app.manager.broadcast(
+    old = state.system_status["current_strategy"]
+    state.system_status["current_strategy"] = strategy
+    state.system_status["last_update"] = datetime.now().isoformat()
+    await state.manager.broadcast(
         {
             "type": "strategy_changed",
             "old_strategy": old,
             "new_strategy": strategy,
-            "status": _app.system_status,
+            "status": state.system_status,
         }
     )
     return {"message": f"策略切换: {old} -> {strategy}", "success": True}
@@ -264,18 +272,18 @@ async def switch_strategy(strategy: str, _auth: None = Depends(verify_api_key)) 
 @router.post("/api/update")
 async def update_status(update: SystemStatusUpdate, _auth: None = Depends(verify_api_key)) -> dict:
     """更新系统状态（供调度引擎调用）"""
-    _app.system_status["qubit_utilization"] = update.qubit_utilization
-    _app.system_status["queue_length"] = update.queue_length
-    _app.system_status["completed_tasks"] = update.completed_tasks
-    _app.system_status["average_wait_time"] = update.average_wait_time
-    _app.system_status["last_update"] = datetime.now().isoformat()
-    await _app.manager.broadcast(
+    state.system_status["qubit_utilization"] = update.qubit_utilization
+    state.system_status["queue_length"] = update.queue_length
+    state.system_status["completed_tasks"] = update.completed_tasks
+    state.system_status["average_wait_time"] = update.average_wait_time
+    state.system_status["last_update"] = datetime.now().isoformat()
+    await state.manager.broadcast(
         {
             "type": "status_update",
-            "status": _app.system_status,
+            "status": state.system_status,
         }
     )
-    return {"message": "状态更新成功", "status": _app.system_status}
+    return {"message": "状态更新成功", "status": state.system_status}
 
 
 # ============================================================
@@ -447,7 +455,7 @@ async def get_resource_history() -> dict:
         包含 history 列表的字典，每项含 step/qubit_utilization/queue_length/
         completed_tasks/average_wait_time 字段
     """
-    return {"history": _app._resource_history[-100:]}
+    return {"history": state._resource_history[-100:]}
 
 
 @router.get("/api/decision-log")
@@ -460,7 +468,7 @@ async def get_decision_log() -> dict:
     Returns:
         包含 decisions 列表的字典
     """
-    return {"decisions": _app._decision_log[-200:]}
+    return {"decisions": state._decision_log[-200:]}
 
 
 @router.get("/api/machines-comparison")
@@ -474,7 +482,7 @@ async def get_machines_comparison() -> dict:
         包含 machines 列表的字典
     """
     machines: list[dict[str, Any]] = []
-    for m in _app.system_status.get("real_machines", []):
+    for m in state.system_status.get("real_machines", []):
         machines.append(
             {
                 "name": m.get("name", "unknown"),
@@ -522,7 +530,7 @@ async def get_explainability(limit: int = 20) -> dict:
     Returns:
         包含 decisions 列表和 count 的字典
     """
-    decisions = _app._decision_log[-min(limit, 200) :]
+    decisions = state._decision_log[-min(limit, 200) :]
     result = [
         {
             "step": d.get("step"),
@@ -547,7 +555,7 @@ async def get_explainability_summary() -> dict:
     Returns:
         包含 feature_importance 列表和 total_decisions 的字典
     """
-    records = [d for d in _app._decision_log if "feature_contributions" in d]
+    records = [d for d in state._decision_log if "feature_contributions" in d]
     if not records:
         return {"feature_importance": [], "total_decisions": 0}
 
@@ -584,7 +592,7 @@ async def get_explainability_latest() -> dict:
     Returns:
         包含 latest 决策记录的字典；无记录时返回 empty=True
     """
-    for d in reversed(_app._decision_log):
+    for d in reversed(state._decision_log):
         if "feature_contributions" in d:
             return {
                 "empty": False,
@@ -612,25 +620,25 @@ async def battle_start(_auth: None = Depends(verify_api_key)) -> dict:
         from src.scheduler.env import QuantumSchedulingEnv
 
         # 创建两个独立环境（相同 seed 确保公平对比）
-        _app._battle_state["ppo_env"] = QuantumSchedulingEnv(max_qubits=20, seed=42)
-        _app._battle_state["fcfs_env"] = QuantumSchedulingEnv(max_qubits=20, seed=42)
+        state._battle_state["ppo_env"] = QuantumSchedulingEnv(max_qubits=20, seed=42)
+        state._battle_state["fcfs_env"] = QuantumSchedulingEnv(max_qubits=20, seed=42)
 
-        _app._battle_state["ppo_obs"], _ = _app._battle_state["ppo_env"].reset()
-        _app._battle_state["fcfs_obs"], _ = _app._battle_state["fcfs_env"].reset()
+        state._battle_state["ppo_obs"], _ = state._battle_state["ppo_env"].reset()
+        state._battle_state["fcfs_obs"], _ = state._battle_state["fcfs_env"].reset()
 
-        _app._battle_state["running"] = True
-        _app._battle_state["step"] = 0
-        _app._battle_state["ppo_reward"] = 0.0
-        _app._battle_state["fcfs_reward"] = 0.0
-        _app._battle_state["ppo_history"] = []
-        _app._battle_state["fcfs_history"] = []
+        state._battle_state["running"] = True
+        state._battle_state["step"] = 0
+        state._battle_state["ppo_reward"] = 0.0
+        state._battle_state["fcfs_reward"] = 0.0
+        state._battle_state["ppo_history"] = []
+        state._battle_state["fcfs_history"] = []
 
         return {
             "success": True,
             "message": "对战已启动",
             "step": 0,
-            "ppo_obs": _app._battle_state["ppo_obs"].tolist()[:5],
-            "fcfs_obs": _app._battle_state["fcfs_obs"].tolist()[:5],
+            "ppo_obs": state._battle_state["ppo_obs"].tolist()[:5],
+            "fcfs_obs": state._battle_state["fcfs_obs"].tolist()[:5],
         }
     except Exception as e:
         logger.error(f"[Web] 对战启动失败: {e}")
@@ -647,7 +655,7 @@ async def battle_step(_auth: None = Depends(verify_api_key)) -> dict:
     Returns:
         包含本步两个策略的 reward/action/util 和累积奖励的字典
     """
-    if not _app._battle_state["running"]:
+    if not state._battle_state["running"]:
         return {"error": "对战未启动，请先调用 /api/battle/start"}
 
     try:
@@ -659,63 +667,63 @@ async def battle_step(_auth: None = Depends(verify_api_key)) -> dict:
         ppo_done = False
 
         if model is not None:
-            ppo_action, _ = model.predict(_app._battle_state["ppo_obs"], deterministic=True)
-            new_obs, reward, terminated, truncated, _info = _app._battle_state["ppo_env"].step(
+            ppo_action, _ = model.predict(state._battle_state["ppo_obs"], deterministic=True)
+            new_obs, reward, terminated, truncated, _info = state._battle_state["ppo_env"].step(
                 int(ppo_action)
             )
             ppo_step_reward = float(reward)
             ppo_util = float(new_obs[0])  # 量子比特可用率
-            _app._battle_state["ppo_reward"] += ppo_step_reward
-            _app._battle_state["ppo_obs"] = new_obs
+            state._battle_state["ppo_reward"] += ppo_step_reward
+            state._battle_state["ppo_obs"] = new_obs
             ppo_done = terminated or truncated
             if ppo_done:
-                _app._battle_state["ppo_obs"], _ = _app._battle_state["ppo_env"].reset()
+                state._battle_state["ppo_obs"], _ = state._battle_state["ppo_env"].reset()
 
         # --- FCFS 策略（固定选择经典资源=动作0） ---
         fcfs_action = 0
-        new_obs, reward, terminated, truncated, _info = _app._battle_state["fcfs_env"].step(0)
+        new_obs, reward, terminated, truncated, _info = state._battle_state["fcfs_env"].step(0)
         fcfs_step_reward = float(reward)
         fcfs_util = float(new_obs[0])
-        _app._battle_state["fcfs_reward"] += fcfs_step_reward
-        _app._battle_state["fcfs_obs"] = new_obs
+        state._battle_state["fcfs_reward"] += fcfs_step_reward
+        state._battle_state["fcfs_obs"] = new_obs
         fcfs_done = terminated or truncated
         if fcfs_done:
-            _app._battle_state["fcfs_obs"], _ = _app._battle_state["fcfs_env"].reset()
+            state._battle_state["fcfs_obs"], _ = state._battle_state["fcfs_env"].reset()
 
         # 更新步数
-        _app._battle_state["step"] += 1
-        step = _app._battle_state["step"]
+        state._battle_state["step"] += 1
+        step = state._battle_state["step"]
 
         # 记录历史
         ppo_entry = {
             "step": step,
             "reward": round(ppo_step_reward, 4),
-            "cumulative": round(_app._battle_state["ppo_reward"], 2),
+            "cumulative": round(state._battle_state["ppo_reward"], 2),
             "action": int(ppo_action),
             "util": round(ppo_util, 4),
         }
         fcfs_entry = {
             "step": step,
             "reward": round(fcfs_step_reward, 4),
-            "cumulative": round(_app._battle_state["fcfs_reward"], 2),
+            "cumulative": round(state._battle_state["fcfs_reward"], 2),
             "action": int(fcfs_action),
             "util": round(fcfs_util, 4),
         }
-        _app._battle_state["ppo_history"].append(ppo_entry)
-        _app._battle_state["fcfs_history"].append(fcfs_entry)
+        state._battle_state["ppo_history"].append(ppo_entry)
+        state._battle_state["fcfs_history"].append(fcfs_entry)
 
         # 限制历史长度
-        if len(_app._battle_state["ppo_history"]) > 200:
-            _app._battle_state["ppo_history"] = _app._battle_state["ppo_history"][-200:]
-            _app._battle_state["fcfs_history"] = _app._battle_state["fcfs_history"][-200:]
+        if len(state._battle_state["ppo_history"]) > 200:
+            state._battle_state["ppo_history"] = state._battle_state["ppo_history"][-200:]
+            state._battle_state["fcfs_history"] = state._battle_state["fcfs_history"][-200:]
 
         return {
             "step": step,
             "ppo": ppo_entry,
             "fcfs": fcfs_entry,
-            "ppo_total": round(_app._battle_state["ppo_reward"], 2),
-            "fcfs_total": round(_app._battle_state["fcfs_reward"], 2),
-            "gap": round(_app._battle_state["ppo_reward"] - _app._battle_state["fcfs_reward"], 2),
+            "ppo_total": round(state._battle_state["ppo_reward"], 2),
+            "fcfs_total": round(state._battle_state["fcfs_reward"], 2),
+            "gap": round(state._battle_state["ppo_reward"] - state._battle_state["fcfs_reward"], 2),
         }
     except Exception as e:
         logger.error(f"[Web] 对战步进失败: {e}")
@@ -730,27 +738,27 @@ async def battle_status() -> dict:
         包含 running/step/累积奖励/历史数据的字典
     """
     return {
-        "running": _app._battle_state["running"],
-        "step": _app._battle_state["step"],
-        "ppo_total": round(_app._battle_state["ppo_reward"], 2),
-        "fcfs_total": round(_app._battle_state["fcfs_reward"], 2),
-        "gap": round(_app._battle_state["ppo_reward"] - _app._battle_state["fcfs_reward"], 2),
-        "ppo_history": _app._battle_state["ppo_history"][-50:],
-        "fcfs_history": _app._battle_state["fcfs_history"][-50:],
+        "running": state._battle_state["running"],
+        "step": state._battle_state["step"],
+        "ppo_total": round(state._battle_state["ppo_reward"], 2),
+        "fcfs_total": round(state._battle_state["fcfs_reward"], 2),
+        "gap": round(state._battle_state["ppo_reward"] - state._battle_state["fcfs_reward"], 2),
+        "ppo_history": state._battle_state["ppo_history"][-50:],
+        "fcfs_history": state._battle_state["fcfs_history"][-50:],
     }
 
 
 @router.post("/api/battle/reset")
 async def battle_reset(_auth: None = Depends(verify_api_key)) -> dict:
     """重置对战状态（Day4-7-11）。"""
-    _app._battle_state["running"] = False
-    _app._battle_state["step"] = 0
-    _app._battle_state["ppo_reward"] = 0.0
-    _app._battle_state["fcfs_reward"] = 0.0
-    _app._battle_state["ppo_history"] = []
-    _app._battle_state["fcfs_history"] = []
-    _app._battle_state["ppo_env"] = None
-    _app._battle_state["fcfs_env"] = None
-    _app._battle_state["ppo_obs"] = None
-    _app._battle_state["fcfs_obs"] = None
+    state._battle_state["running"] = False
+    state._battle_state["step"] = 0
+    state._battle_state["ppo_reward"] = 0.0
+    state._battle_state["fcfs_reward"] = 0.0
+    state._battle_state["ppo_history"] = []
+    state._battle_state["fcfs_history"] = []
+    state._battle_state["ppo_env"] = None
+    state._battle_state["fcfs_env"] = None
+    state._battle_state["ppo_obs"] = None
+    state._battle_state["fcfs_obs"] = None
     return {"success": True, "message": "对战已重置"}

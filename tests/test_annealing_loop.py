@@ -86,9 +86,11 @@ class FakeOptimizer:
         self.fail_count = int(fail_count)
         self.weight_boost = float(weight_boost)
         self.simulation_mode = bool(simulation_mode)
+        self.last_kwargs: dict[str, Any] = {}
 
     def optimize_policy(self, agent: Any, **kwargs: Any) -> Any:
         """模拟退火优化：增加 policy.weight，支持按次数失败。"""
+        self.last_kwargs = dict(kwargs)
         if self.sleep > 0:
             time.sleep(self.sleep)
         if self.fail_count > 0:
@@ -274,6 +276,238 @@ def test_callback_writes_back_pending_weights():
 
     # 回写后 pending_result 应被清空
     assert loop.peek_pending_result() is None
+
+
+# ============================================================
+# Issue #148: 分层退火模式（annealing_mode）路由测试
+# ============================================================
+def test_annealing_mode_default_is_head_only():
+    """验证 annealing_mode 默认值为 'head_only'，保持向后兼容。"""
+    optimizer = FakeOptimizer()
+    env = FakeEnv()
+    loop = AsyncAnnealingLoop(optimizer, env, retry_delays=[0.0, 0.0])
+    assert loop.annealing_mode == "head_only"
+
+
+def test_annealing_mode_invalid_raises_value_error():
+    """验证传入无效的 annealing_mode 会抛出 ValueError。"""
+    optimizer = FakeOptimizer()
+    env = FakeEnv()
+    with pytest.raises(ValueError, match="annealing_mode"):
+        AsyncAnnealingLoop(optimizer, env, annealing_mode="invalid_mode")
+
+
+def test_annealing_mode_head_only_routing():
+    """验证 head_only 模式调用 optimize_policy 时传 head_only=True。"""
+    optimizer = FakeOptimizer(weight_boost=1.0)
+    env = FakeEnv()
+    loop = AsyncAnnealingLoop(
+        optimizer, env, initial_interval=100, retry_delays=[0.0, 0.0]
+    )
+    loop.start()
+
+    model = FakeModel(weight=0.0)
+    loop.submit(model.policy, step=10)
+    loop.shutdown()
+
+    # head_only 模式应传 head_only=True，不传 mode
+    assert optimizer.last_kwargs.get("head_only") is True
+    assert "mode" not in optimizer.last_kwargs
+
+
+def test_annealing_mode_hierarchical_routing():
+    """验证 hierarchical 模式调用 optimize_policy 时传 mode='hierarchical'。"""
+    optimizer = FakeOptimizer(weight_boost=1.0)
+    env = FakeEnv()
+    loop = AsyncAnnealingLoop(
+        optimizer,
+        env,
+        initial_interval=100,
+        retry_delays=[0.0, 0.0],
+        annealing_mode="hierarchical",
+    )
+    loop.start()
+
+    model = FakeModel(weight=0.0)
+    loop.submit(model.policy, step=10)
+    loop.shutdown()
+
+    # hierarchical 模式应传 mode='hierarchical' 及分块参数
+    assert optimizer.last_kwargs.get("mode") == "hierarchical"
+    assert optimizer.last_kwargs.get("max_params_per_block") == 200
+    assert optimizer.last_kwargs.get("block_strategy") == "tensor_wise"
+    # 不应传 head_only
+    assert "head_only" not in optimizer.last_kwargs
+
+
+def test_callback_passes_annealing_mode_to_loop():
+    """验证 AsyncAnnealingCallback 将 annealing_mode 透传给 loop。"""
+    optimizer = FakeOptimizer()
+    env = FakeEnv()
+    loop = AsyncAnnealingLoop(
+        optimizer, env, initial_interval=100, retry_delays=[0.0, 0.0]
+    )
+    # loop 默认 head_only，callback 传 hierarchical 应覆盖
+    callback = AsyncAnnealingCallback(
+        loop, verbose=0, annealing_mode="hierarchical"
+    )
+    callback._init_callback()
+    assert loop.annealing_mode == "hierarchical"
+    loop.shutdown()
+
+
+# ============================================================
+# Issue #194: 介入率统计 (impact_rate) 测试
+# ============================================================
+def test_min_effective_reward_delta_param_accepted():
+    """验证 min_effective_reward_delta 参数被正确接受。"""
+    optimizer = FakeOptimizer()
+    env = FakeEnv()
+    loop = AsyncAnnealingLoop(
+        optimizer,
+        env,
+        retry_delays=[0.0, 0.0],
+        min_effective_reward_delta=2.0,
+    )
+    assert loop.min_effective_reward_delta == 2.0
+
+
+def test_min_effective_reward_delta_default_value():
+    """验证 min_effective_reward_delta 默认值为 1.0。"""
+    optimizer = FakeOptimizer()
+    env = FakeEnv()
+    loop = AsyncAnnealingLoop(optimizer, env, retry_delays=[0.0, 0.0])
+    assert loop.min_effective_reward_delta == 1.0
+
+
+def test_update_interval_returns_effectiveness():
+    """验证 _update_interval 返回布尔值表示是否有效介入。"""
+    optimizer = FakeOptimizer()
+    env = FakeEnv()
+    loop = AsyncAnnealingLoop(
+        optimizer,
+        env,
+        retry_delays=[0.0, 0.0],
+        min_effective_reward_delta=1.0,
+    )
+    # delta=2.0 > 1.0 -> 有效
+    assert loop._update_interval(2.0) is True
+    # delta=0.5 < 1.0 -> 无效
+    assert loop._update_interval(0.5) is False
+    # delta=1.0 不大于 1.0 -> 无效（严格大于）
+    assert loop._update_interval(1.0) is False
+
+
+def test_get_impact_rate_zero_when_no_triggers():
+    """验证无触发时 get_impact_rate 返回 0.0。"""
+    optimizer = FakeOptimizer()
+    env = FakeEnv()
+    loop = AsyncAnnealingLoop(optimizer, env, retry_delays=[0.0, 0.0])
+    assert loop.get_impact_rate() == 0.0
+
+
+def test_get_impact_rate_after_triggers():
+    """验证多次触发后 get_impact_rate 计算正确。"""
+    optimizer = FakeOptimizer()
+    env = FakeEnv()
+    loop = AsyncAnnealingLoop(
+        optimizer,
+        env,
+        retry_delays=[0.0, 0.0],
+        min_effective_reward_delta=1.0,
+    )
+    # 3 次触发：2 次有效（delta=2.0, 3.0），1 次无效（delta=0.5）
+    loop._update_interval(2.0)  # effective
+    loop._update_interval(0.5)  # ineffective
+    loop._update_interval(3.0)  # effective
+    assert loop.get_impact_rate() == pytest.approx(2.0 / 3.0)
+
+
+def test_impact_rate_in_history_records(tmp_path):
+    """验证退火历史记录中包含 impact_rate 和 effective 字段。"""
+    optimizer = FakeOptimizer(weight_boost=1.0)
+    env = FakeEnv()
+    log_path = tmp_path / "impact_log.json"
+    loop = AsyncAnnealingLoop(
+        optimizer,
+        env,
+        eval_episodes=2,
+        initial_interval=100,
+        retry_delays=[0.0, 0.0],
+        log_path=str(log_path),
+        min_effective_reward_delta=1.0,
+    )
+    loop.start()
+
+    model = FakeModel(weight=0.0)
+    loop.submit(model.policy, step=10)
+    loop.shutdown()
+
+    history = loop.get_history()
+    assert len(history) == 1
+    record = history[0]
+    assert "impact_rate" in record
+    assert "effective" in record
+    assert isinstance(record["impact_rate"], float)
+    assert isinstance(record["effective"], bool)
+    # FakeOptimizer weight_boost=1.0，FakeEnv max_steps=3
+    # delta = new_reward(3.0) - old_reward(0.0) = 3.0 > 1.0 -> effective
+    assert record["effective"] is True
+    assert record["impact_rate"] == 1.0
+
+
+def test_impact_rate_in_log_file(tmp_path):
+    """验证 JSON 日志文件中每条记录包含 impact_rate 字段。"""
+    optimizer = FakeOptimizer(weight_boost=1.0)
+    env = FakeEnv()
+    log_path = tmp_path / "impact_file_log.json"
+    loop = AsyncAnnealingLoop(
+        optimizer,
+        env,
+        eval_episodes=2,
+        initial_interval=100,
+        retry_delays=[0.0, 0.0],
+        log_path=str(log_path),
+        min_effective_reward_delta=1.0,
+    )
+    loop.start()
+
+    model = FakeModel(weight=0.0)
+    loop.submit(model.policy, step=10)
+    loop.shutdown()
+
+    assert log_path.exists()
+    with open(log_path, encoding="utf-8") as f:
+        loaded = json.load(f)
+    assert len(loaded) == 1
+    assert "impact_rate" in loaded[0]
+    assert "effective" in loaded[0]
+
+
+def test_impact_rate_low_when_delta_below_threshold(tmp_path):
+    """验证当退火奖励变化低于阈值时，介入率为 0。"""
+    # weight_boost=0.1 -> delta 很小，低于 min_effective_reward_delta=1.0
+    optimizer = FakeOptimizer(weight_boost=0.1)
+    env = FakeEnv()
+    loop = AsyncAnnealingLoop(
+        optimizer,
+        env,
+        eval_episodes=2,
+        initial_interval=100,
+        retry_delays=[0.0, 0.0],
+        min_effective_reward_delta=1.0,
+    )
+    loop.start()
+
+    model = FakeModel(weight=0.0)
+    loop.submit(model.policy, step=10)
+    loop.shutdown()
+
+    history = loop.get_history()
+    assert len(history) == 1
+    # delta = 0.3 (0.1 * 3 steps) < 1.0 -> 无效
+    assert history[0]["effective"] is False
+    assert history[0]["impact_rate"] == 0.0
 
 
 if __name__ == "__main__":

@@ -16,6 +16,7 @@ One-Click Demo Script
 
 import argparse
 import os
+import shlex
 import subprocess
 import sys
 from pathlib import Path
@@ -39,10 +40,10 @@ def step(title):
 
 
 def run_command(cmd, env=None):
-    """运行命令并打印输出"""
+    """运行命令并打印输出（使用 shlex.split 避免 shell=True 安全风险）"""
     result = subprocess.run(
-        cmd,
-        shell=True,
+        shlex.split(cmd),
+        shell=False,
         cwd=str(PROJECT_ROOT),
         env=env or os.environ,
         capture_output=True,
@@ -148,7 +149,7 @@ def demo_web(args):
 
     from src.visualization.app import app
 
-    uvicorn.run(app, host="0.0.0.0", port=8000, log_level="info")
+    uvicorn.run(app, host="127.0.0.1", port=args.port, log_level="info")
 
 
 def main():

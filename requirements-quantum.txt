@@ -2,7 +2,7 @@
 # 量子真机依赖（可选）
 # Quantum Real-Machine Dependencies (Optional)
 # =============================================================================
-# 基础依赖已在 requirements.txt 中包含（dimod, dwave-neal, qiskit 等）。
+# 基础依赖已在 requirements.txt 中包含（dimod, dwave-neal 等）。
 # 本文件仅包含需要天衍云平台访问权限的真机 SDK。
 #
 # 安装前提：

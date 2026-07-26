@@ -37,6 +37,35 @@ def test_find_forbidden_skips_audit_exempt_lines() -> None:
     assert findings == [(3, "旧 PPO 奖励", "2723.0")]
 
 
+def test_find_forbidden_no_false_positive_without_context() -> None:
+    """#173：同名合法数字不应因缺少上下文而误报。
+
+    例如 ``duration_sec = 2864 秒`` 中的 2864 只是合法训练/计时数字，
+    附近无 PPO/奖励/提升/旧版 等关键词，不应被判定为旧 PPO 奖励。
+    """
+    findings = find_forbidden("duration_sec = 2864 秒")
+    assert findings == []
+
+
+def test_find_forbidden_catches_old_metric_with_context() -> None:
+    """#173：真实旧指标行（带上下文关键词）仍应被捕获。
+
+    验证文本上下文锚定没有削弱对真实旧指标行的捕获能力。
+    """
+    findings = find_forbidden("旧版 PPO 奖励 2864")
+    assert findings == [(1, "旧 PPO 奖励", "2864")]
+
+
+def test_find_forbidden_collects_all_matches_on_line() -> None:
+    """#188：一行内同一禁用值重复出现应报告全部匹配（finditer）。
+
+    这里关闭上下文要求以隔离验证多匹配收集能力；真实审计默认要求上下文。
+    """
+    findings = find_forbidden("出现了 95.4% 这里 95.4% 又出现", require_context=False)
+    assert len(findings) == 2
+    assert all(label == "旧提升比例" for _, label, _ in findings)
+
+
 def test_canonical_report_requires_complete_ranking() -> None:
     """只写核心数字但缺少排名时不应通过。"""
     errors = validate_canonical_report("2746.94 1458.77 +88.3% Obs10Wrapper 14 维")

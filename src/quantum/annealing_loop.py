@@ -11,7 +11,6 @@
 
 import copy
 import json
-import logging
 import os
 import queue
 import threading
@@ -20,10 +19,9 @@ import types
 from typing import Any
 
 import numpy as np
+from loguru import logger
 
 from src.utils.alerts import alert_error
-
-logger = logging.getLogger(__name__)
 
 
 class AsyncAnnealingLoop:
@@ -47,7 +45,11 @@ class AsyncAnnealingLoop:
         improvement_threshold: 判断退火有效的奖励提升阈值
         retry_delays       : 真机失败后的重试等待时间（秒）
         log_path           : 退火效果日志保存路径（JSON）
+        annealing_mode     : 退火模式 ("head_only" / "hierarchical")
     """
+
+    # 支持的退火模式
+    _SUPPORTED_ANNEALING_MODES: tuple[str, ...] = ("head_only", "hierarchical")
 
     def __init__(
         self,
@@ -62,6 +64,8 @@ class AsyncAnnealingLoop:
         retry_delays: list[float] | None = None,
         log_path: str = "results/annealing_loop_log.json",
         queue_maxsize: int = 1,
+        annealing_mode: str = "head_only",
+        min_effective_reward_delta: float = 1.0,
     ):
         """
         初始化异步退火闭环
@@ -78,7 +82,22 @@ class AsyncAnnealingLoop:
             retry_delays        : 真机失败重试等待时间列表，默认 [5.0, 15.0]
             log_path            : 效果日志保存路径
             queue_maxsize       : 任务队列最大长度，默认 1（避免堆积）
+            annealing_mode      : 退火模式，"head_only"（仅尾部参数，向后兼容）
+                                  或 "hierarchical"（分层分块全量退火，突破 OOM 限制）。
+                                  默认 "head_only" 保持向后兼容。
+            min_effective_reward_delta: 介入率诊断阈值（默认 1.0）。仅当退火后奖励变化
+                                  delta > 该阈值时才视为"有效介入"，计入 effective_triggers。
+                                  impact_rate = effective_triggers / total_triggers 用于
+                                  诊断退火是否对 RL 训练产生实质影响（Issue #194）。
+
+        Raises:
+            ValueError: 当 annealing_mode 不在支持列表中时
         """
+        if annealing_mode not in self._SUPPORTED_ANNEALING_MODES:
+            raise ValueError(
+                f"annealing_mode 必须是 {self._SUPPORTED_ANNEALING_MODES} 之一，"
+                f"得到 {annealing_mode!r}"
+            )
         self.optimizer = optimizer
         self.validation_env = validation_env
         self.eval_episodes = int(eval_episodes)
@@ -86,12 +105,18 @@ class AsyncAnnealingLoop:
         self.min_interval = int(min_interval)
         self.max_interval = int(max_interval)
         self.improvement_threshold = float(improvement_threshold)
+        self.min_effective_reward_delta = float(min_effective_reward_delta)
         self.retry_delays = retry_delays if retry_delays is not None else [5.0, 15.0]
         self.log_path = str(log_path)
+        self.annealing_mode = str(annealing_mode)
 
         self._current_interval = int(initial_interval)
         self._consecutive_good = 0
         self._consecutive_bad = 0
+
+        # 介入率统计（Issue #194）
+        self._total_triggers = 0
+        self._effective_triggers = 0
 
         self._queue: queue.Queue[dict[str, Any]] = queue.Queue(maxsize=queue_maxsize)
         self._pending_result: dict[str, Any] | None = None
@@ -114,6 +139,8 @@ class AsyncAnnealingLoop:
         """
         关闭异步退火工作线程
 
+        关闭时输出介入率总结日志（Issue #194），包含总触发数、有效触发数和介入率。
+
         Args:
             wait   : 是否等待工作线程结束，默认 True
             timeout: 等待超时时间（秒），默认 300 秒（覆盖一次完整退火优化）
@@ -123,6 +150,16 @@ class AsyncAnnealingLoop:
             self._thread.join(timeout=timeout)
             if self._thread.is_alive():
                 logger.warning("异步退火工作线程未能在超时时间内结束")
+
+        # 介入率总结日志（Issue #194）
+        with self._lock:
+            total = self._total_triggers
+            effective = self._effective_triggers
+        impact_rate = effective / total if total > 0 else 0.0
+        logger.info(
+            f"[退火闭环] 介入率总结: 总触发={total}, "
+            f"有效触发={effective}, 介入率={impact_rate:.1%}"
+        )
         logger.info("异步退火工作线程已关闭")
 
     def submit(self, policy: Any, step: int) -> bool:
@@ -201,7 +238,8 @@ class AsyncAnnealingLoop:
                 continue
 
             delta = new_reward - old_reward
-            self._update_interval(delta)
+            is_effective = self._update_interval(delta)
+            impact_rate = self.get_impact_rate()
 
             record = {
                 "step": step,
@@ -210,6 +248,8 @@ class AsyncAnnealingLoop:
                 "new_reward": new_reward,
                 "delta": delta,
                 "interval": self.get_current_interval(),
+                "effective": is_effective,
+                "impact_rate": impact_rate,
             }
 
             with self._lock:
@@ -226,8 +266,32 @@ class AsyncAnnealingLoop:
             logger.info(
                 f"[退火闭环] 步数 {step}: 旧奖励={old_reward:.4f}, "
                 f"新奖励={new_reward:.4f}, delta={delta:.4f}, "
-                f"当前间隔={self.get_current_interval()}"
+                f"当前间隔={self.get_current_interval()}, "
+                f"有效={'是' if is_effective else '否'}, "
+                f"介入率={impact_rate:.1%}"
             )
+
+    def _optimize_policy_call(self, agent_wrapper: Any) -> Any:
+        """
+        根据 annealing_mode 路由到对应的退火优化调用
+
+        - "head_only": 仅优化网络尾部参数张量（向后兼容）
+        - "hierarchical": 分层/分块退火，逐块 QUBO 求解，覆盖全量网络参数
+
+        Args:
+            agent_wrapper: 包装了待优化策略网络的简单对象
+
+        Returns:
+            优化后的 agent_wrapper
+        """
+        if self.annealing_mode == "hierarchical":
+            return self.optimizer.optimize_policy(
+                agent_wrapper,
+                mode="hierarchical",
+                max_params_per_block=200,
+                block_strategy="tensor_wise",
+            )
+        return self.optimizer.optimize_policy(agent_wrapper, head_only=True)
 
     def _run_annealing_with_retries(self, agent_wrapper: Any, step: int) -> Any:
         """
@@ -239,6 +303,9 @@ class AsyncAnnealingLoop:
             - 第三次失败，将优化器切换到仿真模式并最后尝试一次
             - 若仍失败，则抛出异常由工作线程记录
 
+        退火模式由 self.annealing_mode 决定（head_only / hierarchical），
+        两种模式共享相同的重试与降级逻辑。
+
         Args:
             agent_wrapper: 包装了待优化策略网络的简单对象
             step         : 当前训练步数，仅用于日志
@@ -248,7 +315,7 @@ class AsyncAnnealingLoop:
         """
         for attempt, delay in enumerate(self.retry_delays):
             try:
-                return self.optimizer.optimize_policy(agent_wrapper, head_only=True)
+                return self._optimize_policy_call(agent_wrapper)
             except Exception as e:
                 # 优化器内部涉及退火与权重更新，异常类型无法穷举，保留宽捕获并记录日志
                 if getattr(self.optimizer, "simulation_mode", True):
@@ -263,7 +330,7 @@ class AsyncAnnealingLoop:
         try:
             logger.warning(f"[退火闭环] 步数 {step}: 真机退火重试耗尽，降级为仿真退火")
             self.optimizer.simulation_mode = True
-            return self.optimizer.optimize_policy(agent_wrapper, head_only=True)
+            return self._optimize_policy_call(agent_wrapper)
         except Exception as e:
             # 仿真退火仍可能失败（权重更新/张量运算），保留宽捕获并记录日志
             logger.error(f"[退火闭环] 步数 {step}: 仿真退火也失败 ({type(e).__name__}: {e})")
@@ -304,18 +371,33 @@ class AsyncAnnealingLoop:
 
         return float(np.mean(episode_rewards))
 
-    def _update_interval(self, delta: float) -> None:
+    def _update_interval(self, delta: float) -> bool:
         """
-        根据退火效果自适应调整触发间隔
+        根据退火效果自适应调整触发间隔并统计介入率
 
-        规则：
+        介入率诊断 (Issue #194)：
+            仅当 delta > min_effective_reward_delta 时才视为"有效介入"，
+            计入 effective_triggers。impact_rate = effective / total 用于诊断
+            退火是否对 RL 训练产生实质影响。
+
+        间隔调整规则（保持向后兼容，基于 improvement_threshold）：
             - 连续 3 次 delta > threshold：触发间隔减半（不低于 min_interval）
             - 连续 3 次 delta < threshold：触发间隔加倍（不高于 max_interval）
 
         Args:
             delta: 退火后奖励 - 退火前奖励
+
+        Returns:
+            is_effective: 本次退火是否为有效介入（delta > min_effective_reward_delta）
         """
         with self._lock:
+            # 介入率统计：每次调用 _update_interval 代表一次退火触发
+            self._total_triggers += 1
+            is_effective = delta > self.min_effective_reward_delta
+            if is_effective:
+                self._effective_triggers += 1
+
+            # 间隔调整（基于 improvement_threshold，保持向后兼容）
             if delta > self.improvement_threshold:
                 self._consecutive_good += 1
                 self._consecutive_bad = 0
@@ -335,6 +417,20 @@ class AsyncAnnealingLoop:
                         f"[退火闭环] 连续 3 次无效，触发间隔延长为 {self._current_interval}"
                     )
 
+            return is_effective
+
+    def get_impact_rate(self) -> float:
+        """
+        获取当前介入率（有效触发数 / 总触发数）
+
+        Returns:
+            impact_rate: 介入率，0.0 ~ 1.0。总触发数为 0 时返回 0.0
+        """
+        with self._lock:
+            if self._total_triggers == 0:
+                return 0.0
+            return self._effective_triggers / self._total_triggers
+
     def _save_log(self) -> None:
         """将退火效果历史保存为 JSON 日志。"""
         try:
@@ -351,5 +447,5 @@ class AsyncAnnealingLoop:
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
-    print("AsyncAnnealingLoop 模块已加载，请通过 train_with_annealing_loop.py 使用")
+    # loguru 已在模块顶部导入，无需 basicConfig
+    logger.info("AsyncAnnealingLoop 模块已加载，请通过 train_with_annealing_loop.py 使用")

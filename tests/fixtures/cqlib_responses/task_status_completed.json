@@ -1,0 +1,23 @@
+{
+  "description": "任务完成状态响应（query_experiment 回放 fixture）",
+  "recorded_at": "2026-07-22T10:31:12+08:00",
+  "source": "tianyan176 real machine (Issue #175)",
+  "api_method": "platform.query_experiment",
+  "task_id": "5f8a3e2b1c9d4e6f8a2b3c4d",
+  "status": "completed",
+  "result": {
+    "0": 0.509,
+    "1": 0.491
+  },
+  "raw": {
+    "task_id": "5f8a3e2b1c9d4e6f8a2b3c4d",
+    "resultStatus": "done",
+    "probability": {
+      "0": 0.509,
+      "1": 0.491
+    },
+    "shots": 1024,
+    "machine_name": "tianyan176",
+    "execute_time": 2.3
+  }
+}

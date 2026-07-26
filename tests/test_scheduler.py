@@ -914,7 +914,7 @@ class TestQuantumAnnealing(unittest.TestCase):
         Q = np.random.randn(n, n)
         solution = np.random.randint(0, 2, n).astype(np.float64)
 
-        energy = QuantumAnnealingOptimizer._compute_qubo_energy(solution, Q)
+        energy = QuantumAnnealingOptimizer.compute_qubo_energy(solution, Q)
 
         expected = float(solution @ Q @ solution)
         self.assertAlmostEqual(energy, expected, places=6)
@@ -928,12 +928,12 @@ class TestQuantumAnnealing(unittest.TestCase):
 
         best_bitstring = self.optimizer.anneal(Q)
         best_bits = np.array([int(b) for b in best_bitstring], dtype=np.float64)
-        best_energy = QuantumAnnealingOptimizer._compute_qubo_energy(best_bits, Q)
+        best_energy = QuantumAnnealingOptimizer.compute_qubo_energy(best_bits, Q)
 
         random_energies = []
         for _ in range(100):
             rand_bits = np.random.randint(0, 2, n).astype(np.float64)
-            random_energies.append(QuantumAnnealingOptimizer._compute_qubo_energy(rand_bits, Q))
+            random_energies.append(QuantumAnnealingOptimizer.compute_qubo_energy(rand_bits, Q))
 
         avg_random = np.mean(random_energies)
         self.assertLess(best_energy, avg_random)

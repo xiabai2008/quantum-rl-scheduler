@@ -1,8 +1,8 @@
 # 量子RL调度系统 API 接口文档
 
-> **文档版本**: v1.0
-> **生成日期**: 2026-07-02
-> **适用模块**: `src/api/` 目录下所有公开接口
+> **文档版本**: v1.1
+> **生成日期**: 2026-07-25
+> **适用模块**: `src/api/` 目录下所有公开接口、`src/visualization/routes.py` Web 可视化 API
 > **维护状态**: 活跃维护
 
 ---
@@ -14,10 +14,11 @@
 3. [TianyanClient 接口](#3-tianyanclient-接口)
 4. [TianyanCqlibClient 接口](#4-tianyancqlibclient-接口)
 5. [MockClient 接口](#5-mockclient-接口)
-6. [CircuitBreaker 接口](#6-circuitbreaker-接口)
-7. [异常处理](#7-异常处理)
-8. [使用示例](#8-使用示例)
-9. [附录](#9-附录)
+6. [Web 可视化 API](#6-web-可视化-api)
+7. [CircuitBreaker 接口](#7-circuitbreaker-接口)
+8. [异常处理](#8-异常处理)
+9. [使用示例](#9-使用示例)
+10. [附录](#10-附录)
 
 ---
 
@@ -65,6 +66,21 @@ export TIANYAN_USER_ID="your_user_id"
 # 无需认证，本地模拟
 export TIANYAN_MODE="mock"
 ```
+
+**Web 可视化 API（可选认证）**：
+```python
+# 通过环境变量配置 API 密钥（未配置时认证禁用，所有请求放行）
+export VISUALIZATION_API_KEY="your_web_api_key"
+# 客户端请求时通过 X-API-Key 请求头传入密钥
+# curl -H "X-API-Key: your_web_api_key" http://localhost:8000/api/tasks -X POST ...
+```
+
+| 配置项 | 说明 |
+|--------|------|
+| 环境变量 `VISUALIZATION_API_KEY` | 期望密钥值。未配置（None 或空字符串）时认证禁用，所有请求放行（开发模式） |
+| 请求头 `X-API-Key` | 客户端传入的密钥，须与配置值完全匹配，否则返回 401 Unauthorized |
+
+> 仅写操作（POST）端点通过 `verify_api_key` 依赖启用认证；读操作（GET）端点无需认证。
 
 ### 2.2 超时配置
 
@@ -591,9 +607,738 @@ MockClient 实现与 TianyanClient 相同的接口：
 
 ---
 
-## 6. CircuitBreaker 接口
+## 6. Web 可视化 API（src/visualization/routes.py）
 
-### 6.1 类定义
+本节覆盖 Web 可视化监控面板提供的全部 **27 个 HTTP 端点**，源文件为 `src/visualization/routes.py`（约 760 行）。所有端点通过 `APIRouter` 定义并在 `app.py` 中通过 `app.include_router(router)` 注册，路由路径与原 app.py 完全一致，保持向后兼容。
+
+> **权威实验数字**（文档引用须与此一致）：50seed 仿真 PPO=2746.94±1121.19 vs FCFS=1458.77±55.85，提升 +88.3%，Welch t 检验 p=3.04e-11，Cohen's d=-1.70；多 seed 真机 PPO=1665.22±324.51 vs FCFS=353.22±53.33，d=5.64，p=6.83e-04（Bonferroni 校正后显著）。
+
+### 6.1 认证机制
+
+写操作（POST）端点通过 `verify_api_key` 依赖进行可选 API 密钥认证（实现位于 `routes.py` L34-47）：
+
+- **未配置 `VISUALIZATION_API_KEY`**：认证禁用，所有请求放行（开发模式）
+- **已配置**：请求头 `X-API-Key` 必须与配置值完全匹配，否则返回 `401 Unauthorized`
+- 读操作（GET）端点无需认证
+
+### 6.2 页面路由
+
+#### `GET /`
+
+返回监控面板 HTML 页面（Vue3 + Echarts 版本）。
+
+| 项目 | 说明 |
+|------|------|
+| 方法 | GET |
+| 路径 | `/` |
+| 认证 | 无 |
+| 响应类型 | `text/html`（HTMLResponse） |
+
+**响应**：Vue3 + Echarts 监控面板 HTML 页面。
+
+---
+
+### 6.3 核心监控端点
+
+#### `GET /api/status`
+
+获取当前系统状态（JSON）。
+
+| 项目 | 说明 |
+|------|------|
+| 方法 | GET |
+| 路径 | `/api/status` |
+| 认证 | 无 |
+| 响应类型 | `application/json` |
+
+**响应示例**：
+```json
+{
+  "current_strategy": "PPO",
+  "qubit_utilization": 0.65,
+  "queue_length": 3,
+  "completed_tasks": 128,
+  "average_wait_time": 45.2,
+  "current_step": 1024,
+  "last_update": "2026-07-25T10:30:00",
+  "strategy_options": ["PPO", "FCFS", "Random"]
+}
+```
+
+#### `GET /api/real-machines`
+
+查询天衍云真实量子计算机状态（实时轮询 cqlib）。
+
+| 项目 | 说明 |
+|------|------|
+| 方法 | GET |
+| 路径 | `/api/real-machines` |
+| 认证 | 无 |
+| 响应类型 | `application/json` |
+
+**响应示例**：
+```json
+{
+  "machines": [
+    {"id": "tianyan_s", "type": "superconducting", "status": "running", "name": "天衍-S"}
+  ],
+  "count": 1,
+  "source": "cqlib"
+}
+```
+
+> 无 `TIANYAN_API_KEY` 时返回空列表，`source` 为 `"unavailable"`。
+
+#### `GET /api/real-submissions`
+
+查询最近的真机提交记录（从 `results/real_times.json` 读取）。
+
+| 项目 | 说明 |
+|------|------|
+| 方法 | GET |
+| 路径 | `/api/real-submissions` |
+| 认证 | 无 |
+| 响应类型 | `application/json` |
+
+**响应示例**：
+```json
+{
+  "submissions": [],
+  "count": 0
+}
+```
+
+#### `GET /api/tasks`
+
+获取任务列表，支持按状态过滤。
+
+| 项目 | 说明 |
+|------|------|
+| 方法 | GET |
+| 路径 | `/api/tasks` |
+| 认证 | 无 |
+| Query 参数 | `status`（可选）：`pending` / `running` / `completed`，不传返回全部 |
+| 响应类型 | `application/json`（数组） |
+
+**响应示例**：
+```json
+[
+  {
+    "task_id": "QTASK-a1b2c3d4",
+    "user_id": "user1",
+    "task_type": "optimization",
+    "status": "pending",
+    "priority": 1,
+    "qubit_count": 5,
+    "circuit_depth": 20,
+    "estimated_time": 120.0,
+    "arrival_time": "2026-07-25T10:00:00"
+  }
+]
+```
+
+#### `POST /api/tasks`
+
+提交新任务。
+
+| 项目 | 说明 |
+|------|------|
+| 方法 | POST |
+| 路径 | `/api/tasks` |
+| 认证 | 是（`X-API-Key`，未配置时放行） |
+| 请求体 | `TaskSubmit` JSON |
+| 响应类型 | `application/json` |
+
+**请求体（TaskSubmit）**：
+```json
+{
+  "user_id": "user1",
+  "task_type": "optimization",
+  "priority": 1,
+  "qubit_count": 5,
+  "circuit_depth": 20,
+  "estimated_time": 120.0
+}
+```
+
+**响应示例**：
+```json
+{
+  "message": "任务提交成功",
+  "task_id": "QTASK-a1b2c3d4"
+}
+```
+
+#### `GET /api/metrics`
+
+返回 Prometheus 格式的自定义指标。
+
+| 项目 | 说明 |
+|------|------|
+| 方法 | GET |
+| 路径 | `/api/metrics` |
+| 认证 | 无 |
+| 响应类型 | `text/plain` |
+
+**响应示例**：
+```
+# HELP quantum_scheduler_qubit_utilization 量子比特利用率 0~1
+# TYPE quantum_scheduler_qubit_utilization gauge
+quantum_scheduler_qubit_utilization 0.6500
+
+# HELP quantum_scheduler_queue_length 任务队列长度
+# TYPE quantum_scheduler_queue_length gauge
+quantum_scheduler_queue_length 3
+```
+
+> 包含 qubit_utilization、queue_length、completed_tasks、avg_wait_time、current_step 五项指标。
+
+#### `GET /metrics`
+
+Prometheus 指标端点，供 Prometheus 采集器抓取。
+
+| 项目 | 说明 |
+|------|------|
+| 方法 | GET |
+| 路径 | `/metrics` |
+| 认证 | 无 |
+| 响应类型 | `text/plain`（prometheus_client 默认格式） |
+
+**响应**：`prometheus_client` 默认注册表中所有指标的 Prometheus 文本格式输出。
+
+#### `GET /health`
+
+存活探针（Liveness Probe）。
+
+| 项目 | 说明 |
+|------|------|
+| 方法 | GET |
+| 路径 | `/health` |
+| 认证 | 无 |
+| 响应类型 | `application/json` |
+
+**响应示例**：
+```json
+{"status": "alive"}
+```
+
+> 只要进程在运行就返回 200，不依赖任何外部资源。
+
+#### `GET /ready`
+
+就绪探针（Readiness Probe）。
+
+| 项目 | 说明 |
+|------|------|
+| 方法 | GET |
+| 路径 | `/ready` |
+| 认证 | 无 |
+| 响应类型 | `application/json` |
+
+**响应示例**：
+```json
+{
+  "ready": true,
+  "checks": {
+    "app": {"ok": true},
+    "metrics": {"ok": true},
+    "ppo_model": {"ok": true, "required": false},
+    "quota_tracker": {"ok": true, "required": false}
+  },
+  "required_ok": true,
+  "timestamp": "2026-07-25T10:30:00"
+}
+```
+
+> 检查 app 实例、Prometheus 指标、PPO 模型（可选）、配额追踪器（可选）。任一 `required=True` 的检查不可用返回 503。
+
+---
+
+### 6.4 策略控制端点
+
+#### `POST /api/strategy`
+
+切换调度策略。
+
+| 项目 | 说明 |
+|------|------|
+| 方法 | POST |
+| 路径 | `/api/strategy` |
+| 认证 | 是（`X-API-Key`，未配置时放行） |
+| Query 参数 | `strategy`（必填）：策略名称，须为 `strategy_options` 中的有效值 |
+| 响应类型 | `application/json` |
+
+**响应示例（成功）**：
+```json
+{
+  "message": "策略切换: FCFS -> PPO",
+  "success": true
+}
+```
+
+**响应示例（失败）**：
+```json
+{
+  "message": "未知策略: UnknownStrategy",
+  "success": false
+}
+```
+
+#### `POST /api/update`
+
+更新系统状态（供调度引擎调用）。
+
+| 项目 | 说明 |
+|------|------|
+| 方法 | POST |
+| 路径 | `/api/update` |
+| 认证 | 是（`X-API-Key`，未配置时放行） |
+| 请求体 | `SystemStatusUpdate` JSON |
+| 响应类型 | `application/json` |
+
+**请求体（SystemStatusUpdate）**：
+```json
+{
+  "qubit_utilization": 0.72,
+  "queue_length": 5,
+  "completed_tasks": 130,
+  "average_wait_time": 42.0
+}
+```
+
+**响应示例**：
+```json
+{
+  "message": "状态更新成功",
+  "status": {"qubit_utilization": 0.72, "queue_length": 5, "...": "..."}
+}
+```
+
+---
+
+### 6.5 PPO 数据端点
+
+#### `GET /api/ppo/comparison`
+
+返回 PPO 与其他策略的对比数据（从 `results/` 目录最新的 `simulation_results_*.json` 读取）。
+
+| 项目 | 说明 |
+|------|------|
+| 方法 | GET |
+| 路径 | `/api/ppo/comparison` |
+| 认证 | 无 |
+| 响应类型 | `application/json` |
+
+**响应示例**：
+```json
+{
+  "strategies": [
+    {
+      "rank": 1,
+      "name": "PPO",
+      "avg_reward": 2746.94,
+      "avg_wait_time": 45.2,
+      "completion_rate": 0.95,
+      "qubit_utilization": 0.78,
+      "classical_utilization": 0.65
+    }
+  ],
+  "ppo_rank": 1,
+  "total_strategies": 4,
+  "data_source": "simulation_results_20260725.json"
+}
+```
+
+> 未找到仿真结果文件时返回 `{"error": "未找到仿真结果文件", "strategies": [], "ppo_rank": null}`。
+
+#### `GET /api/ppo/predict`
+
+使用 PPO 模型对当前环境状态进行一次推理预测。
+
+| 项目 | 说明 |
+|------|------|
+| 方法 | GET |
+| 路径 | `/api/ppo/predict` |
+| 认证 | 无 |
+| 响应类型 | `application/json` |
+
+**响应示例**：
+```json
+{
+  "action": 1,
+  "action_name": "量子资源",
+  "observation": [0.65, 3.0, 128, 45.2, 1024],
+  "model_type": "PPO"
+}
+```
+
+> 动作映射：0=经典资源，1=量子资源，2=混合执行。模型未加载时返回 `{"error": "PPO 模型未加载", "action": null, "confidence": 0}`。
+
+#### `GET /api/ppo/stats`
+
+返回 PPO 关键性能指标。
+
+| 项目 | 说明 |
+|------|------|
+| 方法 | GET |
+| 路径 | `/api/ppo/stats` |
+| 认证 | 无 |
+| 响应类型 | `application/json` |
+
+**响应示例**：
+```json
+{
+  "ppo": {
+    "reward": 2746.94,
+    "wait_time": 45.2,
+    "completion_rate": 0.95,
+    "qubit_util": 0.78,
+    "classical_util": 0.65
+  },
+  "ppo_rank": 1,
+  "total": 4,
+  "best_strategy": "PPO",
+  "best_reward": 2746.94,
+  "vs_random": 1200.5
+}
+```
+
+---
+
+### 6.6 资源与决策端点
+
+#### `GET /api/quota`
+
+获取天衍云真机配额使用状态（Issue #103）。
+
+| 项目 | 说明 |
+|------|------|
+| 方法 | GET |
+| 路径 | `/api/quota` |
+| 认证 | 无 |
+| 响应类型 | `application/json` |
+
+**响应示例**：
+```json
+{
+  "available": true,
+  "total": 1000,
+  "used": 350,
+  "remaining": 650,
+  "usage_ratio": 0.35,
+  "alert_level": "normal"
+}
+```
+
+> 配额追踪未启用时返回 `{"available": false, "message": "配额追踪未启用"}`。
+
+#### `GET /api/resource-history`
+
+获取资源利用率历史趋势数据（最近 100 个数据点，Issue #22）。
+
+| 项目 | 说明 |
+|------|------|
+| 方法 | GET |
+| 路径 | `/api/resource-history` |
+| 认证 | 无 |
+| 响应类型 | `application/json` |
+
+**响应示例**：
+```json
+{
+  "history": [
+    {
+      "step": 1,
+      "qubit_utilization": 0.65,
+      "queue_length": 3,
+      "completed_tasks": 128,
+      "average_wait_time": 45.2
+    }
+  ]
+}
+```
+
+> 数据来源：后台 `simulate_scheduler` 每 3 秒采集一次。
+
+#### `GET /api/decision-log`
+
+获取调度决策日志（最近 200 条，Issue #22）。
+
+| 项目 | 说明 |
+|------|------|
+| 方法 | GET |
+| 路径 | `/api/decision-log` |
+| 认证 | 无 |
+| 响应类型 | `application/json` |
+
+**响应示例**：
+```json
+{
+  "decisions": [
+    {
+      "step": 1,
+      "task_id": "QTASK-a1b2c3d4",
+      "action": 1,
+      "action_label": "量子资源",
+      "reward": 12.5,
+      "source": "PPO"
+    }
+  ]
+}
+```
+
+#### `GET /api/machines-comparison`
+
+获取多机器对比数据（雷达图和对比表格，Issue #22）。
+
+| 项目 | 说明 |
+|------|------|
+| 方法 | GET |
+| 路径 | `/api/machines-comparison` |
+| 认证 | 无 |
+| 响应类型 | `application/json` |
+
+**响应示例**：
+```json
+{
+  "machines": [
+    {
+      "name": "天衍-S",
+      "total_qubits": 287,
+      "available_ratio": 0.95,
+      "fidelity": 0.998,
+      "queue_depth": 3,
+      "status": "running",
+      "single_gate_fidelity": 0.999,
+      "two_gate_fidelity": 0.995
+    }
+  ]
+}
+```
+
+#### `GET /api/tenants`
+
+获取多租户配额状态（Issue #97）。
+
+| 项目 | 说明 |
+|------|------|
+| 方法 | GET |
+| 路径 | `/api/tenants` |
+| 认证 | 无 |
+| 响应类型 | `application/json` |
+
+**响应示例**：
+```json
+{
+  "tenants": [
+    {
+      "tenant_id": "tenant_1",
+      "name": "研发组"
+    }
+  ]
+}
+```
+
+> 租户状态查询失败时返回 `{"tenants": []}`。
+
+---
+
+### 6.7 决策可解释性端点（Day4-7 新增）
+
+#### `GET /api/explainability`
+
+获取最近决策的特征贡献度摘要（Issue #73）。
+
+| 项目 | 说明 |
+|------|------|
+| 方法 | GET |
+| 路径 | `/api/explainability` |
+| 认证 | 无 |
+| Query 参数 | `limit`（可选，默认 20，最大 200）：返回最近多少条决策 |
+| 响应类型 | `application/json` |
+
+**响应示例**：
+```json
+{
+  "decisions": [
+    {
+      "step": 1,
+      "action": 1,
+      "action_label": "量子资源",
+      "feature_contributions": {"queue_length": 0.35, "qubit_util": 0.28},
+      "explanation_text": "队列较长，优先量子资源"
+    }
+  ],
+  "count": 1
+}
+```
+
+#### `GET /api/explainability/summary`
+
+获取当前会话的全局特征重要性排名（Issue #73）。
+
+| 项目 | 说明 |
+|------|------|
+| 方法 | GET |
+| 路径 | `/api/explainability/summary` |
+| 认证 | 无 |
+| 响应类型 | `application/json` |
+
+**响应示例**：
+```json
+{
+  "feature_importance": [
+    {"feature": "queue_length", "importance": 0.35},
+    {"feature": "qubit_util", "importance": 0.28}
+  ],
+  "total_decisions": 150
+}
+```
+
+> 聚合所有包含特征贡献度的决策记录，计算各特征的平均贡献度，降序排列。无记录时返回 `{"feature_importance": [], "total_decisions": 0}`。
+
+#### `GET /api/explainability/latest`
+
+获取最新一条决策的完整可解释性数据（决策放大镜，Day2-3-10）。
+
+| 项目 | 说明 |
+|------|------|
+| 方法 | GET |
+| 路径 | `/api/explainability/latest` |
+| 认证 | 无 |
+| 响应类型 | `application/json` |
+
+**响应示例**：
+```json
+{
+  "empty": false,
+  "latest": {
+    "step": 200,
+    "action": 1,
+    "action_label": "量子资源",
+    "feature_contributions": {"queue_length": 0.35},
+    "explanation_text": "..."
+  }
+}
+```
+
+> 无记录时返回 `{"empty": true, "latest": null}`。
+
+---
+
+### 6.8 PPO vs FCFS 实时对战面板端点（Day4-7 新增）
+
+#### `POST /api/battle/start`
+
+启动 PPO vs FCFS 对战（Day4-7-11）。
+
+| 项目 | 说明 |
+|------|------|
+| 方法 | POST |
+| 路径 | `/api/battle/start` |
+| 认证 | 是（`X-API-Key`，未配置时放行） |
+| 响应类型 | `application/json` |
+
+**响应示例**：
+```json
+{
+  "success": true,
+  "message": "对战已启动",
+  "step": 0,
+  "ppo_obs": [0.5, 0, 0, 0, 0],
+  "fcfs_obs": [0.5, 0, 0, 0, 0]
+}
+```
+
+> 初始化两个独立的调度环境实例（相同 seed=42 确保公平对比），分别使用 PPO 和 FCFS 策略。启动失败时返回 `{"success": false, "error": "..."}`。
+
+#### `POST /api/battle/step`
+
+推进对战一步（Day4-7-11）。
+
+| 项目 | 说明 |
+|------|------|
+| 方法 | POST |
+| 路径 | `/api/battle/step` |
+| 认证 | 是（`X-API-Key`，未配置时放行） |
+| 响应类型 | `application/json` |
+
+**响应示例**：
+```json
+{
+  "step": 1,
+  "ppo": {
+    "step": 1,
+    "reward": 12.5,
+    "cumulative": 12.5,
+    "action": 1,
+    "util": 0.65
+  },
+  "fcfs": {
+    "step": 1,
+    "reward": 8.2,
+    "cumulative": 8.2,
+    "action": 0,
+    "util": 0.65
+  },
+  "ppo_total": 12.5,
+  "fcfs_total": 8.2,
+  "gap": 4.3
+}
+```
+
+> PPO 使用模型预测动作，FCFS 使用固定策略（始终选择动作 0=经典资源）。对战未启动时返回 `{"error": "对战未启动，请先调用 /api/battle/start"}`。
+
+#### `GET /api/battle/status`
+
+获取对战当前状态（Day4-7-11）。
+
+| 项目 | 说明 |
+|------|------|
+| 方法 | GET |
+| 路径 | `/api/battle/status` |
+| 认证 | 无 |
+| 响应类型 | `application/json` |
+
+**响应示例**：
+```json
+{
+  "running": true,
+  "step": 50,
+  "ppo_total": 625.0,
+  "fcfs_total": 410.0,
+  "gap": 215.0,
+  "ppo_history": [],
+  "fcfs_history": []
+}
+```
+
+> 返回最近 50 条历史数据。
+
+#### `POST /api/battle/reset`
+
+重置对战状态（Day4-7-11）。
+
+| 项目 | 说明 |
+|------|------|
+| 方法 | POST |
+| 路径 | `/api/battle/reset` |
+| 认证 | 是（`X-API-Key`，未配置时放行） |
+| 响应类型 | `application/json` |
+
+**响应示例**：
+```json
+{
+  "success": true,
+  "message": "对战已重置"
+}
+```
+
+---
+
+## 7. CircuitBreaker 接口
+
+### 7.1 类定义
 
 ```python
 class CircuitBreaker:
@@ -607,7 +1352,7 @@ class CircuitBreaker:
     """
 ```
 
-### 6.2 初始化方法
+### 7.2 初始化方法
 
 ```python
 def __init__(
@@ -629,9 +1374,9 @@ def __init__(
     """
 ```
 
-### 6.3 公开方法
+### 7.3 公开方法
 
-#### 6.3.1 call
+#### 7.3.1 call
 
 ```python
 def call(self, func: Callable, *args, **kwargs) -> Any:
@@ -659,7 +1404,7 @@ def call(self, func: Callable, *args, **kwargs) -> Any:
     """
 ```
 
-#### 6.3.2 get_state
+#### 7.3.2 get_state
 
 ```python
 def get_state(self) -> str:
@@ -675,7 +1420,7 @@ def get_state(self) -> str:
     """
 ```
 
-#### 6.3.3 reset
+#### 7.3.3 reset
 
 ```python
 def reset(self) -> None:
@@ -690,9 +1435,9 @@ def reset(self) -> None:
 
 ---
 
-## 7. 异常处理
+## 8. 异常处理
 
-### 7.1 异常层次结构
+### 8.1 异常层次结构
 
 ```python
 QuantumSchedulerError (基类)
@@ -706,7 +1451,7 @@ QuantumSchedulerError (基类)
 └── RateLimitError (API 限流错误，含 retry_after 属性，默认可重试)
 ```
 
-### 7.2 异常属性
+### 8.2 异常属性
 
 所有异常继承自 `QuantumSchedulerError`，使用关键字参数传递 code 和 retryable：
 
@@ -738,7 +1483,7 @@ class RateLimitError(QuantumSchedulerError):
         super().__init__(message, code=code, retryable=retryable)
 ```
 
-### 7.3 异常处理示例
+### 8.3 异常处理示例
 
 ```python
 from src.exceptions import (
@@ -776,9 +1521,9 @@ except ResourceExhaustedError:
 
 ---
 
-## 8. 使用示例
+## 9. 使用示例
 
-### 8.1 基础使用（Mock 模式）
+### 9.1 基础使用（Mock 模式）
 
 ```python
 from src.api.mock_client import MockClient
@@ -805,7 +1550,7 @@ if result["status"] == "completed":
     print(f"执行时间: {result['execution_time']}s")
 ```
 
-### 8.2 真机使用（cqlib 模式）
+### 9.2 真机使用（cqlib 模式）
 
 ```python
 import os
@@ -834,7 +1579,7 @@ while True:
     time.sleep(5)  # 等待 5 秒后重试
 ```
 
-### 8.3 多机器协调
+### 9.3 多机器协调
 
 ```python
 from src.api.tianyan_cqlib import TianyanCqlibClient, MultiMachineCoordinator
@@ -858,7 +1603,7 @@ cluster_status = coordinator.get_cluster_status()
 print(f"在线机器: {cluster_status['online_machines']}/{cluster_status['total_machines']}")
 ```
 
-### 8.4 熔断器集成
+### 9.4 熔断器集成
 
 ```python
 from src.api.circuit_breaker import CircuitBreaker
@@ -881,9 +1626,9 @@ except CircuitBreakerOpenError:
 
 ---
 
-## 9. 附录
+## 10. 附录
 
-### 9.1 Prometheus 指标
+### 10.1 Prometheus 指标
 
 API 层暴露以下 Prometheus 指标：
 
@@ -895,7 +1640,7 @@ API 层暴露以下 Prometheus 指标：
 | `circuit_breaker_state` | Gauge | 熔断器状态（0=CLOSED, 1=OPEN, 2=HALF_OPEN） |
 | `circuit_breaker_failures_total` | Counter | 熔断器失败计数 |
 
-### 9.2 环境变量参考
+### 10.2 环境变量参考
 
 | 变量名 | 说明 | 默认值 |
 |--------|------|--------|
@@ -906,7 +1651,7 @@ API 层暴露以下 Prometheus 指标：
 | `TIANYAN_QUERY_TIMEOUT` | 结果查询超时（秒） | 60.0 |
 | `TIANYAN_STATUS_TIMEOUT` | 状态查询超时（秒） | 10.0 |
 
-### 9.3 机器 ID 参考
+### 10.3 机器 ID 参考
 
 | 机器 ID | 名称 | 量子比特数 | 类型 |
 |---------|------|-----------|------|
@@ -915,12 +1660,13 @@ API 层暴露以下 Prometheus 指标：
 | `tianyan_tn` | 天衍-TN | 287 | 超导量子计算机 |
 | `tianyan_annealer` | 天衍退火器 | - | 量子退火器 |
 
-### 9.4 版本历史
+### 10.4 版本历史
 
 | 版本 | 日期 | 变更说明 |
 |------|------|---------|
 | v1.0 | 2026-07-02 | 初始版本，覆盖所有公开接口 |
+| v1.1 | 2026-07-25 | 新增「Web 可视化 API」章节，覆盖 routes.py 全部 27 个端点；补充 VISUALIZATION_API_KEY / X-API-Key 认证机制说明 |
 
 ---
 
-*本文档由文档工程师自动生成，数据来源：`src/api/` 目录源码。*
+*本文档由文档工程师自动生成，数据来源：`src/api/` 目录源码、`src/visualization/routes.py` Web 可视化 API 源码。*

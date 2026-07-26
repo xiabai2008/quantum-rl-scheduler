@@ -3,7 +3,7 @@
 > 此文件供所有 AI Agent（CodeBuddy / TRAE / Claude / Cursor 等）读取，以快速理解项目全貌。
 > 每次重要变更后请更新本文档的"最后更新"日期和对应章节。
 
-**最后更新**：2026-07-25（验证报告v3修复：API密钥轮换/README路径+文件数+Mermaid架构图/setup脚本过时依赖+路径/.env.example补VISUALIZATION_API_KEY/答辩QA手册补完美分离+量子含量5问答，8文件修改；2285测试全通过；Day2-3/Day4-7完成：依赖清理/Docker优化/PPO调度修复/决策放大镜/对战面板/高负载公平调度/MARL热力图，14文件+2832行；Issues #127/#128/#129/#130：双向赋能非对称性分析 + 真机验证结论边界 + 观测维度口径管理标准 + 生产落地路径规划）
+**最后更新**：2026-07-26（完成所有issues清理：关闭全部16个open issues(#94/#97/#98/#102/#114/#115/#117/#118/#119/#120/#122/#148/#150/#153/#162/#194)；新增分层QUBO退火模式(#148)、退火权重放大机制+介入率诊断(#194)、私有方法重构(#153)、状态持久化设计文档(#114)、扩展性梯度测试(#117)、覆盖率提升env_real_machine 29%→97%/marl 64%→99%(#97/#98)、变异测试增强86用例(#122)、权威市场数据9源+10篇2024-2026论文(#115/#119)；2500+测试全通过）
 
 ***
 
@@ -101,20 +101,29 @@ quantum-rl-scheduler/
 │   │   ├── explainability.py     # 可解释性
 │   │   ├── export.py             # 模型导出
 │   │   └── cache.py              # 缓存
-│   ├── api/                      # API层（~6文件）
+│   ├── api/                      # API层（~7文件）
 │   │   ├── tianyan_client.py     # 天衍云 API 客户端
 │   │   ├── tianyan_cqlib.py      # cqlib 真机客户端 + 多机器协调器
+│   │   ├── cqlib_recorder.py     # 真机响应录制/回放客户端（Issue #175）
 │   │   ├── mock_client.py        # Mock API 客户端
 │   │   ├── circuit_breaker.py    # 熔断器（CLOSED/OPEN/HALF_OPEN）
 │   │   └── quota_tracker.py      # 配额追踪
 │   ├── quantum/                  # 量子计算（~3文件）
 │   │   ├── annealing.py          # 量子退火优化器
 │   │   └── annealing_loop.py     # 异步退火闭环控制器
-│   ├── visualization/            # Web监控（~8文件 + Vue3前端）
+│   ├── evaluation/               # 评估模块（~4文件，Issue #170 防泄漏/OOD）
+│   │   ├── data_split.py         # 数据分割（防泄漏）
+│   │   ├── blind_test.py         # 留出盲测评估
+│   │   └── ood_generalization.py # 分布外泛化验证
+│   ├── visualization/            # Web监控（~10文件 + Vue3前端）
 │   │   ├── app.py               # FastAPI 入口（含对战状态管理+前端静态服务）
 │   │   ├── routes.py             # 路由（含/metrics端点+/api/explainability+/api/battle）
+│   │   ├── state.py              # 共享全局状态唯一定义（Issue #179 打破循环依赖）
 │   │   ├── simulator.py          # 仿真器（PPO真实env.step调度）
 │   │   ├── websocket_handler.py  # WebSocket
+│   │   ├── connection.py         # 连接管理
+│   │   ├── fallback_template.py  # 降级模板
+│   │   ├── models.py             # 数据模型
 │   │   └── frontend/             # Vue3 前端（DecisionMagnifier/BattlePanel等组件）
 │   └── utils/                    # 工具（~8文件）
 │       ├── helpers.py            # 工具函数
@@ -124,7 +133,7 @@ quantum-rl-scheduler/
 │       ├── alerts.py             # 告警
 │       └── seeds.py              # 随机种子管理
 
-├── tests/                        # 测试（~42 文件，500+ 用例）
+├── tests/                        # 测试（~69 文件，2500+ 用例）
 │   ├── test_scheduler.py         # 调度环境测试
 │   ├── test_marl.py              # MAPPO 测试
 │   ├── test_annealing.py         # 量子退火测试
@@ -229,8 +238,8 @@ quantum-rl-scheduler/
 - 依赖可复现：requirements.txt 含 dimod/dwave-neal；cqlib 通过 requirements-quantum.txt 安装
 
 ### 测试升级
-- 测试文件：5 → 49（+44个专用测试模块）
-- 测试用例：100+ → 1663+
+- 测试文件：5 → 69（+64个专用测试模块）
+- 测试用例：100+ → 2500+
 - CI 强制覆盖率：40% → 70%（实际 91%）
 - 新增：property-based testing + 性能基准测试 + mutation testing + 统计显著性检验
 
@@ -313,6 +322,11 @@ quantum-rl-scheduler/
 | 演示视频分镜脚本 | `演示视频分镜脚本.md` | 已完成 |
 | 演示视频（5分钟） | — | 待录制 |
 | 统计显著性报告 | `results/reports/statistical_validation.md` | ✅ 已完成 |
+| 分层退火对比报告 | `results/reports/hierarchical_annealing_report.md` | ✅ 已完成（参数覆盖11.9%→100%，8.4x提升，2026-07-26） |
+| 扩展性梯度测试报告 | `results/reports/scalability_test.md` | ✅ 已完成（5规模×3策略，PPO决策延迟O(1)，2026-07-26） |
+| 退火lr扫描报告 | `results/reports/annealing_lr_sweep_report.md` | ✅ 已完成（根因诊断：lr=0.01导致退火无效化，2026-07-26） |
+| 状态持久化设计 | `docs/state_persistence_design.md` | ✅ 已完成（SQLite/Redis双方案+MVP路线图，2026-07-26） |
+| SOTA对比表 | `docs/sota_comparison.md` | ✅ 已完成（10篇2024-2026论文+差异化定位，2026-07-26） |
 
 ## 8. 当前进度
 
@@ -325,6 +339,7 @@ Track C       ████████████████████ 100%�
 真机闭环       ████████████████████ 100%（天衍-287套餐已开通，30个真机任务全部成功；单点实验PPO经典保真度0.9924，多seed实验使用测量平衡分数MBS，PPO均值0.8965）
 深度分析文档   ████████████████████ 100%（技术瓶颈/公平调度/退火答辩/部署架构/D3消融，2026-07-24）
 Demo可视化增强  ████████████████████ 100%（依赖清理/Docker优化/PPO调度修复/决策放大镜/对战面板/高负载公平调度/MARL热力图，2026-07-25）
+Issues全面清理  ████████████████████ 100%（关闭全部16个open issues，新增分层退火/退火诊断/扩展性测试/持久化设计/SOTA对比/市场数据/覆盖率提升，2026-07-26）
 提交校验       ███████████████████░  90%（13项中8通过,4缺失待8/15冻结,1警告待PDF转换）
 ```
 

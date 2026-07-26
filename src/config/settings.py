@@ -8,6 +8,18 @@ Unified Configuration Loader
 - 支持类型转换（int / float / bool / str）
 - 不引入新依赖：使用 dataclass + 手动解析 .env
 
+与 schema.py 的关系（Issue #180 — 配置双实现统一入口）：
+    本项目存在两套配置实现，职责不同但历史上有导入歧义：
+    - ``src.config.schema``（Pydantic）：config.yaml 结构校验，含 AppConfig
+      及 9 个子配置模型，启动时即捕获配置错误。**此为配置 Schema 的主实现。**
+    - ``src.config.settings``（本模块，dataclass）：运行时配置加载器，
+      提供扁平化的 Settings 数据类和三层优先级合并（env > .env > yaml）。
+
+    为统一入口，本模块再导出 schema.py 的全部 Pydantic 模型，使调用方可
+    从 ``src.config.settings`` 或 ``src.config.schema`` 任一入口导入配置类。
+    **新代码建议直接 ``from src.config.schema import ...``**；本模块的再导出
+    仅为向后兼容，后续版本可能移除。
+
 用法::
 
     from src.config.settings import Settings, load_settings
@@ -30,7 +42,47 @@ from typing import Any, cast
 
 import yaml
 
+# =============================================================================
+# 向后兼容再导出：Pydantic 配置 Schema（Issue #180）
+# =============================================================================
+# schema.py 是 Pydantic 配置 Schema 的主实现（AppConfig 及子模型），
+# 本模块（settings.py）是运行时配置加载器（Settings dataclass + 三层优先级）。
+# 以下再导出使 settings.py 成为统一配置入口，新代码请直接
+# `from src.config.schema import ...` 获取 Pydantic 模型。
+from src.config.schema import (
+    AnnealingConfig,
+    AppConfig,
+    CacheConfig,
+    ClassicalConfig,
+    DatabaseConfig,
+    QuantumConfig,
+    SchedulerConfig,
+    SystemConfig,
+    TianyanConfig,
+    WebConfig,
+    validate_and_print,
+    validate_config,
+)
 from src.utils.helpers import _expand_env_vars
+
+__all__ = [
+    "LOGGING_CONFIG",
+    "AnnealingConfig",
+    "AppConfig",
+    "CacheConfig",
+    "ClassicalConfig",
+    "DatabaseConfig",
+    "QuantumConfig",
+    "SchedulerConfig",
+    "Settings",
+    "SystemConfig",
+    "TianyanConfig",
+    "WebConfig",
+    "install_intercept_handler",
+    "load_settings",
+    "validate_and_print",
+    "validate_config",
+]
 
 # =============================================================================
 # 字段元数据：每个 Settings 字段对应的 config.yaml 路径与环境变量名

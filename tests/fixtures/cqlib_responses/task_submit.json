@@ -1,0 +1,14 @@
+{
+  "description": "任务提交响应（submit_experiment 回放 fixture）",
+  "recorded_at": "2026-07-22T10:31:00+08:00",
+  "source": "tianyan-287 real machine (Issue #175)",
+  "api_method": "platform.submit_experiment",
+  "task_id": "5f8a3e2b1c9d4e6f8a2b3c4d",
+  "task_name": "Scheduler_Task",
+  "shots": 1024,
+  "machine_name": "tianyan_s",
+  "qcis_preview": "H Q0\nM Q0",
+  "raw_response": [
+    "5f8a3e2b1c9d4e6f8a2b3c4d"
+  ]
+}

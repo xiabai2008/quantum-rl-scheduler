@@ -1,0 +1,62 @@
+{
+  "description": "天衍云量子计算机列表查询响应（query_quantum_computer_list 回放 fixture）",
+  "recorded_at": "2026-07-22T10:30:00+08:00",
+  "source": "tianyan-287 real machine (Issue #175)",
+  "api_method": "platform.query_quantum_computer_list",
+  "backends": [
+    {
+      "id": "ty-287-01",
+      "type": "superconducting",
+      "status": "running",
+      "name": "tianyan-287"
+    },
+    {
+      "id": "ty-s-01",
+      "type": "superconducting",
+      "status": "running",
+      "name": "tianyan_s"
+    },
+    {
+      "id": "ty-sw-01",
+      "type": "superconducting",
+      "status": "calibration",
+      "name": "tianyan_sw"
+    },
+    {
+      "id": "ty-tn-01",
+      "type": "superconducting",
+      "status": "running",
+      "name": "tianyan_tn"
+    },
+    {
+      "id": "ty-tnn-01",
+      "type": "superconducting",
+      "status": "maintenance",
+      "name": "tianyan_tnn"
+    },
+    {
+      "id": "ty-swn-01",
+      "type": "superconducting",
+      "status": "running",
+      "name": "tianyan_swn"
+    },
+    {
+      "id": "ty-sa-01",
+      "type": "superconducting",
+      "status": "running",
+      "name": "tianyan_sa"
+    },
+    {
+      "id": "ty-176-01",
+      "type": "superconducting",
+      "status": "running",
+      "name": "tianyan176"
+    },
+    {
+      "id": "ty-176-02",
+      "type": "superconducting",
+      "status": "running",
+      "name": "tianyan176-2"
+    }
+  ]
+}

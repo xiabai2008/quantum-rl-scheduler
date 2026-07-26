@@ -4,6 +4,7 @@ import type { Task, SystemStatus, QuotaStatus, WSMessage, Toast, NewTaskForm } f
 import TaskQueue from './components/TaskQueue.vue'
 import ResourceDashboard from './components/ResourceDashboard.vue'
 import DecisionLog from './components/DecisionLog.vue'
+import FeatureImportance from './components/FeatureImportance.vue'
 import MachineStatus from './components/MachineStatus.vue'
 import DecisionMagnifier from './components/DecisionMagnifier.vue'
 import BattlePanel from './components/BattlePanel.vue'
@@ -298,6 +299,9 @@ defineExpose({
 
     <!-- 决策过程回放（Issue #22：时间轴滑动） -->
     <DecisionLog />
+
+    <!-- 特征重要性排名（Issue #157：决策可解释性可视化） -->
+    <FeatureImportance />
 
     <!-- 决策放大镜（Day2-3-10：特征贡献度分析） -->
     <DecisionMagnifier />

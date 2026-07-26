@@ -63,8 +63,8 @@ jobs:
   # Job 2: 单元测试 + 覆盖率（跨平台 × Python 多版本矩阵）
   # ---------------------------------------------------------------------------
   test:
-    name: "Test (windows-latest, Python ${{ matrix.python-version }})"
-    runs-on: windows-latest
+    name: "Test (${{ matrix.os }}, Python ${{ matrix.python-version }})"
+    runs-on: ${{ matrix.os }}
     # 60 分钟 timeout（实际约 7 分钟完成）。
     # 矩阵策略说明（2026-07-19）：
     #   完整测试套件（1658 测试）只在 Windows runner 上跑。
@@ -72,12 +72,15 @@ jobs:
     #   CPU/内存耗尽导致 runner 失联（47 分钟后 lost communication），
     #   即使跳过退火测试、加 xdist 并行化仍无法解决。
     #   跨平台兼容性已由 ubuntu 的 lint/typecheck/security job 验证。
+    #   Issue #185: 矩阵显式声明 os 维度，避免 Codecov 上传条件引用
+    #   未定义的 matrix.os 导致恒假；当前仅 windows-latest。
     timeout-minutes: 30
     needs: lint
     strategy:
       fail-fast: false
       matrix:
         python-version: ["3.10", "3.11", "3.12"]
+        os: [windows-latest]
 
     steps:
       - uses: actions/checkout@v4
@@ -133,7 +136,10 @@ jobs:
             -W ignore::DeprecationWarning
 
       - name: Upload coverage to Codecov
-        if: matrix.python-version == '3.11'
+        # Issue #185: 条件需匹配矩阵中实际运行的 OS（windows-latest），
+        # 避免引用未定义的 matrix.os 或恒假的 ubuntu 条件。
+        # 仅在 Python 3.11 + windows-latest 组合上传一次，避免重复上传。
+        if: matrix.python-version == '3.11' && matrix.os == 'windows-latest'
         uses: codecov/codecov-action@v4
         with:
           file: ./coverage.xml
@@ -181,8 +187,7 @@ jobs:
   # ---------------------------------------------------------------------------
   # Job 4: 依赖安全审计（pip-audit）
   # 自动扫描 requirements.txt 中的依赖项，检测已知漏洞（CVE/GHSA）
-  # 注：初次启用 continue-on-error: true，避免历史依赖的已知漏洞阻塞流水线
-  #     待团队修复或确认误报后，可移除该字段以强制阻断
+  # Issue #184: 移除 continue-on-error，使安全审计成为阻断性门禁
   # 注：项目中暂无 requirements-dev.txt，开发依赖安全审计待后续补充
   # ---------------------------------------------------------------------------
   security-audit:
@@ -190,7 +195,6 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     needs: lint
-    continue-on-error: true  # 初期允许失败：历史依赖可能存在已知漏洞，逐步修复后再强制
     steps:
       - uses: actions/checkout@v4
 
@@ -206,10 +210,9 @@ jobs:
 
       - name: Run pip-audit on requirements.txt
         run: |
-          # 扫描全部依赖；--ignore-vuln 用于跳过已确认的误报（按需补充 GHSA-ID）
-          pip-audit -r requirements.txt \
-            --ignore-vuln GHSA-xxxx \
-            --desc
+          # 扫描全部依赖；如需跳过已确认的误报，添加 --ignore-vuln <GHSA-ID>
+          # Issue #184: 移除占位 --ignore-vuln GHSA-xxxx，避免无效参数
+          pip-audit -r requirements.txt --desc
 
   # ---------------------------------------------------------------------------
   # Job 5: Mutation Testing（mutmut）— 评估测试质量
@@ -222,8 +225,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     needs: test  # 在测试通过后运行
-    # 仅在 main 分支推送时运行，PR 中跳过（耗时较长）
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    # 在 main 分支推送和 PR 时均运行（Issue #176: 扩展到 PR 检测测试质量退化）
+    if: github.event_name == 'push' || github.event_name == 'pull_request'
     steps:
       - uses: actions/checkout@v4
 
@@ -240,7 +243,6 @@ jobs:
 
       - name: Run mutation testing
         run: mutmut run
-        continue-on-error: true  # 初期允许失败，仅收集基线数据
 
       - name: Show mutation results
         run: mutmut results
@@ -257,7 +259,8 @@ jobs:
     needs: test
     permissions:
       contents: write
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    # Issue #176: 扩展到 PR 触发，检测性能退化
+    if: github.event_name == 'push' || github.event_name == 'pull_request'
     steps:
       - uses: actions/checkout@v4
         with:
@@ -290,7 +293,8 @@ jobs:
           python scripts/ci/visualize_benchmark_trend.py
 
       - name: Commit benchmark history
-        if: success()
+        # 仅在 main 分支推送时提交基准历史（PR 无写权限）
+        if: success() && github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"

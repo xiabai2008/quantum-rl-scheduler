@@ -103,33 +103,51 @@ LEGACY_OBS_DIM = 10
 
 
 # ---------------------------------------------------------------------------
-# 兼容包装器：将 14 维观测截断为 10 维供旧模型使用
+# 兼容包装器：自动适配模型观测维度
 # ---------------------------------------------------------------------------
 
 
 class CompatModelStrategy(BaseStrategy):
-    """旧模型兼容策略：截断 14 维观测为 10 维后送入预训练模型。
+    """模型兼容策略：根据模型观测空间维度自动截断或填充观测向量。
 
-    v1 技术提升将观测空间从 10 维扩展到 14 维（新增物理噪声和拓扑特征），
-    但预训练 PPO/DQN 模型仍基于 10 维训练。此包装器截断观测向量前 10 维
-    供旧模型推理使用。
+    Issue #133 修复：
+    - 原代码无条件截断 14 维 obs 为 10 维（``obs[:LEGACY_OBS_DIM]``），
+      但 PPO 权威模型是 14 维训练的，截断后 predict() 抛 ValueError。
+    - 现在从 ``model.observation_space.shape`` 自动推断模型期望维度，
+      仅当模型维度 < 环境维度时才截断，维度匹配时直接使用。
     """
 
     def __init__(self, model: Any, name: str = "Model"):
         self.model = model
         self.name = name
+        # Issue #133: 从模型观测空间推断期望维度，避免无条件截断
+        self._model_obs_dim: int | None = None
+        try:
+            shape = getattr(model.observation_space, "shape", None)
+            if shape is not None and len(shape) >= 1:
+                self._model_obs_dim = int(shape[0])
+                logger.info(
+                    f"[CompatModel:{name}] 模型期望观测维度={self._model_obs_dim}，"
+                    f"环境维度=14，"
+                    f"{'需截断' if self._model_obs_dim < 14 else '维度匹配无需截断'}"
+                )
+        except Exception as e:
+            logger.warning(f"[CompatModel:{name}] 无法读取模型观测空间维度: {e}，假设为 14 维")
 
     def select_action(self, obs: np.ndarray) -> int:
-        """截断观测后调用模型预测。
+        """根据模型维度自动截断或直接使用观测向量。
 
         Args:
-            obs: 14 维观测向量
+            obs: 环境观测向量（14 维）
 
         Returns:
             动作索引 (0/1/2)
         """
-        # 截断为旧模型期望的维度
-        compat_obs = obs[:LEGACY_OBS_DIM]
+        # Issue #133: 仅当模型维度 < 环境维度时才截断
+        if self._model_obs_dim is not None and self._model_obs_dim < obs.shape[0]:
+            compat_obs = obs[: self._model_obs_dim]
+        else:
+            compat_obs = obs
         action, _ = self.model.predict(compat_obs, deterministic=True)
         return int(action.item())
 
@@ -139,13 +157,16 @@ class CompatModelStrategy(BaseStrategy):
 # ---------------------------------------------------------------------------
 
 
-def create_strategies() -> list[BaseStrategy]:
-    """创建 8 种调度策略列表。
+def create_strategies() -> tuple[list[BaseStrategy], list[str]]:
+    """创建调度策略列表。
 
-    PPO 和 DQN 使用预训练模型（通过兼容包装器），其余 6 种为规则策略。
+    Issue #133 修复：
+    - PPO/DQN 加载失败时不再用规则策略替代，而是直接跳过（避免 8 策略对比退化为
+      7 策略且缺少 RL 算法对比时产生误导性数据）
+    - 返回 ``(strategies, skipped)`` 元组，``skipped`` 记录被跳过的策略名和原因
 
     Returns:
-        策略实例列表
+        (strategies, skipped): 策略实例列表, 被跳过的策略描述列表
     """
     strategies: list[BaseStrategy] = [
         FCFSStrategy(),
@@ -155,6 +176,7 @@ def create_strategies() -> list[BaseStrategy]:
         QuantumOnlyStrategy(),
         ClassicalOnlyStrategy(),
     ]
+    skipped: list[str] = []
 
     # PPO 策略（加载预训练模型，使用兼容包装器处理维度不匹配）
     try:
@@ -162,10 +184,12 @@ def create_strategies() -> list[BaseStrategy]:
 
         ppo_model = PPO.load(PPO_MODEL_PATH)
         strategies.append(CompatModelStrategy(ppo_model, name="PPO"))
-        logger.info(f"[Strategy] PPO 模型已加载（兼容模式）: {PPO_MODEL_PATH}")
+        logger.info(f"[Strategy] PPO 模型已加载: {PPO_MODEL_PATH}")
     except Exception as e:
-        logger.warning(f"[Strategy] PPO 模型加载失败: {e}，使用 Greedy 替代")
-        strategies.append(GreedyStrategy())
+        # Issue #133: 加载失败时跳过而非替代，避免误导
+        skip_reason = f"PPO 加载失败: {str(e)[:100]}"
+        skipped.append(skip_reason)
+        logger.warning(f"[Strategy] {skip_reason}，跳过 PPO 策略")
 
     # DQN 策略（加载预训练模型，使用兼容包装器）
     try:
@@ -173,12 +197,14 @@ def create_strategies() -> list[BaseStrategy]:
 
         dqn_model = DQN.load(DQN_MODEL_PATH)
         strategies.append(CompatModelStrategy(dqn_model, name="DQN"))
-        logger.info(f"[Strategy] DQN 模型已加载（兼容模式）: {DQN_MODEL_PATH}")
+        logger.info(f"[Strategy] DQN 模型已加载: {DQN_MODEL_PATH}")
     except Exception as e:
-        logger.warning(f"[Strategy] DQN 模型加载失败: {e}，使用 SJF 替代")
-        strategies.append(ShortestJobFirstStrategy())
+        # Issue #133: 加载失败时跳过而非用 SJF 替代
+        skip_reason = f"DQN 加载失败: {str(e)[:100]}"
+        skipped.append(skip_reason)
+        logger.warning(f"[Strategy] {skip_reason}，跳过 DQN 策略")
 
-    return strategies
+    return strategies, skipped
 
 
 # ---------------------------------------------------------------------------
@@ -518,15 +544,17 @@ def main() -> None:
         print(f"[Setup] 真机客户端已创建: {args.machine}")
 
     # 创建策略
-    strategies = create_strategies()
+    strategies, skipped = create_strategies()
     print(f"\n[Setup] 已创建 {len(strategies)} 个策略: {', '.join(s.name for s in strategies)}")
+    if skipped:
+        print(f"[Setup] 跳过的策略: {'; '.join(skipped)}")
 
     # 运行所有策略
     all_results: list[dict[str, Any]] = []
     total_real = 0
 
     print(f"\n{'=' * 60}")
-    print("  8 策略真机对比实验")
+    print(f"  {len(strategies)} 策略真机对比实验")
     print(f"  任务数: {NUM_TASKS} | 真机间隔: {REAL_INTERVAL} | shots: {REAL_SHOTS}")
     print(
         f"  预计真机任务: {len(strategies)} x {MAX_STEPS // REAL_INTERVAL} = "
@@ -534,32 +562,82 @@ def main() -> None:
     )
     print(f"{'=' * 60}")
 
+    # Issue #133: 增量保存文件路径，每个策略完成后立即保存，避免崩溃丢数据
+    incremental_filepath = RESULTS_DIR / "strategy_comparison_incremental.json"
+
     for i, strategy in enumerate(strategies):
         print(f"\n--- [{i + 1}/{len(strategies)}] {strategy.name} ---")
         t0 = time.time()
-        result = run_single_strategy(
-            strategy=strategy,
-            client=client,
-            machine_name=args.machine,
-            seed=SEED,
-        )
-        elapsed = round(time.time() - t0, 1)
-        real_count = len([r for r in result["real_records"] if r.get("real_task_id")])
-        total_real += real_count
-        all_results.append(result)
-        print(
-            f"  {strategy.name}: reward={result['total_reward']:.2f}, "
-            f"steps={result['total_steps']}, real={real_count}, "
-            f"耗时={elapsed}s"
-        )
+        # Issue #133: 每个策略用 try-catch 保护，单个崩溃不影响其他策略
+        try:
+            result = run_single_strategy(
+                strategy=strategy,
+                client=client,
+                machine_name=args.machine,
+                seed=SEED,
+            )
+            elapsed = round(time.time() - t0, 1)
+            real_count = len([r for r in result["real_records"] if r.get("real_task_id")])
+            total_real += real_count
+            all_results.append(result)
+            print(
+                f"  {strategy.name}: reward={result['total_reward']:.2f}, "
+                f"steps={result['total_steps']}, real={real_count}, "
+                f"耗时={elapsed}s"
+            )
+        except Exception as e:
+            # Issue #133: 策略崩溃时记录错误并继续下一个策略
+            logger.exception(f"[StratCmp] 策略 {strategy.name} 崩溃")
+            print(f"  [ERROR] 策略 {strategy.name} 崩溃: {e}", flush=True)
+            all_results.append(
+                {
+                    "strategy_name": strategy.name,
+                    "error": f"{type(e).__name__}: {str(e)[:200]}",
+                    "total_reward": 0.0,
+                    "total_steps": 0,
+                    "action_distribution": {},
+                    "env_metrics": {},
+                    "real_records": [],
+                }
+            )
+
+        # Issue #133: 增量保存，确保已完成策略数据不丢失
+        try:
+            save_results(all_results, output_dir=RESULTS_DIR)
+            # 同时覆盖 incremental 文件，便于追踪最新进度
+            incremental_filepath.parent.mkdir(parents=True, exist_ok=True)
+            with open(incremental_filepath, "w", encoding="utf-8") as inc_f:
+                json.dump(
+                    {
+                        "type": "strategy_comparison_incremental",
+                        "timestamp": datetime.now().astimezone().isoformat(),
+                        "completed_strategies": len(all_results),
+                        "total_strategies": len(strategies),
+                        "skipped_strategies": skipped,
+                        "strategies": all_results,
+                    },
+                    inc_f,
+                    indent=2,
+                    ensure_ascii=False,
+                )
+        except Exception as inc_e:
+            logger.warning(f"[StratCmp] 增量保存失败: {inc_e}")
 
     # 轮询所有真机结果
     if total_real > 0:
         print(f"\n--- 轮询 {total_real} 个真机任务结果 ---")
-        poll_all_results(client, all_results)
+        try:
+            poll_all_results(client, all_results)
+        except Exception as e:
+            # Issue #133: 轮询崩溃不丢失已保存的策略结果
+            logger.exception("[StratCmp] 轮询阶段崩溃")
+            print(f"  [ERROR] 轮询阶段崩溃: {e}", flush=True)
 
-    # 保存结果
+    # 保存最终结果
     filepath = save_results(all_results)
+    # 清理 incremental 文件
+    if incremental_filepath.exists():
+        incremental_filepath.unlink()
 
     # 打印汇总
     print_summary(all_results)

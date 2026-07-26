@@ -812,5 +812,149 @@ class TestFreeTierConstant:
         assert FREE_TIER_MAX_QUBITS == 1
 
 
+# =============================================================================
+# 补充覆盖：嵌套 result.probability 异常值路径（Issue #97, lines 193-194）
+# =============================================================================
+
+
+class TestParseNestedResultInvalidValues:
+    """parse_measurement_result 嵌套 result.probability 非法值跳过路径测试。"""
+
+    def test_nested_probability_with_invalid_values_skipped(self):
+        """嵌套 result.probability 中非法值被跳过，剩余合法值归一化。"""
+        status = {
+            "result": {
+                "probability": {"0": 0.5, "1": "abc", "2": None, "3": 0.5},
+            }
+        }
+        result = parse_measurement_result(status)
+        # "abc" 和 None 被跳过，剩余 0.5 + 0.5 归一化后各 0.5
+        assert result == {"0": 0.5, "3": 0.5}
+
+    def test_nested_probability_all_invalid_returns_empty(self):
+        """嵌套 result.probability 全部非法时返回空字典。"""
+        status = {"result": {"probability": {"0": "bad", "1": None}}}
+        result = parse_measurement_result(status)
+        assert result == {}
+
+    def test_nested_probability_normalization(self):
+        """嵌套 result.probability 未归一化时自动归一化。"""
+        status = {"result": {"probability": {"0": 30, "1": 70}}}
+        result = parse_measurement_result(status)
+        assert abs(result["0"] - 0.3) < 1e-9
+        assert abs(result["1"] - 0.7) < 1e-9
+
+    def test_nested_result_not_dict_returns_empty(self):
+        """result 字段非字典时返回空。"""
+        assert parse_measurement_result({"result": "not-a-dict"}) == {}
+
+    def test_nested_probability_not_dict_returns_empty(self):
+        """嵌套 probability 非字典时返回空。"""
+        assert parse_measurement_result({"result": {"probability": "not-a-dict"}}) == {}
+
+
+# =============================================================================
+# 补充覆盖：_record_real_result 初始化分支（Issue #97, line 640）
+# =============================================================================
+
+
+class TestRecordRealResultInitBranch:
+    """_record_real_result 在 env 缺少 _real_result_records 属性时的初始化分支测试。"""
+
+    def test_init_records_when_missing(self):
+        """env 缺少 _real_result_records 属性时应初始化为空列表再追加。"""
+        env, _, _, _ = _make_env_with_client(real_feedback_mode="result_aware")
+        # 删除属性以触发初始化分支（line 640）
+        if hasattr(env, "_real_result_records"):
+            del env._real_result_records
+        pending = {
+            "task_id": "real-1",
+            "task_id_str": "t0",
+            "machine_name": "tianyan176",
+            "submit_step": 0,
+            "qcis_circuit": "H Q0\nM Q0",
+        }
+        status = {"status": "completed", "probability": {"0": 0.5, "1": 0.5}}
+        _record_real_result(env, pending, status, 5.0, 1.0, "reward=5.0")
+        # 应自动创建列表并写入一条记录
+        assert hasattr(env, "_real_result_records")
+        assert len(env._real_result_records) == 1
+        assert env._real_result_records[0]["task_id"] == "t0"
+
+    def test_record_appends_to_existing(self):
+        """已有 _real_result_records 时应追加而非覆盖。"""
+        env, _, _, _ = _make_env_with_client(real_feedback_mode="result_aware")
+        # 预置一条已有记录
+        env._real_result_records = [{"task_id": "prev"}]
+        pending = {
+            "task_id": "real-2",
+            "task_id_str": "t1",
+            "machine_name": "tianyan176",
+            "submit_step": 0,
+            "qcis_circuit": "H Q0\nM Q0",
+        }
+        status = {"status": "completed", "probability": {"0": 0.5, "1": 0.5}}
+        _record_real_result(env, pending, status, 5.0, 1.0, "reward=5.0")
+        assert len(env._real_result_records) == 2
+        assert env._real_result_records[0]["task_id"] == "prev"
+        assert env._real_result_records[1]["task_id"] == "t1"
+
+
+# =============================================================================
+# 补充覆盖：compute_theoretical_distribution 边界（无门电路）
+# =============================================================================
+
+
+class TestComputeTheoreticalDistributionEdgeCases:
+    """compute_theoretical_distribution 边界条件补充测试。"""
+
+    def test_only_measurement_no_gates(self):
+        """仅有测量行无任何门时回退到均匀分布。"""
+        qcis = "M Q0"
+        dist = compute_theoretical_distribution(qcis)
+        # 无 H 也无 X → 均匀分布
+        assert dist == {"0": 0.5, "1": 0.5}
+
+    def test_empty_circuit_returns_default(self):
+        """空电路字符串返回默认分布。"""
+        dist = compute_theoretical_distribution("")
+        assert dist == {"0": 1.0}
+
+    def test_x_gate_multi_qubit_all_ones(self):
+        """多比特 X 门 → 全 1 确定态。"""
+        qcis = "X Q0\nX Q1\nM Q0\nM Q1"
+        dist = compute_theoretical_distribution(qcis)
+        assert dist == {"11": 1.0}
+
+    def test_z_gate_falls_back_to_uniform(self):
+        """Z 门（非 H 非 X）回退到均匀分布。"""
+        qcis = "Z Q0\nM Q0"
+        dist = compute_theoretical_distribution(qcis)
+        assert dist == {"0": 0.5, "1": 0.5}
+
+
+# =============================================================================
+# 补充覆盖：shuffle_measurement 多元素打乱
+# =============================================================================
+
+
+class TestShuffleMeasurementAdditional:
+    """shuffle_measurement 补充边界测试。"""
+
+    def test_two_element_shuffle_preserves_values(self):
+        """双元素打乱后值集合不变。"""
+        measured = {"0": 0.3, "1": 0.7}
+        shuffled = shuffle_measurement(measured)
+        assert sorted(shuffled.values()) == sorted(measured.values())
+        assert set(shuffled.keys()) == set(measured.keys())
+
+    def test_shuffle_with_seed_reproducible(self):
+        """打乱结果值的集合始终不变（随机性仅在键值配对）。"""
+        measured = {"a": 0.1, "b": 0.2, "c": 0.3, "d": 0.4}
+        shuffled = shuffle_measurement(measured)
+        # 值的多重集不变
+        assert sorted(shuffled.values()) == sorted(measured.values())
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

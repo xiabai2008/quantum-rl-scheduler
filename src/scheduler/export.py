@@ -22,14 +22,8 @@ from typing import Any, cast
 
 import numpy as np
 import torch as th
+from loguru import logger
 from torch import nn
-
-try:
-    from loguru import logger
-except ImportError:  # pragma: no cover
-    import logging
-
-    logger = logging.getLogger(__name__)  # type: ignore[assignment]
 
 # 项目根目录（本文件位于 <root>/src/scheduler/export.py）
 _PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
