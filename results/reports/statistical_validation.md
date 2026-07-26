@@ -34,6 +34,55 @@
 
 ---
 
+## 零点五、实验环境一致性（Issue #232）
+
+> **关键声明**：N=250 对比实验中，PPO 与 FCFS/SPTF/EDF/Greedy 基线均在相同的 Gymnasium 环境（`QuantumSchedulingEnv`）下运行，使用相同的奖励函数（`env_reward.py` 中的 `compute_execution_reward()`）。
+
+### 环境配置
+
+| 参数 | 值 | 说明 |
+|:--|:--|:--|
+| 环境类 | `QuantumSchedulingEnv` | 14维观测空间的原生 Gymnasium 环境 |
+| 奖励函数 | `env_reward.py: compute_execution_reward()` | 基于量子保真度、加速比、队列波动的动态奖励 |
+| 观测维度 | 14 | 包含物理噪声和拓扑特征 |
+| 任务规模 | 200 步/episode | 泊松到达 λ=0.5，量子任务占比 70% |
+| Seed 列表 | 50 seeds × 5 episodes = 250 | seed=[42, 43, ..., 91] × 5 repeats |
+
+### 基线环境适配（Issue #230/#231）
+
+基线策略通过 `EnvBasedScheduler` 封装为 Gymnasium 环境的动作选择器：
+
+- **`EnvBasedFCFSScheduler`**：从观测中解析任务类型，量子任务且有资源时选择量子动作
+- **`EnvBasedSPTFScheduler`**：量子任务等效处理时间更短（加速比 2-5x），优先量子
+- **`EnvBasedEDFScheduler`**：紧急任务优先量子加速以尽快完成
+- **`EnvBasedGreedyScheduler`**：贪心选择当前收益最高的动作
+
+所有基线的 `select_action(observation, env) -> int` 在合法动作空间 [0, 1, 2] 中选择：
+- 0 (ACTION_CLASSICAL): 分配到经典计算资源
+- 1 (ACTION_QUANTUM): 分配到量子计算资源
+- 2 (ACTION_HYBRID): 混合执行
+
+reward 由 `env.step(action)` 返回（即 `env_reward.py` 计算），**非独立公式**。
+
+### 实验脚本
+
+```bash
+# 环境一致性对比实验（use_env=True 模式）
+python scripts/evaluation/run_experiments.py --use-env --episodes 50 --tasks 200 --seed 42
+```
+
+### 奖励函数对比
+
+| 模式 | 奖励来源 | classical reward | quantum reward |
+|:--|:--|:--|:--|
+| legacy（旧） | 独立公式 `10+priority*2-wait*0.1` | 12-20 | 12-20 |
+| env_based（新） | `env_reward.py: compute_execution_reward()` | 8.0 | 23-53 |
+
+环境模式下 classical reward=8.0（REWARD_CLASSICAL + REWARD_SUCCESS_BONUS = 5.0+3.0），
+与 legacy 公式（12-20）明显不同，证明基线确实使用环境奖励函数。
+
+---
+
 ## 一、各策略奖励统计
 
 | 策略 | 样本数 | 平均奖励 | 标准差 | 最小值 | 最大值 |
