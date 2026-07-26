@@ -10,7 +10,7 @@
 
 import json
 import os
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 from loguru import logger
@@ -22,7 +22,7 @@ try:
 
     _TENSORBOARD_AVAILABLE = True
 except ImportError:  # pragma: no cover
-    SummaryWriter = None
+    SummaryWriter = None  # type: ignore[assignment, misc]
     _TENSORBOARD_AVAILABLE = False
 
 __all__ = [
