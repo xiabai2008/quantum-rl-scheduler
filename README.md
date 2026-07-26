@@ -21,8 +21,8 @@
 
 | 指标 | 数值 |
 |------|------|
-| 核心代码量 | 约 1.1 万行 Python（src/ 57 文件） |
-| 测试文件 | 64+ 个文件，2285+ 测试用例 |
+| 核心代码量 | 约 1.1 万行 Python（src/ 64 文件） |
+| 测试文件 | 69 个文件，2500+ 测试用例 |
 | CI 强制覆盖率 | 70%（实际 91%） |
 | 真机可用性验证 | 284 次量子任务成功提交天衍云（100%成功率，平台接入验证，非性能验证） |
 | PPO vs FCFS（仿真） | 综合奖励提升 88.3%（14维模型，N=250，Mann-Whitney U 检验 p=1.032e-42，rank-biserial=-0.71） |
@@ -53,20 +53,20 @@ graph TB
 
 ```
 quantum-rl-scheduler/
-├── src/                      # 源代码（~57 文件）
+├── src/                      # 源代码（~64 文件）
 │   ├── exceptions.py         # 统一异常体系（8 类）
 │   ├── scheduler/            # RL调度引擎（env + agent + parser + marl + multi_objective_env）
 │   ├── api/                  # 天衍云API封装（Mock/真实/cqlib 三模式 + 熔断器）
 │   ├── quantum/              # 量子退火加速模块（QUBO + 异步闭环）
 │   ├── visualization/        # FastAPI + Vue3 + Echarts 监控面板
 │   └── utils/                # 工具函数 + Prometheus 指标
-├── tests/                    # 64+ 个测试文件，2285+ 用例
+├── tests/                    # 69 个测试文件，2500+ 用例
 │   └── benchmarks/           # 性能基准测试
 ├── scripts/                  # 按功能分区（training/evaluation/demo/testing/benchmarking/reporting）
 │   └── cli.py                # Click 统一命令行入口
 ├── docs/                     # 团队文档（上手指南、Git规范、分工、协同开发）
 ├── config/                   # 系统配置（config.yaml + .env.example）
-├── results/reports/          # 实验数据固化报告（18份）
+├── results/reports/          # 实验数据固化报告（23份）
 ├── .github/workflows/        # CI/CD 4 Job 流水线 + PR 自动化
 ├── .devcontainer/            # VS Code 开发容器
 ├── pyproject.toml            # 统一配置（ruff/mypy/bandit/pytest/coverage）
@@ -258,7 +258,7 @@ TIANYAN_API_KEY=你的真实API密钥
 | 演示视频分镜脚本 | `演示视频分镜脚本.md` | — |
 | 答辩PPT大纲 | `答辩PPT大纲.md` | — |
 | 白皮书更新计划 | `技术白皮书_更新计划.md` | — |
-| B1 实验数据报告 | `results/reports/` 下 18 份报告 | — |
+| B1 实验数据报告 | `results/reports/` 下 23 份报告 | — |
 
 ## 最终提交包说明
 

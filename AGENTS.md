@@ -121,6 +121,9 @@ quantum-rl-scheduler/
 │   │   ├── state.py              # 共享全局状态唯一定义（Issue #179 打破循环依赖）
 │   │   ├── simulator.py          # 仿真器（PPO真实env.step调度）
 │   │   ├── websocket_handler.py  # WebSocket
+│   │   ├── connection.py         # 连接管理
+│   │   ├── fallback_template.py  # 降级模板
+│   │   ├── models.py             # 数据模型
 │   │   └── frontend/             # Vue3 前端（DecisionMagnifier/BattlePanel等组件）
 │   └── utils/                    # 工具（~8文件）
 │       ├── helpers.py            # 工具函数
@@ -130,7 +133,7 @@ quantum-rl-scheduler/
 │       ├── alerts.py             # 告警
 │       └── seeds.py              # 随机种子管理
 
-├── tests/                        # 测试（~42 文件，500+ 用例）
+├── tests/                        # 测试（~69 文件，2500+ 用例）
 │   ├── test_scheduler.py         # 调度环境测试
 │   ├── test_marl.py              # MAPPO 测试
 │   ├── test_annealing.py         # 量子退火测试
@@ -235,8 +238,8 @@ quantum-rl-scheduler/
 - 依赖可复现：requirements.txt 含 dimod/dwave-neal；cqlib 通过 requirements-quantum.txt 安装
 
 ### 测试升级
-- 测试文件：5 → 49（+44个专用测试模块）
-- 测试用例：100+ → 1663+
+- 测试文件：5 → 69（+64个专用测试模块）
+- 测试用例：100+ → 2500+
 - CI 强制覆盖率：40% → 70%（实际 91%）
 - 新增：property-based testing + 性能基准测试 + mutation testing + 统计显著性检验
 
