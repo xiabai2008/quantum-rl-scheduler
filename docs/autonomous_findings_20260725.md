@@ -45,12 +45,12 @@
 
 **文件**: 
 - `docs/value_quantification.md`（基础价值量化）
-- `docs/value_deep_quantification.md`（深度量化）
+- `docs/value_quantification.md`（深度量化，已合并）
 - `docs/platform_landing_value.md`（平台落地价值）
 
 **问题**: 三份文档在 ROI 分析、经济价值估算、行业场景方面大量重复，但使用不同版本的数字：
 - value_quantification.md: p=4.92e-55, d=-1.73（错误）
-- value_deep_quantification.md: p=1.03e-42, r=-0.708（不同口径）
+- value_quantification.md: p=1.03e-42, r=-0.708（不同口径，已合并深度量化）
 - platform_landing_value.md: 未引用具体 p 值
 
 **影响**: 答辩准备时信息碎片化，难以快速定位权威数字。

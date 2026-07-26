@@ -341,7 +341,7 @@ Redis Key 命名规范：`scheduler:{namespace}:{key}`
 | 分布式锁实现 | 多 worker 并发调度协调 | 1.5 人日 |
 | 事件流（Redis Stream） | 事件溯源 + 消费者组 | 2 人日 |
 | Redis 不可用降级 | 复用 `circuit_breaker.py`，降级到内存态或 SQLite | 1 人日 |
-| K8s 部署配置 | Redis StatefulSet + Sentinel，见 `docs/deployment_architecture.md` | 2 人日 |
+| K8s 部署配置 | Redis StatefulSet + Sentinel，见 `docs/deployment.md` | 2 人日 |
 | 压测：多 worker 一致性 | 4 worker × 1000 tasks，验证无丢失/重复 | 2 人日 |
 
 **验收标准**：
@@ -465,7 +465,7 @@ Redis Key 命名规范：`scheduler:{namespace}:{key}`
 | `src/visualization/app.py` | FastAPI 入口，从 state.py 再导出状态 |
 | `src/api/circuit_breaker.py` | 熔断器（阶段 2 Redis 降级可复用） |
 | `docs/production_roadmap.md` | 生产落地路径（阶段 2/3 对应本文档阶段 1/2） |
-| `docs/deployment_architecture.md` | 部署架构（K8s + Redis StatefulSet 配置） |
+| `docs/deployment.md` | 部署架构（K8s + Redis StatefulSet 配置） |
 | `docs/technical_bottlenecks.md` | 技术瓶颈分析（含状态持久化瓶颈） |
 
 ---
