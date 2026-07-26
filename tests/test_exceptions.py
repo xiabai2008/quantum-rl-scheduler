@@ -61,7 +61,7 @@ class TestTianyanAPIError:
         """验证默认值"""
         err = TianyanAPIError("api failed")
         assert str(err) == "api failed"
-        assert err.code == "UNKNOWN"
+        assert err.code == "TIANYAN_API_ERROR"
         assert err.retryable is False
 
 
