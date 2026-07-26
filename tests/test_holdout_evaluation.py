@@ -20,10 +20,16 @@ from scripts.evaluation.run_holdout_evaluation import (
     _gen_in_distribution,
     _gen_long_tail,
     _improvement,
+    _validate_strategy_obs_dims,
     generate_report,
     generate_trace,
     load_trace,
     save_trace,
+)
+from run_issue_38_67_experiments import (
+    DQNModelStrategy,
+    PPOStrategy,
+    RandomStrategy,
 )
 
 # ---------------------------------------------------------------------------
@@ -349,3 +355,55 @@ class TestGenerateReport:
         generate_report(results, report_path, data_path)
         content = report_path.read_text(encoding="utf-8")
         assert "+100.0%" in content
+
+
+# ---------------------------------------------------------------------------
+# 观测维度强制校验（#182）：阻止 DQN/PPO 在维度不匹配时静默退化成随机策略
+# ---------------------------------------------------------------------------
+
+
+class _StubObsSpace:
+    """SB3 模型 observation_space 的最小桩，避免导入 torch 等重依赖。"""
+
+    def __init__(self, dim: int) -> None:
+        self.shape = (dim,)
+
+
+class _StubModel:
+    """模拟 SB3 模型，仅暴露 observation_space。"""
+
+    def __init__(self, dim: int) -> None:
+        self.observation_space = _StubObsSpace(dim)
+
+
+class TestObsDimValidation:
+    """#182：观测维度强制校验，阻止 DQN/PPO 在维度不匹配时静默退化。"""
+
+    def test_matching_dim_passes(self) -> None:
+        # 评估环境为原生 14 维，策略维度一致时不应报错
+        strategies = [
+            DQNModelStrategy(_StubModel(14)),
+            PPOStrategy(_StubModel(14)),
+            RandomStrategy(),
+        ]
+        _validate_strategy_obs_dims(strategies, dqn_model="dqn.pt", ppo_model="ppo.pt")
+
+    def test_dqn_mismatch_raises(self) -> None:
+        # 10 维 DQN 模型放到 14 维评估环境上必须大声失败，而非静默退化
+        strategies = [DQNModelStrategy(_StubModel(10))]
+        with pytest.raises(ValueError, match=r"观测维度不匹配"):
+            _validate_strategy_obs_dims(
+                strategies, dqn_model="dqn_10dim.pt", ppo_model=""
+            )
+
+    def test_ppo_mismatch_raises(self) -> None:
+        strategies = [PPOStrategy(_StubModel(10))]
+        with pytest.raises(ValueError, match=r"观测维度不匹配"):
+            _validate_strategy_obs_dims(
+                strategies, dqn_model="", ppo_model="ppo_10dim.pt"
+            )
+
+    def test_no_model_strategy_skipped(self) -> None:
+        # 无模型策略（如退化为随机的 DQN）不应触发维度校验
+        strategies = [RandomStrategy()]
+        _validate_strategy_obs_dims(strategies, dqn_model="", ppo_model="")

@@ -52,6 +52,8 @@ sys.path.insert(0, str(_PROJECT_ROOT / "scripts" / "evaluation"))
 from run_issue_38_67_experiments import (
     BaseStrategy,
     build_strategies,
+    DQNModelStrategy,
+    PPOStrategy,
 )
 
 from src.scheduler.env import QuantumSchedulingEnv
@@ -342,6 +344,56 @@ def make_holdout_env(
 
 
 # ---------------------------------------------------------------------------
+# 观测维度强制校验（#182）
+# ---------------------------------------------------------------------------
+
+
+def _validate_strategy_obs_dims(
+    strategies: list[BaseStrategy],
+    dqn_model: str = "",
+    ppo_model: str = "",
+) -> None:
+    """强制校验已加载策略的观测维度与留出评估环境（原生 14 维）一致。
+
+    留出评估环境为原生 14 维（见 :func:`make_holdout_env`）。若某个基于模型的策略
+    （DQN/PPO）期望的观测维度与评估环境不一致，则在此处**提前大声失败**，
+    避免策略在错误维度上静默退化成随机策略、从而污染留出评估指标（#182 正确性）。
+
+    无模型的基准策略（随机 / FCFS / 贪心等）不持有 ``model`` 属性，跳过校验。
+    """
+    probe_env = QuantumSchedulingEnv(max_steps=1, max_qubits=287)
+    try:
+        expected_dim = int(probe_env.observation_space.shape[0])
+    finally:
+        probe_env.close()
+
+    for strategy in strategies:
+        model = getattr(strategy, "model", None)
+        if model is None:
+            continue  # 无模型的基准策略：无需校验维度
+        policy_obs_space = getattr(model, "observation_space", None)
+        if policy_obs_space is None or not hasattr(policy_obs_space, "shape"):
+            continue
+        policy_obs_dim = int(policy_obs_space.shape[0])
+        if policy_obs_dim == expected_dim:
+            continue
+        # 定位对应的策略文件路径，给出可操作的报错
+        if isinstance(strategy, DQNModelStrategy):
+            model_path = dqn_model or "(未指定 DQN 模型，已退化为随机策略)"
+        elif isinstance(strategy, PPOStrategy):
+            model_path = ppo_model
+        else:
+            model_path = "未知策略类型"
+        raise ValueError(
+            f"[holdout] 观测维度不匹配 (#182)：策略 "
+            f"'{getattr(strategy, 'name', type(strategy).__name__)}' 加载自 "
+            f"'{model_path}'，期望 obs_dim={policy_obs_dim}，但留出评估环境 "
+            f"obs_dim={expected_dim}。请使用与评估环境相同观测维度训练的模型，"
+            f"或将 make_holdout_env 配置为匹配维度；不要依赖静默退化，否则指标不可信。"
+        )
+
+
+# ---------------------------------------------------------------------------
 # 评估循环
 # ---------------------------------------------------------------------------
 
@@ -426,6 +478,10 @@ def run_holdout_evaluation(
     strategies = build_strategies(dqn_path=dqn_path, ppo_path=ppo_model)
     if len(strategies) != 8:
         raise RuntimeError(f"expected 8 strategies, loaded {len(strategies)}")
+
+    # 观测维度强制校验（#182）：在任何环境步进之前，确保基于模型的策略与留出
+    # 评估环境（原生 14 维）维度一致，避免 DQN/PPO 静默退化成随机策略。
+    _validate_strategy_obs_dims(strategies, dqn_model=dqn_model, ppo_model=ppo_model)
 
     started = time.perf_counter()
     distribution_results: dict[str, Any] = {}

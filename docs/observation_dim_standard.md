@@ -126,7 +126,7 @@ class Obs10Wrapper(gym.Wrapper):
 |:--|:--|:--|:--|:--|
 | AUDIT-01 | `results/reports/real_machine_preregistration.md` 第69行 | 引用不存在的 `Obs14Wrapper`，14维为原生环境无需包装器 | 中 | 改为"14维原生环境 `QuantumSchedulingEnv`" |
 | AUDIT-02 | `scripts/evaluation/run_issue_38_67_experiments.py` 第739行 | "兼容现有 DQN/PPO 模型"表述不精确，Obs10Wrapper 仅兼容10维 DQN 模型，PPO 为14维 | 低 | 改为"兼容10维 DQN 模型" |
-| AUDIT-03 | `MODELS.md` 第17-18行 | DQN 10维和14维模型奖励值均为 -897.08，可能引起混淆 | 低 | 添加注释说明"10维模型在10维环境评估，14维模型在14维环境评估" |
+| AUDIT-03 | `MODELS.md` 第17-18行 | DQN 10维模型奖励值 -897.08（旧10维退化结果，已被14维公平重训(DQN=1510)替代），14维 DQN 重训后为 1510 | 低 | 添加注释说明"10维模型在10维环境评估（旧退化结果），14维公平重训 DQN=1510" |
 | AUDIT-04 | `docs/defense_qa_handbook.md` Q2 第46-62行 | DQN 失败归因为"值函数方法不适用"，未提及观测空间不匹配 | 中 | 补充"10维 DQN 模型在14维环境观测空间不匹配，退化为随机策略" |
 
 #### 3.2.3 审计覆盖范围
@@ -230,8 +230,8 @@ class Obs10Wrapper(gym.Wrapper):
 | 仿真 PPO 提升 | +88.3% | 14维（原生环境） | 同上 |
 | 仿真 p 值 | 1.032e-42 | 14维（原生环境） | Mann-Whitney U 检验 |
 | 仿真 rank-biserial | -0.71 | 14维（原生环境） | 同上 |
-| DQN 10维 reward | -897.08 | 10维 | Obs10Wrapper 环境 |
-| DQN 14维 reward | -897.08 | 14维 | 原生环境（重训后） |
+| DQN 10维 reward | -897.08（旧10维退化结果，已被14维公平重训替代） | 10维 | Obs10Wrapper 环境 |
+| DQN 14维 reward | 1510（14维公平重训结果，+3.0% vs FCFS） | 14维 | 原生环境（公平重训后） |
 
 > **注**：PPO +88.3% 为14维原生环境权威对比结果（50 seeds × 5 episodes = 250次独立运行），PPO 模型文件为 ppo_best_model_14dim.zip。10维 Obs10Wrapper 仅用于与旧版 10维 DQN 模型的公平对比。
 
