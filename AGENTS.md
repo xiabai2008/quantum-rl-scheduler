@@ -35,10 +35,10 @@ feat / fix / docs / test / refactor / chore
 
 **核心创新—双向赋能**：
 - AI 赋能 量子计算：用强化学习（RL）智能调度量子/经典任务
-- 量子 赋能 AI：用量子退火（QUBO映射）加速 RL 决策
+- 量子 赋能 AI：量子退火优化RL（探索性方向；当前使用经典模拟退火D-Wave neal，训练开销+74.5%，奖励提升+6.4%在5 seeds下p=0.190统计不显著）
 - 量化目标：资源利用率提升 ≥30%（等待时间为多目标优化中的权衡维度，非硬性指标）
 
-**目标平台**：天衍云平台真机"天衍-287"（287量子比特超导量子计算机）
+**目标平台**：天衍云平台真机"天衍-287"（105数据比特+182耦合比特超导量子计算机，搭载祖冲之三号同款芯片）
 
 **仓库地址**：<https://github.com/xiabai2008/quantum-rl-scheduler>
 
@@ -209,8 +209,8 @@ quantum-rl-scheduler/
 | RL  | Stable-Baselines3 (PPO/DQN/MAPPO)    | 双算法 + 多智能体    |
 | RL  | Gymnasium              | 环境封装             |
 | DL  | PyTorch ≥2.0                | 神经网络             |
-| 量子  | 天衍云 cqlib SDK              | 287量子比特超导处理器（可选，requirements-quantum.txt） |
-| 量子  | D-Wave dimod / dwave-neal     | QUBO退火求解（仿真模拟退火，requirements.txt） |
+| 量子  | 天衍云 cqlib SDK              | 105数据比特+182耦合比特超导处理器（可选，requirements-quantum.txt） |
+| 量子  | D-Wave dimod / dwave-neal     | 量子退火（requirements.txt） |
 | Web | FastAPI + Uvicorn      | 监控界面（routes.py含/metrics） |
 | 前端  | Vue3 + Echarts         | 监控面板             |
 | CLI | Click | 统一命令行入口 |
@@ -270,7 +270,7 @@ quantum-rl-scheduler/
 | 五维消融 | D4多机+86.3% > D1算法+88.3% > D5退火+6.4% > D2状态+2.1% |
 | 压力测试 | 4场景PPO综合稳定性最强；量子波动场景PPO +91.4% |
 | 真机验证 | **可用性验证**：284次SDK调用100%成功，全链路验证通过 |
-| **多seed真机** | **小样本策略对比**（N=5/组）：PPO d=5.64 vs FCFS, p=6.83e-04, Bonferroni显著 |
+| **多seed真机** | **小样本策略对比**（N=5/组）：PPO d=5.64 vs FCFS, p=6.83e-04, Bonferroni显著（小样本探索性结果，效应量异常大，待更多seeds验证） |
 
 > **⚠️ 真机验证结论边界（Issue #128）**
 >
