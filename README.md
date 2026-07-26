@@ -215,10 +215,17 @@ TIANYAN_API_KEY=你的真实API密钥
 | `pyproject.toml` | Black + ruff + bandit + mypy + pytest + coverage + mutmut 统一配置 |
 | `mypy.ini` | 8项严格类型检查（仅2模块暂时豁免：annealing/scripts） |
 | `.pre-commit-config.yaml` | Git commit 前自动格式检查 + Commit 格式校验 |
-| GitHub Actions CI | lint(ruff+bandit) + test(3.10/3.11/3.12矩阵) + typecheck(mypy) + benchmarks |
+| GitHub Actions CI | lint(ruff+bandit) + test(3.10/3.11/3.12矩阵) + typecheck(mypy) + benchmarks + QUBO形式化验证 + 覆盖率artifact |
 | Dependabot | pip + GitHub Actions 自动依赖更新 |
 | VS Code Dev Container | 一键开发环境（Docker + 12+ 扩展） |
 | `setup.sh` / `setup.ps1` | 跨平台一键环境初始化 |
+
+> **CI 覆盖率 artifact（Issue #260）**：每次 CI 运行都会生成 `coverage.xml`，
+> 并作为名为 `coverage-xml` 的 artifact 上传，可在 Actions 页面下载查看本次构建的覆盖率快照；
+> 在 PR 中还会由 `ci(#253,#260)` 自动发布一条覆盖率评论（当前展示本次构建的总行覆盖率）。
+> **QUBO 形式化验证（Issue #253）**：CI 会运行 `tests/test_qubo_optimization.py` 中
+> `-k "formal or property"` 选中的 QUBO 形式化/属性测试（基于 numpy 随机种子的属性测试），
+> 验证 QUBO 矩阵对称性、能量公式正确性等数学性质。
 
 ## 工程韧性
 
@@ -340,9 +347,9 @@ python scripts/ci/validate_submission.py --pack
 | [AGENTS.md](AGENTS.md) | AI Agent 通用项目记忆 |
 | [技术瓶颈分析](docs/technical_bottlenecks.md) | 7项技术瓶颈 + 缓解策略 |
 | [退火显著性答辩策略](docs/annealing_significance-defense.md) | p=0.19应对话术 + 5类评委问题 |
-| [部署架构](docs/deployment_architecture.md) | 三阶段部署路径（原型→试点→生产） |
-| [跨硬件扩展性](docs/cross_hardware_scalability.md) | 三层解耦架构 + 扩展路径 |
-| [价值量化报告（权威版）](docs/value_summary_for_defense.md) | 答辩用权威价值口径：8策略排名+核心数字+诚实局限性 |
+| [部署架构](docs/deployment.md) | 三阶段部署路径（原型→试点→生产） |
+| [跨硬件兼容性](docs/cross_hardware.md) | 三层解耦架构 + 扩展路径 |
+| [价值量化报告](docs/value_quantification.md) | 10项指标 + ROI分析 + VQE场景案例 |
 | [公平调度报告](results/reports/fair_scheduling_report.md) | 5租户Jain's指数=0.9875 |
 | [D3奖励消融报告](results/reports/d3_reward_ablation_report.md) | 7预设×2策略×10seeds消融 |
 

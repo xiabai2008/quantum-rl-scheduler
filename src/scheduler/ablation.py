@@ -578,7 +578,7 @@ class AblationRunner:
             bool(config.components.get("multi_objective", True))
             and MultiObjectiveRewardWrapper is not None
         ):
-            env = MultiObjectiveRewardWrapper(env)
+            env = MultiObjectiveRewardWrapper(env)  # type: ignore[assignment]
 
         return env
 

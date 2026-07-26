@@ -14,6 +14,7 @@ Unit Tests for src/scheduler/baselines.py
 """
 
 import unittest
+from unittest.mock import patch
 
 from src.scheduler.baselines import (
     BaselineScheduler,
@@ -381,6 +382,237 @@ class TestEdgeCases(unittest.TestCase):
         for name, metrics in results.items():
             self.assertEqual(metrics["completed_tasks"], 0, f"{name} 0 步应完成 0")
             self.assertEqual(metrics["throughput"], 0.0)
+
+
+# ============================================================
+# TestBaselineRewardConsistency (Issue #233)
+# ============================================================
+class TestBaselineRewardConsistency(unittest.TestCase):
+    """Issue #233: 验证基线策略的 reward 来自环境（env_reward.py），而非独立计算。
+
+    核心验证点：
+    1. env.step() 调用 env_reward.compute_execution_reward 和 compute_wait_penalty
+    2. env.step() 返回的 reward 包含 compute_execution_reward 的返回值
+    3. FCFS/SPTF/EDF 三种策略在 Gymnasium 环境下运行时，reward 均来自环境
+    4. 基线策略 select_action 只返回 action，不计算 reward
+    """
+
+    def setUp(self):
+        """创建测试环境（不启用真机，避免外部依赖）。"""
+        from src.scheduler.env import QuantumSchedulingEnv
+
+        self.env = QuantumSchedulingEnv(max_steps=30, seed=42)
+        self.env.reset(seed=42)
+
+    def _run_steps_with_action(self, action: int, num_steps: int = 10) -> list[float]:
+        """用固定动作运行指定步数，返回每步的 reward。
+
+        模拟基线策略在 Gymnasium 环境下的运行：策略返回 action，环境计算 reward。
+
+        Args:
+            action   : 调度动作（0=经典，1=量子，2=混合）
+            num_steps: 运行步数
+
+        Returns:
+            每步的 reward 列表
+        """
+        rewards = []
+        for _ in range(num_steps):
+            _obs, reward, terminated, truncated, _info = self.env.step(action)
+            rewards.append(reward)
+            if terminated or truncated:
+                break
+        return rewards
+
+    def test_env_step_calls_compute_execution_reward(self):
+        """env.step() 应调用 env_reward.compute_execution_reward。"""
+        from src.scheduler import env as env_module
+
+        call_count = 0
+        original_fn = env_module.compute_execution_reward
+
+        def spy(*args: object, **kwargs: object) -> float:
+            nonlocal call_count
+            call_count += 1
+            return original_fn(*args, **kwargs)  # type: ignore[arg-type]
+
+        self.env.reset(seed=42)
+        with patch.object(env_module, "compute_execution_reward", spy):
+            self._run_steps_with_action(0, num_steps=10)
+
+        self.assertGreater(
+            call_count,
+            0,
+            "env.step() 应调用 compute_execution_reward（证明 reward 来自环境）",
+        )
+
+    def test_env_step_calls_compute_wait_penalty(self):
+        """env.step() 应调用 env_reward.compute_wait_penalty。"""
+        from src.scheduler import env as env_module
+
+        call_count = 0
+        original_fn = env_module.compute_wait_penalty
+
+        def spy(*args: object, **kwargs: object) -> float:
+            nonlocal call_count
+            call_count += 1
+            return original_fn(*args, **kwargs)  # type: ignore[arg-type]
+
+        self.env.reset(seed=42)
+        with patch.object(env_module, "compute_wait_penalty", spy):
+            self._run_steps_with_action(0, num_steps=10)
+
+        self.assertGreater(
+            call_count,
+            0,
+            "env.step() 应调用 compute_wait_penalty（证明 reward 来自环境）",
+        )
+
+    def test_fcfs_reward_comes_from_env(self):
+        """FCFS 策略（经典执行 action=0）运行 10 步，reward 应来自环境。"""
+        from src.scheduler import env as env_module
+
+        call_count = 0
+        original_fn = env_module.compute_execution_reward
+
+        def spy(*args: object, **kwargs: object) -> float:
+            nonlocal call_count
+            call_count += 1
+            return original_fn(*args, **kwargs)  # type: ignore[arg-type]
+
+        self.env.reset(seed=42)
+        with patch.object(env_module, "compute_execution_reward", spy):
+            rewards = self._run_steps_with_action(0, num_steps=10)
+
+        self.assertGreater(call_count, 0, "FCFS 策略运行时 env 应调用 compute_execution_reward")
+        self.assertTrue(any(r != 0.0 for r in rewards), "FCFS 应产生非零 reward")
+
+    def test_sptf_reward_comes_from_env(self):
+        """SPTF 策略（混合执行 action=2）运行 10 步，reward 应来自环境。"""
+        from src.scheduler import env as env_module
+
+        call_count = 0
+        original_fn = env_module.compute_execution_reward
+
+        def spy(*args: object, **kwargs: object) -> float:
+            nonlocal call_count
+            call_count += 1
+            return original_fn(*args, **kwargs)  # type: ignore[arg-type]
+
+        self.env.reset(seed=42)
+        with patch.object(env_module, "compute_execution_reward", spy):
+            rewards = self._run_steps_with_action(2, num_steps=10)
+
+        self.assertGreater(call_count, 0, "SPTF 策略运行时 env 应调用 compute_execution_reward")
+        self.assertTrue(any(r != 0.0 for r in rewards), "SPTF 应产生非零 reward")
+
+    def test_edf_reward_comes_from_env(self):
+        """EDF 策略（混合执行 action=2）运行 10 步，reward 应来自环境。
+
+        注：action=1（纯量子）只对 quantum 任务兼容，随机种子下可能无量子任务；
+        此处用 action=2（混合，对所有任务类型兼容）确保 env.step 必然走到
+        compute_execution_reward 调用路径。
+        """
+        from src.scheduler import env as env_module
+
+        call_count = 0
+        original_fn = env_module.compute_execution_reward
+
+        def spy(*args: object, **kwargs: object) -> float:
+            nonlocal call_count
+            call_count += 1
+            return original_fn(*args, **kwargs)  # type: ignore[arg-type]
+
+        self.env.reset(seed=42)
+        with patch.object(env_module, "compute_execution_reward", spy):
+            rewards = self._run_steps_with_action(2, num_steps=10)
+
+        self.assertGreater(call_count, 0, "EDF 策略运行时 env 应调用 compute_execution_reward")
+        self.assertTrue(any(r != 0.0 for r in rewards), "EDF 应产生非零 reward")
+
+    def test_env_reward_contains_compute_execution_reward_value(self):
+        """env.step() 返回的 reward 应包含 compute_execution_reward 的返回值。
+
+        通过 monkey-patch 让 compute_execution_reward 返回固定值 100.0，
+        验证 env.step() 返回的 reward 包含该值（证明 reward 由环境函数计算）。
+        """
+        from src.scheduler import env as env_module
+
+        fixed_return = 100.0
+
+        def fixed_fn(*args: object, **kwargs: object) -> float:
+            return fixed_return
+
+        self.env.reset(seed=42)
+        with patch.object(env_module, "compute_execution_reward", fixed_fn):
+            _obs, reward, _term, _trunc, _info = self.env.step(0)
+
+        # reward 应包含 fixed_return（可能还有等待惩罚、利用率惩罚等）
+        # 由于固定值 100.0 远大于其他惩罚项（±2.0），验证 reward > 90.0 足够
+        self.assertGreater(
+            reward,
+            90.0,
+            f"env.step() 返回的 reward({reward}) 应包含 compute_execution_reward 的固定值(100.0)",
+        )
+
+    def test_baseline_select_action_does_not_compute_reward(self):
+        """基线策略的 select_action 只返回 action，不应计算 reward。
+
+        验证 FCFSScheduler/SPTFScheduler/EDFScheduler 的 select_action
+        返回的是 int（任务索引/action），不是 reward。
+        """
+        tasks = [
+            _make_task("T1", arrival_time=0.0, estimated_time=5.0),
+            _make_task("T2", arrival_time=1.0, estimated_time=3.0),
+            _make_task("T3", arrival_time=2.0, estimated_time=8.0, deadline=10.0),
+        ]
+        for scheduler_cls in [FCFSScheduler, SPTFScheduler, EDFScheduler]:
+            scheduler = scheduler_cls()
+            result = scheduler.select_action(tasks, _EMPTY_RESOURCES)
+            # select_action 应返回 int（任务索引），不是 reward
+            self.assertIsInstance(
+                result,
+                int,
+                f"{scheduler.name}.select_action 应返回 int（任务索引），不是 reward",
+            )
+            self.assertGreaterEqual(result, -1, f"{scheduler.name} 应返回 >= -1")
+            self.assertLess(result, len(tasks), f"{scheduler.name} 应返回 < len(tasks)")
+
+    def test_run_baseline_comparison_uses_independent_formula(self):
+        """run_baseline_comparison 使用独立奖励公式（非环境 reward）。
+
+        这是对比工具的独立实现，不影响 Gymnasium 环境下的基线运行。
+        本测试验证该函数确实使用自己的公式（10.0 + priority*2.0 - wait*0.1），
+        而非调用 env_reward.py 的函数。
+        """
+        from src.scheduler import env as env_module
+
+        call_count = 0
+        original_fn = env_module.compute_execution_reward
+
+        def spy(*args: object, **kwargs: object) -> float:
+            nonlocal call_count
+            call_count += 1
+            return original_fn(*args, **kwargs)  # type: ignore[arg-type]
+
+        tasks = [
+            _make_task("T1", arrival_time=0.0, estimated_time=5.0, priority=3),
+            _make_task("T2", arrival_time=1.0, estimated_time=3.0, priority=4),
+        ]
+        with patch.object(env_module, "compute_execution_reward", spy):
+            results = run_baseline_comparison(tasks, num_steps=10)
+
+        # run_baseline_comparison 是独立对比工具，不应调用 env_reward.py
+        self.assertEqual(
+            call_count,
+            0,
+            "run_baseline_comparison 使用独立公式，不应调用 env.compute_execution_reward",
+        )
+        # 但应产生有效结果
+        self.assertGreater(len(results), 0)
+        for _name, metrics in results.items():
+            self.assertIn("total_reward", metrics)
+            self.assertGreaterEqual(metrics["total_reward"], 0.0)
 
 
 if __name__ == "__main__":

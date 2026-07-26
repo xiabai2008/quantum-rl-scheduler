@@ -7,7 +7,7 @@
 
 > Issue #16 — 从技术指标换算为业务价值，支撑"落地与价值"评审维度
 >
-> 关联文档：`docs/value_quantification.md`（基础价值量化）、`docs/value_deep_quantification.md`（深度量化）
+> 关联文档：`docs/value_quantification.md`（基础与深度价值量化已合并）
 >
 > 生成时间：2026-07-23
 
@@ -130,4 +130,4 @@
 - 权威实验数据：`results/reports/strategy_comparison.md`
 - 真机验证：`results/reports/real_machine_validation.md`
 - 基础价值量化：`docs/value_quantification.md`
-- 深度价值量化：`docs/value_deep_quantification.md`
+- 深度价值量化：`docs/value_quantification.md`（已合并）

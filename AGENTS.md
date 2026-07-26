@@ -186,8 +186,8 @@ quantum-rl-scheduler/
 │   ├── Code_Wiki.md              # 代码Wiki
 │   ├── technical_bottlenecks.md  # 技术瓶颈分析（7项瓶颈+缓解策略）
 │   ├── annealing_significance-defense.md # 退火显著性答辩策略（p=0.19应对话术）
-│   ├── deployment_architecture.md # 部署架构（三阶段：原型→试点→生产）
-│   ├── cross_hardware_scalability.md # 跨硬件扩展性（三层解耦架构）
+│   ├── deployment.md # 部署架构（三阶段：原型→试点→生产）
+│   ├── cross_hardware.md # 跨硬件兼容性（路线图+可扩展性论述）
 │   └── value_quantification.md   # 价值量化报告
 
 ├── config/
@@ -314,7 +314,7 @@ quantum-rl-scheduler/
 | 技术瓶颈分析 | `docs/technical_bottlenecks.md` | ✅ 已完成（7项瓶颈+缓解策略，2026-07-24） |
 | 公平调度实验报告 | `results/reports/fair_scheduling_report.md` | ✅ 已完成（5租户Jain's指数=0.9875，PPO总奖励+57.6%，2026-07-24） |
 | 退火显著性答辩策略 | `docs/annealing_significance-defense.md` | ✅ 已完成（5类评委问题应对话术，p=0.19→delta=0.40，2026-07-24） |
-| 部署架构文档 | `docs/deployment_architecture.md` | ✅ 已完成（三阶段部署路径+ONNX优化+K8s配置，2026-07-24） |
+| 部署架构文档 | `docs/deployment.md` | ✅ 已完成（三阶段部署路径+ONNX优化+K8s配置，2026-07-24） |
 | D3奖励消融报告 | `results/reports/d3_reward_ablation_report.md` | ✅ 已完成（7预设×2策略×10seeds，策略-奖励耦合分析，2026-07-24） |
 | 高负载公平调度报告 | `results/reports/high_load_fairness_report.md` | ✅ 已完成（λ=1.2高负载5租户公平调度，PPO/FCFS/SJF对比，2026-07-25） |
 | MAPPO热力图 | `results/reports/marl_heatmap.html` | ✅ 已完成（多智能体调度策略热力图可视化，2026-07-25） |
