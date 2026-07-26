@@ -139,23 +139,20 @@ jobs:
             --timeout=120 \
             -W ignore::DeprecationWarning
 
-      - name: QUBO formal/property verification (hypothesis)
+      - name: QUBO formal/property verification
         # Issue #253: 将 QUBO 数学验证纳入 CI。
-        # 运行 QUBO 的形式化/属性测试（hypothesis 属性测试），
-        # 并显示 hypothesis 统计；失败时显式回显反例（counterexample）后退出。
+        # 运行 QUBO 的形式化/属性测试（tests/test_qubo_optimization.py 中
+        # 方法名含 formal / property 的用例，均为纯 numpy + 标准库实现）。
         # 仅在 3.11 + Windows 组合运行一次，避免矩阵重复执行。
-        # 注：-k "formal or property" 当前需由退火模块的 hypothesis 测试提供
-        # （类名/测试名含 formal 或 property）。若暂时没有命中测试（pytest 返回 5），
-        # 视为“验证待补充”而非失败，避免破坏既有 CI；若确有测试失败（反例）则退出 1。
+        # 退出码处理：pytest 返回 5（无命中测试）视为“验证待补充”而通过；
+        # 返回非 0（测试失败）则显式回显反例（counterexample）后退出 1。
         if: matrix.python-version == '3.11' && matrix.os == 'windows-latest'
         shell: bash
         run: |
-          pip install hypothesis
-          pytest tests/test_qubo_optimization.py -k "formal or property" \
-            --hypothesis-show-statistics
+          pytest tests/test_qubo_optimization.py -k "formal or property"
           status=$?
           if [ "$status" -eq 5 ]; then
-            echo "No 'formal'/'property' QUBO tests collected yet (hypothesis verification pending)."
+            echo "No 'formal'/'property' QUBO tests collected (verification pending)."
             exit 0
           elif [ "$status" -ne 0 ]; then
             echo 'HYPOTHESIS COUNTEREXAMPLE ABOVE'
