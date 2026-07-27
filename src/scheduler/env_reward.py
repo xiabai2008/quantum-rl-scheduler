@@ -75,10 +75,10 @@ def compute_execution_reward(
         # 保真度过低时打折，避免智能体盲目偏向低质量量子资源。
         if quantum_fidelity < 0.9:
             reward *= 0.6
-            
+
         # 应用串扰惩罚
         reward -= crosstalk_penalty
-        
+
         return float(reward + REWARD_SUCCESS_BONUS)
 
     else:  # ACTION_HYBRID
