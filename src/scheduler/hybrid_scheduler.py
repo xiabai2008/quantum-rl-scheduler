@@ -287,8 +287,9 @@ class HybridScheduler:
             except RuntimeError:
                 # RL 未训练，走兜底
                 logger.debug("RL 智能体未训练（RuntimeError），回退到默认规则")
-            except Exception as e:
-                # 其他异常也走兜底
+            except (ValueError, AttributeError) as e:
+                # Issue #389: 仅捕获可恢复的推理异常，避免捕获 MemoryError/SystemExit
+                # 原实现使用 except Exception 会捕获所有异常包括严重错误
                 logger.warning(f"RL 推理失败，回退到经典调度: {type(e).__name__}: {e}")
 
         # 3. 默认规则兜底

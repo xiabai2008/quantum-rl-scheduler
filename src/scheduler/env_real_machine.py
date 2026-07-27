@@ -16,6 +16,7 @@ _real_clients 等），从而避免循环导入。
 """
 
 import math
+import os
 import random
 from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any
@@ -60,7 +61,31 @@ _MAX_REAL_QUBITS = 287
 #   当前真机验证阶段使用 1 比特电路（受天衍云免费套餐限制），
 #   验证的是端到端调度闭环而非大规模量子计算能力。
 #   多比特电路实验是下一阶段工作（需付费套餐额度）。
-FREE_TIER_MAX_QUBITS = 1  # 天衍云免费套餐仅支持 1-qubit 电路
+#   获得付费套餐后可通过环境变量 ``FREE_TIER_MAX_QUBITS`` 调高此限制，
+#   例如 ``export FREE_TIER_MAX_QUBITS=5``，无需修改代码。
+
+
+def _resolve_free_tier_max_qubits() -> int:
+    """从环境变量读取免费机时包最大量子比特数。
+
+    默认值为 1（天衍云免费套餐仅支持 1-qubit 电路）。获得付费机时包后
+    可通过环境变量 ``FREE_TIER_MAX_QUBITS`` 调高此限制，无需修改代码。
+    无效值（非正整数或解析失败）回退到默认值 1，保证真机稳定模式。
+
+    Returns:
+        免费机时包最大量子比特数（≥1）
+    """
+    raw = os.environ.get("FREE_TIER_MAX_QUBITS", "1")
+    try:
+        value = int(raw)
+        if value < 1:
+            return 1
+        return value
+    except (ValueError, TypeError):
+        return 1
+
+
+FREE_TIER_MAX_QUBITS = _resolve_free_tier_max_qubits()
 
 
 def generate_qcis_circuit(

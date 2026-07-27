@@ -203,9 +203,10 @@ class AlertManager:
         alerts_total.labels(level=alert.level.value, category=alert.category).inc()
 
     def _send_webhook(self, alert: Alert) -> None:
-        """发送告警到 Webhook（若已配置）
+        """发送告警到 Webhook（若已配置），对 ERROR/CRITICAL 级别告警重试。
 
-        使用 POST JSON 请求；网络异常或非 2xx 响应仅记录 warning 日志，不抛出。
+        使用 POST JSON 请求；对 ERROR/CRITICAL 级别告警实施指数退避重试
+        （最多 3 次），避免瞬时网络抖动导致关键告警丢失（Issue #413）。
 
         Args:
             alert: 待发送的告警对象。
@@ -219,12 +220,37 @@ class AlertManager:
             "timestamp": alert.timestamp,
             "context": alert.context,
         }
-        try:
-            response = requests.post(self.webhook_url, json=payload, timeout=5.0)
-            if response.status_code >= 400:
-                logger.warning(f"Webhook 返回非 2xx 状态码: {response.status_code}")
-        except requests.exceptions.RequestException as e:
-            logger.warning(f"Webhook 发送失败: {type(e).__name__}: {e}")
+        max_retries = 3 if alert.level in (AlertLevel.ERROR, AlertLevel.CRITICAL) else 1
+        backoff_factor = 0.5  # 0.5s, 1s, 2s
+
+        for attempt in range(max_retries):
+            try:
+                response = requests.post(self.webhook_url, json=payload, timeout=5.0)
+                if response.status_code < 400:
+                    return  # 发送成功
+                if attempt < max_retries - 1:
+                    wait_time = backoff_factor * (2**attempt)
+                    logger.warning(
+                        f"Webhook 返回非 2xx 状态码: {response.status_code}, "
+                        f"{wait_time}s 后重试 ({attempt + 1}/{max_retries})"
+                    )
+                    time.sleep(wait_time)
+                else:
+                    logger.error(
+                        f"Webhook 最终失败 ({max_retries}次重试后), 状态码: {response.status_code}"
+                    )
+            except requests.exceptions.RequestException as e:
+                if attempt < max_retries - 1:
+                    wait_time = backoff_factor * (2**attempt)
+                    logger.warning(
+                        f"Webhook 发送失败: {type(e).__name__}: {e}, "
+                        f"{wait_time}s 后重试 ({attempt + 1}/{max_retries})"
+                    )
+                    time.sleep(wait_time)
+                else:
+                    logger.error(
+                        f"Webhook 最终失败 ({max_retries}次重试后): {type(e).__name__}: {e}"
+                    )
 
     def get_alerts(self) -> list[Alert]:
         """返回已记录的告警列表（拷贝，避免外部修改内部状态）"""

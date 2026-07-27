@@ -20,6 +20,7 @@ Multi-Tenant Resource Quota Isolation
 
 from __future__ import annotations
 
+import threading
 from dataclasses import dataclass, field
 from datetime import date
 from typing import Any
@@ -88,6 +89,7 @@ class TenantQuotaManager:
             }
         self._tenants: dict[str, TenantQuota] = dict(tenants)
         self._default_tenant_id = default_tenant_id
+        self._lock = threading.Lock()
 
     # ------------------------------------------------------------------
     # 配置加载
@@ -236,13 +238,14 @@ class TenantQuotaManager:
         Returns:
             True 表示配额扣减成功，False 表示配额不足
         """
-        if not self.can_schedule(tenant_id, qubits, tasks):
-            return False
-        quota = self._get_tenant(tenant_id)
-        quota.used_qubits += qubits
-        quota.active_tasks += tasks
-        quota.daily_used += tasks
-        return True
+        with self._lock:
+            if not self.can_schedule(tenant_id, qubits, tasks):
+                return False
+            quota = self._get_tenant(tenant_id)
+            quota.used_qubits += qubits
+            quota.active_tasks += tasks
+            quota.daily_used += tasks
+            return True
 
     def release(
         self,
@@ -257,9 +260,10 @@ class TenantQuotaManager:
             qubits   : 释放的量子比特数
             tasks    : 释放的任务数
         """
-        quota = self._get_tenant(tenant_id)
-        quota.used_qubits = max(0, quota.used_qubits - qubits)
-        quota.active_tasks = max(0, quota.active_tasks - tasks)
+        with self._lock:
+            quota = self._get_tenant(tenant_id)
+            quota.used_qubits = max(0, quota.used_qubits - qubits)
+            quota.active_tasks = max(0, quota.active_tasks - tasks)
 
     # ------------------------------------------------------------------
     # 状态查询
