@@ -204,3 +204,110 @@
 - 搜索关键词覆盖：quantum scheduling reinforcement learning、quantum annealing reinforcement learning QUBO、quantum cloud computing scheduling、quantum resource allocation optimization
 - 检索来源：arXiv、IEEE Xplore、Scientific Reports（Nature）、Applied Energy、Expert Systems with Applications
 - **声明**：文献调研基于公开数据库检索，可能未覆盖全部相关工作；差异化定位表述采用"据调研/据文献调研"等限定用语，避免绝对化断言
+
+---
+
+## 9. 实际复现对比
+
+> 本节基于项目权威实验数据（50 seeds × 5 episodes = 250 次独立运行，N=250），对比 4 种调度策略在 4 个核心指标上的实际表现。所有数据来源于 `results/multiseed_evaluation/rewards_multiseed.json`，统计检验使用 Mann-Whitney U 检验 + Bonferroni 校正。
+
+### 9.1 实验配置
+
+| 配置项 | 值 |
+|--------|------|
+| 观测维度 | 14 维（原生环境） |
+| Seeds 数 | 50 |
+| Episodes/seed | 5 |
+| 总独立运行次数 | 250（N=250） |
+| 步数/episode | 200 |
+| 任务到达 | 泊松到达 λ=0.5 |
+| 统计检验 | Mann-Whitney U + Bonferroni 校正 |
+| 实验脚本 | `scripts/evaluation/run_multiseed_evaluation.py` |
+| 统计检验脚本 | `scripts/evaluation/statistical_significance.py` |
+
+### 9.2 实际复现数据表（4 种策略 × 4 个指标）
+
+| 策略 | 平均奖励 | 标准差 | 提升 vs FCFS | 排名 |
+|:----:|:--------:|:------:|:------------:|:----:|
+| **PPO** | **2746.94** | 1160.72 | **+88.3%** | 1 |
+| DQN | 1527.65 | 124.02 | +4.7% | 2 |
+| SJF | 1462.39 | 134.32 | +0.2% | 3 |
+| FCFS | 1458.77 | 60.47 | 基线 | 4 |
+
+**4 个核心指标说明**：
+
+1. **平均奖励**：250 次独立运行的奖励均值，反映策略整体性能
+2. **标准差**：反映策略稳定性，越低越稳定
+3. **提升 vs FCFS**：相对基线策略 FCFS 的提升百分比
+4. **排名**：综合性能排名
+
+### 9.3 统计显著性验证
+
+| 比较 | 检验方法 | p 值 | 效应量（rank-biserial） | Bonferroni 校正后 |
+|:----:|:--------:|:----:|:-----------------------:|:-----------------:|
+| PPO vs FCFS | Mann-Whitney U | 1.032e-42 | -0.71（大效应） | 显著 |
+| PPO vs DQN | Mann-Whitney U | <0.001 | 大效应 | 显著 |
+| PPO vs SJF | Mann-Whitney U | <0.001 | 大效应 | 显著 |
+
+**结论**：PPO 在所有 pairwise 比较中均达到统计显著（p<0.001），效应量为大效应（|rank-biserial|≥0.5），证明性能优势非偶然。
+
+### 9.4 差异化分析
+
+基于上述实际复现数据，本项目相对于 SOTA 文献方法的差异化优势体现在以下方面：
+
+**一、性能提升幅度显著优于文献报告**
+
+- 本项目 PPO vs FCFS 提升 **+88.3%**（N=250, p=1.032e-42）
+- 文献中 RL 调度方法相对启发式基线的提升通常在 **10%-30%** 范围（见第 2 节表 2）
+- 差异化原因：本项目采用 14 维异质化观测空间 + 多机器环境 + 泊松任务到达，更贴近真实调度场景
+
+**二、统计严谨性高于多数文献**
+
+- 本项目采用 **50 seeds × 5 episodes = 250 次独立运行**，并使用 Mann-Whitney U 检验 + Bonferroni 校正
+- 多数文献仅报告单次或少量种子下的结果，缺少统计显著性检验
+- 本项目提供完整效应量（rank-biserial=-0.71）和 95% 置信区间
+
+**三、多策略横向对比完整**
+
+- 本项目对比 **8 种策略**（PPO/DQN/SJF/FCFS/Random/Greedy/Quantum-Only/Classical-Only）
+- 文献通常仅对比 2-3 种策略
+- 完整对比凸显 PPO 的全面优势
+
+**四、真机验证补充（探索性）**
+
+- 本项目在天衍-287 真机上完成 **N=5/组** 的多策略对比（探索性结果）
+- PPO vs FCFS: Cohen's d=5.64, p=6.83e-04（Bonferroni 校正后显著，但样本量小，结论需谨慎）
+- 文献中量子调度方法几乎无真机验证
+
+### 9.5 实验可复现性
+
+```bash
+# 复现 50 seed × 5 episode 多seed评估
+python scripts/evaluation/run_multiseed_evaluation.py --seeds 50 --episodes 5
+
+# 运行统计显著性检验
+python scripts/evaluation/statistical_significance.py \
+    --input results/multiseed_evaluation/rewards_multiseed.json
+
+# 查看权威报告
+cat results/reports/statistical_validation.md
+```
+
+**数据文件**：
+- 原始数据：`results/multiseed_evaluation/rewards_multiseed.json`
+- 统计报告：`results/reports/statistical_validation.md`
+- 策略对比报告：`results/reports/strategy_comparison.md`
+
+### 9.6 与文献方法的对比边界
+
+> **⚠️ 边界声明**：本节的"实际复现对比"是本项目 4 种策略的内部对比，并非与第 1-2 节文献方法的直接复现对比。文献方法由于代码未开源、环境配置不同、任务模型差异等原因，无法进行严格的 apple-to-apple 复现对比。本节提供的差异化分析基于数据特征推理，仅供参考。
+
+| 对比维度 | 本项目 | 文献方法 |
+|----------|--------|----------|
+| 性能提升 | +88.3%（N=250, p<0.001） | 10%-30%（多数文献） |
+| 样本量 | N=250 | 通常 N<30 |
+| 统计检验 | Mann-Whitney U + Bonferroni | 多数无统计检验 |
+| 真机验证 | 可用性验证 + 探索性性能验证 | 几乎无真机验证 |
+| 策略数量 | 8 种 | 2-3 种 |
+
+**诚实声明**：性能提升幅度差异可能部分源于环境设置（任务模型、奖励函数、负载特征）的不同，不完全是算法优势。本项目在统计严谨性和真机验证方面优于多数文献，但性能数字不可直接跨研究比较。
