@@ -92,6 +92,7 @@ class QuantumAnnealingOptimizer:
         cqlib_client: Any = None,
         n_bits_per_weight: int = 4,
         max_qubo_memory_mb: float = 64.0,
+        random_state: int | None = None,
     ):
         """
         初始化量子退火策略优化器
@@ -111,6 +112,8 @@ class QuantumAnnealingOptimizer:
             max_qubo_memory_mb: 单个 QUBO 矩阵允许的最大内存（MiB，默认 64）。
                                 当 n_bits_per_weight 较大（如 8）时，QUBO 矩阵
                                 规模为 (num_weights * n_bits)²，此参数防止内存溢出。
+            random_state  : 随机种子（Issue #391）。固定后 numpy 模拟退火结果可复现；
+                            None 表示不固定（保持原行为）。neal 路径也会传入此种子。
         """
         if n_bits_per_weight < 2:
             raise ValueError("n_bits_per_weight 必须至少为 2（1 个符号位 + 1 个数值位）")
@@ -124,6 +127,8 @@ class QuantumAnnealingOptimizer:
         self.shots = shots
         self.simulation_mode = bool(simulation_mode)
         self.cqlib_client = cqlib_client
+        # Issue #391: 随机种子，固定后退火结果可复现
+        self.random_state: int | None = random_state
 
         # 检查比特编码精度，过低则发出警告
         if self.n_bits_per_weight < 4:
@@ -151,6 +156,8 @@ class QuantumAnnealingOptimizer:
         self._sim_initial_temp = 2.0  # 初始温度
         self._sim_cooling_rate = 0.995  # 降温系数
         self._sim_num_sweeps = 200  # 扫描次数（减少以适应 QUBO 规模）
+        # Issue #391: 早停阈值——连续 _sim_patience 次扫描 best_energy 无改进则终止
+        self._sim_patience = 20
 
         # 记录最后一次 anneal 实际使用的求解器类型（Issue #226）
         # solver_type 为公开属性，_last_solver 为向后兼容别名，两者始终同步
@@ -504,11 +511,14 @@ class QuantumAnnealingOptimizer:
             )
             qubo_dict = self._matrix_to_qubo_dict(qubo_matrix)
             sampler = neal.SimulatedAnnealingSampler()
-            sampleset = sampler.sample_qubo(
-                qubo_dict,
-                num_reads=self.shots,
-                annealing_time=self.annealing_time,
-            )
+            # Issue #391: neal 路径也传入 seed，保证可复现
+            sample_kwargs: dict[str, Any] = {
+                "num_reads": self.shots,
+                "annealing_time": self.annealing_time,
+            }
+            if self.random_state is not None:
+                sample_kwargs["seed"] = self.random_state
+            sampleset = sampler.sample_qubo(qubo_dict, **sample_kwargs)
             # 取能量最低的样本
             best_sample = sampleset.first.sample
             best_bitstring = "".join(str(best_sample[i]) for i in range(n))
@@ -1814,21 +1824,29 @@ class QuantumAnnealingOptimizer:
         """
         n = qubo_matrix.shape[0]
 
+        # Issue #391: 使用独立 RNG，固定种子后结果可复现
+        rng = np.random.default_rng(self.random_state)
+        py_rng = random.Random(self.random_state)
+
         # ---------- 随机初始化 ----------
-        current_solution = np.random.randint(0, 2, n).astype(np.float64)
+        current_solution = rng.integers(0, 2, n).astype(np.float64)
         current_energy = self.compute_qubo_energy(current_solution, qubo_matrix)
 
         best_solution = current_solution.copy()
         best_energy = current_energy
 
         temperature = self._sim_initial_temp
+        # Issue #391: 早停计数器——连续 _sim_patience 次扫描无改进则终止
+        no_improve_count = 0
 
         # ---------- 主循环：逐步降温 ----------
-        for sweep in range(self._sim_num_sweeps):  # noqa: B007
+        for sweep in range(self._sim_num_sweeps):
+            sweep_best_before = best_energy
+
             # 在每个温度下，翻转 n 个比特（一次完整扫描）
             for _ in range(n):
                 # 随机选择一个比特进行翻转
-                flip_idx = random.randint(0, n - 1)
+                flip_idx = py_rng.randint(0, n - 1)
 
                 # 计算翻转后的能量变化（向量化，避免 Python 层内循环）
                 # 解析公式：ΔE = 2*(1-2x[flip])*(Q[flip]·x) + Q[flip,flip]
@@ -1836,7 +1854,7 @@ class QuantumAnnealingOptimizer:
                 delta_energy = self._qubo_flip_delta(qubo_matrix, current_solution, flip_idx)
 
                 # Metropolis 准则：以概率 min(1, exp(-ΔE/T)) 接受新解
-                if delta_energy < 0 or random.random() < math.exp(
+                if delta_energy < 0 or py_rng.random() < math.exp(
                     -delta_energy / max(temperature, 1e-12)
                 ):
                     current_solution[flip_idx] = 1.0 - current_solution[flip_idx]
@@ -1849,6 +1867,18 @@ class QuantumAnnealingOptimizer:
 
             # 降温
             temperature *= self._sim_cooling_rate
+
+            # Issue #391: 早停——连续 _sim_patience 次扫描无改进则终止
+            if best_energy < sweep_best_before:
+                no_improve_count = 0
+            else:
+                no_improve_count += 1
+                if no_improve_count >= self._sim_patience:
+                    logger.debug(
+                        f"numpy 模拟退火: 早停于第 {sweep + 1} 次扫描"
+                        f"（连续 {self._sim_patience} 次无改进）"
+                    )
+                    break
 
             # 提前终止：温度足够低
             if temperature < 1e-6:

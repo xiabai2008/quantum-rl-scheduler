@@ -2392,6 +2392,51 @@ class TestBattleEndpoints:
         assert vis_state._battle_state["step"] == 0
         assert vis_state._battle_state["ppo_reward"] == 0.0
 
+    @pytest.mark.asyncio
+    async def test_battle_step_concurrent_thread_safety(self, async_client, monkeypatch):
+        """Issue #388: 多线程并发调用 battle_step 不应导致数据损坏。
+
+        使用 state_lock 后，所有状态读写串行化，step 数应等于调用次数。
+        """
+        import asyncio
+        import threading
+
+        # 准备 mock env：每次 step 返回固定 reward
+        call_count = {"n": 0}
+
+        def _make_step_return(*args, **kwargs):
+            call_count["n"] += 1
+            return ([0.5, 0.3, 0.2], 1.0, False, False, {})
+
+        mock_env = MagicMock()
+        mock_env.step.side_effect = _make_step_return
+
+        battle = vis_state.get_battle_state_ref()
+        battle["running"] = True
+        battle["ppo_env"] = mock_env
+        battle["fcfs_env"] = mock_env
+        battle["ppo_obs"] = [0.5, 0.3, 0.2]
+        battle["fcfs_obs"] = [0.5, 0.3, 0.2]
+
+        monkeypatch.setattr(app_module, "_get_ppo_model", lambda: None)
+
+        # 并发发起 5 次 step 请求
+        tasks = [asyncio.create_task(async_client.post("/api/battle/step")) for _ in range(5)]
+        responses = await asyncio.gather(*tasks)
+
+        # 验证所有请求成功
+        for resp in responses:
+            assert resp.status_code == 200
+
+        # 验证 step 数等于调用次数（无丢失更新）
+        battle_after = vis_state.get_battle_state_ref()
+        assert battle_after["step"] == 5, (
+            f"并发调用后 step={battle_after['step']}，期望 5（可能存在竞态条件）"
+        )
+        # 验证 history 长度正确
+        assert len(battle_after["ppo_history"]) == 5
+        assert len(battle_after["fcfs_history"]) == 5
+
 
 class TestWebSocketAdvanced:
     """WebSocket 高级功能测试（Issue #207，覆盖 websocket_handler.py 44-55 行）。"""
@@ -2491,3 +2536,79 @@ class TestWebSocketAdvanced:
             assert resp["type"] == "resource_history"
             assert "history" in resp
             assert len(resp["history"]) == 1
+
+
+# ============================================================
+# Issue #381: fallback_template.py 存储型 XSS 漏洞测试
+# ============================================================
+
+
+class TestFallbackTemplateXSS:
+    """验证 fallback_template.py 中所有 innerHTML 拼接处已对 API 数据进行 HTML 转义。"""
+
+    def test_escapehtml_function_exists(self) -> None:
+        """fallback_template 应包含 escapeHtml 函数。"""
+        from src.visualization import fallback_template
+
+        assert "function escapeHtml" in fallback_template.HTML_TEMPLATE
+        assert "function escapeHtml" in fallback_template.HTML_TEMPLATE
+
+    def test_render_tasks_uses_escapehtml(self) -> None:
+        """renderTasks 中所有 API 字段应使用 escapeHtml。"""
+        from src.visualization import fallback_template
+
+        # 提取 renderTasks 函数体
+        start = fallback_template.HTML_TEMPLATE.find("function renderTasks")
+        end = fallback_template.HTML_TEMPLATE.find("function renderStrategies")
+        body = fallback_template.HTML_TEMPLATE[start:end]
+        assert body, "renderTasks 函数未找到"
+
+        # 验证所有 innerHTML 拼接的字段都被 escapeHtml 包裹
+        # task_id, task_type, qubit_count, priority, status 均需转义
+        assert "escapeHtml((t.task_id" in body
+        assert "escapeHtml(t.task_type" in body
+        assert "escapeHtml(t.qubit_count" in body
+        assert "escapeHtml(t.priority" in body
+        assert "escapeHtml(statusText(t.status" in body
+
+    def test_render_decisions_uses_escapehtml(self) -> None:
+        """renderDecisions 中所有 API 字段应使用 escapeHtml。"""
+        from src.visualization import fallback_template
+
+        start = fallback_template.HTML_TEMPLATE.find("function renderDecisions")
+        end = fallback_template.HTML_TEMPLATE.find("function updateDecisionPie")
+        body = fallback_template.HTML_TEMPLATE[start:end]
+        assert body, "renderDecisions 函数未找到"
+
+        # task_id, source, actLabel 均需转义
+        assert "escapeHtml(d.step" in body
+        assert "escapeHtml(actLabel)" in body
+        assert "escapeHtml((d.task_id" in body
+        assert "escapeHtml(d.source)" in body
+
+    def test_load_real_submissions_uses_escapehtml(self) -> None:
+        """loadRealSubmissions 中所有 API 字段应使用 escapeHtml。"""
+        from src.visualization import fallback_template
+
+        start = fallback_template.HTML_TEMPLATE.find("function loadRealSubmissions")
+        end = fallback_template.HTML_TEMPLATE.find("function loadRealMachines")
+        body = fallback_template.HTML_TEMPLATE[start:end]
+        assert body, "loadRealSubmissions 函数未找到"
+
+        # taskId, machine, time 均需转义
+        assert "escapeHtml(taskId" in body
+        assert "escapeHtml(machine)" in body
+        assert "escapeHtml(time)" in body
+
+    def test_escapehtml_escapes_script_tag(self) -> None:
+        """escapeHtml 应正确转义 <script> 标签。"""
+        from src.visualization import fallback_template
+
+        # 验证 escapeHtml 实现包含必要的字符替换
+        template = fallback_template.HTML_TEMPLATE
+        assert "&amp;" in template
+        assert "&lt;" in template
+        assert "&gt;" in template
+        assert "&quot;" in template
+        assert "&#39;" in template
+        assert "&#x2F;" in template

@@ -568,18 +568,33 @@ class CqlibTianyanClient(QuantumHardwareBackend):
     def wait_for_task(self, task_id: str, timeout: int = 300, poll_interval: int = 5) -> TaskResult:
         """轮询等待任务完成并返回结果
 
+        处理 ``query_error`` 状态：连续 3 次查询失败后快速终止，
+        避免无意义轮询至超时（Issue #407）。
+
         Args:
             task_id: 任务 ID
             timeout: 超时秒数
             poll_interval: 轮询间隔秒数
         """
         start = time.time()
+        query_fail_count = 0
         while time.time() - start < timeout:
             status = self.get_task_status(task_id)
             if status["status"] == "completed":
                 return status
             if status["status"] == "error":
                 return status
+            if status["status"] == "query_error":
+                query_fail_count += 1
+                if query_fail_count >= 3:
+                    return TaskResult(
+                        task_id=task_id,
+                        status="error",
+                        probability={},
+                        counts=None,
+                        shots=0,
+                        backend=self.machine_name,
+                    )
             time.sleep(poll_interval)
         return TaskResult(
             task_id=task_id,

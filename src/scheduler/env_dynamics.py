@@ -139,19 +139,19 @@ def advance_time(env: "QuantumSchedulingEnv", rng: np.random.Generator) -> None:
         # 在线状态随机波动（模拟真机维护/校准，5% 概率翻转）
         if rng.random() < 0.05:
             m.available = not m.available
-            
+
         # 处理空间并发的任务（基于 active_tasks）
         if hasattr(m, "active_tasks") and hasattr(m, "used_qubits"):
             completed_tasks = []
             for t in m.active_tasks:
                 if rng.random() < 0.15:  # 15% 概率完成
                     completed_tasks.append(t)
-            
+
             for t in completed_tasks:
                 m.active_tasks.remove(t)
                 m.used_qubits -= getattr(t, "qubit_count", 0)
                 m.quantum_queue = max(0, m.quantum_queue - 1)
-                
+
             m.used_qubits = max(0, m.used_qubits)
         else:
             # 兼容旧逻辑

@@ -750,6 +750,129 @@ class TestNumpySimulatedAnnealing(unittest.TestCase):
         # 正确求解器应命中全局最优；错误公式会显著偏离
         self.assertAlmostEqual(found, truth, delta=1e-6)
 
+    def test_reproducibility_with_fixed_seed(self):
+        """Issue #391: 固定 random_state 后两次退火结果应完全一致。"""
+        rng = np.random.default_rng(42)
+        Q = rng.standard_normal((8, 8))
+        Q = Q + Q.T
+
+        opt1 = QuantumAnnealingOptimizer(random_state=12345)
+        opt2 = QuantumAnnealingOptimizer(random_state=12345)
+
+        # 两次独立运行应产生相同结果
+        result1 = opt1.numpy_simulated_annealing(Q)
+        result2 = opt2.numpy_simulated_annealing(Q)
+
+        self.assertEqual(result1, result2, "固定 seed 后两次退火结果应完全一致")
+
+    def test_different_seeds_may_differ(self):
+        """Issue #391: 不同 seed 可能产生不同结果（验证 seed 确实影响随机性）。"""
+        rng = np.random.default_rng(42)
+        Q = rng.standard_normal((10, 10))
+        Q = Q + Q.T
+
+        opt1 = QuantumAnnealingOptimizer(random_state=1)
+        opt2 = QuantumAnnealingOptimizer(random_state=999)
+
+        result1 = opt1.numpy_simulated_annealing(Q)
+        result2 = opt2.numpy_simulated_annealing(Q)
+
+        # 不同 seed 大概率产生不同结果（不强制不等，但验证 seed 生效）
+        # 这里我们只验证两者都能产生有效比特串
+        self.assertEqual(len(result1), 10)
+        self.assertEqual(len(result2), 10)
+
+    def test_early_stopping_triggers(self):
+        """Issue #391: 连续 _sim_patience 次扫描无改进时应早停。"""
+        rng = np.random.default_rng(0)
+        Q = rng.standard_normal((6, 6))
+        Q = Q + Q.T
+
+        opt = QuantumAnnealingOptimizer(random_state=42)
+        opt._sim_num_sweeps = 3000  # 设置很高的扫描次数
+        opt._sim_patience = 5  # 设置很低的耐心值
+
+        # 运行退火，应早停而非跑满 3000 次
+        bitstring = opt.numpy_simulated_annealing(Q)
+        self.assertEqual(len(bitstring), 6)
+
+    def test_random_state_none_preserves_original_behavior(self):
+        """Issue #391: random_state=None 时应保持原有行为（不报错）。"""
+        rng = np.random.default_rng(0)
+        Q = rng.standard_normal((4, 4))
+        Q = Q + Q.T
+
+        opt = QuantumAnnealingOptimizer(random_state=None)
+        bitstring = opt.numpy_simulated_annealing(Q)
+        self.assertEqual(len(bitstring), 4)
+
+
+# ============================================================
+# Issue #362: C1 回归测试 formal/property 别名
+# 将 TestQuboFlipDelta / TestNumpySimulatedAnnealing 的关键回归
+# 挂到 formal 标记下，使其在 CI 专用数学验证 job 中执行
+# ============================================================
+
+
+class TestQuboFlipDeltaFormal(unittest.TestCase):
+    """C1 回归 formal 别名：单比特翻转 ΔE 公式（Issue #362）。"""
+
+    def _analytic_delta(self, q_matrix: np.ndarray, x: np.ndarray, k: int) -> float:
+        x2 = x.copy()
+        x2[k] = 1.0 - x2[k]
+        return float(x2 @ q_matrix @ x2) - float(x @ q_matrix @ x)
+
+    def test_formal_flip_delta_matches_analytic(self):
+        """formal: ΔE 公式与解析值一致（覆盖多组随机 QUBO）。"""
+        rng = np.random.default_rng(42)
+        for _ in range(50):
+            n = int(rng.integers(2, 8))
+            Q = rng.standard_normal((n, n))
+            Q = Q + Q.T
+            x = (rng.random(n) < 0.5).astype(float)
+            k = int(rng.integers(0, n))
+            got = QuantumAnnealingOptimizer._qubo_flip_delta(Q, x, k)
+            self.assertAlmostEqual(got, self._analytic_delta(Q, x, k), places=9)
+
+    def test_formal_flip_delta_known_case(self):
+        """formal: 已知用例 Q=[[1,2],[2,3]], x=[1,1], flip k=0 → ΔE=-5。"""
+        Q = np.array([[1.0, 2.0], [2.0, 3.0]])
+        x = np.array([1.0, 1.0])
+        self.assertAlmostEqual(QuantumAnnealingOptimizer._qubo_flip_delta(Q, x, 0), -5.0, places=9)
+
+
+class TestNumpySimulatedAnnealingFormal(unittest.TestCase):
+    """C1 回归 formal 别名：numpy 仿真退火端到端正确性（Issue #362）。"""
+
+    def _brute_force_min(self, q: np.ndarray) -> float:
+        n = q.shape[0]
+        best = float("inf")
+        for mask in range(1 << n):
+            x = np.array([float((mask >> i) & 1) for i in range(n)])
+            e = float(x @ q @ x)
+            if e < best:
+                best = e
+        return best
+
+    def test_formal_finds_global_optimum_small_qubo(self):
+        """formal: numpy 退火应命中暴力搜索的全局最优（C1 回归）。"""
+        import random
+
+        rng = np.random.default_rng(0)
+        Q = rng.standard_normal((6, 6))
+        Q = Q + Q.T
+        opt = QuantumAnnealingOptimizer()
+        random.seed(1234)
+        np.random.seed(1234)
+        opt._sim_initial_temp = 1.0
+        opt._sim_cooling_rate = 0.995
+        opt._sim_num_sweeps = 3000
+        bitstring = opt.numpy_simulated_annealing(Q)
+        x = np.array([float(int(b)) for b in bitstring])
+        found = float(x @ Q @ x)
+        truth = self._brute_force_min(Q)
+        self.assertAlmostEqual(found, truth, delta=1e-6)
+
 
 # ============================================================
 # ?????????

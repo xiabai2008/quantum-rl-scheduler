@@ -11,6 +11,7 @@ Tianyan Cloud Platform API Client
 
 import os
 import random
+import threading
 import time
 from collections.abc import Callable, Iterator, Mapping
 from contextlib import contextmanager
@@ -103,12 +104,17 @@ class TokenBucketRateLimiter:
         self.rate: float = rate
         self._tokens: float = capacity
         self._last_refill: float = monotonic()
+        # Issue #385: 添加锁保护，防止并发 acquire 导致令牌计数竞态
+        self._lock: threading.Lock = threading.Lock()
 
     def _refill(self) -> None:
         """根据流逝时间补充令牌
 
         使用单调时钟计算距上次补充的时间差，按 ``rate`` 补充令牌，
         但不超过 ``capacity`` 上限。
+
+        Note:
+            调用方应持有 ``self._lock`` 后再调用此方法。
         """
         now = monotonic()
         elapsed = now - self._last_refill
@@ -128,13 +134,15 @@ class TokenBucketRateLimiter:
         Returns:
             需要等待的时间（秒）；0.0 表示无需等待
         """
-        self._refill()
-        if self._tokens >= tokens:
-            self._tokens -= tokens
-            return 0.0
-        deficit = tokens - self._tokens
-        wait_time = deficit / self.rate if self.rate > 0 else float("inf")
-        return wait_time
+        # Issue #385: 复合操作（_refill + 检查 + 扣减）必须在锁内原子完成
+        with self._lock:
+            self._refill()
+            if self._tokens >= tokens:
+                self._tokens -= tokens
+                return 0.0
+            deficit = tokens - self._tokens
+            wait_time = deficit / self.rate if self.rate > 0 else float("inf")
+            return wait_time
 
     def try_acquire(self, tokens: float = 1.0) -> bool:
         """尝试获取令牌（非阻塞）
@@ -147,24 +155,32 @@ class TokenBucketRateLimiter:
         Returns:
             ``True`` 表示获取成功，``False`` 表示令牌不足
         """
-        self._refill()
-        if self._tokens >= tokens:
-            self._tokens -= tokens
-            return True
-        return False
+        # Issue #385: 复合操作（_refill + 检查 + 扣减）必须在锁内原子完成
+        with self._lock:
+            self._refill()
+            if self._tokens >= tokens:
+                self._tokens -= tokens
+                return True
+            return False
 
     @property
     def available_tokens(self) -> float:
         """当前可用令牌数（补充后）"""
-        self._refill()
-        return self._tokens
+        with self._lock:
+            self._refill()
+            return self._tokens
 
 
-class QuotaTracker:
-    """API 配额追踪器
+class WindowedCallCounter:
+    """窗口调用计数器（原内嵌 QuotaTracker，Issue #385 重命名以消除歧义）
 
     按小时与日两个窗口统计 API 调用次数，窗口过期后自动重置计数。
     使用 ``time.time()``（墙上时钟）而非单调时钟，以便与服务器侧配额窗口对齐。
+
+    Note:
+        本类与 ``src/api/quota_tracker.py::QuotaTracker`` 语义不同：
+        - 本类仅做窗口计数，无锁、无持久化
+        - QuotaTracker 提供完整的配额管理（持久化、check_consume、告警）
 
     Attributes:
         hourly_count: 当前小时窗口内的调用次数
@@ -175,45 +191,56 @@ class QuotaTracker:
     DAY_SECONDS: float = 86400.0
 
     def __init__(self) -> None:
-        """初始化配额追踪器，窗口起点设为当前时间"""
+        """初始化窗口计数器，窗口起点设为当前时间"""
         self._hourly_count: int = 0
         self._daily_count: int = 0
         self._hourly_window_start: float = time.time()
         self._daily_window_start: float = time.time()
+        # Issue #385: 添加锁保护并发计数
+        self._lock: threading.Lock = threading.Lock()
 
     def record(self) -> None:
         """记录一次 API 调用，自动检查并重置过期窗口"""
-        now = time.time()
-        if now - self._hourly_window_start >= self.HOUR_SECONDS:
-            self._hourly_count = 0
-            self._hourly_window_start = now
-        if now - self._daily_window_start >= self.DAY_SECONDS:
-            self._daily_count = 0
-            self._daily_window_start = now
-        self._hourly_count += 1
-        self._daily_count += 1
+        with self._lock:
+            now = time.time()
+            if now - self._hourly_window_start >= self.HOUR_SECONDS:
+                self._hourly_count = 0
+                self._hourly_window_start = now
+            if now - self._daily_window_start >= self.DAY_SECONDS:
+                self._daily_count = 0
+                self._daily_window_start = now
+            self._hourly_count += 1
+            self._daily_count += 1
 
     @property
     def hourly_count(self) -> int:
         """当前小时窗口内的调用次数（过期窗口返回 0）"""
-        if time.time() - self._hourly_window_start >= self.HOUR_SECONDS:
-            return 0
-        return self._hourly_count
+        with self._lock:
+            if time.time() - self._hourly_window_start >= self.HOUR_SECONDS:
+                return 0
+            return self._hourly_count
 
     @property
     def daily_count(self) -> int:
         """当前日窗口内的调用次数（过期窗口返回 0）"""
-        if time.time() - self._daily_window_start >= self.DAY_SECONDS:
-            return 0
-        return self._daily_count
+        with self._lock:
+            if time.time() - self._daily_window_start >= self.DAY_SECONDS:
+                return 0
+            return self._daily_count
 
     def reset(self) -> None:
         """手动重置所有计数与窗口起点（主要用于测试）"""
-        now = time.time()
-        self._hourly_count = 0
-        self._daily_count = 0
-        self._hourly_window_start = now
-        self._daily_window_start = now
+        with self._lock:
+            now = time.time()
+            self._hourly_count = 0
+            self._daily_count = 0
+            self._hourly_window_start = now
+            self._daily_window_start = now
+
+
+# Issue #385: 向后兼容别名，消除与 src/api/quota_tracker.py::QuotaTracker 的命名冲突
+# 新代码应使用 WindowedCallCounter，本别名仅为兼容历史导入保留
+QuotaTracker = WindowedCallCounter
 
 
 class TianyanClient:
@@ -346,7 +373,8 @@ class TianyanClient:
             self._rate_limiter = None
 
         # 配额追踪（始终启用，仅记录不影响行为）
-        self._quota_tracker: QuotaTracker = QuotaTracker()
+        # Issue #385: 使用 WindowedCallCounter（QuotaTracker 别名）以消除命名歧义
+        self._quota_tracker: WindowedCallCounter = WindowedCallCounter()
 
         # 确定是否使用 Mock 模式
         self.mock_mode = self._detect_mock_mode(mock_mode)

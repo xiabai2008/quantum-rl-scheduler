@@ -694,3 +694,121 @@ class TestQuboFormalVerification:
             f"||Δw(λ={lambda_weak})||={magnitude_weak:.8f}, "
             f"||Δw(λ={lambda_strong})||={magnitude_strong:.8f}"
         )
+
+
+# =============================================================================
+# Issue #362: 大规模 QUBO formal/property 测试（n≥64 不变量）
+# =============================================================================
+
+
+class TestQuboFormalLargeScale:
+    """Issue #362: n≥64 规模 QUBO 形式化不变量验证。
+
+    覆盖三类不变量：
+    - 能量下界：任意 0/1 向量的 QUBO 能量 ≥ sum(min(0, Q[i,i]))
+    - penalty 单调性：penalty 增大时，约束违反的能量惩罚增大
+    - QUBO↔分配对应关系：x^T Q x 与逐元素求和一致
+    """
+
+    def test_formal_energy_lower_bound_n64(self) -> None:
+        """n=64 时，任意 0/1 向量的 QUBO 能量 ≥ 对角负项之和（下界）。
+
+        对于对称 QUBO 矩阵 Q，能量 x^T Q x = sum_i Q[i,i] x_i + 2 sum_{i<j} Q[i,j] x_i x_j。
+        当所有 x_i=1 时取得对角项总和；下界为 sum_i min(0, Q[i,i])
+        （选 x_i=1 当 Q[i,i]<0，否则 x_i=0）。
+        """
+        rng = np.random.default_rng(seed=362)
+        n = 64
+        priorities = rng.uniform(1.0, 10.0, size=n)
+        times = rng.uniform(1.0, 20.0, size=n)
+        penalty = float(rng.uniform(1.0, 50.0))
+        qubo = build_qubo_matrix_optimized(priorities, times, penalty=penalty)
+
+        # 理论下界：sum of min(0, diagonal)
+        diagonal = np.diag(qubo)
+        lower_bound = float(np.sum(np.minimum(0.0, diagonal)))
+
+        for _ in range(20):
+            x = rng.integers(0, 2, size=n).astype(np.float64)
+            energy = float(x @ qubo @ x)
+            assert energy >= lower_bound - 1e-9, f"能量 {energy} 低于理论下界 {lower_bound}"
+
+    def test_formal_penalty_monotonicity_n64(self) -> None:
+        """n=64 时，penalty 增大 → 约束违反的 QUBO 能量增大。
+
+        固定一个违反约束的分配 x（如全 1，即所有任务同时调度），
+        增大 penalty 时该分配的能量应单调递增。
+        """
+        rng = np.random.default_rng(seed=3621)
+        n = 64
+        priorities = rng.uniform(1.0, 10.0, size=n)
+        times = rng.uniform(1.0, 20.0, size=n)
+
+        # 全 1 分配（违反"同时只能选一个"约束）
+        x = np.ones(n, dtype=np.float64)
+
+        penalties = [1.0, 5.0, 10.0, 50.0, 100.0]
+        energies = []
+        for p in penalties:
+            qubo = build_qubo_matrix_optimized(priorities, times, penalty=p)
+            energy = float(x @ qubo @ x)
+            energies.append(energy)
+
+        # 验证能量随 penalty 增大而单调递增
+        for i in range(len(energies) - 1):
+            assert energies[i + 1] >= energies[i] - 1e-9, (
+                f"penalty {penalties[i]}→{penalties[i + 1]}: "
+                f"能量 {energies[i]}→{energies[i + 1]} 未单调递增"
+            )
+
+    def test_property_qubo_assignment_correspondence_n128(self) -> None:
+        """n=128 时，x^T Q x 与逐元素求和一致（QUBO↔分配对应关系）。
+
+        验证向量化能量计算 (x @ Q @ x) 与显式公式
+        sum_i Q[i,i]*x_i + 2*sum_{i<j} Q[i,j]*x_i*x_j 数值一致。
+        """
+        rng = np.random.default_rng(seed=3622)
+        n = 128
+        priorities = rng.uniform(1.0, 10.0, size=n)
+        times = rng.uniform(1.0, 20.0, size=n)
+        penalty = float(rng.uniform(1.0, 50.0))
+        qubo = build_qubo_matrix_optimized(priorities, times, penalty=penalty)
+
+        for _ in range(5):
+            x = rng.integers(0, 2, size=n).astype(np.float64)
+            # 向量化计算
+            energy_vec = float(x @ qubo @ x)
+            # 显式公式计算
+            diag_sum = float(np.sum(np.diag(qubo) * x))
+            # 上三角部分 × 2
+            upper = np.triu(qubo, k=1)
+            off_diag_sum = 2.0 * float(x @ upper @ x)
+            energy_explicit = diag_sum + off_diag_sum
+            assert abs(energy_vec - energy_explicit) < 1e-6, (
+                f"n={n}: 向量化能量 {energy_vec} 与显式公式 {energy_explicit} 不一致"
+            )
+
+    def test_formal_matrix_symmetry_n64(self) -> None:
+        """n=64 时，QUBO 矩阵保持对称（大规模不变量）。"""
+        rng = np.random.default_rng(seed=3623)
+        n = 64
+        priorities = rng.uniform(1.0, 10.0, size=n)
+        times = rng.uniform(1.0, 20.0, size=n)
+        penalty = float(rng.uniform(1.0, 50.0))
+        qubo = build_qubo_matrix_optimized(priorities, times, penalty=penalty)
+        assert np.allclose(qubo, qubo.T, atol=1e-12), "n=64 QUBO 矩阵不对称"
+        assert np.all(np.isreal(qubo)), "n=64 QUBO 矩阵含非实数"
+
+    def test_property_energy_finite_n64(self) -> None:
+        """n=64 时，任意 0/1 分配的 QUBO 能量为有限实数（大规模属性）。"""
+        rng = np.random.default_rng(seed=3624)
+        n = 64
+        priorities = rng.uniform(1.0, 10.0, size=n)
+        times = rng.uniform(1.0, 20.0, size=n)
+        penalty = float(rng.uniform(1.0, 50.0))
+        qubo = build_qubo_matrix_optimized(priorities, times, penalty=penalty)
+        for _ in range(50):
+            x = rng.integers(0, 2, size=n).astype(np.float64)
+            energy = float(x @ qubo @ x)
+            assert np.isfinite(energy), "能量必须为有限值"
+            assert np.isreal(energy), "能量必须为实数"

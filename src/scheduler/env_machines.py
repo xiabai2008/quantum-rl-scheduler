@@ -169,11 +169,11 @@ def route_to_machine(
 
     if should_submit:
         env._submit_to_real_machine(machine, task, rl_action, rl_action_prob, observation_snapshot)
-        
+
     # 如果是 QEM 动作，应用 QEM 惩罚和奖励：
     if is_qem:
         # QEM：执行时间乘 3，保真度提升（错误率减半）
-        task.execution_time *= 3.0
+        task.execution_time = int(task.execution_time * 3.0)
         machine.fidelity = 1.0 - ((1.0 - machine.fidelity) * 0.5)
 
 
