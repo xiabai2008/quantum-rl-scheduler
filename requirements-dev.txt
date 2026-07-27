@@ -22,3 +22,10 @@ mutmut>=3.0.0
 
 # === 录制/回放测试 — HTTP 响应录制与回放（Issue #175） ===
 vcrpy>=6.0.0
+
+# === 编译层实验依赖（Issue #439） ===
+# scripts/evaluation/compilation_full.py 依赖 qiskit 和 ortools
+# 用于电路编译 AI 实验（PPO SWAP -76.4% vs SABRE）
+# 非核心运行时依赖，仅编译层实验需要
+qiskit>=1.0
+ortools>=9.8
