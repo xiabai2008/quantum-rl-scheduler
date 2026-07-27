@@ -112,12 +112,28 @@ class BlindTestEvaluator:
         if episodes_per_seed <= 0:
             raise ValueError("episodes_per_seed 必须为正整数")
 
+        # Issue #386: 检查相邻 test_seeds 的 episode 种子是否会重叠
+        # 原实现使用 seed + episode，若 test_seeds=[42, 43] 且 episodes_per_seed=5，
+        # seed=42 使用 42-46，seed=43 使用 43-47，存在 4 个重叠种子
+        # 修复：使用 seed * episodes_per_seed + episode 确保全局唯一
+        episode_seeds_all: list[int] = []
+        for seed in test_seeds:
+            for episode in range(episodes_per_seed):
+                episode_seeds_all.append(seed * episodes_per_seed + episode)
+        if len(set(episode_seeds_all)) != len(episode_seeds_all):
+            raise ValueError(
+                f"episode 种子存在重叠: {episode_seeds_all}，"
+                "请检查 test_seeds 间距是否 >= episodes_per_seed"
+            )
+
         all_rewards: list[float] = []
         max_steps = env.max_steps
 
         for seed in test_seeds:
             for episode in range(episodes_per_seed):
-                episode_reward = self._run_episode(model, env, seed + episode, max_steps)
+                # Issue #386: 使用乘法偏移确保相邻 seed 的 episode 种子不重叠
+                episode_seed = seed * episodes_per_seed + episode
+                episode_reward = self._run_episode(model, env, episode_seed, max_steps)
                 all_rewards.append(episode_reward)
 
         result = summarize_rewards(all_rewards)

@@ -10,6 +10,11 @@ helper 函数批量记录。
 from prometheus_client import Counter, Gauge, Histogram
 
 __all__ = [
+    "GRADIENT_NORM",
+    "POLICY_ENTROPY",
+    "POLICY_LOSS",
+    "TRAINING_STEPS",
+    "VALUE_LOSS",
     "active_connections",
     "annealing_iterations",
     "api_calls",
@@ -101,6 +106,28 @@ circuit_breaker_state = Gauge(
 tianyan_cb_state = Gauge(
     "tianyan_circuit_breaker_state",
     "Tianyan client circuit breaker state (0=closed, 1=open, 2=half_open)",
+)
+
+# ── RL 训练过程指标（Issue #411）──
+TRAINING_STEPS = Counter(
+    "scheduler_training_steps_total",
+    "Total RL training steps",
+)
+POLICY_ENTROPY = Gauge(
+    "scheduler_policy_entropy",
+    "Current policy entropy (exploration ability)",
+)
+GRADIENT_NORM = Gauge(
+    "scheduler_gradient_norm",
+    "Gradient norm (training stability)",
+)
+POLICY_LOSS = Gauge(
+    "scheduler_policy_loss",
+    "Current policy loss",
+)
+VALUE_LOSS = Gauge(
+    "scheduler_value_loss",
+    "Current value function loss",
 )
 
 

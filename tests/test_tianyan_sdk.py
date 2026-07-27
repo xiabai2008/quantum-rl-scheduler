@@ -307,6 +307,22 @@ def test_wait_timeout_queue_and_alias(client: CqlibTianyanClient) -> None:
     submit.assert_called_once_with(qcis="H Q0", shots=4, task_name="alias")
 
 
+def test_wait_query_error_terminates_after_threshold(client: CqlibTianyanClient) -> None:
+    """连续 3 次 query_error 后应快速终止为 error，避免无效轮询（Issue #407）。"""
+    with (
+        patch.object(
+            client, "get_task_status", return_value={"status": "query_error"}
+        ) as status_mock,
+        patch("src.api.tianyan_cqlib.time.sleep") as sleep_mock,
+    ):
+        result = client.wait_for_task("task", timeout=60, poll_interval=1)
+    assert result["status"] == "error"
+    # 3 次 query_error 后终止
+    assert status_mock.call_count == 3
+    # 前 2 次仍会 sleep(poll_interval)，第 3 次直接返回不再 sleep
+    assert sleep_mock.call_count == 2
+
+
 def test_is_available_handles_auth_machine_and_unexpected_errors(
     client: CqlibTianyanClient,
 ) -> None:

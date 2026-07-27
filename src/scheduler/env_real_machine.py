@@ -16,6 +16,7 @@ _real_clients 等），从而避免循环导入。
 """
 
 import math
+import os
 import random
 from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any
@@ -60,7 +61,31 @@ _MAX_REAL_QUBITS = 287
 #   当前真机验证阶段使用 1 比特电路（受天衍云免费套餐限制），
 #   验证的是端到端调度闭环而非大规模量子计算能力。
 #   多比特电路实验是下一阶段工作（需付费套餐额度）。
-FREE_TIER_MAX_QUBITS = 1  # 天衍云免费套餐仅支持 1-qubit 电路
+#   获得付费套餐后可通过环境变量 ``FREE_TIER_MAX_QUBITS`` 调高此限制，
+#   例如 ``export FREE_TIER_MAX_QUBITS=5``，无需修改代码。
+
+
+def _resolve_free_tier_max_qubits() -> int:
+    """从环境变量读取免费机时包最大量子比特数。
+
+    默认值为 1（天衍云免费套餐仅支持 1-qubit 电路）。获得付费机时包后
+    可通过环境变量 ``FREE_TIER_MAX_QUBITS`` 调高此限制，无需修改代码。
+    无效值（非正整数或解析失败）回退到默认值 1，保证真机稳定模式。
+
+    Returns:
+        免费机时包最大量子比特数（≥1）
+    """
+    raw = os.environ.get("FREE_TIER_MAX_QUBITS", "1")
+    try:
+        value = int(raw)
+        if value < 1:
+            return 1
+        return value
+    except (ValueError, TypeError):
+        return 1
+
+
+FREE_TIER_MAX_QUBITS = _resolve_free_tier_max_qubits()
 
 
 def generate_qcis_circuit(
@@ -630,6 +655,21 @@ def poll_pending_real_tasks(env: "QuantumSchedulingEnv") -> float:
                 env, pending, status, REAL_MACHINE_FAIL_PENALTY, -1.0, "", "failed"
             )
             record_real_failure(env, machine_name, "任务状态=error")
+        elif status_str == "query_error":
+            # 查询失败：连续3次后视为失败，避免无效轮询（Issue #407）
+            pending["query_fail_count"] = pending.get("query_fail_count", 0) + 1
+            if pending["query_fail_count"] >= 3:
+                total_feedback += REAL_MACHINE_FAIL_PENALTY * env.real_machine_feedback_weight
+                _record_causal_feedback(
+                    env, pending, status, REAL_MACHINE_FAIL_PENALTY, -1.0, "", "query_error"
+                )
+                record_real_failure(env, machine_name, "连续查询失败(query_error)")
+                logger.debug(
+                    f"[真机闭环] 任务 {task_id_str} 连续查询失败 "
+                    f"(query_fail_count={pending['query_fail_count']})"
+                )
+            else:
+                still_pending.append(pending)
         elif pending["poll_count"] >= REAL_MACHINE_MAX_POLL_STEPS:
             # 超时：视为失败
             total_feedback += REAL_MACHINE_FAIL_PENALTY * env.real_machine_feedback_weight

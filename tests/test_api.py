@@ -1610,6 +1610,32 @@ class TestTokenBucketRateLimiter(unittest.TestCase):
             client._apply_rate_limit()
             mock_sleep.assert_not_called()
 
+    def test_concurrent_acquire_is_thread_safe(self):
+        """Issue #385: 多线程并发 acquire 不应导致令牌计数失准。"""
+        import threading
+
+        # 桶容量 100，10 个线程各 acquire 10 次（共 100 次）
+        limiter = TokenBucketRateLimiter(capacity=100.0, rate=0.0)  # rate=0 不补充
+        success_count = {"n": 0}
+        lock = threading.Lock()
+
+        def worker():
+            for _ in range(10):
+                if limiter.try_acquire(1.0):
+                    with lock:
+                        success_count["n"] += 1
+
+        threads = [threading.Thread(target=worker) for _ in range(10)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        # 桶容量 100，100 次 acquire 应全部成功；若并发竞态，可能 >100 次
+        self.assertEqual(success_count["n"], 100, "并发 acquire 导致令牌超发（竞态条件）")
+        # 桶应被耗尽
+        self.assertAlmostEqual(limiter.available_tokens, 0.0, places=2)
+
 
 class TestQuotaTracker(unittest.TestCase):
     """测试 API 配额追踪器（Issue #84）。"""
@@ -1666,6 +1692,29 @@ class TestQuotaTracker(unittest.TestCase):
         tracker.reset()
         self.assertEqual(tracker.hourly_count, 0)
         self.assertEqual(tracker.daily_count, 0)
+
+    def test_concurrent_record_is_thread_safe(self):
+        """Issue #385: 多线程并发 record 不应丢失更新。"""
+        import threading
+
+        tracker = QuotaTracker()
+        n_threads = 10
+        n_per_thread = 100
+
+        def worker():
+            for _ in range(n_per_thread):
+                tracker.record()
+
+        threads = [threading.Thread(target=worker) for _ in range(n_threads)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        # 无锁时可能丢失更新；加锁后应严格等于 n_threads * n_per_thread
+        expected = n_threads * n_per_thread
+        self.assertEqual(tracker.hourly_count, expected, "并发 record 丢失更新（竞态条件）")
+        self.assertEqual(tracker.daily_count, expected, "并发 record 丢失更新（竞态条件）")
 
     def test_client_quota_tracking(self):
         """TianyanClient 应通过 _track_quota 记录调用。"""
