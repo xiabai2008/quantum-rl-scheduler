@@ -65,6 +65,7 @@ from src.scheduler.training import (
     find_latest_checkpoint,
     resume_training,
 )
+from src.utils.lr_schedule import LRScheduleType, create_lr_schedule
 
 # ---------------------------------------------------------------------------
 # 核心类：SchedulerAgent
@@ -103,6 +104,7 @@ class SchedulerAgent:
 
     # ========================= 默认训练超参数 =========================
     DEFAULT_LEARNING_RATE: float = 0.001  # 学习率
+    DEFAULT_LR_SCHEDULE: str = "linear"  # Issue #403: 学习率调度类型
     DEFAULT_BUFFER_SIZE: int = 10000  # 经验回放缓冲区大小
     DEFAULT_BATCH_SIZE: int = 64  # 训练批量大小
     DEFAULT_GAMMA: float = 0.99  # 折扣因子（长期回报权重）
@@ -136,6 +138,7 @@ class SchedulerAgent:
         log_dir: str = DEFAULT_LOG_DIR,
         verbose: int = DEFAULT_VERBOSE,
         seed: int | None = None,
+        lr_schedule: LRScheduleType = "linear",
     ):
         """
         初始化调度智能体
@@ -159,9 +162,15 @@ class SchedulerAgent:
             log_dir: TensorBoard 日志保存目录，默认 "./logs/"
             verbose: 训练日志输出详细程度（0=静默，1=进度条），默认 1
             seed: 随机种子，用于可复现实验
+            lr_schedule: 学习率调度类型（Issue #403），可选 ``"linear"``
+                / ``"cosine"`` / ``"constant"``，默认 ``"linear"``。
+                ``"constant"`` 等价于旧行为（固定学习率）。
         """
         self.env = env
         self.learning_rate = learning_rate
+        # Issue #403: 学习率调度器
+        self.lr_schedule: LRScheduleType = lr_schedule
+        self._lr_fn = create_lr_schedule(learning_rate, lr_schedule)
         self.buffer_size = buffer_size
         self.batch_size = batch_size
         self.gamma = gamma
@@ -226,7 +235,7 @@ class SchedulerAgent:
         model = DQN(
             policy="MlpPolicy",  # 使用 MLP 策略（将通过 policy_kwargs 替换为 Dueling）
             env=self.env,
-            learning_rate=self.learning_rate,
+            learning_rate=self._lr_fn,
             buffer_size=self.buffer_size,
             batch_size=self.batch_size,
             gamma=self.gamma,
@@ -529,6 +538,7 @@ class SchedulerAgent:
             "observation_dim": self.observation_space.shape[0],
             "action_dim": self.action_space.n,
             "learning_rate": self.learning_rate,
+            "lr_schedule": self.lr_schedule,
             "buffer_size": self.buffer_size,
             "batch_size": self.batch_size,
             "gamma": self.gamma,
