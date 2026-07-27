@@ -730,8 +730,15 @@ class DAGScheduler:
             assignment, _energy = solve_task_assignment(
                 tasks_list, machines_list, optimizer=optimizer
             )
-        except Exception:
-            # 退火异常时回退到经典资源约束调度，保证调度可用
+        except Exception as e:
+            # Issue #389: 退火异常时记录日志后回退到经典资源约束调度，保证调度可用
+            # 原实现完全吞掉异常，退火配置错误/依赖缺失/QUBO 构建异常将无法被发现
+            logger.warning(
+                "量子退火辅助调度失败，回退到经典资源约束调度: {}: {}",
+                type(e).__name__,
+                e,
+                exc_info=True,
+            )
             return self.schedule_with_resources(available_qubits, available_machines)
 
         # 机器 ID → 索引映射
