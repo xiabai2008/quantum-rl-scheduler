@@ -2,24 +2,27 @@
 QuantumCompilationEnv — PPO驱动的量子比特映射环境 (14维/16动作)
 """
 
-from typing import ClassVar
+from typing import Any
 
 import gymnasium as gym
 import numpy as np
 from gymnasium import spaces
+from numpy.typing import NDArray
 from qiskit.converters import circuit_to_dag
 
 PHYSICAL_QUBITS = 16
-COUPLING_GRAPH = {i: set() for i in range(PHYSICAL_QUBITS)}
+COUPLING_GRAPH: dict[int, set[int]] = {i: set() for i in range(PHYSICAL_QUBITS)}
 for i in range(PHYSICAL_QUBITS - 1):
     COUPLING_GRAPH[i].add(i + 1)
     COUPLING_GRAPH[i + 1].add(i)
 
 
 class QuantumCompilationEnv(gym.Env):
-    metadata: ClassVar[dict] = {"render_modes": ["human"]}
+    """PPO驱动的量子比特映射环境，14维观测空间，16个离散动作。"""
 
-    def __init__(self, circuit=None, max_steps=200):
+    metadata = {"render_modes": ["human"]}  # noqa: RUF012
+
+    def __init__(self, circuit: Any | None = None, max_steps: int = 200) -> None:
         super().__init__()
         self.max_steps = max_steps
         self.circuit = circuit
@@ -27,9 +30,18 @@ class QuantumCompilationEnv(gym.Env):
         self.n_physical = PHYSICAL_QUBITS
         self.observation_space = spaces.Box(low=0, high=1, shape=(14,), dtype=np.float32)
         self.action_space = spaces.Discrete(PHYSICAL_QUBITS)
+        self._gates: list[Any] = []
+        self._n_gates: int = 0
+        self._two_q_ratio: float = 0.0
+        self._mapping: dict[int, int] = {}
+        self._reverse_map: dict[int, int] = {}
+        self._mapped_gates: int = 0
+        self._swap_count: int = 0
+        self._step_count: int = 0
+        self._current_depth: int = 0
         self._init_state()
 
-    def _init_state(self):
+    def _init_state(self) -> None:
         if self.circuit:
             dag = circuit_to_dag(self.circuit)
             self._gates = list(dag.topological_op_nodes())
@@ -37,22 +49,28 @@ class QuantumCompilationEnv(gym.Env):
             two_q = sum(1 for g in self._gates if len(g.qargs) == 2)
             self._two_q_ratio = two_q / max(1, self._n_gates)
         else:
-            self._gates, self._n_gates, self._two_q_ratio = [], 0, 0
+            self._gates, self._n_gates, self._two_q_ratio = [], 0, 0.0
         self._mapping, self._reverse_map = {}, {}
         self._mapped_gates, self._swap_count = 0, 0
         self._step_count, self._current_depth = 0, 0
 
-    def reset(self, seed=None, options=None):
+    def reset(
+        self,
+        *,
+        seed: int | None = None,
+        options: dict[str, Any] | None = None,
+    ) -> tuple[NDArray[np.float32], dict[str, Any]]:
         super().reset(seed=seed)
         self._mapping, self._reverse_map = {}, {}
         self._mapped_gates, self._swap_count = 0, 0
         self._step_count, self._current_depth = 0, 0
         return self._get_obs(), {}
 
-    def step(self, action: int):
+    def step(self, action: int) -> tuple[NDArray[np.float32], float, bool, bool, dict[str, Any]]:
         self._step_count += 1
         logical_idx = len(self._mapping)
-        reward, terminated = 0, False
+        reward: float = 0.0
+        terminated = False
         truncated = self._step_count >= self.max_steps
         if action in self._reverse_map:
             self._swap_count += 1
@@ -79,7 +97,7 @@ class QuantumCompilationEnv(gym.Env):
             reward += 10 * (1 - min(swap_ratio, 1))
         return self._get_obs(), reward, terminated, truncated, {}
 
-    def _get_obs(self):
+    def _get_obs(self) -> NDArray[np.float32]:
         nq_n = min(self.n_logical / 100.0, 1.0)
         gate_n = min(self._n_gates / 500.0, 1.0)
         two_q_n = self._two_q_ratio
@@ -134,7 +152,7 @@ class QuantumCompilationEnv(gym.Env):
             dtype=np.float32,
         )
 
-    def get_stats(self):
+    def get_stats(self) -> dict[str, int]:
         return {
             "n_logical": self.n_logical,
             "n_physical": self.n_physical,
