@@ -457,9 +457,13 @@ class TestHybridCoverageFiller(unittest.TestCase):
         self.assertEqual(result["source"], "fallback")
 
     def test_rl_type_error_falls_back(self):
-        """RL predict 抛 TypeError 时走兜底（lines 289-291）。"""
+        """Issue #389: RL predict 抛 ValueError 等可恢复异常时走兜底。
+
+        TypeError 等编程错误不再被静默吞掉，仅捕获 ValueError/AttributeError
+        等可恢复异常，MemoryError/SystemExit 等严重异常向上传播。
+        """
         rl_agent = Mock()
-        rl_agent.predict = Mock(side_effect=TypeError("参数类型错误"))
+        rl_agent.predict = Mock(side_effect=ValueError("参数值错误"))
         scheduler = HybridScheduler(rl_agent=rl_agent)
 
         task = _make_task(task_type="universal", urgency=0.3, qubit_count=5)
@@ -467,6 +471,30 @@ class TestHybridCoverageFiller(unittest.TestCase):
         state = np.zeros(14, dtype=np.float32)
         result = scheduler.decide(task, state=state, context=ctx)
         self.assertEqual(result["source"], "fallback")
+
+    def test_rl_attribute_error_falls_back(self):
+        """Issue #389: RL predict 抛 AttributeError 时走兜底。"""
+        rl_agent = Mock()
+        rl_agent.predict = Mock(side_effect=AttributeError("属性不存在"))
+        scheduler = HybridScheduler(rl_agent=rl_agent)
+
+        task = _make_task(task_type="universal", urgency=0.3, qubit_count=5)
+        ctx = {"available_qubits": 100, "queue_length": 5}
+        state = np.zeros(14, dtype=np.float32)
+        result = scheduler.decide(task, state=state, context=ctx)
+        self.assertEqual(result["source"], "fallback")
+
+    def test_rl_memory_error_propagates(self):
+        """Issue #389: RL predict 抛 MemoryError 等严重异常应向上传播，不被吞掉。"""
+        rl_agent = Mock()
+        rl_agent.predict = Mock(side_effect=MemoryError("内存不足"))
+        scheduler = HybridScheduler(rl_agent=rl_agent)
+
+        task = _make_task(task_type="universal", urgency=0.3, qubit_count=5)
+        ctx = {"available_qubits": 100, "queue_length": 5}
+        state = np.zeros(14, dtype=np.float32)
+        with self.assertRaises(MemoryError):
+            scheduler.decide(task, state=state, context=ctx)
 
     def test_fallback_rule_classical(self):
         """_fallback_rule 对 classical 任务返回 ACTION_CLASSICAL（line 328）。"""

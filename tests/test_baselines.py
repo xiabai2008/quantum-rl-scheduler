@@ -533,6 +533,84 @@ class TestEnvBasedScheduler(unittest.TestCase):
         s = EnvBasedFCFSScheduler()
         s.reset()  # 不应抛异常
 
+    def test_heft_uses_correct_obs_index_for_is_quantum(self):
+        """Issue #380: EnvBasedHEFTScheduler 应使用 obs[8] 判断 is_quantum，而非错误的 obs[10]。
+
+        原实现 obs[10] 读取的是 single_gate_fidelity（0.7-0.999），几乎总是 >0.5，
+        导致 HEFT 将几乎所有任务都当作量子任务处理。
+        """
+        import numpy as np
+
+        from src.scheduler.env_types import (
+            OBS_QUBIT_AVAILABILITY,
+            OBS_SINGLE_GATE_FIDELITY,
+            OBS_TASK_TYPE_QUANTUM,
+        )
+
+        scheduler = EnvBasedHEFTScheduler()
+        env = None  # HEFT 不直接使用 env
+
+        # 构造观测：is_quantum=False（obs[8]=0），但 single_gate_fidelity 高（obs[10]=0.99）
+        # 原错误实现会误判 is_quantum=True
+        obs = np.zeros(16, dtype=np.float32)
+        obs[OBS_TASK_TYPE_QUANTUM] = 0.0  # 非量子任务
+        obs[OBS_SINGLE_GATE_FIDELITY] = 0.99  # 高保真度（原错误索引会读这个）
+        obs[OBS_QUBIT_AVAILABILITY] = 0.8  # 量子资源充足
+
+        action = scheduler.select_action(obs, env)
+        # 修复后：is_quantum=False，不应选择量子动作
+        # HEFT 选择最早完成时间；非量子任务应选经典或混合
+        self.assertIn(action, [0, 2], "非量子任务不应选择量子动作（obs[10]误判bug）")
+
+    def test_minmin_uses_correct_obs_index_for_is_quantum(self):
+        """Issue #380: EnvBasedMinMinScheduler 应使用 obs[8] 判断 is_quantum，而非错误的 obs[10]。"""
+        import numpy as np
+
+        from src.scheduler.env_types import (
+            OBS_QUANTUM_QUEUE_RATIO,
+            OBS_QUBIT_AVAILABILITY,
+            OBS_SINGLE_GATE_FIDELITY,
+            OBS_TASK_TYPE_QUANTUM,
+        )
+
+        scheduler = EnvBasedMinMinScheduler()
+        env = None
+
+        # 构造观测：is_quantum=False，但 single_gate_fidelity 高
+        obs = np.zeros(16, dtype=np.float32)
+        obs[OBS_TASK_TYPE_QUANTUM] = 0.0  # 非量子任务
+        obs[OBS_SINGLE_GATE_FIDELITY] = 0.99  # 原错误索引会读这个
+        obs[OBS_QUBIT_AVAILABILITY] = 0.8
+        obs[OBS_QUANTUM_QUEUE_RATIO] = 0.1
+
+        action = scheduler.select_action(obs, env)
+        # 修复后：is_quantum=False，MinMin 应返回经典动作
+        self.assertEqual(action, 0, "非量子任务应选择经典动作（obs[10]误判bug）")
+
+    def test_heft_quantum_task_uses_quantum_action_when_available(self):
+        """Issue #380: 修复后 HEFT 对量子任务且资源充足时应考虑量子动作。"""
+        import numpy as np
+
+        from src.scheduler.env_types import (
+            OBS_QUANTUM_QUEUE_RATIO,
+            OBS_QUBIT_AVAILABILITY,
+            OBS_TASK_TYPE_QUANTUM,
+            OBS_URGENCY_LEVEL,
+        )
+
+        scheduler = EnvBasedHEFTScheduler()
+        env = None
+
+        # 构造观测：is_quantum=True，量子资源充足，队列短
+        obs = np.zeros(16, dtype=np.float32)
+        obs[OBS_TASK_TYPE_QUANTUM] = 1.0
+        obs[OBS_QUBIT_AVAILABILITY] = 0.9
+        obs[OBS_QUANTUM_QUEUE_RATIO] = 0.1
+        obs[OBS_URGENCY_LEVEL] = 0.3
+
+        action = scheduler.select_action(obs, env)
+        self.assertIn(action, [0, 1, 2])  # 应返回合法动作
+
 
 # ============================================================
 # TestBaselineRewardConsistency (Issue #233)

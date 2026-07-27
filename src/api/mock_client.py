@@ -234,9 +234,12 @@ class MockTianyanClient:
 
     def submit_quantum_task(
         self,
-        circuit_qasm: str,
+        circuit_qasm: str = "",
         shots: int = 1024,
         backend: str = "tianyan-287",
+        qcis: str = "",
+        task_name: str = "Scheduler_Task",
+        **kwargs: Any,
     ) -> str:
         """Mock 提交量子计算任务
 
@@ -244,10 +247,15 @@ class MockTianyanClient:
             circuit_qasm: QASM 格式量子电路字符串
             shots: 重复测量次数
             backend: 量子后端名称
+            qcis: QCIS 格式量子电路字符串（优先于 circuit_qasm）
+            task_name: 任务名称
+            **kwargs: 其他可选参数（与真实客户端对齐）
 
         Returns:
             虚拟 task_id 字符串（格式：mock-{uuid}）
         """
+        # 统一接口：优先使用 qcis 参数（与其他客户端对齐）
+        circuit_qasm = qcis if qcis else circuit_qasm
         self._simulate_delay()
         self._maybe_fail("submit_quantum_task")
 
