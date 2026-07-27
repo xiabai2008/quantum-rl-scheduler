@@ -35,7 +35,7 @@ feat / fix / docs / test / refactor / chore
 
 **核心创新—双向赋能**：
 - AI 赋能 量子计算：用强化学习（RL）智能调度量子/经典任务
-- 量子 赋能 AI：量子退火优化RL（探索性方向；当前使用经典模拟退火D-Wave neal，训练开销+74.5%，奖励提升+6.4%在5 seeds下p=0.190统计不显著）
+- 量子 赋能 AI：量子启发式退火优化RL（探索性方向；当前使用经典模拟退火D-Wave neal，训练开销+74.5%，奖励提升+6.4%在5 seeds下p=0.190统计不显著）
 - 量化目标：资源利用率提升 ≥30%（等待时间为多目标优化中的权衡维度，非硬性指标）
 
 **目标平台**：天衍云平台真机"天衍-287"（105数据比特+182耦合比特超导量子计算机，搭载祖冲之三号同款芯片）
@@ -109,7 +109,7 @@ quantum-rl-scheduler/
 │   │   ├── circuit_breaker.py    # 熔断器（CLOSED/OPEN/HALF_OPEN）
 │   │   └── quota_tracker.py      # 配额追踪
 │   ├── quantum/                  # 量子计算（~3文件）
-│   │   ├── annealing.py          # 量子退火优化器
+│   │   ├── annealing.py          # 量子启发式退火优化器
 │   │   └── annealing_loop.py     # 异步退火闭环控制器
 │   ├── evaluation/               # 评估模块（~4文件，Issue #170 防泄漏/OOD）
 │   │   ├── data_split.py         # 数据分割（防泄漏）
@@ -136,7 +136,7 @@ quantum-rl-scheduler/
 ├── tests/                        # 测试（~69 文件，2500+ 用例）
 │   ├── test_scheduler.py         # 调度环境测试
 │   ├── test_marl.py              # MAPPO 测试
-│   ├── test_annealing.py         # 量子退火测试
+│   ├── test_annealing.py         # 量子启发式退火测试
 │   ├── test_annealing_loop.py    # 异步退火闭环测试
 │   ├── test_multi_objective.py   # 多目标奖励测试
 │   ├── test_state_space.py       # 状态空间测试
@@ -210,7 +210,7 @@ quantum-rl-scheduler/
 | RL  | Gymnasium              | 环境封装             |
 | DL  | PyTorch ≥2.0                | 神经网络             |
 | 量子  | 天衍云 cqlib SDK              | 105数据比特+182耦合比特超导处理器（可选，requirements-quantum.txt） |
-| 量子  | D-Wave dimod / dwave-neal     | 量子退火（requirements.txt） |
+| 量子  | D-Wave dimod / dwave-neal     | 量子启发式退火（QUBO+模拟退火，requirements.txt） |
 | Web | FastAPI + Uvicorn      | 监控界面（routes.py含/metrics） |
 | 前端  | Vue3 + Echarts         | 监控面板             |
 | CLI | Click | 统一命令行入口 |

@@ -56,7 +56,7 @@ requirements-quantum.txt   # 真机可选依赖（cqlib）
 
 - 绕过 WAF 拦截问题，真机调用稳定（284 次调用 100% 成功）
 - SDK 内置认证和重试机制，降低工程复杂度
-- 支持退火任务提交（QUBO 问题求解），与量子退火模块（`src/quantum/annealing.py`）集成
+- 支持退火任务提交（QUBO 问题求解），与量子启发式退火模块（`src/quantum/annealing.py`）集成
 - 官方维护，与平台版本同步
 
 ### 负面影响

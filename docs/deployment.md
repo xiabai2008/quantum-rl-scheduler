@@ -198,7 +198,7 @@ scrape_configs:
 │  ┌────▼──────────────▼──────────────────▼────────────┐ │
 │  │  HybridScheduler（规则引擎 + RL 三级降级）         │ │
 │  │  ┌─────────┐  ┌──────────┐  ┌──────────────────┐ │ │
-│  │  │PPO推理   │  │多租户配额  │  │量子退火优化(可选) │ │ │
+│  │  │PPO推理   │  │多租户配额  │  │量子启发式退火(可选)│ │ │
 │  │  │(PyTorch)│  │(TenantQM)│  │(QUBO/Annealing)  │ │ │
 │  │  └─────────┘  └──────────┘  └──────────────────┘ │ │
 │  └───────────────────────────────────────────────────┘ │
@@ -220,7 +220,7 @@ scrape_configs:
 | 多租户管理 | `src/scheduler/tenant.py` | 租户配额、优先级管理 | ✅ 可用 |
 | 天衍云客户端 | `src/api/tianyan_cqlib.py` | 真机任务提交/查询 | ✅ 已验证（15/15成功） |
 | 熔断器 | `src/api/circuit_breaker.py` | 故障保护，3态转换 | ✅ 可用 |
-| 量子退火 | `src/quantum/annealing.py` | QUBO策略优化（可选） | ✅ 可用，默认关闭 |
+| 量子启发式退火 | `src/quantum/annealing.py` | QUBO策略优化（经典模拟退火，可选） | ✅ 可用，默认关闭 |
 | Web监控 | `src/visualization/app.py` | 实时监控+手动操作 | ✅ Docker部署 |
 | Prometheus | `src/utils/metrics.py` | 7个指标暴露 | ✅ /metrics端点 |
 
