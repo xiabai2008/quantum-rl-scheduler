@@ -19,10 +19,12 @@ from numpy.typing import NDArray
 from src.scheduler.env_types import (
     MAX_QUEUE_SIZE,
     MAX_WAIT_STEPS,
+    OBS_ARRIVAL_RATE_MA,
     OBS_AVG_CONNECTIVITY,
     OBS_AVG_WAIT_TIME,
     OBS_CLASSICAL_LOAD,
     OBS_COUPLING_DENSITY,
+    OBS_CROSSTALK_RISK,
     OBS_DIM,
     OBS_FIDELITY,
     OBS_QUANTUM_QUEUE_RATIO,
@@ -34,8 +36,6 @@ from src.scheduler.env_types import (
     OBS_TIME_OF_DAY,
     OBS_TWO_GATE_FIDELITY,
     OBS_URGENCY_LEVEL,
-    OBS_CROSSTALK_RISK,
-    OBS_ARRIVAL_RATE_MA,
 )
 
 if TYPE_CHECKING:
@@ -135,12 +135,12 @@ def get_observation(env: "QuantumSchedulingEnv") -> NDArray[Any]:
             obs[OBS_AVG_CONNECTIVITY] = float(
                 np.clip(np.average(conn_arr, weights=qubits_arr), 0.0, 1.0)
             )
-            
+
             # 计算串扰风险 (Crosstalk Risk): 所有机器中 (used_qubits / total_qubits) 的最大值或加权平均
             # 这里我们使用所有机器使用的 qubits 总和 / 所有机器的总 qubits
             used_q = sum(m.used_qubits for m in env._machines)
             obs[OBS_CROSSTALK_RISK] = float(np.clip(used_q / total_q, 0.0, 1.0))
-            
+
     # 计算任务到达率滑动平均
     if hasattr(env, "arrival_history") and env.arrival_history:
         avg_arrival = sum(env.arrival_history) / len(env.arrival_history)
@@ -150,7 +150,9 @@ def get_observation(env: "QuantumSchedulingEnv") -> NDArray[Any]:
     elif hasattr(env, "current_time_window_arrivals"):
         # 如果历史为空，使用当前窗口的值
         max_expected_arrival = 10.0
-        obs[OBS_ARRIVAL_RATE_MA] = float(np.clip(env.current_time_window_arrivals / max_expected_arrival, 0.0, 1.0))
+        obs[OBS_ARRIVAL_RATE_MA] = float(
+            np.clip(env.current_time_window_arrivals / max_expected_arrival, 0.0, 1.0)
+        )
 
     return obs
 

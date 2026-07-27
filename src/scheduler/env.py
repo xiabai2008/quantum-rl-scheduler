@@ -333,6 +333,50 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
             "consecutive_failures": self._real_consecutive_failures,
         }
 
+    def export_real_feedback_log(self, path: str) -> int:
+        """导出真机反馈因果记录为 JSON 文件，返回记录条数（Issue #236）。
+
+        将 ``_real_feedback_log``（"RL动作→真机任务→结果→reward" 完整因果链）
+        序列化为 JSON，包含元数据（实验时间、环境参数、seed）和记录列表。
+
+        Args:
+            path: 输出 JSON 文件路径。父目录会自动创建。
+
+        Returns:
+            导出的因果记录条数（0 表示无真机反馈记录）。
+        """
+        import json
+        from datetime import datetime
+        from pathlib import Path
+
+        out_path = Path(path)
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+
+        records = list(self._real_feedback_log)
+        payload = {
+            "type": "real_feedback_log",
+            "exported_at": datetime.now().astimezone().isoformat(),
+            "metadata": {
+                "max_steps": self.max_steps,
+                "max_qubits": self.max_qubits,
+                "real_submit_probability": self.real_submit_probability,
+                "use_real_machine": self.use_real_machine,
+                "real_machine_feedback_weight": self.real_machine_feedback_weight,
+                "real_machine_shots": self.real_machine_shots,
+                "real_feedback_mode": self.real_feedback_mode,
+                "arrival_lambda": self.arrival_lambda,
+                "quantum_task_ratio": self.quantum_task_ratio,
+                "num_machines": len(self._machines),
+                "machine_names": [m.name for m in self._machines],
+            },
+            "stats": self.get_real_machine_stats(),
+            "record_count": len(records),
+            "records": records,
+        }
+        with open(out_path, "w", encoding="utf-8") as f:
+            json.dump(payload, f, indent=2, ensure_ascii=False, default=str)
+        return len(records)
+
     def get_tenant_stats(self) -> list[dict[str, Any]]:
         """返回所有租户的配额使用状态；未启用租户管理时返回空列表。"""
         if self._tenant_manager is None:
@@ -371,7 +415,7 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
         self._pending_real_tasks = []
         self._real_result_records = []
         self._real_feedback_log = []
-        
+
         # 重置到达率历史
         self.arrival_history = []
         self.current_time_window_arrivals = 0
@@ -432,7 +476,7 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
             else:
                 # 兼容分配：为量子任务选择最佳机器
                 quantum_action = action in (ACTION_QUANTUM, ACTION_HYBRID, ACTION_QUANTUM_QEM)
-                is_qem = (action == ACTION_QUANTUM_QEM)
+                is_qem = action == ACTION_QUANTUM_QEM
                 selected_machine = None
                 if quantum_action:
                     selected_machine = self._select_best_machine(task)
@@ -582,7 +626,9 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
         observation_snapshot: dict[str, Any] | None = None,
         is_qem: bool = False,
     ) -> None:
-        route_to_machine(self, machine, task, rng, rl_action, rl_action_prob, observation_snapshot, is_qem)
+        route_to_machine(
+            self, machine, task, rng, rl_action, rl_action_prob, observation_snapshot, is_qem
+        )
 
     def _submit_to_real_machine(
         self,
@@ -603,13 +649,15 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
     def _recompute_aggregate(self) -> None:
         recompute_aggregate(self)
 
-    def _compute_execution_reward(self, task: Task, action: int, rng: np.random.Generator, selected_machine=None) -> float:
+    def _compute_execution_reward(
+        self, task: Task, action: int, rng: np.random.Generator, selected_machine: Any = None
+    ) -> float:
         crosstalk_penalty = 0.0
         if selected_machine is not None and hasattr(selected_machine, "active_tasks"):
             active_count = len(selected_machine.active_tasks)
             if active_count > 0:
                 crosstalk_penalty = 0.1 * active_count
-                
+
         return compute_execution_reward(
             task=task,
             action=action,
