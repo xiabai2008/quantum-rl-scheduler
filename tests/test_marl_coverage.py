@@ -215,7 +215,14 @@ class TestComputeGaeBranches:
             assert adv.shape == (4,)
         # done=True 时 non_terminal=0，delta = reward - value
         expected_delta = 1.0 - 0.5
-        assert np.allclose(advs[0], expected_delta)
+        # Issue #402: 信用分配使各 Agent 优势差异化
+        # Agent 0 (action=0, mean=0.5): credit = 1 + 0.15 * (-0.5) * 1 = 0.925
+        expected_adv_0 = expected_delta * 0.925
+        # Agent 1 (action=1, mean=0.5): credit = 1 + 0.15 * (0.5) * 1 = 1.075
+        expected_adv_1 = expected_delta * 1.075
+        assert np.allclose(advs[0], expected_adv_0)
+        assert np.allclose(advs[1], expected_adv_1)
+        # returns 不受信用分配影响
         assert np.allclose(returns, expected_delta + 0.5)
 
     def test_gae_with_continuing_episode_uses_next_value(self) -> None:
