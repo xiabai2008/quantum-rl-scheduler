@@ -104,7 +104,7 @@ def _json_default(o):
         try:
             return o.item()
         except Exception as e:
-            logger.debug(f"numpy 标量 .item() 转换失败，尝试 tolist: {e}")
+            logger.debug(f"numpy.item() 转换失败，尝试 tolist: {e}")
     if hasattr(o, "tolist"):
         return o.tolist()
     return str(o)

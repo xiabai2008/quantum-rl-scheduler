@@ -244,7 +244,7 @@ class EDFScheduler(BaselineScheduler):
             try:
                 return float(raw)
             except (TypeError, ValueError) as e:
-                logger.debug(f"deadline 值无法转换为 float，使用推算值: {e}")
+                logger.debug(f"deadline 字段转换为 float 失败，使用估算值: {e}")
         arrival = _get_float(task, "arrival_time", _DEFAULT_ARRIVAL_TIME)
         est = _get_float(task, "estimated_time", _DEFAULT_ESTIMATED_TIME)
         return arrival + est * 2.0

@@ -32,7 +32,6 @@ from datetime import datetime
 from pathlib import Path
 
 import numpy as np
-from loguru import logger
 
 # ---------------------------------------------------------------------------
 # 延迟导入：确保从项目根目录运行
@@ -64,7 +63,7 @@ def _setup_matplotlib_font():
         ]
         plt.rcParams["axes.unicode_minus"] = False
     except Exception as e:
-        logger.debug(f"中文字体配置失败，使用默认字体: {e}")
+        print(f"[WARN] 中文字体配置失败: {e}")
     return plt
 
 

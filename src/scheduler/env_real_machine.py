@@ -214,7 +214,7 @@ def parse_measurement_result(
                     probability = {str(k): float(v) / total_shots for k, v in counts.items()}
                     return probability
         except (json.JSONDecodeError, ValueError, TypeError) as e:
-            logger.debug(f"result_status JSON 解析失败，跳过: {e}")
+            logger.debug(f"resultStatus JSON 解析失败: {e}")
 
     # 路径 4: result 字段（嵌套 probability）
     result = status.get("result")
