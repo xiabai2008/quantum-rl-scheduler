@@ -62,9 +62,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
-# 复制构建阶段安装的 Python 包
-COPY --from=builder /root/.local /root/.local
-ENV PATH=/root/.local/bin:$PATH
+# 创建非 root 运行用户（最小权限原则，避免容器以 root 身份运行）
+RUN useradd -m -s /bin/bash appuser
+
+# 复制构建阶段安装的 Python 包到非 root 用户 home，避免依赖 root 的 /root/.local，
+# 确保 appuser 可读取/导入依赖（Python 非 root 运行时自动启用 user site）。
+COPY --from=builder /root/.local /home/appuser/.local
+ENV PATH=/home/appuser/.local/bin:$PATH
 
 # 复制项目代码
 COPY . .
@@ -79,17 +83,25 @@ RUN mkdir -p logs models results
 COPY docker-entrypoint.sh /docker-entrypoint.sh
 RUN chmod +x /docker-entrypoint.sh
 
+# 将应用目录与用户目录归属改为 appuser，确保非 root 用户可写可读
+# （logs/models/results 及 entrypoint 中 mkdir -p 的目录均位于 /app 下）
+RUN chown -R appuser /app /home/appuser
+
 # 暴露端口
 # 8000: FastAPI Web 服务
 # 6006: TensorBoard（可选）
 EXPOSE 8000 6006
 
-# 健康检查
+# 健康检查（使用无认证的 /health 存活探针，见 src/visualization/routes.py:193）
 HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
-    CMD curl -f http://localhost:8000/api/status || exit 1
+    CMD curl -f http://localhost:8000/health || exit 1
 
 # 默认启动命令：entrypoint 脚本（后台仿真 + 前台 Web）
 ENTRYPOINT ["/docker-entrypoint.sh"]
+
+# 以非 root 用户运行（若挂载 ./logs ./models ./results 卷，须确保宿主目录对
+# appuser(UID) 可写，否则启动后写 IO 会报错——详见 PR 描述部署须知）
+USER appuser
 
 # 备用启动命令（用于扩展）：
 # - 训练模式: docker-compose run --rm web python scripts/cli.py train --timesteps 100000

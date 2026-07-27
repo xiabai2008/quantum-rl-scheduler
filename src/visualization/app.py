@@ -130,14 +130,27 @@ _VUE3_HTML_TEMPLATE = None
 def _load_vue3_template() -> str:
     """加载前端 HTML 模板。
 
-    2026-07-26: Vue3 前端缺少 package.json 无法构建运行，
-    直接使用内置增强版 HTML_TEMPLATE（零依赖，功能完整）。
+    优先使用 Vue3 前端构建产物 ``frontend/dist/index.html``（由
+    ``npm run build`` 生成，方案 A 保留 Issue #290 前端投入）；若构建产物
+    不存在（例如未执行构建或镜像未打包 dist），则回退到内置零依赖的
+    ``HTML_TEMPLATE``（fallback_template v2），保证 Web 面板始终可用。
     """
     global _VUE3_HTML_TEMPLATE
     if _VUE3_HTML_TEMPLATE is None:
-        # Vue3 前端缺少构建配置无法直接运行，统一使用内置回退模板
-        _VUE3_HTML_TEMPLATE = HTML_TEMPLATE
-        logger.info("[Web] 使用内置增强版 HTML 模板 (fallback_template v2)")
+        dist_index = os.path.join(FRONTEND_DIST_PATH, "index.html")
+        if os.path.isfile(dist_index):
+            try:
+                with open(dist_index, encoding="utf-8") as f:
+                    _VUE3_HTML_TEMPLATE = f.read()
+                logger.info(f"[Web] 使用前端构建产物: {dist_index}")
+            except OSError as e:
+                # 读取失败（权限/IO 错误）时安全降级到内置模板
+                logger.warning(f"[Web] 读取前端构建产物失败 ({e})，回退内置模板")
+                _VUE3_HTML_TEMPLATE = HTML_TEMPLATE
+        else:
+            # Vue3 前端构建产物缺失，统一使用内置回退模板
+            _VUE3_HTML_TEMPLATE = HTML_TEMPLATE
+            logger.info("[Web] 使用内置增强版 HTML 模板 (fallback_template v2)")
     return _VUE3_HTML_TEMPLATE
 
 

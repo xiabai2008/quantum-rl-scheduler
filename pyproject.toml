@@ -7,7 +7,7 @@ build-backend = "setuptools.build_meta"
 # =============================================================================
 [project]
 name = "quantum-rl-scheduler"
-version = "0.5.0"
+version = "8.0.0"
 description = "Quantum RL-driven Intelligent Scheduling System for TianYan Cloud Platform"
 readme = "README.md"
 license = { text = "MIT" }
