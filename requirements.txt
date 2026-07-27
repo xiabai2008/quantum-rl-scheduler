@@ -1,14 +1,19 @@
 # === 核心依赖 ===
-numpy>=1.24.0
-pandas>=2.0.0
-scipy>=1.10.0
+# Issue #383: 为影响实验可复现性的核心依赖添加上限约束，防止大版本变化破坏
+# 随机数生成行为或 API 兼容性。完整可复现请使用 pip freeze > requirements.lock
+# 并通过 pip install -r requirements.lock 安装。
+numpy>=1.24.0,<3.0.0
+pandas>=2.0.0,<4.0.0
+scipy>=1.10.0,<2.0.0
 
 # === 强化学习 ===
-gymnasium>=0.28.0
-stable-baselines3>=2.0.0
-sb3-contrib>=2.0.0
-torch>=2.0.0
-tensorboard>=2.14.0
+# SB3/Gymnasium 大版本升级常伴随 API breaking change，锁定主版本上限
+gymnasium>=0.28.0,<2.0.0
+stable-baselines3>=2.0.0,<3.0.0
+sb3-contrib>=2.0.0,<3.0.0
+# torch 主版本升级（如 2.x → 3.x）会改变 RNG 行为，锁定主版本上限
+torch>=2.0.0,<3.0.0
+tensorboard>=2.14.0,<3.0.0
 
 # === 量子计算 ===
 # 量子启发式退火依赖（探索性功能，2026-07-27 降级为可选）
@@ -20,25 +25,25 @@ tensorboard>=2.14.0
 # 注意：cqlib（天衍云 SDK）需从天衍云平台内部源获取，参见 requirements-quantum.txt
 
 # === Web 框架 ===
-fastapi>=0.104.0
-uvicorn>=0.24.0
-pydantic>=2.0.0
+fastapi>=0.104.0,<1.0.0
+uvicorn>=0.24.0,<1.0.0
+pydantic>=2.0.0,<3.0.0
 
 # === 数据可视化 ===
 # 仅保留 matplotlib（报告生成用）；plotly/seaborn 未使用，已移除
-matplotlib>=3.7.0
+matplotlib>=3.7.0,<4.0.0
 
 # === HTTP 客户端 ===
-requests>=2.34.2
-httpx>=0.25.0
+requests>=2.34.2,<3.0.0
+httpx>=0.25.0,<1.0.0
 
 # === 配置与工具 ===
-python-dotenv>=1.0.0
-pyyaml>=6.0.0
-types-PyYAML>=6.0.12
-loguru>=0.7.0
-prometheus_client>=0.19.0
-click>=8.1.0
-tqdm>=4.66.0
+python-dotenv>=1.0.0,<2.0.0
+pyyaml>=6.0.0,<7.0.0
+types-PyYAML>=6.0.12,<7.0.0
+loguru>=0.7.0,<1.0.0
+prometheus_client>=0.19.0,<1.0.0
+click>=8.1.0,<9.0.0
+tqdm>=4.66.0,<5.0.0
 
 # === Jupyter（已移至 requirements-dev.txt） ===

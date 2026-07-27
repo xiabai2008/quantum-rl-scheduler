@@ -134,6 +134,13 @@ pip install -r requirements.txt
 cp .env.example .env            # Mock 模式默认开启
 ```
 
+> **可复现性提示（Issue #383）**：`requirements.txt` 已为核心依赖添加主版本上限约束，避免大版本变化破坏实验复现性。如需完全可复现的环境，可在干净虚拟环境中执行：
+> ```bash
+> pip install -r requirements.txt
+> pip freeze > requirements.lock
+> # 后续使用 pip install -r requirements.lock 安装完全一致的版本
+> ```
+
 ### 方式四：VS Code Dev Container
 
 安装 [Dev Containers](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers) 扩展后，打开项目文件夹，点击右下角 "Reopen in Container"。
