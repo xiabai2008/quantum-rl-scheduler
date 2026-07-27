@@ -560,7 +560,20 @@ class RolloutBuffer:
         """
         使用 GAE (Generalized Advantage Estimation) 计算优势和回报。
 
-        由于奖励和价值都是共享的，优势对所有 Agent 相同。
+        **Issue #402 改进**：引入差分信用分配机制。
+        基础 GAE 优势对所有 Agent 共享（来自共享奖励和共享 Critic），
+        在此基础上为每个 Agent 计算信用修正项，使各 Agent 获得差异化优势。
+
+        信用分配策略（简化差分奖励）：
+            1. 计算共享 GAE 优势 A_shared（标准 GAE）
+            2. 对每个时间步，计算各 Agent 动作与团队均值的偏差
+            3. 信用系数 = 1 + alpha * (action_i - mean_action) * sign(A_shared)
+               - 正优势时：高于均值的动作获得更多信用，低于均值的获得更少
+               - 负优势时：反向，使偏离团队方向的 Agent 承担更多责任
+            4. A_i = A_shared * credit_coefficient_i
+
+        这使"搭便车"的 Agent（总是选默认动作）在团队表现好时获得较少信用，
+        从而被梯度信号区分。
 
         Args:
             last_value: 最后一个状态的 Bootstrap 价值
@@ -569,7 +582,7 @@ class RolloutBuffer:
 
         Returns:
             (advantages_per_agent, returns):
-                advantages_per_agent: 每个 Agent 的优势数组（内容相同，列表副本）
+                advantages_per_agent: 每个 Agent 的差异化优势数组
                 returns: 共享的回报数组
         """
         n = self.pos
@@ -582,8 +595,35 @@ class RolloutBuffer:
             last_gae = delta + gamma * gae_lambda * non_terminal * last_gae
             advantages[t] = last_gae
         returns = advantages + self.values[:n]
-        # 每个 Agent 一份优势副本（内容相同，训练时各自切片）
-        advantages_per_agent = [advantages.copy() for _ in range(self.num_agents)]
+
+        # Issue #402: 差分信用分配
+        # 信用修正强度 alpha：控制信用分配的强度
+        # alpha=0 退化为原始共享优势；alpha=0.15 为温和的信用分配
+        alpha = 0.15
+
+        # 计算每个时间步的团队平均动作
+        actions_matrix = np.array(
+            [self.actions[i][:n] for i in range(self.num_agents)], dtype=np.float32
+        )  # shape: (num_agents, n)
+        mean_actions = actions_matrix.mean(axis=0)  # shape: (n,)
+
+        # 优势方向的符号（正=团队表现好，负=团队表现差）
+        adv_sign = np.sign(advantages)  # shape: (n,)
+
+        advantages_per_agent: list[np.ndarray] = []
+        for i in range(self.num_agents):
+            # Agent i 的动作偏差（标准化到 [-1, 1] 范围）
+            action_deviation = actions_matrix[i] - mean_actions  # shape: (n,)
+
+            # 信用系数：正优势时正向偏差加分，负优势时负向偏差加分
+            credit_coeff = 1.0 + alpha * action_deviation * adv_sign
+            # 裁剪到合理范围，防止极端值
+            credit_coeff = np.clip(credit_coeff, 0.5, 1.5)
+
+            # 应用信用系数得到差异化优势
+            agent_advantage = advantages * credit_coeff
+            advantages_per_agent.append(agent_advantage.astype(np.float32))
+
         return advantages_per_agent, returns
 
 
@@ -917,12 +957,19 @@ class MultiAgentPPO:
         # 全局状态和回报对所有 Agent 共享
         global_states = self.buffer.global_states[:n]
         returns_arr = returns[:n]
-        # 标准化优势（提升训练稳定性）
+        # Issue #402: 使用各 Agent 的差异化优势（而非共享优势）
+        # 标准化在每个 Agent 的优势上独立进行，保持信用分配的差异性
         advantages_shared = advantages_per_agent[0]
         adv_mean = advantages_shared.mean()
         adv_std: float = float(advantages_shared.std())
         adv_std = float(np.maximum(adv_std, 1e-8))
-        norm_advantages = (advantages_shared - adv_mean) / adv_std
+        # 预计算每个 Agent 的标准化优势
+        norm_advantages_per_agent: list[np.ndarray] = []
+        for i in range(self.num_agents):
+            adv_i = advantages_per_agent[i]
+            # 使用全局均值/标准差进行标准化（保持相对差异）
+            norm_adv_i = (adv_i - adv_mean) / adv_std
+            norm_advantages_per_agent.append(norm_adv_i)
 
         total_actor_loss = 0.0
         total_critic_loss = 0.0
@@ -946,8 +993,7 @@ class MultiAgentPPO:
                 nn.utils.clip_grad_norm_(self.critic.parameters(), self.max_grad_norm)
                 self.critic_optimizer.step()
 
-                # 每个 Agent 独立更新 Actor
-                batch_adv = self._to_tensor(norm_advantages[batch_idx])
+                # 每个 Agent 独立更新 Actor（使用差异化优势）
                 for i in range(self.num_agents):
                     obs_batch = self._to_tensor(self.buffer.local_obs[i][batch_idx])
                     act_batch = torch.as_tensor(
@@ -958,7 +1004,8 @@ class MultiAgentPPO:
                     old_log_prob_batch = self._to_tensor(self.buffer.log_probs[i][batch_idx])
 
                     new_log_prob, entropy = self.actors[i].evaluate_actions(obs_batch, act_batch)
-                    # PPO 比率
+                    # PPO 比率（使用 Agent i 的差异化优势）
+                    batch_adv = self._to_tensor(norm_advantages_per_agent[i][batch_idx])
                     ratio = torch.exp(new_log_prob - old_log_prob_batch)
                     surr1 = ratio * batch_adv
                     surr2 = (

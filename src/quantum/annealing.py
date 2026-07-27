@@ -1665,6 +1665,27 @@ class QuantumAnnealingOptimizer:
             for param, w in zip(params, weights, strict=False):
                 param.copy_(torch.from_numpy(w.astype(np.float32)))
 
+    @staticmethod
+    def _is_dqn_agent(agent: Any) -> bool:
+        """
+        判断 agent 是否为 DQN 类型（具有离散 Q 网络语义）。
+
+        DQN 类型 agent 具有以下特征之一：
+            - 拥有 ``policy_net`` / ``target_net`` 属性（项目内 SchedulingAgent）
+            - SB3 DQN agent（拥有 ``policy.q_net`` 属性）
+
+        Args:
+            agent: 待检测的 RL 智能体
+
+        Returns:
+            True 如果 agent 支持 DQN 梯度计算
+        """
+        # 项目内 SchedulingAgent（具有 policy_net + target_net）
+        if hasattr(agent, "policy_net") and hasattr(agent, "target_net"):
+            return True
+        # SB3 DQN agent（policy.q_net 存在）
+        return hasattr(agent, "policy") and hasattr(agent.policy, "q_net")
+
     def _compute_gradients(
         self,
         policy_net: nn.Module,
@@ -1673,22 +1694,44 @@ class QuantumAnnealingOptimizer:
         batch_size: int = 64,
     ) -> tuple[list[np.ndarray], np.ndarray, float]:
         """
-        计算策略网络的梯度和 TD 误差
+        计算策略网络的梯度和 TD 误差（仅限 DQN 类型 agent）。
 
         从经验回放缓冲区采样一批数据，前向传播计算 TD 误差，
         反向传播得到梯度。
 
+        **Issue #357**: TD 目标的 next-Q 使用 ``target_net`` 而非在线 ``policy_net``，
+        避免移动目标问题。
+
+        **Issue #358**: 仅对 DQN 类型 agent 计算梯度；对非 DQN agent（如 PPO/SAC）
+        显式抛出 ``ValueError``，避免静默产出无效梯度。
+
         Args:
             policy_net   : 策略网络
             replay_buffer: 经验回放缓冲区
-            agent        : RL 智能体（用于获取 gamma 等参数）
+            agent        : RL 智能体（用于获取 gamma / target_net 等）
             batch_size   : 采样批次大小
 
         Returns:
             gradients: 梯度列表（与网络参数一一对应）
             td_errors: TD 误差数组
             loss     : 标量损失值
+
+        Raises:
+            ValueError: agent 不是 DQN 类型（无法计算有效的 DQN 梯度）
         """
+        # Issue #358: 算法守卫 — 仅 DQN 类型 agent 可计算有效 DQN 梯度
+        if not self._is_dqn_agent(agent):
+            algo_name = type(agent).__name__
+            logger.warning(
+                f"_compute_gradients 仅支持 DQN 类型 agent，"
+                f"当前 agent 类型={algo_name} 不支持 DQN 梯度语义，跳过梯度计算"
+            )
+            raise ValueError(
+                f"_compute_gradients 仅支持 DQN 类型 agent（需 policy_net+target_net 或 SB3 DQN），"
+                f"当前 agent={algo_name} 不满足条件。"
+                f"非 DQN 算法请使用各自的梯度接口（如 PPO 的 policy.gradient）。"
+            )
+
         # 尝试从 replay buffer 采样
         if hasattr(replay_buffer, "sample"):
             try:
@@ -1720,14 +1763,19 @@ class QuantumAnnealingOptimizer:
         # 获取 gamma
         gamma = getattr(agent, "gamma", 0.99)
 
-        # 前向传播
+        # 前向传播（在线网络计算当前 Q 值）
         policy_net.train()
         q_values = policy_net(observations)
         q_value = q_values.gather(1, actions).squeeze(1)
 
-        # 计算目标 Q 值
+        # Issue #357: TD 目标的 next-Q 必须使用 target_net（而非在线 policy_net）
+        # 避免"移动目标"问题：如果用 policy_net 同时算 current-Q 和 next-Q，
+        # TD 目标会随在线网络更新而漂移，导致梯度方向有偏。
+        target_net = self._get_target_net(agent, policy_net)
+
+        # 计算目标 Q 值（target_net 不参与梯度回传）
         with torch.no_grad():
-            next_q_values = policy_net(next_observations)
+            next_q_values = target_net(next_observations)
             next_q_value = next_q_values.max(1)[0]
             target_q = rewards + gamma * next_q_value * (1 - dones)
 
@@ -1750,6 +1798,39 @@ class QuantumAnnealingOptimizer:
         policy_net.eval()
 
         return gradients, td_errors.detach().cpu().numpy(), float(loss.item())
+
+    @staticmethod
+    def _get_target_net(agent: Any, policy_net: nn.Module) -> nn.Module:
+        """
+        从 agent 中获取 target 网络（Issue #357）。
+
+        优先使用 agent 自身的 ``target_net`` 属性；若 agent 不具备
+        target_net（如 SB3 DQN 使用 ``policy.q_net`` 对应的
+        ``policy.target_net``），则回退到 policy_net 本身（此时调用方
+        已通过 ``_is_dqn_agent`` 守卫确保是 DQN 语义）。
+
+        Args:
+            agent      : RL 智能体
+            policy_net : 在线策略网络（回退用）
+
+        Returns:
+            用于计算 next-Q 的 target 网络
+        """
+        # 方式 1：项目内 SchedulingAgent 的 target_net
+        if hasattr(agent, "target_net") and isinstance(agent.target_net, nn.Module):
+            return agent.target_net
+
+        # 方式 2：SB3 DQN 的 target q_net
+        if hasattr(agent, "policy") and hasattr(agent.policy, "q_net"):
+            # SB3 DQN: policy.q_net 是在线网络，policy.target_net 是目标网络
+            # 但 SB3 的 DQN policy 没有 target_net 属性；它在内部用 q_net 做双 Q
+            # 此时回退到 policy_net（已通过 _is_dqn_agent 守卫）
+            logger.debug("SB3 DQN agent 无独立 target_net，回退到在线 q_net")
+            return policy_net
+
+        # 回退：使用 policy_net 本身（已通过 _is_dqn_agent 守卫确保 DQN 语义）
+        logger.debug("agent 无 target_net，回退到在线 policy_net")
+        return policy_net
 
     @staticmethod
     def _matrix_to_qubo_dict(qubo_matrix: np.ndarray) -> dict:

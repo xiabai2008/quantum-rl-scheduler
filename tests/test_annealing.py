@@ -1637,19 +1637,24 @@ class TestComputeGradients(unittest.TestCase):
         self.opt = QuantumAnnealingOptimizer(num_qubits=16, shots=10)
         self.opt._sim_num_sweeps = 5
         self.net = nn.Sequential(nn.Linear(4, 2))
+        # Issue #358: _compute_gradients 需要 DQN 类型 agent
+        self.dqn_agent = MagicMock()
+        self.dqn_agent.policy_net = self.net
+        self.dqn_agent.target_net = nn.Sequential(nn.Linear(4, 2))
+        self.dqn_agent.gamma = 0.99
 
     def test_replay_buffer_sample_exception_raises_valueerror(self):
         """replay buffer sample ??????? ValueError?"""
         bad_buffer = MagicMock()
         bad_buffer.sample = MagicMock(side_effect=RuntimeError("buffer empty"))
         with self.assertRaises(ValueError):
-            self.opt._compute_gradients(self.net, bad_buffer, agent=None)
+            self.opt._compute_gradients(self.net, bad_buffer, agent=self.dqn_agent)
 
     def test_replay_buffer_without_sample_raises_valueerror(self):
         """replay buffer ? sample ?????? ValueError?"""
         bad_buffer = MagicMock(spec=[])  # ???
         with self.assertRaises(ValueError):
-            self.opt._compute_gradients(self.net, bad_buffer, agent=None)
+            self.opt._compute_gradients(self.net, bad_buffer, agent=self.dqn_agent)
 
     def test_compute_gradients_with_tuple_batch(self):
         """tuple ?? batch(SB3 ReplayBuffer)???????"""
@@ -1665,7 +1670,7 @@ class TestComputeGradients(unittest.TestCase):
         )
         buffer = MagicMock()
         buffer.sample = MagicMock(return_value=batch)
-        _gradients, _td_errors, loss = self.opt._compute_gradients(self.net, buffer, agent=None)
+        _gradients, _td_errors, loss = self.opt._compute_gradients(self.net, buffer, agent=self.dqn_agent)
         # ??????
         self.assertTrue(np.isfinite(loss))
 
