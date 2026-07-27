@@ -30,7 +30,8 @@ import math
 import os
 import random
 import time
-from typing import Any, Callable, Protocol, runtime_checkable
+from collections.abc import Callable
+from typing import Any, Protocol, runtime_checkable
 
 import numpy as np
 import torch

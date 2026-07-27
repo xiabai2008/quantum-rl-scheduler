@@ -12,9 +12,9 @@
 """
 
 import os
-import tomllib
 
 import pytest
+import tomllib
 import yaml
 
 _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

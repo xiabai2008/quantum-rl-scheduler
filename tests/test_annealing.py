@@ -1779,7 +1779,7 @@ class TestTargetNetGradient(unittest.TestCase):
     def test_target_stationary_under_policy_perturbation(self):
         """????:?? target_net????? policy_net ???
         TD ????? next-Q ????????? td_errors ?? = q_value ???"""
-        obs, actions, rewards, next_obs, dones = self.batch_tensors
+        obs, actions, _rewards, _next_obs, _dones = self.batch_tensors
 
         def q_value_of(net):
             with torch.no_grad():
@@ -1842,13 +1842,13 @@ class TestTargetNetGradient(unittest.TestCase):
 
         # ??1:????? target_net ???????????（?#357:?? target_net ?????? policy_net）
         self.assertEqual(len(gradients), len(grad_target))
-        for g_ret, g_t in zip(gradients, grad_target):
+        for g_ret, g_t in zip(gradients, grad_target, strict=False):
             self.assertTrue(np.allclose(g_ret, g_t, atol=1e-6))
 
         # ??2:?????? policy_net ????????????（? bug ? policy_net ? next-Q ??????????????）
         max_diff = max(
             float(np.max(np.abs(g_ret - g_p)))
-            for g_ret, g_p in zip(gradients, grad_policy)
+            for g_ret, g_p in zip(gradients, grad_policy, strict=False)
         )
         self.assertGreater(max_diff, 1e-6)
 
@@ -1856,7 +1856,7 @@ class TestTargetNetGradient(unittest.TestCase):
         lr = 1e-2
         self.policy_net.zero_grad()
         with torch.no_grad():
-            for p, g in zip(self.policy_net.parameters(), gradients):
+            for p, g in zip(self.policy_net.parameters(), gradients, strict=False):
                 p.sub_(lr * torch.from_numpy(g))
         qv2 = self.policy_net(torch.from_numpy(obs).float()).gather(1, torch.from_numpy(actions).long())
         with torch.no_grad():
@@ -1871,8 +1871,8 @@ class TestTargetNetGradient(unittest.TestCase):
         - _get_target_net ?'agent ??? DQN model'(method 3) ????? q_net_target；
         - _compute_gradients ????? target_net ? TD ???????
         """
-        from stable_baselines3 import DQN
         import gymnasium as gym
+        from stable_baselines3 import DQN
 
         env = gym.make("CartPole-v1")
         model = DQN("MlpPolicy", env, verbose=0)
