@@ -3,7 +3,7 @@
 
 submission:
   deadline: "2026-09-15"
-  version: "v8.0"
+  version: "8.0.0"
 
 items:
   # 代码部分
