@@ -1,10 +1,37 @@
+# ============================================================================
+# 量子退火（Quantum Annealing）配置节
+# 对应代码：src/quantum/annealing.py、src/quantum/annealing_loop.py
+# 所有参数均可通过环境变量覆盖（见 .env.example 的 ANNEALING_* 段）
+# ============================================================================
 annealing:
-  annealing_time: 1.0
-  enabled: true
-  n_bits_per_weight: 4
-  num_qubits: 10
-  num_reads: 100
-  simulation_mode: true
+  # ── 全局开关 ──
+  enabled: true                  # 是否启用量子退火加速（false 时退化为纯经典 RL 优化）
+
+  # ── 退火器基础参数（QuantumAnnealingOptimizer.__init__） ──
+  simulation_mode: true          # true=纯仿真（numpy/neal）；false=尝试真机退火（需 cqlib_client）
+  num_qubits: 16                 # 量子比特数，对应 QUBO 变量个数；建议 ≥16（每权重 4 bit）
+                                 #   取值范围：[4, 256]，过低会触发精度警告
+  shots: 1000                    # 退火采样次数，多次采样后取能量最低解；取值范围：[1, 10000]
+  annealing_time: 20.0           # 退火时间（微秒），仅真机模式生效；取值范围：[1.0, 1000.0]
+  n_bits_per_weight: 4           # 每个权重的编码位数（1 符号位 + 3 数值位）
+
+  # ── 仿真模拟退火超参数（仅 simulation_mode=true 时生效） ──
+  sim_initial_temp: 2.0          # 初始温度，越高越容易跳出局部最优；取值范围：[0.1, 10.0]
+  sim_cooling_rate: 0.995        # 降温系数，越接近 1 降温越慢、收敛越慢但更稳定；取值范围：(0.0, 1.0)
+  sim_num_sweeps: 200            # 扫描次数（每温度点的迭代步数）；取值范围：[10, 10000]
+
+  # ── QUBO 构造参数（network_to_qubo） ──
+  reg_lambda: 0.1                # L2 正则化系数，防止权重更新过大导致 loss 激增；取值范围：[0.001, 1.0]
+  max_delta_ratio: 0.1           # 权重更新幅度比例（max_delta = weight_std * max_delta_ratio）；
+                                 #   取值范围：(0.0, 1.0]，越小更新越保守
+  accept_threshold_ratio: 0.01   # 接受阈值比例（accept_threshold = current_loss * accept_threshold_ratio）；
+                                 #   允许 loss 暂时上升的比例，取值范围：[0.0, 0.1]
+
+  # ── 分层退火参数（optimize_policy_hierarchical，对应 Issue #148） ──
+  head_only: true                # true=仅优化网络尾部 N 个参数张量（向后兼容）；
+                                 #   false=启用 hierarchical 分层退火模式
+  max_params_per_block: 200      # hierarchical 模式每块最大参数数；取值范围：[10, 10000]
+  block_strategy: tensor_wise    # 分块策略："tensor_wise"（按张量分块）/ "size_limited"（按大小分块）
 cache:
   db: 0
   host: localhost
