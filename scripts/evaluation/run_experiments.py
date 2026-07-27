@@ -27,7 +27,6 @@ from datetime import datetime
 from pathlib import Path
 
 import numpy as np
-from loguru import logger
 
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 if str(_PROJECT_ROOT) not in sys.path:
@@ -50,7 +49,7 @@ def _setup_matplotlib_font():
         ]
         plt.rcParams["axes.unicode_minus"] = False
     except Exception as e:
-        logger.debug(f"中文字体配置失败，使用默认字体: {e}")
+        print(f"[WARN] 中文字体配置失败: {e}")
     return plt
 
 

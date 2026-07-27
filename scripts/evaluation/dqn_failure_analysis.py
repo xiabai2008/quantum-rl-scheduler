@@ -9,7 +9,6 @@ import sys
 from datetime import datetime
 
 import numpy as np
-from loguru import logger
 
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, PROJECT_ROOT)
@@ -124,7 +123,7 @@ def run_simulation(env, agent, max_steps=500):
                     with __import__("torch").no_grad():
                         q_vals = [float(agent.model.policy.predict_values(obs_t).item()), 0, 0]
         except Exception as e:
-            logger.debug(f"Q 值提取失败，跳过: {e}")
+            print(f"[WARN] Q 值提取失败，跳过 value 记录: {type(e).__name__}: {e}")
 
         obs, reward, terminated, truncated, _ = env.step(int(action))
         total_reward += reward
