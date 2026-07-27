@@ -1,5 +1,10 @@
 # 天衍-287 多seed真机实验统计分析报告
 
+> **⚠️ SUPERSEDED**: 本报告已被 `multiseed_real_machine_report_10seeds_v2.md` 取代。
+> 权威真机数字以 10-seed v2 报告为准：PPO=1736.32±355.78 vs FCFS=383.00±49.13, Cohen's d=5.33。
+> 以下 5-seed 数据保留作为历史记录，不再作为权威引用源。
+
+
 > ⚠️ 数据警示：本报告中PPO vs FCFS +371.4%、Cohen's d=5.64为5 seeds小样本探索性结果，效应量异常大（d>2极罕见），与dual_empowerment_asymmetry_analysis中mixed_real p=0.127不显著的结论存在矛盾，需更多seeds验证。真机验证定位为SDK可用性验证而非性能基准测试。
 
 > **结论边界声明**：本实验为小规模真机环境下的策略对比验证（N=5 per group），

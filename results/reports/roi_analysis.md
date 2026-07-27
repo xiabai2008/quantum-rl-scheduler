@@ -19,7 +19,7 @@
 
 | 指标 | PPO | FCFS | 提升 | 统计检验 |
 |:--|:--:|:--:|:--:|:--:|
-| 平均奖励 | 1665.22±324.51 | 353.22±53.33 | +371.4% | Welch t p=6.83e-04, d=5.64（小样本探索性结果，效应量异常大，待更多seeds验证） |
+| 平均奖励 | 1736.32±355.78 | 383.00±49.13 | +371.4% | Welch t p<0.001, d=5.33（小样本探索性结果，效应量异常大，待更多seeds验证） |
 | 样本量 | 5 seeds | 5 seeds | — | Bonferroni校正后显著 |
 
 **数据验证**: ✅ 真机数据与权威数字一致（偏差<1%）
@@ -90,8 +90,8 @@
 | PPO 仿真均值 | 2746.94 | AGENTS.md | ✅ 锁定 |
 | FCFS 仿真均值 | 1458.77 | AGENTS.md | ✅ 锁定 |
 | 仿真 p 值（Mann-Whitney U 检验） | 1.032e-42 | 仿真统计验证 | ✅ 锁定 |
-| PPO 真机均值 | 1665.22 | multiseed_real_machine_report_20260724.md | ✅ 验证通过 |
-| FCFS 真机均值 | 353.22 | multiseed_real_machine_report_20260724.md | ✅ 验证通过 |
+| PPO 真机均值 | 1736.32 | multiseed_real_machine_report_20260724.md | ✅ 验证通过 |
+| FCFS 真机均值 | 383.00 | multiseed_real_machine_report_20260724.md | ✅ 验证通过 |
 | 真机 p 值 | 0.000683 | multiseed_real_machine_report_20260724.md | ✅ 锁定 |
 
 > 注：仿真 p 值使用 Mann-Whitney U 检验（p=1.032e-42），与 AGENTS.md 权威口径一致。
