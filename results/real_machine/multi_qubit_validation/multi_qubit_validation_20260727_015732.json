@@ -1,0 +1,374 @@
+{
+  "experiment": "multi_qubit_validation_issue_249",
+  "timestamp": "2026-07-27T01:57:32.937081",
+  "config": {
+    "qubit_groups": [
+      1,
+      2,
+      3
+    ],
+    "seeds": [
+      42,
+      123,
+      456
+    ],
+    "shots": 32,
+    "machine": "tianyan-287",
+    "hard_limit_total": 10,
+    "smoke_passed": true
+  },
+  "total_elapsed_seconds": 88.32,
+  "total_submitted": 10,
+  "smoke": {
+    "smoke_test": true,
+    "passed": true,
+    "task_id": "2081438422967468033",
+    "shots": 32,
+    "circuit": "H Q1\nM Q1",
+    "machine": "tianyan-287",
+    "submitted_at": "2026-07-27T01:56:05.817237",
+    "completed_at": "2026-07-27T01:56:13.605362",
+    "status": "completed",
+    "probability": {
+      "0": 0.3998656608453033,
+      "1": 0.6001343391546967
+    },
+    "fidelity": 0.989870507503822,
+    "elapsed_seconds": 7.79,
+    "error": null,
+    "mock": false,
+    "degraded": false
+  },
+  "results": [
+    {
+      "task_id": "2081438459226759169",
+      "shots": 32,
+      "circuit": "H Q1\nM Q1",
+      "machine": "tianyan-287",
+      "submitted_at": "2026-07-27T01:56:14.470010",
+      "completed_at": "2026-07-27T01:56:22.293991",
+      "status": "completed",
+      "probability": {
+        "0": 0.529037924976749,
+        "1": 0.47096207502325105
+      },
+      "fidelity": 0.9991560867234263,
+      "elapsed_seconds": 7.82,
+      "error": null,
+      "mock": false,
+      "degraded": false,
+      "n_qubits": 1,
+      "seed": 42,
+      "theoretical": {
+        "0": 0.5,
+        "1": 0.5
+      }
+    },
+    {
+      "task_id": "2081438496069525505",
+      "shots": 32,
+      "circuit": "H Q1\nM Q1",
+      "machine": "tianyan-287",
+      "submitted_at": "2026-07-27T01:56:23.245376",
+      "completed_at": "2026-07-27T01:56:31.058838",
+      "status": "completed",
+      "probability": {
+        "0": 0.3998656608453033,
+        "1": 0.6001343391546967
+      },
+      "fidelity": 0.989870507503822,
+      "elapsed_seconds": 7.81,
+      "error": null,
+      "mock": false,
+      "degraded": false,
+      "n_qubits": 1,
+      "seed": 123,
+      "theoretical": {
+        "0": 0.5,
+        "1": 0.5
+      }
+    },
+    {
+      "task_id": "2081438532694188034",
+      "shots": 32,
+      "circuit": "H Q1\nM Q1",
+      "machine": "tianyan-287",
+      "submitted_at": "2026-07-27T01:56:31.976216",
+      "completed_at": "2026-07-27T01:56:39.788293",
+      "status": "completed",
+      "probability": {
+        "0": 0.33527952877958045,
+        "1": 0.6647204712204196
+      },
+      "fidelity": 0.9720880917381024,
+      "elapsed_seconds": 7.81,
+      "error": null,
+      "mock": false,
+      "degraded": false,
+      "n_qubits": 1,
+      "seed": 456,
+      "theoretical": {
+        "0": 0.5,
+        "1": 0.5
+      }
+    },
+    {
+      "task_id": "2081438569050882049",
+      "shots": 32,
+      "circuit": "H Q1\nH Q2\nM Q1 Q2",
+      "machine": "tianyan-287",
+      "submitted_at": "2026-07-27T01:56:40.644829",
+      "completed_at": "2026-07-27T01:56:48.413680",
+      "status": "completed",
+      "probability": {
+        "00": 0.4702067083131397,
+        "01": 0.21670204969723578,
+        "10": 0.22029654682791652,
+        "11": 0.09279469516170813
+      },
+      "fidelity": 0.9266071169944203,
+      "elapsed_seconds": 7.77,
+      "error": null,
+      "mock": false,
+      "degraded": false,
+      "n_qubits": 2,
+      "seed": 42,
+      "theoretical": {
+        "00": 0.25,
+        "01": 0.25,
+        "10": 0.25,
+        "11": 0.25
+      }
+    },
+    {
+      "task_id": "2081438605763624962",
+      "shots": 32,
+      "circuit": "H Q1\nH Q2\nM Q1 Q2",
+      "machine": "tianyan-287",
+      "submitted_at": "2026-07-27T01:56:49.412698",
+      "completed_at": "2026-07-27T01:56:57.242059",
+      "status": "completed",
+      "probability": {
+        "00": 0.4067472695287993,
+        "01": 0.248374284738315,
+        "10": 0.1545837214808112,
+        "11": 0.1902947242520746
+      },
+      "fidelity": 0.965835145822176,
+      "elapsed_seconds": 7.83,
+      "error": null,
+      "mock": false,
+      "degraded": false,
+      "n_qubits": 2,
+      "seed": 123,
+      "theoretical": {
+        "00": 0.25,
+        "01": 0.25,
+        "10": 0.25,
+        "11": 0.25
+      }
+    },
+    {
+      "task_id": "2081438642593808385",
+      "shots": 32,
+      "circuit": "H Q1\nH Q2\nM Q1 Q2",
+      "machine": "tianyan-287",
+      "submitted_at": "2026-07-27T01:56:58.178314",
+      "completed_at": "2026-07-27T01:57:05.969531",
+      "status": "completed",
+      "probability": {
+        "00": 0.40721371397765155,
+        "01": 0.18433343280294057,
+        "10": 0.2187034090976818,
+        "11": 0.18974944412172623
+      },
+      "fidelity": 0.9709475743353913,
+      "elapsed_seconds": 7.79,
+      "error": null,
+      "mock": false,
+      "degraded": false,
+      "n_qubits": 2,
+      "seed": 456,
+      "theoretical": {
+        "00": 0.25,
+        "01": 0.25,
+        "10": 0.25,
+        "11": 0.25
+      }
+    },
+    {
+      "task_id": "2081438679444963330",
+      "shots": 32,
+      "circuit": "H Q1\nH Q2\nH Q3\nM Q1 Q2 Q3",
+      "machine": "tianyan-287",
+      "submitted_at": "2026-07-27T01:57:06.966802",
+      "completed_at": "2026-07-27T01:57:14.845982",
+      "status": "completed",
+      "probability": {
+        "000": 0.05639889176292487,
+        "001": 0.09080367929922817,
+        "010": 0.06090528755354404,
+        "011": 0.05852105406964067,
+        "100": 0.22246047827880355,
+        "101": 0.19009689369637445,
+        "110": 0.09239406928289233,
+        "111": 0.22841964605659207
+      },
+      "fidelity": 0.9228134345190195,
+      "elapsed_seconds": 7.88,
+      "error": null,
+      "mock": false,
+      "degraded": false,
+      "n_qubits": 3,
+      "seed": 42,
+      "theoretical": {
+        "000": 0.125,
+        "001": 0.125,
+        "010": 0.125,
+        "011": 0.125,
+        "100": 0.125,
+        "101": 0.125,
+        "110": 0.125,
+        "111": 0.125
+      }
+    },
+    {
+      "task_id": "2081438716874932225",
+      "shots": 32,
+      "circuit": "H Q1\nH Q2\nH Q3\nM Q1 Q2 Q3",
+      "machine": "tianyan-287",
+      "submitted_at": "2026-07-27T01:57:15.906631",
+      "completed_at": "2026-07-27T01:57:23.840423",
+      "status": "completed",
+      "probability": {
+        "000": 0.21652068959677342,
+        "001": 0.21946692552212982,
+        "010": 0.09451196029965896,
+        "011": 0.025719534960350517,
+        "100": 0.09328497025225714,
+        "101": 0.12584896889595398,
+        "110": 0.027841106729475252,
+        "111": 0.19680584374340102
+      },
+      "fidelity": 0.8926179167729607,
+      "elapsed_seconds": 7.93,
+      "error": null,
+      "mock": false,
+      "degraded": false,
+      "n_qubits": 3,
+      "seed": 123,
+      "theoretical": {
+        "000": 0.125,
+        "001": 0.125,
+        "010": 0.125,
+        "011": 0.125,
+        "100": 0.125,
+        "101": 0.125,
+        "110": 0.125,
+        "111": 0.125
+      }
+    },
+    {
+      "task_id": "2081438755106013185",
+      "shots": 32,
+      "circuit": "H Q1\nH Q2\nH Q3\nM Q1 Q2 Q3",
+      "machine": "tianyan-287",
+      "submitted_at": "2026-07-27T01:57:25.006845",
+      "completed_at": "2026-07-27T01:57:32.934412",
+      "status": "completed",
+      "probability": {
+        "000": 0.0545080056579867,
+        "001": 0.18888751412888258,
+        "010": 0.05736301160147072,
+        "011": 0.12675382446009495,
+        "100": 0.22314912024092542,
+        "101": 0.09321530300953633,
+        "110": 0.19401778747636622,
+        "111": 0.062105433424737205
+      },
+      "fidelity": 0.9322915483875981,
+      "elapsed_seconds": 7.93,
+      "error": null,
+      "mock": false,
+      "degraded": false,
+      "n_qubits": 3,
+      "seed": 456,
+      "theoretical": {
+        "000": 0.125,
+        "001": 0.125,
+        "010": 0.125,
+        "011": 0.125,
+        "100": 0.125,
+        "101": 0.125,
+        "110": 0.125,
+        "111": 0.125
+      }
+    }
+  ],
+  "analysis": {
+    "by_qubit": {
+      "1": {
+        "n_qubits": 1,
+        "total_tasks": 3,
+        "completed_tasks": 3,
+        "success_rate": 1.0,
+        "fidelities": [
+          0.9991560867234263,
+          0.989870507503822,
+          0.9720880917381024
+        ],
+        "mean_fidelity": 0.9870382286551168,
+        "std_fidelity": 0.011230477601568457,
+        "min_fidelity": 0.9720880917381024,
+        "max_fidelity": 0.9991560867234263
+      },
+      "2": {
+        "n_qubits": 2,
+        "total_tasks": 3,
+        "completed_tasks": 3,
+        "success_rate": 1.0,
+        "fidelities": [
+          0.9266071169944203,
+          0.965835145822176,
+          0.9709475743353913
+        ],
+        "mean_fidelity": 0.9544632790506625,
+        "std_fidelity": 0.01980754998653131,
+        "min_fidelity": 0.9266071169944203,
+        "max_fidelity": 0.9709475743353913
+      },
+      "3": {
+        "n_qubits": 3,
+        "total_tasks": 3,
+        "completed_tasks": 3,
+        "success_rate": 1.0,
+        "fidelities": [
+          0.9228134345190195,
+          0.8926179167729607,
+          0.9322915483875981
+        ],
+        "mean_fidelity": 0.9159076332265261,
+        "std_fidelity": 0.016916793037138035,
+        "min_fidelity": 0.8926179167729607,
+        "max_fidelity": 0.9322915483875981
+      }
+    },
+    "summary": {
+      "total_tasks": 9,
+      "completed_tasks": 9,
+      "overall_success_rate": 1.0,
+      "qubit_groups": [
+        1,
+        2,
+        3
+      ],
+      "seeds": [
+        42,
+        123,
+        456
+      ],
+      "shots": 32,
+      "machine": "tianyan-287"
+    }
+  }
+}
