@@ -25,6 +25,7 @@ from stable_baselines3.common.monitor import Monitor
 
 from src.quantum.annealing import QuantumAnnealingOptimizer
 from src.scheduler.cache import SchedulerCache
+from src.utils.helpers import load_annealing_config
 from src.scheduler.callbacks import (
     AnnealingCallback,
     RealMachineCallback,
@@ -92,13 +93,25 @@ class PPOAgent:
         if self.use_annealing:
             # simulation_mode=False 且提供 cqlib_client 时尝试真机退火；
             # cqlib 为门控量子 SDK 无退火接口，会在 anneal() 中自动降级为仿真
+            # Issue #246: 退火参数默认从 config.yaml 的 annealing: 节读取，
+            # 不再硬编码 anneal_qubits=10（与 config 的 num_qubits=16 不一致）。
+            # 若 PPOAgent 调用方显式传入 anneal_* kwargs，则优先于 config（向后兼容）。
+            _anneal_cfg = load_annealing_config()
+            _override: dict = {}
+            if "anneal_qubits" in kwargs:
+                _override["num_qubits"] = kwargs["anneal_qubits"]
+            if "annealing_time" in kwargs:
+                _override["annealing_time"] = kwargs["annealing_time"]
+            if "anneal_shots" in kwargs:
+                _override["shots"] = kwargs["anneal_shots"]
+            if "anneal_simulation_mode" in kwargs:
+                _override["simulation_mode"] = kwargs["anneal_simulation_mode"]
+            if "anneal_n_bits_per_weight" in kwargs:
+                _override["n_bits_per_weight"] = kwargs["anneal_n_bits_per_weight"]
+            _merged_cfg = {**_anneal_cfg, **_override}
             self.annealing_optimizer = QuantumAnnealingOptimizer(
-                num_qubits=kwargs.get("anneal_qubits", 10),
-                annealing_time=kwargs.get("annealing_time", 20.0),
-                shots=kwargs.get("anneal_shots", 1000),
-                simulation_mode=kwargs.get("anneal_simulation_mode", True),
+                config=_merged_cfg,
                 cqlib_client=kwargs.get("anneal_cqlib_client"),
-                n_bits_per_weight=kwargs.get("anneal_n_bits_per_weight", 4),
             )
             sim_tag = "仿真" if self.annealing_optimizer.simulation_mode else "真机"
             logger.info(

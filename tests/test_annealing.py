@@ -25,6 +25,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from src.quantum import annealing as annealing_mod
 from src.quantum.annealing import QuantumAnnealingOptimizer
+from src.utils.helpers import load_annealing_config
 
 
 # ============================================================
@@ -2165,6 +2166,57 @@ class TestOptimizePolicySubMethods(unittest.TestCase):
         self.assertEqual(stats["total"], 0)
         self.assertEqual(stats["accept_rate"], 0.0)
         self.assertEqual(stats["weight_l2_diff"], 0.0)
+
+
+# ============================================================
+# Issue #246: __init__ 从配置读取参数（配置覆盖 + 向后兼容）
+# ============================================================
+class TestAnnealingConfigWiring(unittest.TestCase):
+    """Issue #246: 验证 QuantumAnnealingOptimizer 能从 config 字典读取参数，
+    且在未提供 config 时回退到签名默认值（向后兼容）。"""
+
+    def test_optimizer_uses_config_when_provided(self):
+        """提供 config 时，相关属性应由 config 覆盖。"""
+        opt = QuantumAnnealingOptimizer(
+            config={
+                "num_qubits": 32,
+                "shots": 500,
+                "annealing_time": 30.0,
+                "sim_cooling_rate": 0.99,
+            }
+        )
+        self.assertEqual(opt.num_qubits, 32)
+        self.assertEqual(opt.shots, 500)
+        self.assertEqual(opt.annealing_time, 30.0)
+        self.assertEqual(opt._sim_cooling_rate, 0.99)
+
+    def test_optimizer_falls_back_to_defaults_without_config(self):
+        """未提供 config 时回退到签名默认值，保持既有调用行为不变。"""
+        opt = QuantumAnnealingOptimizer()
+        self.assertEqual(opt.num_qubits, 16)
+        self.assertEqual(opt.shots, 1000)
+        self.assertEqual(opt.annealing_time, 20.0)
+
+    def test_config_change_reflects_in_solver(self):
+        """config 中的 sim_cooling_rate 应体现在 get_annealing_config 输出中。"""
+        opt = QuantumAnnealingOptimizer(
+            config={
+                "num_qubits": 32,
+                "shots": 500,
+                "annealing_time": 30.0,
+                "sim_cooling_rate": 0.99,
+            }
+        )
+        cfg = opt.get_annealing_config()
+        self.assertEqual(cfg["sim_cooling_rate"], 0.99)
+
+    def test_load_annealing_config_consumes_existing_section(self):
+        """load_annealing_config 应消费 main 上已有的 annealing: 节。"""
+        cfg = load_annealing_config("config/config.yaml")
+        self.assertEqual(cfg.get("num_qubits"), 16)
+        self.assertEqual(cfg.get("shots"), 1000)
+        self.assertEqual(cfg.get("annealing_time"), 20.0)
+        self.assertEqual(cfg.get("sim_cooling_rate"), 0.995)
 
 
 if __name__ == "__main__":
