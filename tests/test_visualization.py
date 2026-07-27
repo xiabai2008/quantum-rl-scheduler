@@ -53,6 +53,12 @@ app_module = sys.modules["src.visualization.app"]
 # ============================================================
 
 
+# 测试统一认证密钥：默认开启认证，所有写请求经客户端默认头携带，
+# 以验证“配置密钥时写操作受保护”的正确安全行为。需测试“无密钥拒绝写”
+# 的用例显式 monkeypatch.delenv("VIZ_API_KEY") 即可。
+TEST_VIZ_KEY = "test-viz-key"
+
+
 @pytest.fixture(autouse=True)
 def reset_state():
     """快照并恢复全局 system_status / task_queue / 连接管理器，保证测试间隔离。"""
@@ -70,15 +76,26 @@ def reset_state():
     app_module.system_status["current_strategy"] = saved_strategy
 
 
+@pytest.fixture(autouse=True)
+def default_viz_auth(monkeypatch):
+    """测试默认配置 VIZ_API_KEY，使写操作需经认证（符合修复后的安全模型）。"""
+    monkeypatch.setenv("VIZ_API_KEY", TEST_VIZ_KEY)
+
+
 @pytest_asyncio.fixture
 async def async_client():
     """提供基于 ASGITransport 的 httpx 异步客户端。
 
     ASGITransport 不会触发 FastAPI lifespan，因此后台任务 simulate_scheduler
-    不会运行，保证测试期间全局状态不被后台任务修改。
+    不会运行，保证测试期间全局状态不被后台任务修改。默认注入 X-API-Key 头，
+    使写请求通过认证；如需测试“无密钥/错误密钥”场景，请显式 delenv 或传 header。
     """
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://testserver") as client:
+    async with AsyncClient(
+        transport=transport,
+        base_url="http://testserver",
+        headers={"X-API-Key": TEST_VIZ_KEY},
+    ) as client:
         yield client
 
 
@@ -234,12 +251,102 @@ async def test_update_status(async_client):
 
 
 @pytest.mark.asyncio
-async def test_api_key_auth_disabled(async_client, monkeypatch):
-    """未配置 VIZ_API_KEY 时认证禁用，无 X-API-Key 也能访问 POST 端点。"""
+async def test_api_key_not_configured_blocks_write(async_client, monkeypatch):
+    """未配置 VIZ_API_KEY 时，写操作（POST）必须返回 401；GET 监控端点仍放行。"""
     monkeypatch.delenv("VIZ_API_KEY", raising=False)
-    resp = await async_client.post("/api/strategy", params={"strategy": "FCFS"})
+    # 写操作应被拒绝（零认证放行的安全漏洞已修复）
+    resp_post = await async_client.post("/api/tasks", json={
+        "user_id": "u",
+        "task_type": "quantum",
+        "priority": 3,
+        "qubit_count": 4,
+        "circuit_depth": 10,
+        "estimated_time": 5.0,
+    })
+    assert resp_post.status_code == 401
+    # GET 监控端点不受影响，仍返回 200
+    resp_get = await async_client.get("/api/status")
+    assert resp_get.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_write_request_401_without_key(async_client, monkeypatch):
+    """未配置 VIZ_API_KEY 时，POST /api/tasks 必须返回 401（写操作零认证已修复）。"""
+    monkeypatch.delenv("VIZ_API_KEY", raising=False)
+    resp = await async_client.post("/api/tasks", json={
+        "user_id": "u",
+        "task_type": "quantum",
+        "priority": 3,
+        "qubit_count": 4,
+        "circuit_depth": 10,
+        "estimated_time": 5.0,
+    })
+    assert resp.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_correct_key_allows_write(async_client, monkeypatch):
+    """配置正确 VIZ_API_KEY 且携带 X-API-Key 头时，POST /api/tasks 应成功（200）。"""
+    monkeypatch.setenv("VIZ_API_KEY", "secret")
+    resp = await async_client.post(
+        "/api/tasks",
+        json={
+            "user_id": "u",
+            "task_type": "quantum",
+            "priority": 3,
+            "qubit_count": 4,
+            "circuit_depth": 10,
+            "estimated_time": 5.0,
+        },
+        headers={"X-API-Key": "secret"},
+    )
     assert resp.status_code == 200
-    assert resp.json()["success"] is True
+    assert "task_id" in resp.json()
+
+
+@pytest.mark.asyncio
+async def test_hmac_compare_digest_called(async_client, monkeypatch):
+    """写请求认证必须使用 hmac.compare_digest（恒定时间比较），替代不安全的 !=。"""
+    from unittest.mock import Mock
+
+    import src.visualization.routes as routes
+
+    monkeypatch.setenv("VIZ_API_KEY", "secret")
+    # 正确密钥：恒定时间比较应被调用一次，参数为 (提交值, 期望值)
+    mock_ok = Mock(return_value=True)
+    monkeypatch.setattr(routes.hmac, "compare_digest", mock_ok)
+    resp_ok = await async_client.post(
+        "/api/tasks",
+        json={
+            "user_id": "u",
+            "task_type": "quantum",
+            "priority": 3,
+            "qubit_count": 4,
+            "circuit_depth": 10,
+            "estimated_time": 5.0,
+        },
+        headers={"X-API-Key": "secret"},
+    )
+    assert resp_ok.status_code == 200
+    mock_ok.assert_called_once_with("secret", "secret")
+
+    # 错误密钥：恒定时间比较仍应被调用，并最终返回 401
+    mock_bad = Mock(return_value=False)
+    monkeypatch.setattr(routes.hmac, "compare_digest", mock_bad)
+    resp_bad = await async_client.post(
+        "/api/tasks",
+        json={
+            "user_id": "u",
+            "task_type": "quantum",
+            "priority": 3,
+            "qubit_count": 4,
+            "circuit_depth": 10,
+            "estimated_time": 5.0,
+        },
+        headers={"X-API-Key": "wrong"},
+    )
+    assert resp_bad.status_code == 401
+    mock_bad.assert_called_once_with("wrong", "secret")
 
 
 @pytest.mark.asyncio
@@ -320,9 +427,8 @@ async def test_api_key_auth_does_not_affect_get(async_client, monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_input_validation_empty_task(async_client, monkeypatch):
+async def test_input_validation_empty_task(async_client):
     """POST /api/tasks 空 user_id 应被 Pydantic 拒绝（422）。"""
-    monkeypatch.delenv("VIZ_API_KEY", raising=False)
     payload = {
         "user_id": "",
         "task_type": "quantum",
@@ -336,9 +442,8 @@ async def test_input_validation_empty_task(async_client, monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_input_validation_empty_task_type(async_client, monkeypatch):
+async def test_input_validation_empty_task_type(async_client):
     """POST /api/tasks 空 task_type 应被 Pydantic 拒绝（422）。"""
-    monkeypatch.delenv("VIZ_API_KEY", raising=False)
     payload = {
         "user_id": "user_001",
         "task_type": "",
@@ -352,9 +457,8 @@ async def test_input_validation_empty_task_type(async_client, monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_input_validation_qubit_count_exceeds_limit(async_client, monkeypatch):
+async def test_input_validation_qubit_count_exceeds_limit(async_client):
     """POST /api/tasks qubit_count 超过 287 上限应被拒绝（422）。"""
-    monkeypatch.delenv("VIZ_API_KEY", raising=False)
     payload = {
         "user_id": "user_001",
         "task_type": "quantum",
@@ -368,9 +472,8 @@ async def test_input_validation_qubit_count_exceeds_limit(async_client, monkeypa
 
 
 @pytest.mark.asyncio
-async def test_input_validation_oversized_user_id(async_client, monkeypatch):
+async def test_input_validation_oversized_user_id(async_client):
     """POST /api/tasks 超长 user_id（>128 字符）应被拒绝（422）。"""
-    monkeypatch.delenv("VIZ_API_KEY", raising=False)
     payload = {
         "user_id": "a" * 200,
         "task_type": "quantum",
@@ -1132,9 +1235,8 @@ class TestTasksEndpoint:
         assert resp.json() == []
 
     @pytest.mark.asyncio
-    async def test_post_success_returns_task_id(self, async_client, monkeypatch):
+    async def test_post_success_returns_task_id(self, async_client):
         """POST /api/tasks 成功应返回 task_id 且以 QTASK- 开头。"""
-        monkeypatch.delenv("VIZ_API_KEY", raising=False)
         payload = {
             "user_id": "test_user",
             "task_type": "quantum",
@@ -1150,9 +1252,8 @@ class TestTasksEndpoint:
         assert "成功" in data["message"]
 
     @pytest.mark.asyncio
-    async def test_post_invalid_priority_too_high(self, async_client, monkeypatch):
+    async def test_post_invalid_priority_too_high(self, async_client):
         """priority=6 超过上限应返回 422。"""
-        monkeypatch.delenv("VIZ_API_KEY", raising=False)
         payload = {
             "user_id": "u",
             "task_type": "quantum",
@@ -1164,9 +1265,8 @@ class TestTasksEndpoint:
         assert (await async_client.post("/api/tasks", json=payload)).status_code == 422
 
     @pytest.mark.asyncio
-    async def test_post_invalid_priority_too_low(self, async_client, monkeypatch):
+    async def test_post_invalid_priority_too_low(self, async_client):
         """priority=0 低于下限应返回 422。"""
-        monkeypatch.delenv("VIZ_API_KEY", raising=False)
         payload = {
             "user_id": "u",
             "task_type": "quantum",
@@ -1178,9 +1278,8 @@ class TestTasksEndpoint:
         assert (await async_client.post("/api/tasks", json=payload)).status_code == 422
 
     @pytest.mark.asyncio
-    async def test_post_invalid_qubit_count(self, async_client, monkeypatch):
+    async def test_post_invalid_qubit_count(self, async_client):
         """qubit_count=0 低于下限应返回 422。"""
-        monkeypatch.delenv("VIZ_API_KEY", raising=False)
         payload = {
             "user_id": "u",
             "task_type": "quantum",
@@ -1192,9 +1291,8 @@ class TestTasksEndpoint:
         assert (await async_client.post("/api/tasks", json=payload)).status_code == 422
 
     @pytest.mark.asyncio
-    async def test_post_increases_task_count(self, async_client, monkeypatch):
+    async def test_post_increases_task_count(self, async_client):
         """提交任务后任务总数应增加 1。"""
-        monkeypatch.delenv("VIZ_API_KEY", raising=False)
         before = len((await async_client.get("/api/tasks")).json())
         await async_client.post(
             "/api/tasks",
@@ -1322,9 +1420,8 @@ class TestStrategyEndpoint:
     """POST /api/strategy 端点测试。"""
 
     @pytest.mark.asyncio
-    async def test_known_strategy_switches(self, async_client, monkeypatch):
+    async def test_known_strategy_switches(self, async_client):
         """已知策略应切换成功且更新 current_strategy。"""
-        monkeypatch.delenv("VIZ_API_KEY", raising=False)
         resp = await async_client.post("/api/strategy", params={"strategy": "PPO"})
         assert resp.status_code == 200
         data = resp.json()
@@ -1334,9 +1431,8 @@ class TestStrategyEndpoint:
         assert status.json()["current_strategy"] == "PPO"
 
     @pytest.mark.asyncio
-    async def test_unknown_strategy_fails(self, async_client, monkeypatch):
+    async def test_unknown_strategy_fails(self, async_client):
         """未知策略应返回 success=False 且不修改 current_strategy。"""
-        monkeypatch.delenv("VIZ_API_KEY", raising=False)
         before = (await async_client.get("/api/status")).json()["current_strategy"]
         resp = await async_client.post("/api/strategy", params={"strategy": "NonExistent"})
         assert resp.status_code == 200
@@ -1356,9 +1452,8 @@ class TestUpdateEndpoint:
     """POST /api/update 端点测试。"""
 
     @pytest.mark.asyncio
-    async def test_update_success(self, async_client, monkeypatch):
+    async def test_update_success(self, async_client):
         """合法 payload 应更新系统状态字段。"""
-        monkeypatch.delenv("VIZ_API_KEY", raising=False)
         payload = {
             "qubit_utilization": 0.77,
             "queue_length": 9,
@@ -1374,9 +1469,8 @@ class TestUpdateEndpoint:
         assert status["average_wait_time"] == 7.7
 
     @pytest.mark.asyncio
-    async def test_qubit_utilization_out_of_bounds(self, async_client, monkeypatch):
+    async def test_qubit_utilization_out_of_bounds(self, async_client):
         """qubit_utilization>1.0 应返回 422。"""
-        monkeypatch.delenv("VIZ_API_KEY", raising=False)
         payload = {
             "qubit_utilization": 1.5,
             "queue_length": 1,
@@ -1386,9 +1480,8 @@ class TestUpdateEndpoint:
         assert (await async_client.post("/api/update", json=payload)).status_code == 422
 
     @pytest.mark.asyncio
-    async def test_negative_queue_length_out_of_bounds(self, async_client, monkeypatch):
+    async def test_negative_queue_length_out_of_bounds(self, async_client):
         """queue_length<0 应返回 422。"""
-        monkeypatch.delenv("VIZ_API_KEY", raising=False)
         payload = {
             "qubit_utilization": 0.5,
             "queue_length": -1,
@@ -1398,9 +1491,8 @@ class TestUpdateEndpoint:
         assert (await async_client.post("/api/update", json=payload)).status_code == 422
 
     @pytest.mark.asyncio
-    async def test_average_wait_time_out_of_bounds(self, async_client, monkeypatch):
+    async def test_average_wait_time_out_of_bounds(self, async_client):
         """average_wait_time>86400 应返回 422。"""
-        monkeypatch.delenv("VIZ_API_KEY", raising=False)
         payload = {
             "qubit_utilization": 0.5,
             "queue_length": 1,
@@ -1539,9 +1631,14 @@ class TestAuthLayer:
 
     @pytest.mark.asyncio
     async def test_no_key_configured_allows(self, monkeypatch):
-        """未配置 VIZ_API_KEY 时应放行（返回 None）。"""
+        """未配置 VIZ_API_KEY 时：GET 放行（返回 None），写操作（POST）必须抛 401。"""
         monkeypatch.delenv("VIZ_API_KEY", raising=False)
-        assert await verify_api_key(self._make_request(), x_api_key=None) is None
+        # GET（只读监控端点）应放行
+        assert await verify_api_key(self._make_request("GET"), x_api_key=None) is None
+        # 写操作在零密钥下必须被拒绝，避免零认证放行漏洞
+        with pytest.raises(HTTPException) as exc:
+            await verify_api_key(self._make_request("POST"), x_api_key=None)
+        assert exc.value.status_code == 401
 
     @pytest.mark.asyncio
     async def test_missing_header_rejected(self, monkeypatch):
@@ -1566,10 +1663,13 @@ class TestAuthLayer:
         assert await verify_api_key(self._make_request("POST"), x_api_key="secret-key-123") is None
 
     @pytest.mark.asyncio
-    async def test_empty_env_value_disables_auth(self, monkeypatch):
-        """VIZ_API_KEY 为空字符串时应禁用认证。"""
+    async def test_empty_env_value_rejects_write(self, monkeypatch):
+        """VIZ_API_KEY 为空字符串时等同未配置：GET 放行，写操作仍被拒绝。"""
         monkeypatch.setenv("VIZ_API_KEY", "")
-        assert await verify_api_key(self._make_request(), x_api_key=None) is None
+        assert await verify_api_key(self._make_request("GET"), x_api_key=None) is None
+        with pytest.raises(HTTPException) as exc:
+            await verify_api_key(self._make_request("POST"), x_api_key=None)
+        assert exc.value.status_code == 401
 
     @pytest.mark.asyncio
     async def test_get_request_bypasses_auth(self, monkeypatch):
@@ -1636,7 +1736,6 @@ class TestWebSocket:
     @pytest.mark.asyncio
     async def test_post_task_triggers_broadcast(self, async_client, monkeypatch):
         """POST /api/tasks 应调用 manager.broadcast 广播 task_added 消息。"""
-        monkeypatch.delenv("VIZ_API_KEY", raising=False)
         broadcast_mock = AsyncMock()
         monkeypatch.setattr(app_module.manager, "broadcast", broadcast_mock)
         await async_client.post(
