@@ -15,7 +15,7 @@ Types and Constants for Quantum-Classical Hybrid Task Scheduling Environment
 仅依赖本模块。
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 import numpy as np
@@ -44,7 +44,7 @@ OBS_DIM = 16  # 状态空间维度（从15扩展到16）
 
 # ---------------------------------------------------------------------------
 # 动作常量
-# ---------------------------------------------------------------------------   
+# ---------------------------------------------------------------------------
 ACTION_CLASSICAL = 0  # 分配到经典计算资源
 ACTION_QUANTUM = 1  # 分配到量子计算资源
 ACTION_HYBRID = 2  # 混合执行
@@ -200,8 +200,6 @@ class QuantumMachine:
         active_tasks    : 当前正在该机器上并行执行的任务列表
         used_qubits     : 当前已占用的量子比特数
     """
-
-    from dataclasses import field
 
     name: str = "tianyan_s"
     total_qubits: int = 287

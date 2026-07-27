@@ -371,7 +371,7 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
         self._pending_real_tasks = []
         self._real_result_records = []
         self._real_feedback_log = []
-        
+
         # 重置到达率历史
         self.arrival_history = []
         self.current_time_window_arrivals = 0
@@ -432,7 +432,7 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
             else:
                 # 兼容分配：为量子任务选择最佳机器
                 quantum_action = action in (ACTION_QUANTUM, ACTION_HYBRID, ACTION_QUANTUM_QEM)
-                is_qem = (action == ACTION_QUANTUM_QEM)
+                is_qem = action == ACTION_QUANTUM_QEM
                 selected_machine = None
                 if quantum_action:
                     selected_machine = self._select_best_machine(task)
@@ -582,7 +582,9 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
         observation_snapshot: dict[str, Any] | None = None,
         is_qem: bool = False,
     ) -> None:
-        route_to_machine(self, machine, task, rng, rl_action, rl_action_prob, observation_snapshot, is_qem)
+        route_to_machine(
+            self, machine, task, rng, rl_action, rl_action_prob, observation_snapshot, is_qem
+        )
 
     def _submit_to_real_machine(
         self,
@@ -603,13 +605,15 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
     def _recompute_aggregate(self) -> None:
         recompute_aggregate(self)
 
-    def _compute_execution_reward(self, task: Task, action: int, rng: np.random.Generator, selected_machine=None) -> float:
+    def _compute_execution_reward(
+        self, task: Task, action: int, rng: np.random.Generator, selected_machine: Any = None
+    ) -> float:
         crosstalk_penalty = 0.0
         if selected_machine is not None and hasattr(selected_machine, "active_tasks"):
             active_count = len(selected_machine.active_tasks)
             if active_count > 0:
                 crosstalk_penalty = 0.1 * active_count
-                
+
         return compute_execution_reward(
             task=task,
             action=action,
