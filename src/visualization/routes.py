@@ -664,77 +664,81 @@ async def battle_step(_auth: None = Depends(verify_api_key)) -> dict[str, Any]:
         包含本步两个策略的 reward/action/util 和累积奖励的字典
     """
     battle = state.get_battle_state_ref()
-    if not battle["running"]:
-        return {"error": "对战未启动，请先调用 /api/battle/start"}
+    # Issue #388: 使用 state_lock 保护 battle 状态读写，防止并发调用导致数据损坏
+    with state.state_lock:
+        if not battle["running"]:
+            return {"error": "对战未启动，请先调用 /api/battle/start"}
 
-    try:
-        # --- PPO 策略 ---
-        model = _app._get_ppo_model()
-        ppo_action = 0
-        ppo_step_reward = 0.0
-        ppo_util = 0.0
-        ppo_done = False
+        try:
+            # --- PPO 策略 ---
+            model = _app._get_ppo_model()
+            ppo_action = 0
+            ppo_step_reward = 0.0
+            ppo_util = 0.0
+            ppo_done = False
 
-        if model is not None:
-            ppo_action, _ = model.predict(battle["ppo_obs"], deterministic=True)
-            new_obs, reward, terminated, truncated, _info = battle["ppo_env"].step(int(ppo_action))
-            ppo_step_reward = float(reward)
-            ppo_util = float(new_obs[0])  # 量子比特可用率
-            battle["ppo_reward"] += ppo_step_reward
-            battle["ppo_obs"] = new_obs
-            ppo_done = terminated or truncated
-            if ppo_done:
-                battle["ppo_obs"], _ = battle["ppo_env"].reset()
+            if model is not None:
+                ppo_action, _ = model.predict(battle["ppo_obs"], deterministic=True)
+                new_obs, reward, terminated, truncated, _info = battle["ppo_env"].step(
+                    int(ppo_action)
+                )
+                ppo_step_reward = float(reward)
+                ppo_util = float(new_obs[0])  # 量子比特可用率
+                battle["ppo_reward"] += ppo_step_reward
+                battle["ppo_obs"] = new_obs
+                ppo_done = terminated or truncated
+                if ppo_done:
+                    battle["ppo_obs"], _ = battle["ppo_env"].reset()
 
-        # --- FCFS 策略（固定选择经典资源=动作0） ---
-        fcfs_action = 0
-        new_obs, reward, terminated, truncated, _info = battle["fcfs_env"].step(0)
-        fcfs_step_reward = float(reward)
-        fcfs_util = float(new_obs[0])
-        battle["fcfs_reward"] += fcfs_step_reward
-        battle["fcfs_obs"] = new_obs
-        fcfs_done = terminated or truncated
-        if fcfs_done:
-            battle["fcfs_obs"], _ = battle["fcfs_env"].reset()
+            # --- FCFS 策略（固定选择经典资源=动作0） ---
+            fcfs_action = 0
+            new_obs, reward, terminated, truncated, _info = battle["fcfs_env"].step(0)
+            fcfs_step_reward = float(reward)
+            fcfs_util = float(new_obs[0])
+            battle["fcfs_reward"] += fcfs_step_reward
+            battle["fcfs_obs"] = new_obs
+            fcfs_done = terminated or truncated
+            if fcfs_done:
+                battle["fcfs_obs"], _ = battle["fcfs_env"].reset()
 
-        # 更新步数
-        battle["step"] += 1
-        step = battle["step"]
+            # 更新步数
+            battle["step"] += 1
+            step = battle["step"]
 
-        # 记录历史
-        ppo_entry = {
-            "step": step,
-            "reward": round(ppo_step_reward, 4),
-            "cumulative": round(battle["ppo_reward"], 2),
-            "action": int(ppo_action),
-            "util": round(ppo_util, 4),
-        }
-        fcfs_entry = {
-            "step": step,
-            "reward": round(fcfs_step_reward, 4),
-            "cumulative": round(battle["fcfs_reward"], 2),
-            "action": int(fcfs_action),
-            "util": round(fcfs_util, 4),
-        }
-        battle["ppo_history"].append(ppo_entry)
-        battle["fcfs_history"].append(fcfs_entry)
+            # 记录历史
+            ppo_entry = {
+                "step": step,
+                "reward": round(ppo_step_reward, 4),
+                "cumulative": round(battle["ppo_reward"], 2),
+                "action": int(ppo_action),
+                "util": round(ppo_util, 4),
+            }
+            fcfs_entry = {
+                "step": step,
+                "reward": round(fcfs_step_reward, 4),
+                "cumulative": round(battle["fcfs_reward"], 2),
+                "action": int(fcfs_action),
+                "util": round(fcfs_util, 4),
+            }
+            battle["ppo_history"].append(ppo_entry)
+            battle["fcfs_history"].append(fcfs_entry)
 
-        # 限制历史长度
-        if len(battle["ppo_history"]) > 200:
-            battle["ppo_history"] = battle["ppo_history"][-200:]
-            battle["fcfs_history"] = battle["fcfs_history"][-200:]
+            # 限制历史长度
+            if len(battle["ppo_history"]) > 200:
+                battle["ppo_history"] = battle["ppo_history"][-200:]
+                battle["fcfs_history"] = battle["fcfs_history"][-200:]
 
-        return {
-            "step": step,
-            "ppo": ppo_entry,
-            "fcfs": fcfs_entry,
-            "ppo_total": round(battle["ppo_reward"], 2),
-            "fcfs_total": round(battle["fcfs_reward"], 2),
-            "gap": round(battle["ppo_reward"] - battle["fcfs_reward"], 2),
-        }
-    except Exception as e:
-        logger.error(f"[Web] 对战步进失败: {e}")
-        return {"error": str(e)}
+            return {
+                "step": step,
+                "ppo": ppo_entry,
+                "fcfs": fcfs_entry,
+                "ppo_total": round(battle["ppo_reward"], 2),
+                "fcfs_total": round(battle["fcfs_reward"], 2),
+                "gap": round(battle["ppo_reward"] - battle["fcfs_reward"], 2),
+            }
+        except Exception as e:
+            logger.error(f"[Web] 对战步进失败: {e}")
+            return {"error": str(e)}
 
 
 @router.get("/api/battle/status")
@@ -745,15 +749,17 @@ async def battle_status(_auth: None = Depends(verify_api_key)) -> dict:
         包含 running/step/累积奖励/历史数据的字典
     """
     battle = state.get_battle_state_ref()
-    return {
-        "running": battle["running"],
-        "step": battle["step"],
-        "ppo_total": round(battle["ppo_reward"], 2),
-        "fcfs_total": round(battle["fcfs_reward"], 2),
-        "gap": round(battle["ppo_reward"] - battle["fcfs_reward"], 2),
-        "ppo_history": battle["ppo_history"][-50:],
-        "fcfs_history": battle["fcfs_history"][-50:],
-    }
+    # Issue #388: 读取 battle 状态也加锁，保证读到一致快照
+    with state.state_lock:
+        return {
+            "running": battle["running"],
+            "step": battle["step"],
+            "ppo_total": round(battle["ppo_reward"], 2),
+            "fcfs_total": round(battle["fcfs_reward"], 2),
+            "gap": round(battle["ppo_reward"] - battle["fcfs_reward"], 2),
+            "ppo_history": list(battle["ppo_history"][-50:]),
+            "fcfs_history": list(battle["fcfs_history"][-50:]),
+        }
 
 
 @router.post("/api/battle/reset")
