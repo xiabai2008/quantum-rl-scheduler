@@ -1742,6 +1742,30 @@ class QuantumAnnealingOptimizer:
                     qubo_dict[(i, j)] = float(val)
         return qubo_dict
 
+    @staticmethod
+    def _qubo_flip_delta(
+        qubo_matrix: np.ndarray,
+        solution: np.ndarray,
+        flip_idx: int,
+    ) -> float:
+        """单比特翻转的能量变化 ΔE = E(x') - E(x)，其中 x' 在第 flip_idx 位取反。
+
+        QUBO 能量定义为 E(x) = x^T Q x（Q 对称，含对角项）。翻转第 k 位
+        （x_k -> 1 - x_k）后的解析能量差为：
+
+            ΔE = 2·(1 - 2·x_k)·(Σ_j Q[k,j]·x_j) + Q[k,k]
+
+        等价于 (1 - 2·x_k)·[2·Σ_{j≠k} Q[k,j]·x_j + Q[k,k]]。
+
+        该公式保证：从任意解出发，累进维护的 current_energy 始终等于
+        compute_qubo_energy(current_solution, Q)。早期实现漏写 ×2 的离对角项
+        与对角项 Q[k,k]，导致 Metropolis 接受概率偏离正确玻尔兹曼分布，且
+        累进能量与真实能量逐渐漂移——这是默认仿真求解器的严重正确性缺陷。
+        """
+        delta = 1.0 - 2.0 * solution[flip_idx]
+        linear_term = float(np.dot(qubo_matrix[flip_idx], solution))
+        return 2.0 * delta * linear_term + float(qubo_matrix[flip_idx, flip_idx])
+
     def numpy_simulated_annealing(
         self,
         qubo_matrix: np.ndarray,
@@ -1786,10 +1810,11 @@ class QuantumAnnealingOptimizer:
                 flip_idx = random.randint(0, n - 1)
 
                 # 计算翻转后的能量变化（向量化，避免 Python 层内循环）
-                # ΔE = (1 - 2*x[flip]) * (Σ_j Q[flip,j] * x[j])
-                delta = 1.0 - 2.0 * current_solution[flip_idx]
-                linear_term = np.dot(qubo_matrix[flip_idx], current_solution)
-                delta_energy = delta * linear_term
+                # 解析公式：ΔE = 2*(1-2x[flip])*(Q[flip]·x) + Q[flip,flip]
+                # 推导与回归测试见 _qubo_flip_delta
+                delta_energy = self._qubo_flip_delta(
+                    qubo_matrix, current_solution, flip_idx
+                )
 
                 # Metropolis 准则：以概率 min(1, exp(-ΔE/T)) 接受新解
                 if delta_energy < 0 or random.random() < math.exp(
