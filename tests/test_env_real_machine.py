@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 """env_real_machine.py 真机闭环模块的单元测试"""
 
+import os
 import sys
 from pathlib import Path
 
@@ -18,6 +19,7 @@ from src.scheduler.env_real_machine import (
     FREE_TIER_MAX_QUBITS,
     _compute_real_feedback,
     _record_real_result,
+    _resolve_free_tier_max_qubits,
     _update_task_duration,
     compute_real_result_reward,
     compute_result_fidelity,
@@ -982,11 +984,42 @@ class TestTwoQubitGatesCircuit:
 
 
 class TestFreeTierConstant:
-    """FREE_TIER_MAX_QUBITS 常量约束测试。"""
+    """FREE_TIER_MAX_QUBITS 常量约束与可配置性测试。"""
 
-    def test_free_tier_is_one(self):
-        """免费机时包限制为 1 比特（真机稳定模式）。"""
-        assert FREE_TIER_MAX_QUBITS == 1
+    def test_free_tier_default_is_one(self):
+        """未设置环境变量时，免费机时包限制为 1 比特（真机稳定模式）。"""
+        os.environ.pop("FREE_TIER_MAX_QUBITS", None)
+        assert _resolve_free_tier_max_qubits() == 1
+
+    def test_free_tier_module_constant_positive(self):
+        """模块级常量在导入时为正整数（受环境变量影响但至少为 1）。"""
+        assert isinstance(FREE_TIER_MAX_QUBITS, int)
+        assert FREE_TIER_MAX_QUBITS >= 1
+
+    def test_free_tier_env_var_override(self):
+        """环境变量 FREE_TIER_MAX_QUBITS 可覆盖默认限制（付费套餐场景）。"""
+        original = os.environ.pop("FREE_TIER_MAX_QUBITS", None)
+        try:
+            os.environ["FREE_TIER_MAX_QUBITS"] = "5"
+            assert _resolve_free_tier_max_qubits() == 5
+        finally:
+            if original is not None:
+                os.environ["FREE_TIER_MAX_QUBITS"] = original
+            else:
+                os.environ.pop("FREE_TIER_MAX_QUBITS", None)
+
+    @pytest.mark.parametrize("invalid", ["abc", "0", "-3", "1.5", ""])
+    def test_free_tier_invalid_value_falls_back(self, invalid: str):
+        """无效环境变量值回退到默认值 1，保证真机稳定模式。"""
+        original = os.environ.pop("FREE_TIER_MAX_QUBITS", None)
+        try:
+            os.environ["FREE_TIER_MAX_QUBITS"] = invalid
+            assert _resolve_free_tier_max_qubits() == 1, f"无效值 {invalid!r} 应回退到 1"
+        finally:
+            if original is not None:
+                os.environ["FREE_TIER_MAX_QUBITS"] = original
+            else:
+                os.environ.pop("FREE_TIER_MAX_QUBITS", None)
 
 
 # =============================================================================
