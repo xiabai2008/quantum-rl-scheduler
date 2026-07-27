@@ -30,8 +30,10 @@
 
 ```bash
 # 1) 多 seed 评估 + 统计显著性（14维 PPO，10 seed × 5 ep）
+#    Issue #435: --obs-dim 默认14，与 ppo_best_model_14dim.zip 维度一致
 python scripts/evaluation/run_multiseed_evaluation.py --seeds 10 --episodes 5 \
-    --ppo-model deliverable_models/ppo_best_model_14dim.zip
+    --ppo-model deliverable_models/ppo_best_model_14dim.zip \
+    --obs-dim 14
 
 # 2) 统计显著性检验
 python scripts/evaluation/statistical_significance.py \
