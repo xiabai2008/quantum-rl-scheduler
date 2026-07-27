@@ -30,7 +30,7 @@
 | 指标 | 数值 |
 |------|------|
 | 核心代码量 | 约 1.2 万行 Python（src/ 68 文件） |
-| 测试文件 | 75 个文件，2700+ 测试用例 |
+| 测试文件 | 76 个文件，2824+ 测试用例 |
 | CI 强制覆盖率 | 80%（实际 94.2%，pyproject.toml `fail_under=80`） |
 | 观测空间维度 | **16维**（新增串扰风险、任务到达率MA） |
 | 动作空间 | **4维**（新增 QUANTUM_QEM 误差缓释动作） |
@@ -74,7 +74,7 @@ quantum-rl-scheduler/
 │   ├── quantum/              # 量子启发式退火加速模块（QUBO + 异步闭环）
 │   ├── visualization/        # FastAPI + Vue3 + Echarts 监控面板
 │   └── utils/                # 工具函数 + Prometheus 指标
-├── tests/                    # 69 个测试文件，2500+ 用例
+├── tests/                    # 76 个测试文件，2824+ 用例
 │   └── benchmarks/           # 性能基准测试
 ├── scripts/                  # 按功能分区（training/evaluation/demo/testing/benchmarking/reporting）
 │   └── cli.py                # Click 统一命令行入口
