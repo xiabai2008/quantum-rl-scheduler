@@ -12,14 +12,68 @@ Issue #45: QUBO 矩阵构建性能剖析与加速 — 测试模块
 
 import numpy as np
 import pytest
+from hypothesis import given, settings
+from hypothesis import strategies as st
 
 from src.quantum.annealing import (
+    QuantumAnnealingOptimizer,
     benchmark_qubo_versions,
     build_qubo_matrix,
     build_qubo_matrix_optimized,
     find_optimal_qubo_params,
     profile_qubo_construction,
 )
+
+
+def _exact_minimum_bitstring(qubo: np.ndarray) -> str:
+    """穷举小型 QUBO，返回确定性的最低能量比特串。"""
+    n_variables = qubo.shape[0]
+    candidates = (
+        np.array(list(np.binary_repr(value, width=n_variables)), dtype=np.float64)
+        for value in range(2**n_variables)
+    )
+    best = min(candidates, key=lambda bits: float(bits @ qubo @ bits))
+    return "".join(str(int(bit)) for bit in best)
+
+
+@st.composite
+def weight_gradient_pairs(
+    draw: st.DrawFn,
+    *,
+    min_size: int = 1,
+    max_size: int = 4,
+) -> tuple[list[np.ndarray], list[np.ndarray]]:
+    """生成有限、非零梯度的随机权重与梯度。"""
+    size = draw(st.integers(min_value=min_size, max_value=max_size))
+    finite_float = st.floats(
+        min_value=-1.0,
+        max_value=1.0,
+        allow_nan=False,
+        allow_infinity=False,
+        width=32,
+    )
+    nonzero_gradient = st.one_of(
+        st.floats(
+            min_value=-2.0,
+            max_value=-0.25,
+            allow_nan=False,
+            allow_infinity=False,
+            width=32,
+        ),
+        st.floats(
+            min_value=0.25,
+            max_value=2.0,
+            allow_nan=False,
+            allow_infinity=False,
+            width=32,
+        ),
+    )
+    weights = draw(st.lists(finite_float, min_size=size, max_size=size))
+    gradients = draw(st.lists(nonzero_gradient, min_size=size, max_size=size))
+    return (
+        [np.asarray(weights, dtype=np.float64)],
+        [np.asarray(gradients, dtype=np.float64)],
+    )
 
 
 @pytest.fixture
@@ -256,7 +310,7 @@ class TestQuboMatrixProperties:
 # Issue #253: QUBO 形式化 / 属性验证（CI 通过 -k "formal or property" 选中）
 # 注意：pytest 的 -k 在本仓库区分大小写，因此测试“方法名”中显式包含
 # 小写子串 "formal" / "property"，确保 CI 步骤能稳定命中。
-# 仅使用 numpy + 标准库，不引入 hypothesis 等新依赖。
+# 本组历史测试仅使用 numpy + 标准库；Issue #252 的 Hypothesis 测试见文件末尾。
 # =============================================================================
 
 
@@ -326,3 +380,66 @@ class TestQuboPropertyBased:
             qubo = optimizer.network_to_qubo(weights)
             assert np.all(np.isreal(qubo)), "QUBO 矩阵应为实数矩阵"
             assert np.allclose(qubo, qubo.T, atol=1e-12), "QUBO 矩阵必须对称"
+
+
+class TestNetworkQuboHypothesisProperties:
+    """Issue #252：用 100 个随机用例验证网络权重 QUBO 性质。"""
+
+    @given(weight_gradient_pairs(max_size=1))
+    @settings(max_examples=100, deadline=None)
+    def test_property_optimum_follows_descent_direction(
+        self,
+        problem: tuple[list[np.ndarray], list[np.ndarray]],
+    ) -> None:
+        weights, gradients = problem
+        optimizer = QuantumAnnealingOptimizer(
+            n_bits_per_weight=4,
+            simulation_mode=True,
+        )
+        # 注意：main 分支的 network_to_qubo 使用硬编码 reg_lambda=0.1，
+        # 不再暴露 regularization_strength 参数；默认正则化下梯度项仍主导最优方向。
+        qubo = optimizer.network_to_qubo(
+            weights,
+            gradients=gradients,
+        )
+
+        decoded = optimizer.bitstring_to_weights(
+            _exact_minimum_bitstring(qubo),
+            [weights[0].shape],
+        )[0]
+        descent_direction = -gradients[0]
+
+        assert float(np.dot(decoded, descent_direction)) > 0
+
+    @given(
+        deltas=st.lists(
+            st.floats(
+                min_value=-0.1,
+                max_value=0.1,
+                allow_nan=False,
+                allow_infinity=False,
+                width=64,
+            ),
+            min_size=1,
+            max_size=16,
+        )
+    )
+    @settings(max_examples=100, deadline=None)
+    def test_property_encoding_roundtrip_within_precision(
+        self,
+        deltas: list[float],
+    ) -> None:
+        optimizer = QuantumAnnealingOptimizer(n_bits_per_weight=8)
+        original = np.asarray(deltas, dtype=np.float64)
+        max_delta = 0.1
+
+        encoded = optimizer.weight_deltas_to_bitstring([original], max_delta=max_delta)
+        decoded = optimizer.bitstring_to_weights(encoded, [original.shape])[0]
+        encoding_precision = max_delta / (2 ** (optimizer.n_bits_per_weight - 1))
+
+        assert np.all(np.abs(decoded - original) <= encoding_precision + 1e-12)
+
+    # 注：原 Issue #252 还设计了 test_property_regularization_energy_is_nonnegative，
+    # 通过对比 regularization_strength=0 与 regularization_strength=λ 的 QUBO 能量差来
+    # 验证 L2 正则化贡献非负。main 分支已将 reg_lambda 硬编码为 0.1（不再暴露该参数），
+    # 无法构建零正则化基线，故移除该用例。正则化能量 λ·||Δw||²≥0 由构造保证。
