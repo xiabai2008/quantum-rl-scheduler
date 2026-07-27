@@ -39,6 +39,7 @@ from src.scheduler.env_types import (
     ACTION_CLASSICAL,
     ACTION_HYBRID,
     ACTION_QUANTUM,
+    ACTION_QUANTUM_QEM,
     DEFAULT_MACHINE_CONFIGS,
     INITIAL_QUEUE_RANGE,
     MAX_QUEUE_SIZE,
@@ -198,9 +199,9 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
             float(quantum_task_ratio) if quantum_task_ratio is not None else None
         )
 
-        # Gymnasium 标准空间定义（保持 14 维 obs + Discrete(3) 不变，确保 PPO 模型可复用）
+        # Gymnasium 标准空间定义（扩充 Discrete(4) 支持 QEM）
         self.observation_space = spaces.Box(low=0.0, high=1.0, shape=(OBS_DIM,), dtype=np.float32)
-        self.action_space = spaces.Discrete(3)
+        self.action_space = spaces.Discrete(4)
 
         # ---- 多机器调度扩展 ----
         # machine_configs=None → 单机模式（与旧版完全等价）
@@ -421,7 +422,8 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
                 )
             else:
                 # 兼容分配：为量子任务选择最佳机器
-                quantum_action = action in (ACTION_QUANTUM, ACTION_HYBRID)
+                quantum_action = action in (ACTION_QUANTUM, ACTION_HYBRID, ACTION_QUANTUM_QEM)
+                is_qem = (action == ACTION_QUANTUM_QEM)
                 selected_machine = None
                 if quantum_action:
                     selected_machine = self._select_best_machine(task)
@@ -429,7 +431,7 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
                 quantum_unavailable = quantum_action and selected_machine is None
 
                 if quantum_unavailable:
-                    if action == ACTION_QUANTUM:
+                    if action in (ACTION_QUANTUM, ACTION_QUANTUM_QEM):
                         # 纯量子动作：任务重新排队，半个 mismatch 惩罚
                         reward += REWARD_MISMATCH * 0.5
                         task.wait_steps += 1
@@ -464,7 +466,7 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
                         "quantum_queue": self._quantum.quantum_queue,
                     }
 
-                    if action == ACTION_QUANTUM:
+                    if action in (ACTION_QUANTUM, ACTION_QUANTUM_QEM):
                         self._quantum_success += 1
                         self._route_to_machine(
                             selected_machine,
@@ -472,6 +474,7 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
                             rng,
                             rl_action=action,
                             observation_snapshot=_obs_snapshot,
+                            is_qem=is_qem,
                         )
                     elif action == ACTION_CLASSICAL:
                         self._classical_success += 1
