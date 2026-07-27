@@ -1767,36 +1767,116 @@ class TestTargetNetGradient(unittest.TestCase):
 
     def test_gradient_direction_reduces_loss(self):
         """?????:loss=mse(q_value,target_q) ? td_errors == q_value - target_q;
-        ?? (target_q - q_value) ??????（??????）??? loss ???"""
+        ?? (target_q - q_value) ??????（??????）??? loss ???。
+        ????(#357 ????):????? target_net ??????????? policy_net ???"""
         obs, actions, rewards, next_obs, dones = self.batch_tensors
-        _g, td_errors, loss0 = self.opt._compute_gradients(self.policy_net, self.buffer, self.agent)
+        # _compute_gradients ? target_net ? td_errors ?? gradients
+        gradients, td_errors, loss0 = self.opt._compute_gradients(self.policy_net, self.buffer, self.agent)
 
-        # ? td_errors ??? target_q ??????
+        # ? td_errors == q_value - target_q
         with torch.no_grad():
             nv = self.target_net(torch.from_numpy(next_obs).float()).max(1)[0]
             tq = (
                 torch.from_numpy(rewards).float() + 0.99 * nv * (1 - torch.from_numpy(dones).float())
             ).unsqueeze(1)
-
-        # ?????????? loss ??????
         self.policy_net.train()
         qv = self.policy_net(torch.from_numpy(obs).float()).gather(1, torch.from_numpy(actions).long())
-        loss = torch.nn.functional.mse_loss(qv, tq)
-        # ???? td_errors == q_value - target_q
         self.assertTrue(
             np.allclose(td_errors, (qv.detach() - tq.detach()).squeeze(1).numpy(), atol=1e-6)
         )
 
-        self.policy_net.zero_grad()
-        loss.backward()
+        def grad_of(target_net):
+            """?????????????? mse(q_value, target_q(target_net)) ?????"""
+            self.policy_net.zero_grad()
+            self.policy_net.train()
+            q = self.policy_net(torch.from_numpy(obs).float()).gather(1, torch.from_numpy(actions).long())
+            with torch.no_grad():
+                nv_t = target_net(torch.from_numpy(next_obs).float()).max(1)[0]
+                tq_t = (
+                    torch.from_numpy(rewards).float()
+                    + 0.99 * nv_t * (1 - torch.from_numpy(dones).float())
+                ).unsqueeze(1)
+            loss_t = torch.nn.functional.mse_loss(q, tq_t)
+            loss_t.backward()
+            return [p.grad.detach().cpu().numpy().copy() for p in self.policy_net.parameters() if p.grad is not None]
+
+        grad_target = grad_of(self.target_net)
+        grad_policy = grad_of(self.policy_net)
+
+        # ??1:????? target_net ???????????（?#357:?? target_net ?????? policy_net）
+        self.assertEqual(len(gradients), len(grad_target))
+        for g_ret, g_t in zip(gradients, grad_target):
+            self.assertTrue(np.allclose(g_ret, g_t, atol=1e-6))
+
+        # ??2:?????? policy_net ????????????（? bug ? policy_net ? next-Q ??????????????）
+        max_diff = max(
+            float(np.max(np.abs(g_ret - g_p)))
+            for g_ret, g_p in zip(gradients, grad_policy)
+        )
+        self.assertGreater(max_diff, 1e-6)
+
+        # ??3:?? (target_q - q_value)?????? loss ???
         lr = 1e-2
+        self.policy_net.zero_grad()
         with torch.no_grad():
-            for p in self.policy_net.parameters():
-                if p.grad is not None:
-                    p.sub_(lr * p.grad)
+            for p, g in zip(self.policy_net.parameters(), gradients):
+                p.sub_(lr * torch.from_numpy(g))
         qv2 = self.policy_net(torch.from_numpy(obs).float()).gather(1, torch.from_numpy(actions).long())
-        loss1 = torch.nn.functional.mse_loss(qv2, tq)
+        with torch.no_grad():
+            nv2 = self.target_net(torch.from_numpy(next_obs).float()).max(1)[0]
+            tq2 = (torch.from_numpy(rewards).float() + 0.99 * nv2 * (1 - torch.from_numpy(dones).float())).unsqueeze(1)
+        loss1 = torch.nn.functional.mse_loss(qv2, tq2)
         self.assertLess(loss1.item(), loss0)
+
+    def test_target_net_resolved_from_sb3_dqn_production_path(self):
+        """???????:?? SB3 DQN target ? model.policy.q_net_target（SchedulerAgent ?生产接线）。
+        - _get_target_net ?'agent.model ?? DQN' ??(method 2) ????? q_net_target；
+        - _get_target_net ?'agent ??? DQN model'(method 3) ????? q_net_target；
+        - _compute_gradients ????? target_net ? TD ???????
+        """
+        from stable_baselines3 import DQN
+        import gymnasium as gym
+
+        env = gym.make("CartPole-v1")
+        model = DQN("MlpPolicy", env, verbose=0)
+        # SB3 ????? target ??
+        self.assertIsNot(model.policy.q_net, model.policy.q_net_target)
+        self.assertIsInstance(model.policy.q_net_target, nn.Module)
+
+        # ???2:agent.model ?? DQN??（??? SchedulerAgent.model ?????）
+        class SchedulerAgentLike:
+            pass
+
+        agent = SchedulerAgentLike()
+        agent.model = model
+
+        target = self.opt._get_target_net(agent)
+        self.assertIs(target, model.policy.q_net_target)
+
+        # ???3:agent ??? DQN model ??
+        self.assertIs(self.opt._get_target_net(model), model.policy.q_net_target)
+
+        # ????? q_net ? policy_net??????????
+        policy_net = model.policy.q_net
+        obs = np.random.randn(8, 4).astype(np.float32)
+        actions = np.array([[0], [1], [0], [1], [0], [1], [0], [1]], dtype=np.int64)
+        rewards = np.array([1.0, 0.5, -0.5, 1.0, 0.0, 0.3, -0.2, 0.8], dtype=np.float32)
+        next_obs = np.random.randn(8, 4).astype(np.float32)
+        dones = np.array([0, 0, 0, 0, 0, 0, 0, 1], dtype=np.float32)
+        batch = (obs, actions, rewards, next_obs, dones, np.empty(8))
+        buffer = MagicMock()
+        buffer.sample = MagicMock(return_value=batch)
+
+        _g, td_errors, loss = self.opt._compute_gradients(policy_net, buffer, agent=agent)
+        self.assertEqual(td_errors.shape[0], 8)
+        self.assertTrue(np.isfinite(loss))
+        # ????????? q_net/q_net_target ????? td_errors????? #357 ?????
+        with torch.no_grad():
+            qv = model.policy.q_net(torch.from_numpy(obs).float()).gather(1, torch.from_numpy(actions).long()).squeeze(1)
+            nv = model.policy.q_net_target(torch.from_numpy(next_obs).float()).max(1)[0]
+            tq = torch.from_numpy(rewards).float() + 0.99 * nv * (1 - torch.from_numpy(dones).float())
+            exp_td = (qv - tq).detach().numpy()
+        self.assertTrue(np.allclose(td_errors, exp_td, atol=1e-6))
 
 
 # ============================================================
