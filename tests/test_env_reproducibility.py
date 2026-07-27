@@ -59,20 +59,22 @@ class TestEnvReproducibility(unittest.TestCase):
     def test_same_seed_produces_same_episode_reward(self) -> None:
         """相同 seed 跑完整 episode，episode_reward 和 _total_scheduled 应相同。
 
-        跑到 terminated=True，比较累计奖励和已调度任务数。
+        跑到 terminated=True 或 truncated=True，比较累计奖励和已调度任务数。
         """
         env1 = QuantumSchedulingEnv(max_steps=20, seed=42)
         env2 = QuantumSchedulingEnv(max_steps=20, seed=42)
         env1.reset(seed=42)
         env2.reset(seed=42)
 
-        terminated1 = False
-        while not terminated1:
-            _, _, terminated1, _, _ = env1.step(0)
+        done1 = False
+        while not done1:
+            _, _, terminated1, truncated1, _ = env1.step(0)
+            done1 = terminated1 or truncated1
 
-        terminated2 = False
-        while not terminated2:
-            _, _, terminated2, _, _ = env2.step(0)
+        done2 = False
+        while not done2:
+            _, _, terminated2, truncated2, _ = env2.step(0)
+            done2 = terminated2 or truncated2
 
         self.assertEqual(env1._episode_reward, env2._episode_reward)
         self.assertEqual(env1._total_scheduled, env2._total_scheduled)
