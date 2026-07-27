@@ -49,6 +49,7 @@
 | v6 | MAPPO 多智能体 + 异步退火闭环 + 14维状态 + 多目标奖励 | 新增 ~3,600 行代码 + 71 测试用例 |
 | v7 | ruff 142→0 + mypy 26→0 + CI全严格阻断 + 覆盖率门槛提升至80%（实际91%） | 49个测试文件1663+用例，CI lint/typecheck从baseline升级为strict |
 | v8 | 50seed N=250验证 + 多seed真机实验 | PPO=2746.94±1160.72, +88.3%, p=1.032e-42, rank-biserial=-0.71；多seed真机PPO=1665.22±324.51 vs FCFS=353.22±53.33, d=5.64（效应量异常大，小样本探索性结果，需进一步验证）| | FCFS: 1458.77±60.47
+| v9 | **Dynamic QEM + Crosstalk-Aware + Sequence-Aware (LSTM)** | 状态空间扩充至 **16维**（新增串扰风险、任务到达率MA），动作空间扩充至 **4维**（新增量子误差缓释动作）。实现空间并发与 LSTM 时序流量感知。 |
 
 ---
 
@@ -66,8 +67,8 @@
 │                       调度引擎 (src/scheduler/)                   │
 │  ┌──────────────┐  ┌──────────────┐  ┌────────────────────────┐ │
 │  │  parser.py   │  │   env.py     │  │      agent.py          │ │
-│  │ 任务解析器    │→ │ Gymnasium 环境│← │ DQN + PPO + LSTM 智能体 │ │
-│  │ QASM→Task    │  │ 14维状态/3动作 │  │ + 退火回调 + 真机回调   │ │
+│  │ 任务解析器    │→ │ Gymnasium 环境│← │ RecurrentPPO + DQN     │ │
+│  │ QASM→Task    │  │ 16维状态/4动作 │  │ + 退火回调 + 真机回调   │ │
 │  └──────────────┘  └──────────────┘  └────────────────────────┘ │
 │  ┌──────────────┐  ┌──────────────────────┐  ┌───────────────┐  │
 │  │   marl.py    │  │ multi_objective_env  │  │ async_anneal  │  │
@@ -111,10 +112,10 @@
 TaskParser.parse() → 规范化 Task 对象
       │
       ▼
-QuantumSchedulingEnv.reset() → 任务入队，生成 14维观测
+QuantumSchedulingEnv.reset() → 任务入队，生成 16维观测
       │
       ▼
-RL Agent (PPO/MAPPO/DQN) → 输出动作 (0=经典/1=量子/2=混合)
+RL Agent (PPO/MAPPO/DQN) → 输出动作 (0=经典/1=量子/2=混合/3=量子+QEM)
       │
       ├── 多机器调度：_select_best_machine() 启发式评分择优
       │
@@ -155,13 +156,13 @@ Web 界面实时展示 (WebSocket 推送)
 | 文件 | 行数 | 职责 |
 |------|------|------|
 | [__init__.py](../src/scheduler/__init__.py) | 98 | 模块统一导出（延迟导入） |
-| [env.py](../src/scheduler/env.py) | 492 | Gymnasium 调度环境入口（14维状态/3动作/异质化任务/多机器调度） |
-| [env_observation.py](../src/scheduler/env_observation.py) | 169 | 观测空间（14维，从 env.py 拆分） |
+| [env.py](../src/scheduler/env.py) | 492 | Gymnasium 调度环境入口（16维状态/4动作/异质化任务/多机器调度） |
+| [env_observation.py](../src/scheduler/env_observation.py) | 169 | 观测空间（16维，从 env.py 拆分） |
 | [env_dynamics.py](../src/scheduler/env_dynamics.py) | 155 | 环境动力学（泊松任务生成） |
 | [env_machines.py](../src/scheduler/env_machines.py) | 130 | 多机器管理 |
 | [env_reward.py](../src/scheduler/env_reward.py) | 88 | 奖励函数 |
 | [env_render.py](../src/scheduler/env_render.py) | 94 | 渲染 |
-| [env_types.py](../src/scheduler/env_types.py) | 237 | 类型定义（OBS_DIM=14） |
+| [env_types.py](../src/scheduler/env_types.py) | 237 | 类型定义（OBS_DIM=16） |
 | [env_real_machine.py](../src/scheduler/env_real_machine.py) | 569 | 真机集成 |
 | [parser.py](../src/scheduler/parser.py) | 769 | 任务解析器（字典/QASM/YAML/文本 → Task） |
 | [agent.py](../src/scheduler/agent.py) | 475 | DQN 智能体 + 退火/真机回调 |
@@ -186,7 +187,7 @@ Web 界面实时展示 (WebSocket 推送)
 
 #### 3.1.1 状态空间与动作空间
 
-**14维状态空间**（`OBS_DIM = 14`）：
+**16维状态空间**（`OBS_DIM = 16`）：
 
 | 索引 | 常量 | 含义 |
 |------|------|------|
@@ -200,12 +201,18 @@ Web 界面实时展示 (WebSocket 推送)
 | 7 | `OBS_URGENCY_LEVEL` | 当前任务紧急程度 |
 | 8 | `OBS_TASK_TYPE_QUANTUM` | quantum 类型标识 |
 | 9 | `OBS_TASK_TYPE_CLASSICAL` | classical 类型标识 |
-| 10 | `OBS_SINGLE_GATE_FIDELITY` | 单比特门保真度（v6 新增） |
-| 11 | `OBS_TWO_GATE_FIDELITY` | 两比特门保真度（v6 新增） |
-| 12 | `OBS_COUPLING_DENSITY` | 耦合图密度（v6 新增） |
-| 13 | `OBS_AVG_CONNECTIVITY` | 平均连通度（v6 新增） |
+| 10 | `OBS_SINGLE_GATE_FIDELITY` | 单比特门保真度 |
+| 11 | `OBS_TWO_GATE_FIDELITY` | 两比特门保真度 |
+| 12 | `OBS_COUPLING_DENSITY` | 耦合图密度 |
+| 13 | `OBS_AVG_CONNECTIVITY` | 平均连通度 |
+| 14 | `OBS_CROSSTALK_RISK` | 串扰风险（基于空间并发） |
+| 15 | `OBS_ARRIVAL_RATE_MA` | 任务到达率滑动平均 |
 
-**3类动作空间**（`spaces.Discrete(3)`）：
+**4类动作空间**（`spaces.Discrete(4)`）：
+- `0 (ACTION_CLASSICAL)`: 纯经典执行
+- `1 (ACTION_QUANTUM)`: 纯量子执行
+- `2 (ACTION_HYBRID)`: 量子经典混合执行
+- `3 (ACTION_QUANTUM_QEM)`: 主动开启误差缓释（QEM）的量子执行
 
 | 动作 | 常量 | 含义 |
 |------|------|------|
@@ -223,6 +230,8 @@ Web 界面实时展示 (WebSocket 推送)
 | 错误分配 | `-2.0` | 任务类型与资源不匹配，重新入队 |
 | 等待超时 | `-0.1` | 每步惩罚 |
 | 量子利用率低 | `-1.0` | available_ratio > 0.7 时触发 |
+| 空间串扰 | `-crosstalk_penalty` | 同一物理机上的并发任务数增加时触发 |
+| QEM补偿 | 自动 | 极高保真度带来的成功率，但受限较长执行时间 |
 
 #### 3.1.3 多机器调度机制
 
@@ -242,7 +251,7 @@ Web 界面实时展示 (WebSocket 推送)
 |------|-----|------|
 | DQN（备选） | `SchedulerAgent` | Dueling DQN 架构，异质化环境下表现不佳 |
 | PPO（主力） | `PPOAgent` | 已验证超越所有基线（v4 单机 +2804，v5 多机 +4294） |
-| PPO + LSTM | `PPOAgent(use_lstm=True)` | v6 新增，时序依赖建模 |
+| PPO + LSTM | `PPOAgent(use_lstm=True)` | v9 主力，时序流量预测，应对突发 |
 | MAPPO | `MultiAgentPPO` | v6 新增，CTDE 多机器协调 |
 | 多目标 RL | `MultiObjectiveRewardWrapper` | v6 新增，3 目标加权（可运行时切换） |
 
