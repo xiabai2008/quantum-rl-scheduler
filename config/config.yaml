@@ -49,6 +49,9 @@ quantum:
   max_qubits: 287
   shots: 1024
   simulator: qiskit-aer
+  # Issue #243: 真机提交间隔步数（每N步强制提交一次，保底机制）
+  # 与 real_submit_probability 概率触发共存，间隔触发是保底，概率触发是增强
+  real_submit_interval: 20
 scheduler:
   algorithm: PPO
   batch_size: 64
