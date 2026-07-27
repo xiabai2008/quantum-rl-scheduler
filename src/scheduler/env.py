@@ -28,6 +28,7 @@ from src.scheduler.env_machines import (
 )
 from src.scheduler.env_observation import get_info, get_observation
 from src.scheduler.env_real_machine import (
+    FREE_TIER_MAX_QUBITS,
     poll_pending_real_tasks,
     record_real_failure,
     submit_to_real_machine,
@@ -150,6 +151,7 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
         tenant_manager: Any | None = None,
         arrival_lambda: float | Callable[[int, int], float] | None = None,
         quantum_task_ratio: float | None = None,
+        real_machine_max_qubits: int = FREE_TIER_MAX_QUBITS,
     ):
         """初始化量子任务调度环境（参数详见子模块文档）。"""
         super().__init__()
@@ -164,8 +166,11 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
             raise ValueError("max_real_submissions must be non-negative or None")
         if real_machine_shots <= 0:
             raise ValueError("real_machine_shots must be positive")
+        if real_machine_max_qubits <= 0:
+            raise ValueError("real_machine_max_qubits must be positive")
         self.max_real_submissions = max_real_submissions
         self.real_machine_shots = int(real_machine_shots)
+        self.real_machine_max_qubits = int(real_machine_max_qubits)
         # 真机结果反馈模式（Issue #235）：status_only / result_aware / shuffled
         from src.scheduler.env_types import REAL_FEEDBACK_MODES
 

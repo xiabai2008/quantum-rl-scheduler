@@ -66,6 +66,7 @@ def generate_qcis_circuit(
     max_qubits: int = _MAX_REAL_QUBITS,
     seed: int | None = None,
     two_qubit_gates: bool = False,
+    circuit_type: str = "random",
 ) -> str:
     """根据任务参数生成适合真机执行的 QCIS 电路。
 
@@ -84,6 +85,7 @@ def generate_qcis_circuit(
         max_qubits      : 真机最大比特数限制（默认 287）
         seed            : 可选的随机种子（用于可复现测试）
         two_qubit_gates : 是否包含两比特纠缠门（默认 False，真机稳定模式）
+        circuit_type    : 电路模板（random / bell / ghz3，默认 random）
 
     Returns:
         QCIS 格式的电路字符串，每行一条指令
@@ -94,6 +96,23 @@ def generate_qcis_circuit(
         >>> assert "H" in qcis or "X" in qcis
         >>> assert "M" in qcis
     """
+    if max_qubits <= 0:
+        raise ValueError("max_qubits must be positive")
+    if circuit_type not in {"random", "bell", "ghz3"}:
+        raise ValueError("circuit_type must be one of: random, bell, ghz3")
+
+    template_qubits = {"bell": 2, "ghz3": 3}
+    if circuit_type in template_qubits:
+        required_qubits = template_qubits[circuit_type]
+        if max_qubits < required_qubits:
+            raise ValueError(
+                f"{circuit_type} circuit requires at least {required_qubits} qubits, "
+                f"but max_qubits={max_qubits}"
+            )
+        if circuit_type == "bell":
+            return "H Q0\nCNOT Q0 Q1\nM Q0 Q1"
+        return "H Q0\nCNOT Q0 Q1\nCNOT Q1 Q2\nM Q0 Q1 Q2"
+
     rng = random.Random(seed if seed is not None else hash(task.task_id))
 
     # 确定参与比特数：至少 1 个，不超过任务需求和真机上限
@@ -238,6 +257,12 @@ def compute_theoretical_distribution(qcis: str) -> dict[str, float]:
         parts = line.replace("M", "").strip().split()
         measure_qubits.extend(parts)
     n_qubits = max(1, len(measure_qubits))
+
+    normalized_gates = [" ".join(gate.split()) for gate in gates]
+    if normalized_gates == ["H Q0", "CNOT Q0 Q1"] and n_qubits == 2:
+        return {"00": 0.5, "11": 0.5}
+    if normalized_gates == ["H Q0", "CNOT Q0 Q1", "CNOT Q1 Q2"] and n_qubits == 3:
+        return {"000": 0.5, "111": 0.5}
 
     if has_h and not has_x:
         # H 门产生均匀分布
@@ -418,7 +443,10 @@ def submit_to_real_machine(
     if not qcis:
         qcis = generate_qcis_circuit(
             task,
-            max_qubits=min(machine.total_qubits, FREE_TIER_MAX_QUBITS),
+            max_qubits=min(
+                machine.total_qubits,
+                getattr(env, "real_machine_max_qubits", FREE_TIER_MAX_QUBITS),
+            ),
         )
 
     try:
