@@ -80,7 +80,8 @@ class AnnealingConfig(BaseModel):
     """
 
     # ── 全局开关 ──
-    enabled: bool = Field(default=True, description="退火开关")
+    # 退火已降级为探索性功能（2026-07-27），默认关闭
+    enabled: bool = Field(default=False, description="退火开关（探索性功能，默认关闭）")
 
     # ── 退火器基础参数（QuantumAnnealingOptimizer.__init__） ──
     simulation_mode: bool = Field(default=True, description="仿真模式（true=纯仿真 numpy/neal）")

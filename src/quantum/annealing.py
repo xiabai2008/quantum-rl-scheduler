@@ -1,10 +1,18 @@
 """
-量子退火加速 RL 策略搜索模块
-Quantum Annealing Accelerator for Reinforcement Learning Policy Optimization
+量子启发式退火加速 RL 策略搜索模块
+Quantum-Inspired Annealing Accelerator for Reinforcement Learning Policy Optimization
+
+.. deprecated:: 2026-07-27
+    退火已降级为**探索性功能**，默认关闭，不再投入开发。
+    - 统计显著性不达标：配对Wilcoxon p=0.9430（需N=95才达80%功效）
+    - 实为经典模拟退火（neal库），非真机量子退火
+    - 量子赋能AI主方向已转向**真机噪声反馈优化PPO鲁棒性**
+    - 代码保留用于展示QUBO建模能力，竞赛答辩诚实标注为"探索性补充"
+    - 通过 ``annealing.enabled=false``（默认）或 ``ANNEALING_ENABLED=false`` 关闭
 
 核心思想：
     将 DQN 策略网络的参数优化问题映射为 QUBO（Quadratic Unconstrained Binary Optimization）问题，
-    利用量子退火或仿真模拟退火来高效求解，从而加速策略搜索过程。
+    利用仿真模拟退火来高效求解，从而加速策略搜索过程。
 
 QUBO 问题形式：min  x^T Q x，其中 x ∈ {0,1}^n, Q 为 n×n 的实数矩阵。
 

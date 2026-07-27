@@ -102,7 +102,8 @@ class TestDefaults(unittest.TestCase, TestEnvVarsMixin):
             self.assertEqual(s.max_qubits, 287)
             self.assertEqual(s.max_steps, 1000)
             self.assertEqual(s.algorithm, "DQN")
-            self.assertTrue(s.annealing_enabled)
+            # 退火已降级为探索性功能（2026-07-27），默认关闭
+            self.assertFalse(s.annealing_enabled)
             self.assertEqual(s.quantum_shots, 1024)
             self.assertEqual(s.log_level, "INFO")
             self.assertEqual(s.log_format, "text")

@@ -3,7 +3,7 @@
 > 此文件供所有 AI Agent（CodeBuddy / TRAE / Claude / Cursor 等）读取，以快速理解项目全貌。
 > 每次重要变更后请更新本文档的"最后更新"日期和对应章节。
 
-**最后更新**：2026-07-27（量子赋能AI: 退火→真机噪声反馈；新增编译AI/VQE/OR-Tools）（完成所有issues清理：关闭全部16个open issues(#94/#97/#98/#102/#114/#115/#117/#118/#119/#120/#122/#148/#150/#153/#162/#194)；新增分层QUBO退火模式(#148)、退火权重放大机制+介入率诊断(#194)、私有方法重构(#153)、状态持久化设计文档(#114)、扩展性梯度测试(#117)、覆盖率提升env_real_machine 29%→97%/marl 64%→99%(#97/#98)、变异测试增强86用例(#122)、权威市场数据9源+10篇2024-2026论文(#115/#119)；2500+测试全通过）
+**最后更新**：2026-07-27（退火优雅降级：默认关闭+依赖可选化+deprecated标注；量子赋能AI主方向为真机噪声反馈；新增编译AI/VQE/OR-Tools）（完成所有issues清理：关闭全部16个open issues(#94/#97/#98/#102/#114/#115/#117/#118/#119/#120/#122/#148/#150/#153/#162/#194)；新增分层QUBO退火模式(#148)、退火权重放大机制+介入率诊断(#194)、私有方法重构(#153)、状态持久化设计文档(#114)、扩展性梯度测试(#117)、覆盖率提升env_real_machine 29%→97%/marl 64%→99%(#97/#98)、变异测试增强86用例(#122)、权威市场数据9源+10篇2024-2026论文(#115/#119)；2500+测试全通过）
 
 ***
 
@@ -35,7 +35,8 @@ feat / fix / docs / test / refactor / chore
 
 **核心创新—双向赋能**：
 - AI 赋能 量子计算：调度层(PPO +88.3%) + 编译层(PPO SWAP -76.4% vs SABRE)
-- 量子 赋能 AI：真机噪声反馈优化AI鲁棒性（tianyan-287 H门1024 shots→保真度0.976→注入仿真→PPO等待时间-5.7%。退火为探索性补充）
+- 量子 赋能 AI：真机噪声反馈优化AI鲁棒性（tianyan-287 H门1024 shots→保真度0.976→注入仿真→PPO等待时间-5.7%）
+- 退火模块：探索性功能，默认关闭，不再投入开发（统计不显著 p=0.9430，实为经典模拟退火）
 - 量化目标：资源利用率提升 ≥30%（等待时间为多目标优化中的权衡维度，非硬性指标）
 
 **目标平台**：天衍云平台真机"天衍-287"（105数据比特+182耦合比特超导量子计算机，搭载祖冲之三号同款芯片）
@@ -212,7 +213,7 @@ quantum-rl-scheduler/
 | RL  | Gymnasium              | 环境封装             |
 | DL  | PyTorch ≥2.0                | 神经网络             |
 | 量子  | 天衍云 cqlib SDK              | 105数据比特+182耦合比特超导处理器（可选，requirements-quantum.txt） |
-| 量子  | D-Wave dimod / dwave-neal     | 量子启发式退火（QUBO+模拟退火，requirements.txt） |
+| 量子  | D-Wave dimod / dwave-neal     | 量子启发式退火（QUBO+模拟退火，**探索性功能，默认关闭**，requirements.txt已注释为可选） |
 | Web | FastAPI + Uvicorn      | 监控界面（routes.py含/metrics） |
 | 前端  | Vue3 + Echarts         | 监控面板             |
 | CLI | Click | 统一命令行入口 |
@@ -237,7 +238,7 @@ quantum-rl-scheduler/
 - API 熔断器：CLOSED/OPEN/HALF_OPEN 三态转换
 - Prometheus 指标：7个指标覆盖调度/API/退火三个维度，/metrics端点在routes.py暴露
 - Click CLI：train/simulate/serve/demo 四子命令统一入口
-- 依赖可复现：requirements.txt 含 dimod/dwave-neal；cqlib 通过 requirements-quantum.txt 安装
+- 依赖可复现：requirements.txt 核心依赖；cqlib 通过 requirements-quantum.txt 安装；dimod/dwave-neal 已注释为可选（退火默认关闭）
 
 ### 测试升级
 - 测试文件：5 → 69（+64个专用测试模块）

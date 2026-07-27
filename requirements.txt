@@ -11,10 +11,12 @@ torch>=2.0.0
 tensorboard>=2.14.0
 
 # === 量子计算 ===
-# 仅保留量子退火所需依赖（dimod + dwave-neal）
-# qiskit/pennylane 未在代码中使用，已移除以减小镜像体积
-dimod>=0.12.0
-dwave-neal>=0.6.0
+# 量子启发式退火依赖（探索性功能，2026-07-27 降级为可选）
+# dimod/dwave-neal 用于 QUBO 建模 + 模拟退火求解（src/quantum/annealing.py）
+# 退火默认关闭（annealing.enabled=false），未安装不影响核心功能
+# dag_scheduler.py 有 try/except 降级路径，缺失时自动回退经典调度
+# dimod>=0.12.0
+# dwave-neal>=0.6.0
 # 注意：cqlib（天衍云 SDK）需从天衍云平台内部源获取，参见 requirements-quantum.txt
 
 # === Web 框架 ===
