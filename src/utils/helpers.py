@@ -228,6 +228,26 @@ def load_config(
         return {}
 
 
+def load_annealing_config(config_path: str = "config/config.yaml") -> dict[str, Any]:
+    """
+    读取配置文件中的 ``annealing`` 配置节，返回退火优化器参数字典。
+
+    仅做轻量读取，不执行 schema 校验：``AnnealingConfig`` 为 ``extra="forbid"``，
+    而 config.yaml 的 ``annealing:`` 节包含若干该 schema 未收录的字段（如
+    ``max_delta_ratio``、``head_only`` 等）。此处透传原始 dict 以保证向后兼容，
+    由 ``QuantumAnnealingOptimizer.__init__`` 按 ``config.get(key, default)`` 自行取用。
+
+    Args:
+        config_path: 配置文件路径（默认 ``config/config.yaml``）。
+
+    Returns:
+        ``annealing`` 配置节的字典；若文件缺失或该节不存在则返回空字典 ``{}``。
+    """
+    cfg = load_config(config_path) or {}
+    annealing = cfg.get("annealing", {})
+    return dict(annealing) if isinstance(annealing, dict) else {}
+
+
 def save_config(config: dict[str, Any], config_path: str = "config/config.yaml") -> None:
     """
     保存配置文件

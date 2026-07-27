@@ -93,6 +93,7 @@ class QuantumAnnealingOptimizer:
         n_bits_per_weight: int = 4,
         max_qubo_memory_mb: float = 64.0,
         random_state: int | None = None,
+        config: dict | None = None,
     ):
         """
         初始化量子退火策略优化器
@@ -114,21 +115,39 @@ class QuantumAnnealingOptimizer:
                                 规模为 (num_weights * n_bits)²，此参数防止内存溢出。
             random_state  : 随机种子（Issue #391）。固定后 numpy 模拟退火结果可复现；
                             None 表示不固定（保持原行为）。neal 路径也会传入此种子。
+            config        : 退火配置字典（Issue #246）。若提供，则按 ``config.get(key, 签名默认值)``
+                            覆盖 num_qubits / annealing_time / shots / simulation_mode /
+                            n_bits_per_weight / max_qubo_memory_mb / sim_initial_temp /
+                            sim_cooling_rate / sim_num_sweeps / reg_lambda。为 None 时
+                            完全使用签名默认值，保持全部既有调用行为不变。
         """
-        if n_bits_per_weight < 2:
+        # Issue #246: 从配置节读取退火参数（config 提供则覆盖签名默认值）。
+        # 映射规则：签名默认值作为兜底，config.get(key, 签名默认值) 覆盖。
+        # 这样 QuantumAnnealingOptimizer() 及全部既有调用零改动。
+        cfg = config or {}
+
+        # 配置覆盖后的有效值（用于参数校验）
+        eff_n_bits_per_weight = cfg.get("n_bits_per_weight", n_bits_per_weight)
+        eff_max_qubo_memory_mb = cfg.get("max_qubo_memory_mb", max_qubo_memory_mb)
+
+        if eff_n_bits_per_weight < 2:
             raise ValueError("n_bits_per_weight 必须至少为 2（1 个符号位 + 1 个数值位）")
-        if max_qubo_memory_mb <= 0:
+        if eff_max_qubo_memory_mb <= 0:
             raise ValueError("max_qubo_memory_mb 必须大于 0")
-        self.num_qubits = num_qubits
-        self.n_bits_per_weight = n_bits_per_weight
-        self.max_qubo_memory_mb = max_qubo_memory_mb
+        self.num_qubits = cfg.get("num_qubits", num_qubits)
+        self.n_bits_per_weight = eff_n_bits_per_weight
+        self.max_qubo_memory_mb = eff_max_qubo_memory_mb
         self.last_qubo_memory_bytes: int = 0
-        self.annealing_time = annealing_time
-        self.shots = shots
-        self.simulation_mode = bool(simulation_mode)
+        self.annealing_time = cfg.get("annealing_time", annealing_time)
+        self.shots = cfg.get("shots", shots)
+        self.simulation_mode = bool(cfg.get("simulation_mode", simulation_mode))
         self.cqlib_client = cqlib_client
         # Issue #391: 随机种子，固定后退火结果可复现
         self.random_state: int | None = random_state
+
+        # Issue #246: 将原本硬编码的 L2 正则化系数升级为实例属性，
+        # 默认值 0.1，可被 config.get("reg_lambda", ...) 覆盖。
+        self.reg_lambda = cfg.get("reg_lambda", 0.1)
 
         # 检查比特编码精度，过低则发出警告
         if self.n_bits_per_weight < 4:
@@ -152,10 +171,10 @@ class QuantumAnnealingOptimizer:
         else:
             logger.info("使用内置 numpy 模拟退火求解器")
 
-        # 内置模拟退火超参数
-        self._sim_initial_temp = 2.0  # 初始温度
-        self._sim_cooling_rate = 0.995  # 降温系数
-        self._sim_num_sweeps = 200  # 扫描次数（减少以适应 QUBO 规模）
+        # 内置模拟退火超参数（Issue #246: 从 config 读取，签名默认值兜底）
+        self._sim_initial_temp = cfg.get("sim_initial_temp", 2.0)  # 初始温度
+        self._sim_cooling_rate = cfg.get("sim_cooling_rate", 0.995)  # 降温系数
+        self._sim_num_sweeps = cfg.get("sim_num_sweeps", 200)  # 扫描次数（减少以适应 QUBO 规模）
         # Issue #391: 早停阈值——连续 _sim_patience 次扫描 best_energy 无改进则终止
         self._sim_patience = 20
 
@@ -255,7 +274,7 @@ class QuantumAnnealingOptimizer:
         """
         # ---------- 步骤 1：参数配置 ----------
         n_bits_per_weight = self.n_bits_per_weight
-        reg_lambda = 0.1  # L2 正则化系数，防止更新过大
+        reg_lambda = self.reg_lambda  # L2 正则化系数（Issue #246: 升级为实例属性，默认 0.1）
 
         # ---------- 步骤 2：展平所有权重和梯度为一维向量 ----------
         flat_weights = np.concatenate([w.flatten() for w in weights])
