@@ -61,7 +61,8 @@
     "wrapper": "原生 14 维环境",
     "arrival_lambda": 0.5,
     "quantum_ratio": 0.7,
-    "timestamp": "20260724_161805"
+    "timestamp": "20260724_161805",
+    "config_hash": "202a824b52a807eb7ed06303d4fca5f3a810007ee79cdbb46f99e082da5cc9ce"
   },
   "rewards": {
     "DQN": [
