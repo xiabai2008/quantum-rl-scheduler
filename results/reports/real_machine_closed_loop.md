@@ -83,11 +83,11 @@ PPO 策略根据真实硬件反馈（保真度）自适应调整调度偏好。
 
 - [x] poll_pending_real_tasks() 改写为返回真实测量值（调用 `client.get_task_status()`）
 - [x] reward 权重修正逻辑实现（`_compute_real_feedback()` 基于真实保真度）
-- [x] 闭环前后 reward 轨迹对比（PPO=1665.22 vs FCFS=353.22，真机反馈影响显著）
+- [x] 闭环前后 reward 轨迹对比（PPO=1736.32 vs FCFS=383.00，真机反馈影响显著）
 - [x] 产出 results/reports/real_machine_closed_loop.md
 
 ## 关联
 
 - 50seed仿真：PPO=2746.94±1160.72 vs FCFS=1458.77±60.47, 提升+88.3%, Mann-Whitney U 检验 p=1.032e-42, rank-biserial=-0.71
-- 多seed真机：PPO=1665.22±324.51 vs FCFS=353.22±53.33, Cohen's d=5.64（小样本探索性结果，效应量异常大，待更多seeds验证）, p=6.83e-04（Bonferroni校正后显著）
+- 多seed真机：PPO=1736.32±355.78 vs FCFS=383.00±49.13, Cohen's d=5.33（小样本探索性结果，效应量异常大，待更多seeds验证）, p<0.001（Bonferroni校正后显著）
 - 所有实验数据和PR必须与以上数字一致

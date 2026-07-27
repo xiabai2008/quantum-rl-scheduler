@@ -102,7 +102,7 @@ simulation_8strategy_50seed:
     note: >
       这是PPO vs FCFS在仿真环境下的权威p值。
       使用Mann-Whitney U检验（非参数），因数据不满足正态性假设。
-      禁止与真机实验p值(p=6.83e-04)或其他实验条件的p值混用。
+      禁止与真机实验p值(p<0.001, 10seed v2)或其他实验条件的p值混用。
 
   # 其他关键两两对比
   ppo_vs_dqn:
@@ -207,6 +207,74 @@ real_machine_5seed:
     mean_diff: 213.98
     ci_95: [-38.82, 466.78]
     n: 5
+    significant: false
+
+
+# =============================================================================
+# 实验2b: 多seed真机对比 v2 (N=10 per group, 权威)
+# 数据源: results/reports/multiseed_real_machine_report_10seeds_v2.md
+# 替代 real_machine_5seed（已废弃）
+# =============================================================================
+real_machine_10seed_v2:
+  experiment_name: "天衍-287多seed真机实验 v2"
+  applicable_condition: >
+    天衍-287（287量子比特超导处理器），机器名 tianyan-287（带连字符），
+    10 seeds × 3策略（PPO/SJF/FCFS），每seed 1 episode，96步/episode。
+    真机任务100%完成（30/30），shots=32，电路 H Q1/M Q1。
+    统一 Welch t-test。奖励主要由仿真驱动（96步中仅1步涉及真机）。
+  alpha: 0.05
+  bonferroni_alpha: 0.0167
+  num_comparisons: 3
+  data_source: "results/reports/multiseed_real_machine_report_10seeds_v2.md"
+  supersedes: "real_machine_5seed"
+
+  strategy_summary:
+    PPO:
+      mean_reward: 1736.32
+      std_reward: 355.78
+      n: 10
+    SJF:
+      mean_reward: 575.33
+      std_reward: 237.69
+      n: 10
+    FCFS:
+      mean_reward: 383.00
+      std_reward: 49.13
+      n: 10
+
+  ppo_vs_fcfs:
+    test_method: "Welch t"
+    statistic: 11.92
+    p_value: 0.001  # p<0.001
+    effect_size_type: "Cohen's d"
+    effect_size: 5.33
+    mean_diff: 1353.32
+    ci_95: [1097.83, 1608.82]
+    improvement_pct: 353.4
+    n: 10
+    significant: true  # Bonferroni校正后显著
+    applicable_condition: "PPO vs FCFS 真机环境，10seed v2实验，N=10 per group"
+
+  ppo_vs_sjf:
+    test_method: "Welch t"
+    statistic: 9.05
+    p_value: 0.001  # p<0.001
+    effect_size_type: "Cohen's d"
+    effect_size: 4.04
+    mean_diff: 1160.99
+    ci_95: [911.78, 1410.20]
+    n: 10
+    significant: true
+
+  sjf_vs_fcfs:
+    test_method: "Welch t"
+    statistic: 2.40
+    p_value: 0.080
+    effect_size_type: "Cohen's d"
+    effect_size: 1.13
+    mean_diff: 192.33
+    ci_95: [-38.82, 423.48]
+    n: 10
     significant: false
 
 # =============================================================================

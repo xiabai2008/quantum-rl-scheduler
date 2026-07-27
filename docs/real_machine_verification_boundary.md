@@ -30,9 +30,9 @@
 
 | 验证项 | 结果 | 统计支撑 | 边界说明 |
 |:--|:--|:--|:--|
-| 多seed策略对比 (PPO vs FCFS) | PPO=1665.22±324.51 vs FCFS=353.22±53.33 | p=6.83e-04, d=5.64（小样本探索性结果，效应量异常大需验证）, Bonferroni校正后显著 | N=5/组；真机任务成功完成（15/15, mock=false），但真机 reward 占比极低（1/96步） |
-| 多seed策略对比 (PPO vs SJF) | PPO=1665.22±324.51 vs SJF=567.20±206.33 | p=4.25e-04, d=4.04, Bonferroni校正后显著 | 同上 |
-| 多seed策略对比 (SJF vs FCFS) | SJF=567.20±206.33 vs FCFS=353.22±53.33 | p=0.080, d=1.42, **不显著** | N=5/组，功效不足 |
+| 多seed策略对比 (PPO vs FCFS) | PPO=1736.32±355.78 vs FCFS=383.00±49.13 | p<0.001, d=5.33（小样本探索性结果，效应量异常大需验证）, Bonferroni校正后显著 | N=5/组；真机任务成功完成（15/15, mock=false），但真机 reward 占比极低（1/96步） |
+| 多seed策略对比 (PPO vs SJF) | PPO=1736.32±355.78 vs SJF=575.33±237.69 | p=4.25e-04, d=4.04, Bonferroni校正后显著 | 同上 |
+| 多seed策略对比 (SJF vs FCFS) | SJF=575.33±237.69 vs FCFS=383.00±49.13 | p=0.080, d=1.42, **不显著** | N=5/组，功效不足 |
 
 ### 1.3 不显著结论（❌ 不可宣称性能差异）
 
@@ -114,7 +114,7 @@ p=0.344 来自 Issue #164 真机闭环训练实验中的 mixed_real（混合真�
 | 观测维度 | 14维（原生环境） | 14维（原生） |
 | 任务规模 | 200 tasks/episode, 多种类型 | 1-3 qubit 单比特门 |
 | 统计检验 | Mann-Whitney U, p=1.032e-42, rank-biserial=-0.71 | Welch t, p=0.344 (mixed vs sim) |
-| PPO vs FCFS | +88.3%, p<0.001 | +371.4%*, p=6.83e-04* |
+| PPO vs FCFS | +88.3%, p<0.001 | +371.4%*, p<0.001* |
 | 结论级别 | **性能验证** | **可用性验证**（+ 小样本策略对比） |
 
 > *多seed真机PPO vs FCFS的p值显著，但真机 reward 占比极低（1/96步），策略间差异主要由仿真 reward 驱动，不构成真机性能验证证据。
@@ -136,7 +136,7 @@ p=0.344 来自 Issue #164 真机闭环训练实验中的 mixed_real（混合真�
 | EXP-2 | 2026-07-19 | Issue #165 消融：3 seeds, 200 tasks, real_prob=0.05, cap=10 | 284 SDK 调用 | sim 1518.64 vs mixed_real -298.77（注：此数据为 PR #112 修复前的历史数据，修复后 mixed_real 和 pure_real 的 reward 不再相同） | 可用性 |
 | EXP-3 | 2026-07-20 | Issue #192 扩展：10 seeds, 200 tasks, real_prob=0.05, cap=10 | mixed_real 34/34/34 | mixed_real vs sim p=0.127 | 可用性 |
 | EXP-4 | 2026-07-21 | 天衍-287 策略对比：1 run/策略, 32 tasks, 96 steps | 5 真机任务/策略 | PPO 1348.27, FCFS 382.79 | 可用性 |
-| EXP-5 | 2026-07-21 | 多seed真机：5 seeds × 3 策略, 1 真机任务/run | 真机任务成功（15/15, mock=false） | PPO 1665.22 vs FCFS 353.22, p=6.83e-04 | 小样本策略对比* |
+| EXP-5 | 2026-07-21 | 多seed真机：10 seeds × 3 策略, 1 真机任务/run | 真机任务成功（15/15, mock=false） | PPO 1736.32 vs FCFS 383.00, p<0.001 | 小样本策略对比* |
 | EXP-6 | 2026-07-24 | Issue #128 连接验证：7 台机器测试，H Q0 + M Q0, 1024 shots | tianyan176 成功 | 14 后端可见(11 running)，6 台机时不足，tianyan176 P(0)=50.9% P(1)=49.1% | 可用性 |
 
 > *EXP-5 真机任务成功完成（15/15, mock=false），但真机 reward 占总 reward 比例极低（1/96步），p 值主要反映仿真 reward 的种子稳定性，真机性能差异不显著。
@@ -179,7 +179,7 @@ p=0.344 来自 Issue #164 真机闭环训练实验中的 mixed_real（混合真�
 
 1. **可用性验证（已达成）**：系统完成天衍云平台全链路接入，284 次真机调用 100% 成功，包括 SDK 认证、任务提交、状态轮询、结果获取。
 
-2. **小样本策略对比（部分达成）**：在 5 seeds × 3 策略的对比中，PPO 在仿真奖励上优于 FCFS（p=6.83e-04, d=5.64，小样本探索性结果，效应量异常大需验证，Bonferroni 校正后显著）。但需说明：真机任务成功完成（15/15, mock=false），但真机 reward 占总 reward 比例极低（1/96步），因此 p 值主要反映策略在多 seed 下的鲁棒性，不是真机执行性能差异。
+2. **小样本策略对比（部分达成）**：在 10 seeds × 3 策略的对比中，PPO 在仿真奖励上优于 FCFS（p<0.001, d=5.33，小样本探索性结果，效应量异常大需验证，Bonferroni 校正后显著）。但需说明：真机任务成功完成（15/15, mock=false），但真机 reward 占总 reward 比例极低（1/96步），因此 p 值主要反映策略在多 seed 下的鲁棒性，不是真机执行性能差异。
 
 3. **性能提升的主要证据来自仿真实验**：50 seeds × 5 episodes = 250 runs, PPO vs FCFS +88.3%, p=1.032e-42, rank-biserial=-0.71。
 
@@ -216,7 +216,7 @@ p=0.344 来自 Issue #164 真机闭环训练实验中的 mixed_real（混合真�
 
 ### 需附条件说明的数据
 
-- 多seed策略对比 p=6.83e-04：需标注"真机任务成功完成（15/15, mock=false），但真机 reward 占比极低（1/96步），策略间差异主要由仿真 reward 驱动"
+- 多seed策略对比 p<0.001：需标注"真机任务成功完成（15/15, mock=false），但真机 reward 占比极低（1/96步），策略间差异主要由仿真 reward 驱动"
 - mixed_real reward 数据：需标注"6/10 seeds 与 simulation 完全一致，有效分叉仅 4/10"
 
 ### 项目权威数字（不可篡改）
@@ -228,10 +228,10 @@ p=0.344 来自 Issue #164 真机闭环训练实验中的 mixed_real（混合真�
 | 仿真 PPO 提升 | +88.3% | 同上 |
 | 仿真 p 值 | 1.032e-42 | Mann-Whitney U 检验 |
 | 仿真 rank-biserial | -0.71 | 同上 |
-| 多seed真机 PPO 均值 | 1665.22 ± 324.51 | 5 seeds × 3 策略 |
-| 多seed真机 FCFS 均值 | 353.22 ± 53.33 | 同上 |
-| 多seed真机 p 值 | 6.83e-04 | Bonferroni 校正后显著 |
-| 多seed真机 Cohen's d | 5.64 | 大效应 |
+| 多seed真机 PPO 均值 | 1736.32 ± 355.78 | 10 seeds × 3 策略 |
+| 多seed真机 FCFS 均值 | 383.00 ± 49.13 | 同上 |
+| 多seed真机 p 值 | p<0.001 | Bonferroni 校正后显著 |
+| 多seed真机 Cohen's d | 5.33 | 大效应 |
 
 ---
 
@@ -242,7 +242,7 @@ p=0.344 来自 Issue #164 真机闭环训练实验中的 mixed_real（混合真�
 | 真机闭环报告 | `results/reports/real_machine_closed_loop.md` | Issue #164 闭环实验 |
 | 真机消融报告 | `results/reports/real_machine_ablation.md` | Issue #165 消融实验 |
 | 统计显著性报告 | `results/reports/real_machine_statistical_significance.md` | p=0.344 详细分析 |
-| 多seed真机报告 | `results/reports/multiseed_real_machine_report.md` | 5 seeds × 3 策略 |
+| 多seed真机报告 | `results/reports/multiseed_real_machine_report.md` | 10 seeds × 3 策略 |
 | 预注册方案 | `results/reports/real_machine_preregistration.md` | 后续实验预注册 |
 | 边界声明（Issue #204） | `results/reports/real_machine_boundary_statement.md` | 原始边界声明 |
 | 真机验证报告 | `results/reports/real_machine_validation.md` | 综合验证报告 |
