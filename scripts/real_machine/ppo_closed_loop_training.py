@@ -673,6 +673,19 @@ def main() -> None:
     record_path = record_cb.save(prefix=f"ppo_{args.timesteps}")
     metrics_path = metrics_cb.save(prefix=f"ppo_{args.timesteps}")
 
+    # 导出真机反馈因果记录（Issue #236）
+    feedback_dir = _PROJECT_ROOT / "results" / "real_feedback"
+    feedback_path = (
+        feedback_dir / f"feedback_log_{args.seed}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+    )
+    try:
+        n_records = env.export_real_feedback_log(str(feedback_path))
+        print(f"[Feedback] 真机因果记录已导出: {feedback_path} ({n_records} 条)")
+        logger.info(f"[Feedback] 导出 {n_records} 条因果记录到 {feedback_path}")
+    except Exception as e:
+        logger.exception("[Feedback] 导出真机反馈因果记录失败")
+        print(f"[Feedback] 导出失败: {e}")
+
     # 打印最终统计
     stats = env.get_real_machine_stats()
     print(f"\n{'=' * 70}")
@@ -686,6 +699,7 @@ def main() -> None:
     print(f"  最终模型: {final_model_path}")
     print(f"  训练记录: {record_path}")
     print(f"  训练指标: {metrics_path}")
+    print(f"  因果记录: {feedback_path}")
     print(f"{'=' * 70}")
 
 
