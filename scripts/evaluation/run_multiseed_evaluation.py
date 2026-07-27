@@ -218,6 +218,7 @@ def run_multiseed(
     alpha: float = 0.05,
     n_workers: int = 1,
     use_cache: bool = False,
+    canonical: bool = False,
 ) -> dict:
     """运行多seed评估并生成统计显著性报告。
 
@@ -231,6 +232,7 @@ def run_multiseed(
         alpha: 显著性水平
         n_workers: 并行worker进程数（1=串行，保持向后兼容）
         use_cache: 是否启用PPO决策缓存
+        canonical: 是否覆盖权威产物文件（默认False，仅输出时间戳路径）
 
     Returns:
         包含奖励数据、统计摘要的结果字典
@@ -434,10 +436,15 @@ def run_multiseed(
     rewards_path = output_dir / f"rewards_multiseed_{timestamp}.json"
     with open(rewards_path, "w", encoding="utf-8") as f:
         json.dump(rewards_json, f, ensure_ascii=False, indent=2)
+    print(f"[保存] 奖励数据(时间戳): {rewards_path}")
+
     canonical_path = output_dir / "rewards_multiseed.json"
-    with open(canonical_path, "w", encoding="utf-8") as f:
-        json.dump(rewards_json, f, ensure_ascii=False, indent=2)
-    print(f"[保存] 奖励数据: {rewards_path}")
+    if canonical:
+        with open(canonical_path, "w", encoding="utf-8") as f:
+            json.dump(rewards_json, f, ensure_ascii=False, indent=2)
+        print(f"[保存] 奖励数据(权威): {canonical_path}")
+    else:
+        print("[提示] 未指定 --canonical，跳过权威文件写入（避免污染 N=250 数据）")
 
     # -----------------------------------------------------------------------
     # 打印汇总统计
@@ -565,9 +572,17 @@ def run_multiseed(
     # 写报告
     reports_dir = _PROJECT_ROOT / "results" / "reports"
     reports_dir.mkdir(parents=True, exist_ok=True)
+
+    ts_report_path = reports_dir / f"statistical_validation_{timestamp}.md"
+    ts_report_path.write_text(final_report, encoding="utf-8")
+    print(f"[保存] 统计显著性报告(时间戳): {ts_report_path}")
+
     report_path = reports_dir / "statistical_validation.md"
-    report_path.write_text(final_report, encoding="utf-8")
-    print(f"[保存] 统计显著性报告: {report_path}")
+    if canonical:
+        report_path.write_text(final_report, encoding="utf-8")
+        print(f"[保存] 统计显著性报告(权威): {report_path}")
+    else:
+        print("[提示] 未指定 --canonical，跳过权威报告写入")
 
     # -----------------------------------------------------------------------
     # 显著性摘要
@@ -615,6 +630,8 @@ def run_multiseed(
             "alpha": alpha,
         },
         canonical_path=canonical_path,
+        canonical=canonical,
+        timestamp=timestamp,
     )
 
     return {
@@ -635,6 +652,8 @@ def _generate_utilization_report(
     all_wait_times: dict[str, list[float]],
     config: dict[str, Any],
     canonical_path: Path,
+    canonical: bool = False,
+    timestamp: str = "",
 ) -> None:
     """Issue #350: 生成利用率对比报告 Markdown。
 
@@ -645,7 +664,9 @@ def _generate_utilization_report(
 
     reports_dir = _PROJECT_ROOT / "results" / "reports"
     reports_dir.mkdir(parents=True, exist_ok=True)
-    report_path = reports_dir / "utilization_multiseed_report.md"
+
+    if not timestamp:
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
     n_total = config["n_total"]
     seeds = config["seeds"]
@@ -827,8 +848,16 @@ def _generate_utilization_report(
             ]
         )
 
-    report_path.write_text("\n".join(lines), encoding="utf-8")
-    print(f"[保存] 利用率报告: {report_path}")
+    ts_util_path = reports_dir / f"utilization_multiseed_report_{timestamp}.md"
+    ts_util_path.write_text("\n".join(lines), encoding="utf-8")
+    print(f"[保存] 利用率报告(时间戳): {ts_util_path}")
+
+    util_canonical_path = reports_dir / "utilization_multiseed_report.md"
+    if canonical:
+        util_canonical_path.write_text("\n".join(lines), encoding="utf-8")
+        print(f"[保存] 利用率报告(权威): {util_canonical_path}")
+    else:
+        print("[提示] 未指定 --canonical，跳过权威利用率报告写入")
 
 
 def main():
@@ -862,6 +891,12 @@ def main():
         default=False,
         help="启用PPO决策缓存（余弦相似度≥0.95时复用决策）",
     )
+    parser.add_argument(
+        "--canonical",
+        action="store_true",
+        default=False,
+        help="显式覆盖权威产物文件（rewards_multiseed.json / statistical_validation.md / utilization_multiseed_report.md）。默认输出到时间戳路径，不污染权威数据。",
+    )
     args = parser.parse_args()
 
     run_multiseed(
@@ -874,6 +909,7 @@ def main():
         alpha=args.alpha,
         n_workers=args.n_workers,
         use_cache=args.use_cache,
+        canonical=args.canonical,
     )
 
 

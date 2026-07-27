@@ -24,6 +24,7 @@ import yaml
 
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 STATS_YAML = _PROJECT_ROOT / "config" / "statistics.yaml"
+AUTHORITATIVE_NUMBERS_MD = _PROJECT_ROOT / "docs" / "authoritative_numbers.md"
 
 # 需要扫描的文件模式
 SCAN_GLOBS = ["*.md", "**/*.md"]
@@ -31,17 +32,25 @@ SCAN_GLOBS = ["*.md", "**/*.md"]
 # 排除的文件/目录（权威报告本身，不检查自身）
 EXCLUDE_PATHS = {
     "config/statistics.yaml",
+    "docs/authoritative_numbers.md",  # 权威数字事实源本身
     "results/reports/statistical_validation.md",  # 权威数据源本身
     "results/reports/multiseed_real_machine_report.md",
     "results/reports/multiseed_real_machine_report_10seeds.md",
+    "results/reports/multiseed_real_machine_report_10seeds_v2.md",
     "results/reports/head_only_validation.md",
     "results/reports/real_machine_statistical_significance.md",
     "results/reports/dqn_ppo_fcfs_comparison.md",
+    "results/reports/annealing_ablation_20seeds_report.md",
+    "results/reports/real_machine_boundary_statement.md",
+    "results/reports/roi_analysis.md",
+    "results/reports/utilization_multiseed_report.md",
 }
 
 # 排除的文件名模式（内部协作文档，不提交到仓库，不需检查）
 EXCLUDE_PATTERNS = [
     "teammate_",  # docs/teammate_*.md
+    "PR审查",  # PR审查临时报告
+    "_pr",  # PR审查临时报告前缀
     "pr_patrol_",  # docs/pr_patrol_*.md
     "project_dashboard_",  # docs/project_dashboard_*.html
 ]
@@ -69,6 +78,48 @@ DEPRECATED_P_VALUES: dict[str, str] = {
 
 # 检验方法混用检查
 WELCH_T_FOR_1032E42 = "ERROR: p=1.032e-42 对应 Mann-Whitney U 检验，不是 Welch t 检验"
+
+# Issue #446: 严禁表述黑名单（来自 docs/authoritative_numbers.md 第六节）
+# 注意：黑名单匹配后，若行内包含以下"诚实披露"关键词则豁免（避免对已修正的诚实标注误报）
+HONEST_DISCLOSURE_KEYWORDS = [
+    "单seed", "探索性", "诚实披露", "10seeds", "10 seeds",
+    "5seeds", "5 seeds", "旧实验",
+    "注：", "注:", "边界", "cherry-pick", "已降级",
+]
+
+
+def _is_honest_disclosure(line: str) -> bool:
+    """判断行内是否包含诚实披露限定词（豁免黑名单检测）。"""
+    lower = line.lower()
+    return any(kw in line or kw.lower() in lower for kw in HONEST_DISCLOSURE_KEYWORDS)
+
+
+BLACKLIST_PATTERNS: list[tuple[str, str]] = [
+    (
+        r"284\s*次(SDK)?(真机)?调用",
+        "BLACKLIST: 真机调用次数已统一为315次（284+31审计口径），淘汰284旧表述",
+    ),
+    (
+        r"284\s*次真机",
+        "BLACKLIST: 真机调用次数已统一为315次，淘汰284旧表述",
+    ),
+    (
+        r"v5已完成|答辩PPT.*v5|技术白皮书.*v5.*11章",
+        "BLACKLIST: v5白皮书/PPT从未存在，实际为docs/technical_whitepaper.pdf（7章），PPT制作中",
+    ),
+    (
+        r"利用率(提升)?\s*[≥>=]\s*30%.*已?达成|资源利用率.*≥30%.*达标",
+        "BLACKLIST: N=250权威数据利用率仅+7.9%（未达30%目标），需改为部分达成口径",
+    ),
+    (
+        r"等待时间\s*-5\.7%",
+        "BLACKLIST: -5.7%为单seed乐观结果，10seeds严谨实验显示等待时间+6.1%，需诚实呈现",
+    ),
+    (
+        r"退火.*p\s*=\s*0\.190(?!.*(20seeds|不显著.*0\.94|已降级.*探索))",
+        "BLACKLIST: 退火p=0.190对应5seeds旧实验，20seeds新实验p=0.9430（不显著），以新数据为准",
+    ),
+]
 
 
 def load_statistics_yaml() -> dict[str, Any]:
@@ -239,6 +290,13 @@ def scan_markdown_file(
         if welch_err:
             warnings.append(f"  L{line_num}: {welch_err}")
             warnings.append(f"    > {line.strip()[:120]}")
+
+        # 检查黑名单表述（Issue #446）—— 诚实披露上下文豁免
+        if not _is_honest_disclosure(line):
+            for pattern, message in BLACKLIST_PATTERNS:
+                if re.search(pattern, line, re.IGNORECASE):
+                    warnings.append(f"  L{line_num}: {message}")
+                    warnings.append(f"    > {line.strip()[:120]}")
 
         # 提取p值
         p_values = extract_p_values_from_line(line)

@@ -176,7 +176,7 @@
 
 ### 限制描述
 
-5 Seed 消融实验（A: 无退火 vs B: head_only 退火）显示退火带来 +6.4% 奖励提升，但 Wilcoxon 秩和检验 p=0.190 > 0.05，统计上不显著。效应量 Cliff's delta=0.40 属于中等效应，说明有实际提升趋势，但样本量不足导致检验功效不够。
+5 Seed 消融实验（A: 无退火 vs B: head_only 退火）显示退火带来 +6.4% 奖励提升，但 Wilcoxon 秩和检验 p=0.9430（20seeds扩展实验）> 0.05，统计上不显著。5seeds旧实验p=0.190亦不显著。效应量 Cliff's delta=0.40 属于中等效应，说明有实际提升趋势，但样本量不足导致检验功效不够。
 
 ### 量化影响
 
@@ -308,7 +308,7 @@
 |--------|--------|--------|------|----------|
 | 退火参数覆盖率 | 1.3%（260/19488） | >50% | 退火仅能优化极小部分网络参数，整体效果受限 | `src/quantum/annealing.py`（参数覆盖率统计） |
 | QUBO 编码精度 | 4 比特（12.5% 精度） | 8 比特（0.78% 精度） | 权重更新粒度粗糙，退火策略空间受限 | `src/quantum/annealing.py`（QUBO 编码逻辑） |
-| 退火统计显著性 | p=0.190 | p<0.05 | 无法提供统计证据证明退火对奖励提升有效 | `results/reports/annealing_significance-defense.md`（5 seeds 实验） |
+| 退火统计显著性 | p=0.9430（20seeds，不显著） | p<0.05 | 无法提供统计证据证明退火对奖励提升有效（5seeds旧实验p=0.190亦不显著） | `results/reports/annealing_significance-defense.md`（20seeds扩展实验） |
 | 退火训练开销 | +74.5% 训练时间 | <+10% | 训练成本显著增加，性价比需评估 | `src/quantum/annealing_loop.py`（性能基准） |
 | 真机电路规模 | 1 比特（H 门 + 测量） | >10 比特 | 无法代表实际量子算法场景，仅能验证连通性 | `src/scheduler/env_real_machine.py`（`FREE_TIER_MAX_QUBITS = 1`） |
 | 真机验证级别 | 可用性验证（315 次 SDK 调用 100% 成功） | 性能验证（N≥18, p<0.05） | 无法证明真机环境下策略性能提升，仅证明链路可用 | `docs/real_machine_verification_boundary.md` |

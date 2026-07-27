@@ -33,7 +33,7 @@
 **双向赋能核心**：
 
 - **AI 赋能量子计算**：用强化学习（RL）智能调度量子/经典混合任务，量化目标为资源利用率提升 ≥30%
-- **量子赋能 AI**：探索性方向——用量子启发式退火（QUBO映射）优化RL策略搜索（当前使用经典模拟退火D-Wave neal，训练开销+74.5%，奖励提升+6.4%在5 seeds下p=0.190统计不显著）
+- **量子赋能 AI**：探索性方向——用量子启发式退火（QUBO映射）优化RL策略搜索（当前使用经典模拟退火D-Wave neal，训练开销+74.5%，奖励提升+6.4%在5 seeds下p=0.9430统计不显著）
 
 **技术栈**：Python ≥3.10 + Stable-Baselines3（DQN/PPO）+ Gymnasium + PyTorch + Qiskit + D-Wave Ocean SDK + FastAPI + Vue3 + Echarts
 
