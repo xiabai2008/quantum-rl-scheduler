@@ -23,6 +23,7 @@ Issue #83：解决训练检查点散落在 ``models/`` 目录、无版本管理�
 
 import json
 import os
+import tempfile
 import uuid
 from dataclasses import asdict, dataclass, field, fields
 from datetime import datetime
@@ -195,9 +196,11 @@ class CheckpointManager:
         return [CheckpointMeta.from_dict(item) for item in data if isinstance(item, dict)]
 
     def save_meta(self, checkpoints: list[CheckpointMeta]) -> None:
-        """将检查点列表持久化到元数据 JSON 文件。
+        """将检查点列表持久化到元数据 JSON 文件（原子写入）。
 
         自动创建元数据文件的父目录，使用 ``ensure_ascii=False`` 保留中文备注。
+        通过 ``tempfile`` + ``os.replace`` 实现原子写入，防止写入过程中
+        进程崩溃或断电导致 JSON 损坏（Issue #409）。
 
         Args:
             checkpoints: 待持久化的检查点列表。
@@ -205,13 +208,22 @@ class CheckpointManager:
         parent = os.path.dirname(self.meta_file)
         if parent:
             os.makedirs(parent, exist_ok=True)
-        with open(self.meta_file, "w", encoding="utf-8") as f:
-            json.dump(
-                [cp.to_dict() for cp in checkpoints],
-                f,
-                ensure_ascii=False,
-                indent=2,
-            )
+
+        # 原子写入：先写临时文件，再 os.replace 原子替换
+        fd, tmp_path = tempfile.mkstemp(dir=parent or ".", suffix=".tmp")
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                json.dump(
+                    [cp.to_dict() for cp in checkpoints],
+                    f,
+                    ensure_ascii=False,
+                    indent=2,
+                )
+            os.replace(tmp_path, self.meta_file)
+        except Exception:
+            if os.path.exists(tmp_path):
+                os.unlink(tmp_path)
+            raise
         logger.debug(f"[CheckpointManager] 保存 {len(checkpoints)} 条元数据到 {self.meta_file}")
 
     # ------------------------------------------------------------------

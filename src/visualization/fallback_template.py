@@ -1716,6 +1716,14 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         } catch(e) { return '-'; }
     }
 
+    function escapeHtml(str) {
+        // Issue #381: 防止存储型 XSS，对所有来自 API 的字符串字段进行 HTML 转义
+        if (str === null || str === undefined) return '';
+        return String(str).replace(/[&<>"'/]/g, function(c) {
+            return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;','/':'&#x2F;'}[c];
+        });
+    }
+
     function prioClass(p) { return p>=4?'priority-high':p>=3?'priority-medium':'priority-low'; }
     function statusText(s) { return {pending:'等待中',running:'运行中',completed:'已完成',failed:'失败'}[s]||s; }
     function actionText(a) {
@@ -1985,11 +1993,11 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         for (var i=0;i<Math.min(sorted.length,20);i++){
             var t = sorted[i];
             html += '<tr>'+
-                '<td style="font-family:monospace;color:var(--text-muted);font-size:11px;">'+(t.task_id||'-').slice(-6)+'</td>'+
-                '<td><span style="font-size:11px;">'+(t.task_type||'-')+'</span></td>'+
-                '<td>'+(t.qubit_count||'-')+'</td>'+
-                '<td><span class="'+prioClass(t.priority)+'">'+(t.priority||'-')+'</span></td>'+
-                '<td><span class="status-tag '+(t.status||'pending')+'">'+statusText(t.status||'pending')+'</span></td>'+
+                '<td style="font-family:monospace;color:var(--text-muted);font-size:11px;">'+escapeHtml((t.task_id||'-').slice(-6))+'</td>'+
+                '<td><span style="font-size:11px;">'+escapeHtml(t.task_type||'-')+'</span></td>'+
+                '<td>'+escapeHtml(t.qubit_count||'-')+'</td>'+
+                '<td><span class="'+prioClass(t.priority)+'">'+escapeHtml(t.priority||'-')+'</span></td>'+
+                '<td><span class="status-tag '+escapeHtml(t.status||'pending')+'">'+escapeHtml(statusText(t.status||'pending'))+'</span></td>'+
                 '</tr>';
         }
         tbody.innerHTML = html;
@@ -2063,11 +2071,11 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             var rwd = d.reward||0;
             counts[d.action] = (counts[d.action]||0) + 1;
             html += '<div class="decision-item">'+
-                '<div class="decision-step">#'+(d.step||i)+'</div>'+
+                '<div class="decision-step">#'+escapeHtml(d.step||i)+'</div>'+
                 '<div class="decision-content">'+
-                    '<span class="decision-action '+actCls+'">'+actLabel+'</span>'+
+                    '<span class="decision-action '+actCls+'">'+escapeHtml(actLabel)+'</span>'+
                     '<span class="decision-reward '+(rwd<0?'negative':'')+'">'+(rwd>=0?'+':'')+rwd.toFixed(1)+'</span>'+
-                    '<div class="decision-meta">'+(d.task_id?'任务 '+(d.task_id+'').slice(-6):'')+(d.source?' · '+d.source:'')+' · ep_r='+((d.episode_reward||0).toFixed(0))+'</div>'+
+                    '<div class="decision-meta">'+(d.task_id?'任务 '+escapeHtml((d.task_id+'').slice(-6)):'')+(d.source?' · '+escapeHtml(d.source):'')+' · ep_r='+((d.episode_reward||0).toFixed(0))+'</div>'+
                 '</div></div>';
         }
         list.innerHTML = html;
@@ -2566,9 +2574,9 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                 var machine = s.machine || s.backend || 'tianyan_s';
                 var taskId = s.task_id || s.id || '-';
                 html += '<div class="real-submission-item">';
-                html += '<span class="real-sub-id">' + taskId.substring(0,12) + '...</span>';
-                html += '<span class="real-sub-status ' + statusCls + '">' + statusText + '</span>';
-                html += '<div class="real-sub-meta">' + machine + ' · ' + time + '</div>';
+                html += '<span class="real-sub-id">' + escapeHtml(taskId.substring(0,12)) + '...</span>';
+                html += '<span class="real-sub-status ' + escapeHtml(statusCls) + '">' + escapeHtml(statusText) + '</span>';
+                html += '<div class="real-sub-meta">' + escapeHtml(machine) + ' · ' + escapeHtml(time) + '</div>';
                 html += '</div>';
             });
             listEl.innerHTML = html;

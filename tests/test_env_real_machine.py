@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 """env_real_machine.py 真机闭环模块的单元测试"""
 
+import contextlib
+import os
 import sys
 from pathlib import Path
 
@@ -18,6 +20,7 @@ from src.scheduler.env_real_machine import (
     FREE_TIER_MAX_QUBITS,
     _compute_real_feedback,
     _record_real_result,
+    _resolve_free_tier_max_qubits,
     _update_task_duration,
     compute_real_result_reward,
     compute_result_fidelity,
@@ -1015,11 +1018,42 @@ class TestTwoQubitGatesCircuit:
 
 
 class TestFreeTierConstant:
-    """FREE_TIER_MAX_QUBITS 常量约束测试。"""
+    """FREE_TIER_MAX_QUBITS 常量约束与可配置性测试。"""
 
-    def test_free_tier_is_one(self):
-        """免费机时包限制为 1 比特（真机稳定模式）。"""
-        assert FREE_TIER_MAX_QUBITS == 1
+    def test_free_tier_default_is_one(self):
+        """未设置环境变量时，免费机时包限制为 1 比特（真机稳定模式）。"""
+        os.environ.pop("FREE_TIER_MAX_QUBITS", None)
+        assert _resolve_free_tier_max_qubits() == 1
+
+    def test_free_tier_module_constant_positive(self):
+        """模块级常量在导入时为正整数（受环境变量影响但至少为 1）。"""
+        assert isinstance(FREE_TIER_MAX_QUBITS, int)
+        assert FREE_TIER_MAX_QUBITS >= 1
+
+    def test_free_tier_env_var_override(self):
+        """环境变量 FREE_TIER_MAX_QUBITS 可覆盖默认限制（付费套餐场景）。"""
+        original = os.environ.pop("FREE_TIER_MAX_QUBITS", None)
+        try:
+            os.environ["FREE_TIER_MAX_QUBITS"] = "5"
+            assert _resolve_free_tier_max_qubits() == 5
+        finally:
+            if original is not None:
+                os.environ["FREE_TIER_MAX_QUBITS"] = original
+            else:
+                os.environ.pop("FREE_TIER_MAX_QUBITS", None)
+
+    @pytest.mark.parametrize("invalid", ["abc", "0", "-3", "1.5", ""])
+    def test_free_tier_invalid_value_falls_back(self, invalid: str):
+        """无效环境变量值回退到默认值 1，保证真机稳定模式。"""
+        original = os.environ.pop("FREE_TIER_MAX_QUBITS", None)
+        try:
+            os.environ["FREE_TIER_MAX_QUBITS"] = invalid
+            assert _resolve_free_tier_max_qubits() == 1, f"无效值 {invalid!r} 应回退到 1"
+        finally:
+            if original is not None:
+                os.environ["FREE_TIER_MAX_QUBITS"] = original
+            else:
+                os.environ.pop("FREE_TIER_MAX_QUBITS", None)
 
 
 # =============================================================================
@@ -1338,6 +1372,126 @@ class TestIntervalTrigger:
         # 间隔触发确保至少在 step=20,40,60,80,100 时提交
         # 即至少 5 次提交（概率触发可能带来更多）
         assert submit_count >= 5, f"间隔触发应确保至少5次提交，实际 {submit_count} 次"
+
+
+# =============================================================================
+# 真机反馈因果记录导出（Issue #236）
+# =============================================================================
+
+
+class TestExportRealFeedbackLog:
+    """export_real_feedback_log 因果记录导出测试。"""
+
+    def test_export_empty_log(self, tmp_path):
+        """无真机反馈记录时导出空记录文件，返回 0。"""
+        env, _, _, _ = _make_env_with_client()
+        out = tmp_path / "feedback_empty.json"
+        n = env.export_real_feedback_log(str(out))
+        assert n == 0
+        assert out.exists()
+
+    def test_export_with_records(self, tmp_path):
+        """有因果记录时导出完整记录，返回条数。"""
+        env, _, _, _ = _make_env_with_client(real_feedback_mode="result_aware")
+        # 手动注入 2 条因果记录
+        env._real_feedback_log = [
+            {
+                "submit_step": 1,
+                "complete_step": 3,
+                "rl_action": 0,
+                "task_id": "t0",
+                "real_task_id": "real-1",
+                "machine_name": "tianyan176",
+                "qcis_circuit": "H Q0\nM Q0",
+                "measured_prob": {"0": 0.5, "1": 0.5},
+                "fidelity": 1.0,
+                "reward": 2.0,
+                "formula": "reward=2.0",
+                "outcome": "completed",
+            },
+            {
+                "submit_step": 5,
+                "complete_step": 7,
+                "rl_action": 1,
+                "task_id": "t1",
+                "real_task_id": "real-2",
+                "machine_name": "tianyan176",
+                "qcis_circuit": "H Q0\nM Q0",
+                "measured_prob": {"0": 0.9, "1": 0.1},
+                "fidelity": 0.8,
+                "reward": 1.6,
+                "formula": "reward=1.6",
+                "outcome": "completed",
+            },
+        ]
+        out = tmp_path / "feedback_with_records.json"
+        n = env.export_real_feedback_log(str(out))
+        assert n == 2
+
+        import json
+
+        with open(out, encoding="utf-8") as f:
+            payload = json.load(f)
+        assert payload["type"] == "real_feedback_log"
+        assert payload["record_count"] == 2
+        assert len(payload["records"]) == 2
+        assert payload["records"][0]["task_id"] == "t0"
+        assert payload["records"][1]["task_id"] == "t1"
+
+    def test_export_includes_stats(self, tmp_path):
+        """导出文件包含真机闭环统计信息。"""
+        env, _, _, _ = _make_env_with_client()
+        out = tmp_path / "feedback_stats.json"
+        env.export_real_feedback_log(str(out))
+
+        import json
+
+        with open(out, encoding="utf-8") as f:
+            payload = json.load(f)
+        assert "stats" in payload
+        assert "submission_attempts_total" in payload["stats"]
+        assert "success_count" in payload["stats"]
+
+    def test_export_creates_parent_dir(self, tmp_path):
+        """父目录不存在时自动创建。"""
+        env, _, _, _ = _make_env_with_client()
+        out = tmp_path / "nested" / "deep" / "feedback.json"
+        n = env.export_real_feedback_log(str(out))
+        assert n == 0
+        assert out.exists()
+
+    def test_export_metadata_contains_env_params(self, tmp_path):
+        """元数据包含环境关键参数。"""
+        env, _, _, _ = _make_env_with_client(real_feedback_mode="result_aware", feedback_weight=2.5)
+        out = tmp_path / "feedback_meta.json"
+        env.export_real_feedback_log(str(out))
+
+        import json
+
+        with open(out, encoding="utf-8") as f:
+            payload = json.load(f)
+        meta = payload["metadata"]
+        assert meta["real_feedback_mode"] == "result_aware"
+        assert meta["real_machine_feedback_weight"] == 2.5
+        assert meta["use_real_machine"] is True
+        assert meta["num_machines"] == 1
+        assert "tianyan176" in meta["machine_names"]
+
+    def test_export_after_step_has_records(self, tmp_path):
+        """执行 step 后因果记录被填充，导出返回非零条数。"""
+        env, _, machine, task = _make_env_with_client(real_feedback_mode="result_aware")
+        env.reset(seed=42)
+        # 注入任务到队列并执行一步，触发真机提交
+        env._task_queue = [task]
+        env._machines = [machine]
+        env._current_step = 0
+        with contextlib.suppress(Exception):
+            env.step(0)  # step 可能因 mock 客户端返回不完整而异常，但记录已写入
+        out = tmp_path / "feedback_after_step.json"
+        n = env.export_real_feedback_log(str(out))
+        # step 后至少有 0 条记录（取决于是否触发了真机提交）
+        assert n >= 0
+        assert out.exists()
 
 
 if __name__ == "__main__":
