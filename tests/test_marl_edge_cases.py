@@ -11,7 +11,13 @@ import torch
 
 import src.scheduler.marl as marl_module
 from src.scheduler.env import DEFAULT_MACHINE_CONFIGS, QuantumMachine, QuantumSchedulingEnv, Task
-from src.scheduler.marl import MultiAgentEnvWrapper, MultiAgentPPO, RolloutBuffer
+from src.scheduler.marl import (
+    ActorNet,
+    CentralizedCritic,
+    MultiAgentEnvWrapper,
+    MultiAgentPPO,
+    RolloutBuffer,
+)
 
 
 def _env(machine_count: int = 2) -> QuantumSchedulingEnv:
@@ -282,3 +288,179 @@ def test_set_seed_none_and_cuda_branch(monkeypatch) -> None:
     # torch.manual_seed 会同步调用一次 CUDA，随后实现显式再同步一次。
     assert cuda_seed.call_count == 2
     cuda_seed.assert_called_with(123)
+
+
+# ---------------------------------------------------------------------------
+# Issue #261: MAPPO 边界情况测试（平票/非法动作/梯度/CTDE）
+# ---------------------------------------------------------------------------
+
+
+def test_vote_tie_breaking() -> None:
+    """投票平票时应使用确定性打破逻辑（取第一个最大评分的机器）。
+
+    多个 Agent 投票相同且机器评分完全相同时，aggregate_actions 使用
+    Python max() 的"首个最大值"语义确定性地选择索引最小的机器。
+    """
+    env = _env(3)
+    wrapper = MultiAgentEnvWrapper(env)
+    env.reset(seed=42)
+    # 让所有机器评分完全相同（同 fidelity / available_ratio / queue）
+    for machine in env._machines:
+        machine.available = True
+        machine.fidelity = 0.9
+        machine.available_ratio = 0.8
+        machine.quantum_queue = 2
+
+    actions = dict.fromkeys(wrapper.machine_names, 1)  # 全部投票量子
+    # 多次聚合应返回相同结果（确定性）
+    results = [wrapper.aggregate_actions(actions) for _ in range(5)]
+    assert all(result == results[0] for result in results)
+    # 平票时应选中索引 0（max 返回第一个最大值）
+    assert results[0] == (1, 0)
+
+
+def test_invalid_action_handling() -> None:
+    """Agent 输出非法动作（负数、超范围）时应被安全处理，不影响其他 Agent。
+
+    当前实现：aggregate_actions 中 int(actions.get(name, 0)) 将非 {0,1,2}
+    的值视为弃权（既不投量子也不投混合），等同于经典动作。
+    限制说明：源码未做 clamp 或抛异常，而是静默回退到经典，测试验证此既定行为。
+    """
+    env = _env(2)
+    wrapper = MultiAgentEnvWrapper(env)
+    env.reset(seed=42)
+    for machine in env._machines:
+        machine.available = True
+
+    # 全部非法动作 → 回退到经典
+    invalid_actions = {
+        wrapper.machine_names[0]: -1,  # 负数
+        wrapper.machine_names[1]: 99,  # 超范围
+    }
+    env_action, chosen = wrapper.aggregate_actions(invalid_actions)
+    assert env_action == 0
+    assert chosen is None
+
+    # 混合：一个有效量子投票 + 一个非法动作 → 应执行量子
+    mixed_actions = {
+        wrapper.machine_names[0]: 1,  # 有效：量子
+        wrapper.machine_names[1]: -5,  # 非法：负数
+    }
+    env_action, chosen = wrapper.aggregate_actions(mixed_actions)
+    assert env_action == 1
+    assert chosen == 0
+
+
+def test_gradient_flow() -> None:
+    """使用 torch.autograd.gradcheck 验证 Actor/Critic 梯度反向传播正确。
+
+    gradcheck 通过有限差分法验证解析梯度与数值梯度一致，确保反向传播实现无误。
+    所有张量必须使用 double 精度（torch.float64）。
+    """
+    obs_dim = 4
+    action_dim = 3
+    batch_size = 2
+
+    # === Actor 梯度流：obs -> feature -> logits -> log_prob ===
+    actor = ActorNet(obs_dim=obs_dim, action_dim=action_dim, hidden_sizes=(6,)).double()
+    obs = torch.randn(batch_size, obs_dim, dtype=torch.float64, requires_grad=True)
+    actions = torch.zeros(batch_size, dtype=torch.long)
+
+    def actor_fn(obs_input: torch.Tensor) -> torch.Tensor:
+        log_prob, _entropy = actor.evaluate_actions(obs_input, actions)
+        return log_prob.sum()
+
+    assert torch.autograd.gradcheck(actor_fn, (obs,), eps=1e-6, atol=1e-4)
+
+    # === Critic 梯度流：global_state -> value ===
+    num_agents = 2
+    global_state_dim = obs_dim * num_agents
+    critic = CentralizedCritic(global_state_dim=global_state_dim, hidden_sizes=(6,)).double()
+    gs = torch.randn(batch_size, global_state_dim, dtype=torch.float64, requires_grad=True)
+
+    def critic_fn(gs_input: torch.Tensor) -> torch.Tensor:
+        return critic(gs_input).sum()  # type: ignore[no-any-return]
+
+    assert torch.autograd.gradcheck(critic_fn, (gs,), eps=1e-6, atol=1e-4)
+
+    # === 多 Agent 梯度独立性：一个 Actor 的反向传播不影响另一个 ===
+    actor_a = ActorNet(obs_dim=obs_dim, action_dim=action_dim, hidden_sizes=(6,)).double()
+    actor_b = ActorNet(obs_dim=obs_dim, action_dim=action_dim, hidden_sizes=(6,)).double()
+    obs_a = torch.randn(1, obs_dim, dtype=torch.float64)
+
+    actor_a.zero_grad()
+    actor_b.zero_grad()
+    log_prob_a, _ = actor_a.evaluate_actions(obs_a, torch.zeros(1, dtype=torch.long))
+    log_prob_a.sum().backward()
+
+    # actor_a 应有梯度
+    has_grad_a = any(p.grad is not None and torch.any(p.grad != 0) for p in actor_a.parameters())
+    assert has_grad_a, "Actor A 参数未收到梯度"
+    # actor_b 不应有梯度（多 Agent 梯度独立性）
+    for name, param in actor_b.named_parameters():
+        assert param.grad is None or torch.all(param.grad == 0), (
+            f"Actor B 参数 {name} 不应收到梯度（多 Agent 梯度独立性被破坏）"
+        )
+
+
+def test_ctde_consistency() -> None:
+    """验证 CTDE：训练时 Critic 使用全局状态，执行时 Actor 仅用局部观测。
+
+    CTDE (Centralized Training, Decentralized Execution):
+    - 执行时：每个 Actor 仅看本机局部观测（去中心化）
+    - 训练时：Critic 看所有 Agent 的全局状态拼接（中心化）
+    """
+    num_agents = 2
+    env = _env(num_agents)
+    agent = MultiAgentPPO(
+        env,
+        n_steps=4,
+        batch_size=2,
+        actor_hidden=(4,),
+        critic_hidden=(4,),
+        verbose=0,
+    )
+
+    # 1. 架构一致性：Critic 输入维度 = local_obs_dim * num_agents（全局状态）
+    assert agent.global_state_dim == agent.local_obs_dim * num_agents
+
+    # 2. 执行时去中心化：Actor 第一层输入维度 = local_obs_dim（仅局部观测）
+    for i, actor in enumerate(agent.actors):
+        first_layer = actor.feature[0]
+        assert isinstance(first_layer, torch.nn.Linear)
+        assert first_layer.in_features == agent.local_obs_dim, (
+            f"Actor {i} 输入维度应为 local_obs_dim={agent.local_obs_dim}，"
+            f"实际为 {first_layer.in_features}"
+        )
+    # Actor 输入维度 < 全局状态维度（证明仅用局部，非全局）
+    assert agent.local_obs_dim < agent.global_state_dim
+
+    # 3. 训练时中心化：Critic 第一层输入维度 = global_state_dim
+    critic_first_layer = agent.critic.net[0]
+    assert isinstance(critic_first_layer, torch.nn.Linear)
+    assert critic_first_layer.in_features == agent.global_state_dim
+
+    # 4. 行为一致性：_sample_actions 调用 Critic 时传入全局状态
+    env.reset(seed=42)
+    local_obs = agent.wrapper.get_local_observations()
+    captured_inputs: list[torch.Tensor] = []
+    original_forward = agent.critic.forward
+
+    def spy_forward(x: torch.Tensor) -> torch.Tensor:
+        captured_inputs.append(x.detach().clone())
+        return original_forward(x)
+
+    agent.critic.forward = spy_forward  # type: ignore[assignment]
+    try:
+        agent._sample_actions(local_obs, deterministic=True)
+    finally:
+        agent.critic.forward = original_forward  # type: ignore[method-assign]
+
+    assert len(captured_inputs) == 1, "Critic 应被调用一次"
+    assert captured_inputs[0].shape == (1, agent.global_state_dim), (
+        f"Critic 输入形状应为 (1, {agent.global_state_dim})，"
+        f"实际为 {tuple(captured_inputs[0].shape)}"
+    )
+
+    # 5. 训练缓冲区存储的是全局状态（而非单 Agent 局部观测）
+    assert agent.buffer.global_states.shape[1] == agent.global_state_dim
