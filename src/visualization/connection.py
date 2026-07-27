@@ -22,10 +22,16 @@ class ConnectionManager:
         self._lock = threading.RLock()
 
     async def connect(self, websocket: WebSocket) -> None:
-        """接受 WebSocket 连接并加入活跃连接列表（线程安全）"""
+        """接受 WebSocket 连接并加入活跃连接列表（线程安全）。
+
+        防护重复连接：若 websocket 已在列表中，不再重复添加（Issue #216）。
+        """
         await websocket.accept()
         with self._lock:
-            self.active_connections.append(websocket)
+            if websocket not in self.active_connections:
+                self.active_connections.append(websocket)
+            else:
+                logger.debug("[Web] WebSocket 已在活跃连接列表中，跳过重复添加")
 
     def disconnect(self, websocket: WebSocket) -> None:
         """断开 WebSocket 连接（线程安全）"""
