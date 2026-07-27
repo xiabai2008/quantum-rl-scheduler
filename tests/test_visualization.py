@@ -2491,3 +2491,79 @@ class TestWebSocketAdvanced:
             assert resp["type"] == "resource_history"
             assert "history" in resp
             assert len(resp["history"]) == 1
+
+
+# ============================================================
+# Issue #381: fallback_template.py 存储型 XSS 漏洞测试
+# ============================================================
+
+
+class TestFallbackTemplateXSS:
+    """验证 fallback_template.py 中所有 innerHTML 拼接处已对 API 数据进行 HTML 转义。"""
+
+    def test_escapehtml_function_exists(self) -> None:
+        """fallback_template 应包含 escapeHtml 函数。"""
+        from src.visualization import fallback_template
+
+        assert "function escapeHtml" in fallback_template.HTML_TEMPLATE
+        assert "function escapeHtml" in fallback_template.HTML_TEMPLATE
+
+    def test_render_tasks_uses_escapehtml(self) -> None:
+        """renderTasks 中所有 API 字段应使用 escapeHtml。"""
+        from src.visualization import fallback_template
+
+        # 提取 renderTasks 函数体
+        start = fallback_template.HTML_TEMPLATE.find("function renderTasks")
+        end = fallback_template.HTML_TEMPLATE.find("function renderStrategies")
+        body = fallback_template.HTML_TEMPLATE[start:end]
+        assert body, "renderTasks 函数未找到"
+
+        # 验证所有 innerHTML 拼接的字段都被 escapeHtml 包裹
+        # task_id, task_type, qubit_count, priority, status 均需转义
+        assert "escapeHtml((t.task_id" in body
+        assert "escapeHtml(t.task_type" in body
+        assert "escapeHtml(t.qubit_count" in body
+        assert "escapeHtml(t.priority" in body
+        assert "escapeHtml(statusText(t.status" in body
+
+    def test_render_decisions_uses_escapehtml(self) -> None:
+        """renderDecisions 中所有 API 字段应使用 escapeHtml。"""
+        from src.visualization import fallback_template
+
+        start = fallback_template.HTML_TEMPLATE.find("function renderDecisions")
+        end = fallback_template.HTML_TEMPLATE.find("function updateDecisionPie")
+        body = fallback_template.HTML_TEMPLATE[start:end]
+        assert body, "renderDecisions 函数未找到"
+
+        # task_id, source, actLabel 均需转义
+        assert "escapeHtml(d.step" in body
+        assert "escapeHtml(actLabel)" in body
+        assert "escapeHtml((d.task_id" in body
+        assert "escapeHtml(d.source)" in body
+
+    def test_load_real_submissions_uses_escapehtml(self) -> None:
+        """loadRealSubmissions 中所有 API 字段应使用 escapeHtml。"""
+        from src.visualization import fallback_template
+
+        start = fallback_template.HTML_TEMPLATE.find("function loadRealSubmissions")
+        end = fallback_template.HTML_TEMPLATE.find("function loadRealMachines")
+        body = fallback_template.HTML_TEMPLATE[start:end]
+        assert body, "loadRealSubmissions 函数未找到"
+
+        # taskId, machine, time 均需转义
+        assert "escapeHtml(taskId" in body
+        assert "escapeHtml(machine)" in body
+        assert "escapeHtml(time)" in body
+
+    def test_escapehtml_escapes_script_tag(self) -> None:
+        """escapeHtml 应正确转义 <script> 标签。"""
+        from src.visualization import fallback_template
+
+        # 验证 escapeHtml 实现包含必要的字符替换
+        template = fallback_template.HTML_TEMPLATE
+        assert "&amp;" in template
+        assert "&lt;" in template
+        assert "&gt;" in template
+        assert "&quot;" in template
+        assert "&#39;" in template
+        assert "&#x2F;" in template
