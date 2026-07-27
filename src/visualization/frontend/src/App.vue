@@ -10,6 +10,7 @@ import DecisionMagnifier from './components/DecisionMagnifier.vue'
 import BattlePanel from './components/BattlePanel.vue'
 import TaskTimeline from './components/TaskTimeline.vue'
 import ResourceAllocation from './components/ResourceAllocation.vue'
+import DecisionTrend from './components/DecisionTrend.vue'
 
 // ============ 响应式数据 ============
 const loading = ref(true)
@@ -304,6 +305,9 @@ defineExpose({
 
     <!-- 决策过程回放（Issue #22：时间轴滑动） -->
     <DecisionLog />
+
+    <!-- 调度决策动态趋势（Issue #351：决策奖励趋势 + 动作分布） -->
+    <DecisionTrend />
 
     <!-- 特征重要性排名（Issue #157：决策可解释性可视化） -->
     <FeatureImportance />
