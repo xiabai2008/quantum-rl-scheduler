@@ -580,8 +580,9 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
         rl_action: int = -1,
         rl_action_prob: float = 0.0,
         observation_snapshot: dict[str, Any] | None = None,
+        is_qem: bool = False,
     ) -> None:
-        route_to_machine(self, machine, task, rng, rl_action, rl_action_prob, observation_snapshot)
+        route_to_machine(self, machine, task, rng, rl_action, rl_action_prob, observation_snapshot, is_qem)
 
     def _submit_to_real_machine(
         self,
