@@ -128,7 +128,8 @@ def _run_single_seed(
     seed_start = time.time()
 
     # 构建/加载策略模型
-    strategies = build_strategies(dqn_path=dqn_model, ppo_path=ppo_model)
+    # Issue #435: 传递 obs_dim 避免维度不匹配（原漏传导致默认 10 维加载 14 维模型崩溃）
+    strategies = build_strategies(dqn_path=dqn_model, ppo_path=ppo_model, obs_dim=obs_dim)
 
     seed_data: dict[str, dict] = {}
     rewards_for_seed: dict[str, list[float]] = {s.name: [] for s in strategies}

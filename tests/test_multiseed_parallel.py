@@ -385,3 +385,73 @@ class TestRunSingleSeed:
         assert seed == 99
         assert len(rewards_map["FCFS"]) == 3
         assert len(seed_data["FCFS"]["rewards"]) == 3
+
+    def test_obs_dim_passed_to_build_strategies(self, monkeypatch) -> None:
+        """Issue #435: _run_single_seed 应将 obs_dim 传递给 build_strategies。
+
+        原实现漏传 obs_dim，导致 build_strategies 使用默认值 10，
+        与主流程 run_multiseed 传入的 obs_dim=14 不一致，
+        加载 14 维 DQN 检查点时维度不匹配崩溃。
+        """
+        captured_obs_dim: list[int] = []
+        simple_strategies = [FCFSStrategy()]
+
+        def mock_build_strategies(
+            dqn_path: str | None = None,
+            ppo_path: str | None = None,
+            obs_dim: int = 10,
+        ) -> list:
+            del dqn_path, ppo_path
+            captured_obs_dim.append(obs_dim)
+            return simple_strategies
+
+        monkeypatch.setattr("run_multiseed_evaluation.build_strategies", mock_build_strategies)
+
+        _run_single_seed(
+            seed=42,
+            seed_idx=0,
+            total_seeds=1,
+            ppo_model="fake_ppo.zip",
+            dqn_model=None,
+            obs_dim=14,
+            episodes_per_seed=1,
+            tasks_per_episode=5,
+            use_cache=False,
+        )
+
+        # Issue #435: obs_dim 应被正确传递，而非使用默认值 10
+        assert len(captured_obs_dim) == 1
+        assert captured_obs_dim[0] == 14, (
+            f"obs_dim 应为 14，实际传递 {captured_obs_dim[0]}（#435 回归）"
+        )
+
+    def test_obs_dim_10_passed_correctly(self, monkeypatch) -> None:
+        """Issue #435: obs_dim=10 时也应正确传递。"""
+        captured_obs_dim: list[int] = []
+        simple_strategies = [FCFSStrategy()]
+
+        def mock_build_strategies(
+            dqn_path: str | None = None,
+            ppo_path: str | None = None,
+            obs_dim: int = 10,
+        ) -> list:
+            del dqn_path, ppo_path
+            captured_obs_dim.append(obs_dim)
+            return simple_strategies
+
+        monkeypatch.setattr("run_multiseed_evaluation.build_strategies", mock_build_strategies)
+
+        _run_single_seed(
+            seed=42,
+            seed_idx=0,
+            total_seeds=1,
+            ppo_model="fake_ppo.zip",
+            dqn_model=None,
+            obs_dim=10,
+            episodes_per_seed=1,
+            tasks_per_episode=5,
+            use_cache=False,
+        )
+
+        assert len(captured_obs_dim) == 1
+        assert captured_obs_dim[0] == 10
