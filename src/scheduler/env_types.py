@@ -38,8 +38,9 @@ OBS_TWO_GATE_FIDELITY = 11  # 两比特门平均保真度（CZ门误差率补数
 OBS_COUPLING_DENSITY = 12  # 耦合图密度 = 实际连接数 / 全连接数
 OBS_AVG_CONNECTIVITY = 13  # 量子比特平均连通度 = 平均连接数 / max_connections
 OBS_CROSSTALK_RISK = 14  # 串扰风险（基于空间并发的任务密度）
+OBS_ARRIVAL_RATE_MA = 15  # 任务到达率滑动平均（流量突发感知）
 
-OBS_DIM = 15  # 状态空间维度（从14扩展到15）
+OBS_DIM = 16  # 状态空间维度（从15扩展到16）
 
 # ---------------------------------------------------------------------------
 # 动作常量

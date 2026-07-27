@@ -238,6 +238,11 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
         self._pending_real_tasks: list[dict[str, Any]] = []
         # _real_result_records: 真机结果详细记录（Issue #235 可追溯性）
         self._real_result_records: list[dict[str, Any]] = []
+
+        # 流量突发感知：任务到达率历史（滑动窗口）
+        self.arrival_history: list[int] = []
+        self.current_time_window_arrivals: int = 0
+        self.max_arrival_history_length: int = 10
         # _real_feedback_log: 真机因果记录（Issue #235，"RL动作→真机任务→结果→reward"因果链）
         self._real_feedback_log: list[dict[str, Any]] = []
         self._real_machine_degraded: bool = False  # 降级标志：True 时跳过真机提交

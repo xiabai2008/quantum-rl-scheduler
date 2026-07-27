@@ -35,6 +35,7 @@ from src.scheduler.env_types import (
     OBS_TWO_GATE_FIDELITY,
     OBS_URGENCY_LEVEL,
     OBS_CROSSTALK_RISK,
+    OBS_ARRIVAL_RATE_MA,
 )
 
 if TYPE_CHECKING:
@@ -44,7 +45,7 @@ if TYPE_CHECKING:
 
 def get_observation(env: "QuantumSchedulingEnv") -> NDArray[Any]:
     """
-    构建并返回当前 14 维状态向量（扩展版：包含物理噪声和拓扑特征）。
+    构建并返回当前 16 维状态向量（扩展版：包含物理噪声、拓扑特征、串扰风险、时序流量）。
 
     各维度含义及计算方式：
         [0] qubit_availability  : 量子比特可用比率（直接取值）
@@ -62,12 +63,13 @@ def get_observation(env: "QuantumSchedulingEnv") -> NDArray[Any]:
         [12] coupling_density  : 耦合图密度（所有机器加权平均）
         [13] avg_connectivity  : 量子比特平均连通度（所有机器加权平均）
         [14] crosstalk_risk    : 串扰风险（基于空间并发的任务密度）
+        [15] arrival_rate_ma   : 任务到达率滑动平均（流量突发感知）
 
     Args:
         env: 调度环境实例
 
     Returns:
-        NDArray[Any]: 形状 (15,)，dtype=float32，值域 [0, 1]
+        NDArray[Any]: 形状 (16,)，dtype=float32，值域 [0, 1]
     """
     obs: NDArray[Any] = np.zeros(OBS_DIM, dtype=np.float32)
 
@@ -138,6 +140,17 @@ def get_observation(env: "QuantumSchedulingEnv") -> NDArray[Any]:
             # 这里我们使用所有机器使用的 qubits 总和 / 所有机器的总 qubits
             used_q = sum(m.used_qubits for m in env._machines)
             obs[OBS_CROSSTALK_RISK] = float(np.clip(used_q / total_q, 0.0, 1.0))
+            
+    # 计算任务到达率滑动平均
+    if hasattr(env, "arrival_history") and env.arrival_history:
+        avg_arrival = sum(env.arrival_history) / len(env.arrival_history)
+        # 假设最大预期单步到达任务数为 10（可调整）
+        max_expected_arrival = 10.0
+        obs[OBS_ARRIVAL_RATE_MA] = float(np.clip(avg_arrival / max_expected_arrival, 0.0, 1.0))
+    elif hasattr(env, "current_time_window_arrivals"):
+        # 如果历史为空，使用当前窗口的值
+        max_expected_arrival = 10.0
+        obs[OBS_ARRIVAL_RATE_MA] = float(np.clip(env.current_time_window_arrivals / max_expected_arrival, 0.0, 1.0))
 
     return obs
 
