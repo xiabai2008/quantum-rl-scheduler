@@ -1,0 +1,88 @@
+{
+  "molecules": {
+    "H2": {
+      "qubits": 2,
+      "reps": 3,
+      "shots": 1024,
+      "priority": 3
+    },
+    "LiH": {
+      "qubits": 4,
+      "reps": 4,
+      "shots": 2048,
+      "priority": 2
+    },
+    "BeH2": {
+      "qubits": 6,
+      "reps": 4,
+      "shots": 2048,
+      "priority": 2
+    },
+    "H2O": {
+      "qubits": 8,
+      "reps": 5,
+      "shots": 4096,
+      "priority": 1
+    },
+    "NH3": {
+      "qubits": 8,
+      "reps": 5,
+      "shots": 4096,
+      "priority": 1
+    },
+    "CH4": {
+      "qubits": 10,
+      "reps": 6,
+      "shots": 4096,
+      "priority": 1
+    },
+    "CO2": {
+      "qubits": 12,
+      "reps": 6,
+      "shots": 8192,
+      "priority": 2
+    },
+    "N2": {
+      "qubits": 14,
+      "reps": 7,
+      "shots": 8192,
+      "priority": 3
+    },
+    "O2": {
+      "qubits": 14,
+      "reps": 7,
+      "shots": 8192,
+      "priority": 3
+    },
+    "F2": {
+      "qubits": 14,
+      "reps": 7,
+      "shots": 8192,
+      "priority": 3
+    }
+  },
+  "results": {
+    "PPO": {
+      "avg_reward": 2891.4146,
+      "avg_wait_time": 56.5784,
+      "completion_rate": 1.0,
+      "qubit_utilization": 0.2407,
+      "classical_utilization": 0.5736
+    },
+    "FCFS": {
+      "avg_reward": 1463.7339,
+      "avg_wait_time": 40.1877,
+      "completion_rate": 1.0,
+      "qubit_utilization": 0.4581,
+      "classical_utilization": 0.5649
+    },
+    "SJF": {
+      "avg_reward": 1395.2724,
+      "avg_wait_time": 44.2453,
+      "completion_rate": 1.0,
+      "qubit_utilization": 0.4129,
+      "classical_utilization": 0.512
+    }
+  },
+  "task_count": 100
+}
