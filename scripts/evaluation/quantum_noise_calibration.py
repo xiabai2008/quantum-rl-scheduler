@@ -2,17 +2,28 @@
 量子赋能AI：真机噪声反馈优化PPO鲁棒性
 量子硬件测量 → 噪声模型 → 校准仿真环境 → 提升AI鲁棒性
 """
-import sys, json, time, os, numpy as np
+
+import json
+import os
+import sys
+import time
 from pathlib import Path
+
+import numpy as np
+
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(_PROJECT_ROOT))
 os.chdir(str(_PROJECT_ROOT))
 
 from stable_baselines3 import PPO
-from src.scheduler.env import QuantumSchedulingEnv
+
 from scripts.evaluation.run_simulation import (
-    SimulationEnv, SimulationTaskGenerator, FCFSStrategy, PPOStrategy, run_strategy,
+    PPOStrategy,
+    SimulationEnv,
+    SimulationTaskGenerator,
+    run_strategy,
 )
+from src.scheduler.env import QuantumSchedulingEnv
 
 # ── 1. 提取真机噪声模型 ──
 print("=" * 60)
@@ -35,16 +46,16 @@ print(f"  Shots: {len(flat_bits)}")
 print(f"  P(0)={p0_real:.4f}, P(1)={p1_real:.4f} (理想=0.5)")
 print(f"  保真度: {fidelity:.4f}")
 print(f"  噪声强度: {noise_strength:.4f}")
-print(f"  N=10 报告中 MBS 均值: ~0.89 (来自10seeds实验)")
+print("  N=10 报告中 MBS 均值: ~0.89 (来自10seeds实验)")
 
 # ── 2. 量子噪声注入仿真 ──
-print(f"\n[方案] 将量子噪声注入仿真环境量子任务奖励")
-print(f"  标准: 量子任务固定 +10 reward")
-print(f"  噪声校准: 量子任务 +10 × (1 - noise_strength) (模拟实际保真度损失)")
-print(f"  效果: PPO感知量子硬件真实噪声，学习更鲁棒的调度策略")
+print("\n[方案] 将量子噪声注入仿真环境量子任务奖励")
+print("  标准: 量子任务固定 +10 reward")
+print("  噪声校准: 量子任务 +10 × (1 - noise_strength) (模拟实际保真度损失)")
+print("  效果: PPO感知量子硬件真实噪声，学习更鲁棒的调度策略")
 
 # ── 3. 对比训练 ──
-print(f"\n[对比] Standard vs Quantum-Noise-Calibrated PPO")
+print("\n[对比] Standard vs Quantum-Noise-Calibrated PPO")
 
 results = {}
 for label in ["Standard", "QuantumNoise"]:
@@ -54,19 +65,28 @@ for label in ["Standard", "QuantumNoise"]:
     # 量子噪声注入：修改量子任务奖励
     if label == "QuantumNoise":
         orig_step = env.step
-        def noisy_step(action):
-            obs, reward, terminated, truncated, info = orig_step(action)
+
+        def noisy_step(action, _orig_step=orig_step):
+            obs, reward, terminated, truncated, info = _orig_step(action)
             # 量子执行时注入真实噪声
             if reward > 5:  # 量子任务奖励 >5的判断
                 noise_factor = np.random.normal(fidelity, noise_strength * 0.1)
-                noise_factor = np.clip(noise_factor, fidelity - 2*noise_strength, 1.0)
+                noise_factor = np.clip(noise_factor, fidelity - 2 * noise_strength, 1.0)
                 reward *= noise_factor
             return obs, reward, terminated, truncated, info
+
         env.step = noisy_step
 
     ppo = PPO.load("deliverable_models/ppo_best_model_14dim.zip")
 
-    r = run_strategy(sim_env, PPOStrategy(ppo), num_episodes=10, tasks_per_episode=200, max_steps=200, verbose=False)
+    r = run_strategy(
+        sim_env,
+        PPOStrategy(ppo),
+        num_episodes=10,
+        tasks_per_episode=200,
+        max_steps=200,
+        verbose=False,
+    )
 
     # 恢复
     if label == "QuantumNoise":
@@ -78,11 +98,13 @@ for label in ["Standard", "QuantumNoise"]:
         "qubit_utilization": r["qubit_utilization"],
         "completion_rate": r["completion_rate"],
     }
-    print(f"  {label}: reward={r['avg_reward']:.0f}, wait={r['avg_wait_time']:.1f}, "
-          f"qubit_util={r['qubit_utilization']:.1%}, completion={r['completion_rate']:.1%}")
+    print(
+        f"  {label}: reward={r['avg_reward']:.0f}, wait={r['avg_wait_time']:.1f}, "
+        f"qubit_util={r['qubit_utilization']:.1%}, completion={r['completion_rate']:.1%}"
+    )
 
 # ── 4. 量子随机数注入RL探索 ──
-print(f"\n[Bonus] 量子随机数增强RL探索")
+print("\n[Bonus] 量子随机数增强RL探索")
 # 用真机测量比特作为随机源
 quantum_random_bits = flat_bits.copy()
 np.random.seed(42)
@@ -93,12 +115,14 @@ quant_swaps = []
 for _ in range(100):
     std_swaps.append(np.random.randint(0, 16))
     idx = np.random.randint(0, len(quantum_random_bits))
-    quant_swaps.append(int(quantum_random_bits[idx]) if np.random.random() < 0.5 else np.random.randint(0, 16))
+    quant_swaps.append(
+        int(quantum_random_bits[idx]) if np.random.random() < 0.5 else np.random.randint(0, 16)
+    )
 
 # 量子随机源与伪随机的分布对比
 print(f"  伪随机 entropy: {np.std(std_swaps):.2f}")
 print(f"  量子随机 entropy: {np.std(quant_swaps):.2f}")
-print(f"  量子随机是硬件提供的真随机源(非确定性)")
+print("  量子随机是硬件提供的真随机源(非确定性)")
 
 # ── 5. 保存 ──
 report = {
@@ -142,19 +166,23 @@ lines = [
 ]
 for label in ["Standard", "QuantumNoise"]:
     r = results[label]
-    lines.append(f"| {label} | {r['avg_reward']:.0f} | {r['avg_wait_time']:.1f} | {r['qubit_utilization']:.1%} | {r['completion_rate']:.1%} |")
+    lines.append(
+        f"| {label} | {r['avg_reward']:.0f} | {r['avg_wait_time']:.1f} | {r['qubit_utilization']:.1%} | {r['completion_rate']:.1%} |"
+    )
 
-lines.extend([
-    "",
-    "## 叙事价值",
-    "",
-    "退火是经典模拟 → 不算真正的量子赋能AI",
-    "真机噪声反馈是真正的量子赋能AI：",
-    "> 量子硬件 → 噪声特征 → 仿真校准 → AI策略鲁棒性提升",
-    "",
-    "---",
-    "*量子赋能AI证据: tianyan-287真机，Task ID可审计*",
-])
+lines.extend(
+    [
+        "",
+        "## 叙事价值",
+        "",
+        "退火是经典模拟 → 不算真正的量子赋能AI",
+        "真机噪声反馈是真正的量子赋能AI：",
+        "> 量子硬件 → 噪声特征 → 仿真校准 → AI策略鲁棒性提升",
+        "",
+        "---",
+        "*量子赋能AI证据: tianyan-287真机，Task ID可审计*",
+    ]
+)
 
 os.makedirs("results/reports", exist_ok=True)
 with open(f"results/reports/quantum_noise_calibration_{ts}.md", "w", encoding="utf-8") as f:

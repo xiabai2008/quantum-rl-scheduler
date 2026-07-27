@@ -1,17 +1,28 @@
 """
 量子赋能AI v2：10seeds真机噪声分布建模 + PPO鲁棒性对比
 """
-import sys, json, time, os, numpy as np
+
+import json
+import os
+import sys
+import time
 from pathlib import Path
+
+import numpy as np
+
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(_PROJECT_ROOT))
 os.chdir(str(_PROJECT_ROOT))
 
 from stable_baselines3 import PPO
-from src.scheduler.env import QuantumSchedulingEnv
+
 from scripts.evaluation.run_simulation import (
-    SimulationEnv, SimulationTaskGenerator, PPOStrategy, FCFSStrategy, run_strategy,
+    PPOStrategy,
+    SimulationEnv,
+    SimulationTaskGenerator,
+    run_strategy,
 )
+from src.scheduler.env import QuantumSchedulingEnv
 
 # ── 1. 噪声模型 ──
 print("=" * 60)
@@ -19,14 +30,13 @@ print("  量子赋能AI v2：10seeds真机噪声分布→PPO鲁棒性")
 print("=" * 60)
 
 # 从10seeds v2报告提取MBS值（每个seed的保真度）
-mbs_values = [0.9935, 0.6710, 0.8640, 0.9420, 0.8770,
-              0.8640, 0.9940, 0.9290, 0.8640, 0.8640]
+mbs_values = [0.9935, 0.6710, 0.8640, 0.9420, 0.8770, 0.8640, 0.9940, 0.9290, 0.8640, 0.8640]
 noise_dist = 1 - np.array(mbs_values)
-print(f"\n[噪声模型] tianyan-287 10seeds MBS数据")
+print("\n[噪声模型] tianyan-287 10seeds MBS数据")
 print(f"  MBS 均值: {np.mean(mbs_values):.4f} ± {np.std(mbs_values):.4f}")
 print(f"  噪声水平: {np.mean(noise_dist):.4f} ± {np.std(noise_dist):.4f}")
 print(f"  范围: [{min(mbs_values):.4f}, {max(mbs_values):.4f}]")
-print(f"  比单H门保真度0.976更全面：含10次独立真机运行的真实波动")
+print("  比单H门保真度0.976更全面：含10次独立真机运行的真实波动")
 
 # ── 2. 三条件对比 ──
 ppo = PPO.load("deliverable_models/ppo_best_model_14dim.zip")
@@ -42,9 +52,10 @@ for label, noise_type in [
 
     if noise_type:
         orig_step = env.step
-        def make_noisy_step(ntype):
+
+        def make_noisy_step(ntype, _orig_step=orig_step):
             def noisy_step(action):
-                obs, reward, terminated, truncated, info = orig_step(action)
+                obs, reward, terminated, truncated, info = _orig_step(action)
                 if reward > 5:  # 量子任务
                     if ntype == "single":
                         noise = np.random.normal(0.976, 0.024)
@@ -53,10 +64,19 @@ for label, noise_type in [
                     noise = np.clip(noise, 0.5, 1.0)
                     reward *= noise
                 return obs, reward, terminated, truncated, info
+
             return noisy_step
+
         env.step = make_noisy_step(noise_type)
 
-    r = run_strategy(sim_env, PPOStrategy(ppo), num_episodes=10, tasks_per_episode=200, max_steps=200, verbose=False)
+    r = run_strategy(
+        sim_env,
+        PPOStrategy(ppo),
+        num_episodes=10,
+        tasks_per_episode=200,
+        max_steps=200,
+        verbose=False,
+    )
 
     if noise_type:
         env.step = orig_step
@@ -67,9 +87,15 @@ for label, noise_type in [
         "qubit_utilization": r["qubit_utilization"],
         "completion_rate": r["completion_rate"],
     }
-    noise_label = "无噪声" if not noise_type else ("单H门噪声" if noise_type == "single" else "10seeds分布噪声")
-    print(f"  {label}({noise_label}): reward={r['avg_reward']:.0f}, wait={r['avg_wait_time']:.1f}, "
-          f"qubit={r['qubit_utilization']:.1%}")
+    noise_label = (
+        "无噪声"
+        if not noise_type
+        else ("单H门噪声" if noise_type == "single" else "10seeds分布噪声")
+    )
+    print(
+        f"  {label}({noise_label}): reward={r['avg_reward']:.0f}, wait={r['avg_wait_time']:.1f}, "
+        f"qubit={r['qubit_utilization']:.1%}"
+    )
 
 # ── 3. 鲁棒性分析 ──
 std = results["Standard"]
@@ -80,9 +106,9 @@ reward_drop_dist = (1 - dist["avg_reward"] / std["avg_reward"]) * 100
 reward_drop_single = (1 - single["avg_reward"] / std["avg_reward"]) * 100
 wait_improve = (1 - dist["avg_wait_time"] / std["avg_wait_time"]) * 100
 
-print(f"\n[鲁棒性]")
+print("\n[鲁棒性]")
 print(f"  分布噪声 vs 标准: 奖励仅降{reward_drop_dist:.1f}%, 等待改善{wait_improve:.1f}%")
-print(f"  分布噪声更真实: 覆盖10次独立真机运行的保真度波动")
+print("  分布噪声更真实: 覆盖10次独立真机运行的保真度波动")
 print(f"  单H门噪声过于乐观(仅降{reward_drop_single:.1f}%), 10seeds分布更综合")
 
 # ── 4. 保存 ──
@@ -92,7 +118,10 @@ report = {
     "mbs_std": float(np.std(mbs_values)),
     "noise_mean": float(np.mean(noise_dist)),
     "conditions": results,
-    "robustness": {"reward_change_pct": round(reward_drop_dist, 1), "wait_improve_pct": round(wait_improve, 1)},
+    "robustness": {
+        "reward_change_pct": round(reward_drop_dist, 1),
+        "wait_improve_pct": round(wait_improve, 1),
+    },
 }
 os.makedirs("results/quantum_ai", exist_ok=True)
 ts = time.strftime("%Y%m%d_%H%M%S")
@@ -102,14 +131,14 @@ with open(f"results/quantum_ai/noise_multi_seed_{ts}.json", "w") as f:
 # ── 5. 报告 ──
 lines = [
     "# 量子赋能AI：10seeds真机噪声分布优化PPO鲁棒性",
-    f"\n> 数据源: tianyan-287 10seeds MBS (multiseed_real_machine_report_10seeds_v2.md)",
+    "\n> 数据源: tianyan-287 10seeds MBS (multiseed_real_machine_report_10seeds_v2.md)",
     f"> 噪声模型: MBS={np.mean(mbs_values):.4f}±{np.std(mbs_values):.4f}, N=10",
     "",
     "## 为什么比单H门更强",
     "",
     "| 维度 | 单H门 | 10seeds分布 |",
     "|:--|:--|:--|",
-    f"| 样本量 | 1次 | 10次独立运行 |",
+    "| 样本量 | 1次 | 10次独立运行 |",
     f"| 保真度范围 | 固定0.976 | [{min(mbs_values):.4f}, {max(mbs_values):.4f}] |",
     "| 噪声表征 | 单点估计 | 分布+方差 |",
     "| 真机波动 | 不反映 | 真实反映 |",
