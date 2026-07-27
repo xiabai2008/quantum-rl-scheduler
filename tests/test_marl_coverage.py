@@ -744,3 +744,68 @@ class TestLoadOldFormat:
             for i, (a1, a2) in enumerate(zip(agent.actors, agent2.actors, strict=True)):
                 for p1, p2 in zip(a1.parameters(), a2.parameters(), strict=True):
                     assert torch.allclose(p1, p2), f"Actor {i} 参数不一致"
+
+
+# ---------------------------------------------------------------------------
+# MultiAgentPPO.train() 集成测试（Issue #262）
+# ---------------------------------------------------------------------------
+
+
+class TestTrainLoopIntegration:
+    """MultiAgentPPO.train() 集成测试（Issue #262）。
+
+    覆盖训练循环的梯度计算、参数更新与模型保存/加载完整流程，
+    确保训练循环核心路径（rollout 收集 → GAE 优势 → PPO 更新 → 检查点）无异常。
+    """
+
+    def test_train_loop_integration(self, tmp_path: Path) -> None:
+        """train() 集成测试：训练后参数应更新且模型可保存/加载。
+
+        测试三步：
+            1. 运行小规模训练（1000 步，2 个 Agent），验证无异常
+            2. 验证训练后模型参数有更新（至少一个 Actor 或 Critic 参数变化）
+            3. 验证模型保存/加载功能（加载后参数一致）
+        """
+        agent = _make_agent(n_steps=64, batch_size=16, n_epochs=2, learning_rate=3e-4)
+        assert agent.num_agents == 2, "测试需 2 个 Agent"
+
+        before_params: dict[str, torch.Tensor] = {}
+        for i, actor in enumerate(agent.actors):
+            for name, p in actor.named_parameters():
+                before_params[f"actor.{i}.{name}"] = p.detach().clone()
+        for name, p in agent.critic.named_parameters():
+            before_params[f"critic.{name}"] = p.detach().clone()
+
+        agent.train(total_timesteps=1000, eval_freq=0)
+        assert agent.total_timesteps >= 1000
+
+        changed = False
+        for i, actor in enumerate(agent.actors):
+            for name, p in actor.named_parameters():
+                key = f"actor.{i}.{name}"
+                if not torch.allclose(before_params[key], p.detach()):
+                    changed = True
+                    break
+            if changed:
+                break
+        if not changed:
+            for name, p in agent.critic.named_parameters():
+                key = f"critic.{name}"
+                if not torch.allclose(before_params[key], p.detach()):
+                    changed = True
+                    break
+        assert changed, "训练后模型参数未变化（梯度未生效或更新未发生）"
+
+        save_path = str(tmp_path / "mappo_train_integration")
+        agent.save(save_path)
+        assert os.path.exists(save_path + ".pt")
+        assert os.path.exists(save_path + "_config.json")
+
+        agent_loaded = _make_agent(n_steps=64, batch_size=16, n_epochs=2, learning_rate=3e-4)
+        agent_loaded.load(save_path)
+
+        for i, (a1, a2) in enumerate(zip(agent.actors, agent_loaded.actors, strict=True)):
+            for p1, p2 in zip(a1.parameters(), a2.parameters(), strict=True):
+                assert torch.allclose(p1, p2), f"Actor {i} 参数加载后不一致"
+        for p1, p2 in zip(agent.critic.parameters(), agent_loaded.critic.parameters(), strict=True):
+            assert torch.allclose(p1, p2), "Critic 参数加载后不一致"

@@ -557,6 +557,77 @@ class TestAnneal(unittest.TestCase):
         opt.anneal(Q)
         self.assertIn(opt.solver_type, ("numpy_sa", "neal_sa"))
 
+    # ----------------------------------------------------------------
+    # Issue #229: 降级日志验证
+    # ----------------------------------------------------------------
+
+    def test_degradation_log_on_empty_dict_fallback(self):
+        """真机返回空 bitstring 时应记录 [降级] 日志（Issue #229）。"""
+        from unittest.mock import patch as _patch
+
+        client = MagicMock()
+        client.submit_annealing_task = MagicMock(return_value={"bitstring": ""})
+        opt = QuantumAnnealingOptimizer(simulation_mode=False, cqlib_client=client)
+        opt._sim_num_sweeps = 5
+        Q = np.array([[1.0, 0.5], [0.5, 1.0]])
+        with _patch("src.quantum.annealing.logger") as mock_logger:
+            opt.anneal(Q)
+            warning_msgs = [str(call.args[0]) for call in mock_logger.warning.call_args_list]
+            self.assertTrue(
+                any("[降级]" in msg for msg in warning_msgs),
+                f"期望 warning 日志包含 '[降级]'，实际: {warning_msgs}",
+            )
+
+    def test_degradation_log_on_unknown_type_fallback(self):
+        """真机返回未知类型时应记录 [降级] 日志（Issue #229）。"""
+        from unittest.mock import patch as _patch
+
+        client = MagicMock()
+        client.submit_annealing_task = MagicMock(return_value=12345)
+        opt = QuantumAnnealingOptimizer(simulation_mode=False, cqlib_client=client)
+        opt._sim_num_sweeps = 5
+        Q = np.array([[1.0, 0.5], [0.5, 1.0]])
+        with _patch("src.quantum.annealing.logger") as mock_logger:
+            opt.anneal(Q)
+            warning_msgs = [str(call.args[0]) for call in mock_logger.warning.call_args_list]
+            self.assertTrue(
+                any("[降级]" in msg and "无法识别" in msg for msg in warning_msgs),
+                f"期望 warning 包含 '[降级]' 和 '无法识别'，实际: {warning_msgs}",
+            )
+
+    def test_degradation_log_on_exception_fallback(self):
+        """真机异常降级时应记录 [降级] 日志及降级原因（Issue #229）。"""
+        from unittest.mock import patch as _patch
+
+        client = MagicMock()
+        client.submit_annealing_task = MagicMock(side_effect=RuntimeError("network down"))
+        opt = QuantumAnnealingOptimizer(simulation_mode=False, cqlib_client=client)
+        opt._sim_num_sweeps = 5
+        Q = np.array([[1.0, 0.5], [0.5, 1.0]])
+        with _patch("src.quantum.annealing.logger") as mock_logger:
+            opt.anneal(Q)
+            warning_msgs = [str(call.args[0]) for call in mock_logger.warning.call_args_list]
+            self.assertTrue(
+                any("[降级]" in msg and "RuntimeError" in msg for msg in warning_msgs),
+                f"期望 warning 包含 '[降级]' 和 'RuntimeError'，实际: {warning_msgs}",
+            )
+
+    def test_degradation_log_when_no_submit_annealing_task(self):
+        """cqlib_client 无 submit_annealing_task 方法时应记录 [降级] 日志（Issue #229）。"""
+        from unittest.mock import patch as _patch
+
+        client = MagicMock(spec=[])  # 空接口
+        opt = QuantumAnnealingOptimizer(simulation_mode=False, cqlib_client=client)
+        opt._sim_num_sweeps = 5
+        Q = np.array([[1.0, 0.5], [0.5, 1.0]])
+        with _patch("src.quantum.annealing.logger") as mock_logger:
+            opt.anneal(Q)
+            warning_msgs = [str(call.args[0]) for call in mock_logger.warning.call_args_list]
+            self.assertTrue(
+                any("[降级]" in msg and "submit_annealing_task" in msg for msg in warning_msgs),
+                f"期望 warning 包含 '[降级]' 和 'submit_annealing_task'，实际: {warning_msgs}",
+            )
+
 
 # ============================================================
 # _compute_qubo_energy ??
