@@ -12,6 +12,7 @@ Multi-Seed Strategy Comparison with Statistical Significance Testing
 """
 
 import contextlib
+import hashlib
 import json
 import math
 import sys
@@ -39,6 +40,22 @@ from run_issue_38_67_experiments import (
 
 from src.scheduler.cache import SchedulerCache
 from src.utils.stats_significance import bootstrap_improvement_ci
+
+
+def _compute_config_hash(config: dict[str, Any]) -> str:
+    """计算实验配置的确定性 SHA-256 哈希。
+
+    按字母序序列化配置字典，确保哈希结果与键的顺序无关。
+    注意：config_hash 自身不应被纳入哈希输入。
+
+    Args:
+        config: 实验配置字典
+
+    Returns:
+        32 位小写十六进制 SHA-256 哈希字符串
+    """
+    canonical = json.dumps(config, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
 class CachedPPOStrategy(BaseStrategy):
@@ -309,22 +326,27 @@ def run_multiseed(
     output_dir.mkdir(parents=True, exist_ok=True)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
+    config_dict = {
+        "seeds": seed_list,
+        "episodes_per_seed": episodes_per_seed,
+        "tasks_per_episode": tasks_per_episode,
+        "total_episodes": n_total,
+        "ppo_model": ppo_model,
+        "dqn_model": dqn_model,
+        "observation_dim": obs_dim,
+        "wrapper": "原生 14 维环境" if obs_dim == 14 else "Obs10Wrapper (14→10，公平对比)",
+        "arrival_lambda": 0.5,
+        "quantum_ratio": 0.7,
+        "n_workers": n_workers,
+        "use_cache": use_cache,
+        "timestamp": timestamp,
+    }
+
+    # 计算配置哈希（config 完整构建后，且不包含 config_hash 自身）
+    config_dict["config_hash"] = _compute_config_hash(config_dict)
+
     rewards_json = {
-        "config": {
-            "seeds": seed_list,
-            "episodes_per_seed": episodes_per_seed,
-            "tasks_per_episode": tasks_per_episode,
-            "total_episodes": n_total,
-            "ppo_model": ppo_model,
-            "dqn_model": dqn_model,
-            "observation_dim": obs_dim,
-            "wrapper": "原生 14 维环境" if obs_dim == 14 else "Obs10Wrapper (14→10，公平对比)",
-            "arrival_lambda": 0.5,
-            "quantum_ratio": 0.7,
-            "n_workers": n_workers,
-            "use_cache": use_cache,
-            "timestamp": timestamp,
-        },
+        "config": config_dict,
         "rewards": {k: [float(r) for r in v] for k, v in all_episode_rewards.items()},
         "seed_details": seed_details,
     }

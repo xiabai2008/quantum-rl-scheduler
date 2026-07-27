@@ -314,6 +314,28 @@ class TensorboardCallback(BaseCallback):
                 self.n_calls,
             )
         self._check_episode_end()
+        # 提取 RL 训练指标到 Prometheus（Issue #411）
+        try:
+            from src.utils.metrics import (
+                GRADIENT_NORM,
+                POLICY_ENTROPY,
+                POLICY_LOSS,
+                TRAINING_STEPS,
+                VALUE_LOSS,
+            )
+
+            info = self.model.logger.name_to_value
+            if "entropy_loss" in info:
+                POLICY_ENTROPY.set(-info["entropy_loss"])
+            if "policy_gradient_loss" in info:
+                POLICY_LOSS.set(info["policy_gradient_loss"])
+            if "value_loss" in info:
+                VALUE_LOSS.set(info["value_loss"])
+            if "grad_norm" in info:
+                GRADIENT_NORM.set(info["grad_norm"])
+            TRAINING_STEPS.inc()
+        except Exception:
+            pass  # 指标采集失败不影响训练
         return True
 
     def _check_episode_end(self) -> None:
