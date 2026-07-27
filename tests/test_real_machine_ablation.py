@@ -6,6 +6,7 @@ from unittest.mock import MagicMock
 import numpy as np
 import pytest
 import yaml
+from loguru import logger
 
 from scripts.training.run_real_machine_ablation import (
     MockRealClient,
@@ -58,8 +59,8 @@ def test_parse_seeds_requires_three_unique_values() -> None:
     for value in ("42,43", "42,42,43", "42,43,44,45"):
         try:
             parse_seeds(value)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"parse_seeds 正确拒绝无效输入: {e}")
         else:
             raise AssertionError("必须拒绝非三个唯一 seed")
 

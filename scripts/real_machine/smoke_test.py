@@ -267,8 +267,8 @@ def parse_probability(raw_result: Any) -> dict[str, float]:
                     return {
                         str(k): float(v) for k, v in parsed.items() if isinstance(v, (int, float))
                     }
-            except (json.JSONDecodeError, ValueError, TypeError):
-                pass
+            except (json.JSONDecodeError, ValueError, TypeError) as e:
+                logger.debug(f"JSON 结果解析失败，尝试其他格式: {e}")
 
         # 尝试 CSV 格式 "0:0.5,1:0.5"
         result = {}

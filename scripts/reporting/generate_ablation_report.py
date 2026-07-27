@@ -24,6 +24,7 @@ from pathlib import Path
 # 延迟导入 matplotlib
 import matplotlib
 import numpy as np
+from loguru import logger
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
@@ -36,8 +37,8 @@ if str(_PROJECT_ROOT) not in sys.path:
 try:
     plt.rcParams["font.sans-serif"] = ["Microsoft YaHei", "SimHei", "DejaVu Sans"]
     plt.rcParams["axes.unicode_minus"] = False
-except Exception:
-    pass
+except Exception as e:
+    logger.debug(f"中文字体配置失败，使用默认字体: {e}")
 
 
 # =========================================================================
