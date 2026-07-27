@@ -126,7 +126,7 @@
 | PPO 平均奖励 | 2746.94 ± 1160.72 (SD) | N=250 | `strategy_comparison.md` |
 | FCFS 平均奖励 | 1458.77 ± 60.47 (SD) | N=250 | `strategy_comparison.md` |
 | 提升幅度 | +88.3% | 95% CI [+78.5%, +98.2%] | Bootstrap |
-| 显著性 | p=1.03×10⁻⁴² | Mann-Whitney U | 非参数检验 |
+| 显著性 | p=1.032e-42 | Mann-Whitney U | 非参数检验 |
 | 效应量 | r=-0.708 | rank-biserial | 大效应量 |
 | 真机成功率 | 100%（315次） | — | 可用性验证 |
 

@@ -63,11 +63,11 @@ simulation_8strategy_50seed:
       n: 250
       improvement_vs_fcfs_pct: 0.0  # 基线
     Random:
-      mean_reward: 1247.17
-      std_reward: 385.76
-      stderr: 24.40
+      mean_reward: 1217.08
+      std_reward: 395.05
+      stderr: 24.99
       n: 250
-      improvement_vs_fcfs_pct: -14.5
+      improvement_vs_fcfs_pct: -16.6
     Greedy:
       mean_reward: -25.95
       std_reward: 625.52

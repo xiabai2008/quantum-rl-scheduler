@@ -15,7 +15,7 @@
 
 | 方向 | 层级 | 核心成果 |
 |:--|:--|:--|
-| **AI赋能调度层** | PPO Agent 实时最优分流 | +88.3% vs FCFS（p=1.0e-42） |
+| **AI赋能调度层** | PPO Agent 实时最优分流 | +88.3% vs FCFS（p=1.032e-42） |
 | **量子赋能AI** | 真机噪声特征建模与PPO鲁棒性评估 | H门保真度0.976（单seed校准）；噪声鲁棒性评估基准已建立（注：10seeds分布实验显示噪声对RL策略的挑战） |
 
 **最新硬核突破（v9.0）：**
@@ -29,8 +29,8 @@
 
 | 指标 | 数值 |
 |------|------|
-| 核心代码量 | 约 1.2 万行 Python（src/ 68 文件） |
-| 测试文件 | 76 个文件，2824+ 测试用例 |
+| 核心代码量 | 约 1.2 万行 Python（src/ 67 文件） |
+| 测试文件 | 83 个文件，2824+ 测试用例 |
 | CI 强制覆盖率 | 80%（实际 93.58%，pyproject.toml `fail_under=80`） |
 | 观测空间维度 | **16维**（新增串扰风险、任务到达率MA） |
 | 动作空间 | **4维**（新增 QUANTUM_QEM 误差缓释动作） |
@@ -67,20 +67,20 @@ graph TB
 
 ```
 quantum-rl-scheduler/
-├── src/                      # 源代码（~64 文件）
+├── src/                      # 源代码（67 文件）
 │   ├── exceptions.py         # 统一异常体系（8 类）
 │   ├── scheduler/            # RL调度引擎（env + agent + parser + marl + multi_objective_env）
 │   ├── api/                  # 天衍云API封装（Mock/真实/cqlib 三模式 + 熔断器）
 │   ├── quantum/              # 量子启发式退火加速模块（QUBO + 异步闭环）
 │   ├── visualization/        # FastAPI + Vue3 + Echarts 监控面板
 │   └── utils/                # 工具函数 + Prometheus 指标
-├── tests/                    # 76 个测试文件，2824+ 用例
+├── tests/                    # 82 个测试文件，2824+ 用例
 │   └── benchmarks/           # 性能基准测试
 ├── scripts/                  # 按功能分区（training/evaluation/demo/testing/benchmarking/reporting）
 │   └── cli.py                # Click 统一命令行入口
 ├── docs/                     # 团队文档（上手指南、Git规范、分工、协同开发）
 ├── config/                   # 系统配置（config.yaml + .env.example）
-├── results/reports/          # 实验数据固化报告（23份）
+├── results/reports/          # 实验数据固化报告（63份）
 ├── .github/workflows/        # CI/CD 4 Job 流水线 + PR 自动化
 ├── .devcontainer/            # VS Code 开发容器
 ├── pyproject.toml            # 统一配置（ruff/mypy/bandit/pytest/coverage）
@@ -244,6 +244,8 @@ TIANYAN_API_KEY=你的真实API密钥
 > **CI 覆盖率 artifact（Issue #260）**：每次 CI 运行都会生成 `coverage.xml`，
 > 并作为名为 `coverage-xml` 的 artifact 上传，可在 Actions 页面下载查看本次构建的覆盖率快照；
 > 在 PR 中还会由 `ci(#253,#260)` 自动发布一条覆盖率评论（当前展示本次构建的总行覆盖率）。
+> **本地复现覆盖率**：`pytest --cov=src --cov-report=xml:coverage.xml --cov-report=term-missing`，
+> 生成的 `coverage.xml` 与 CI 同格式，可用 `coverage report` 查看明细或 `coverage html` 生成可视化报告。
 > **QUBO 形式化验证（Issue #253）**：CI 会运行 `tests/test_qubo_optimization.py` 中
 > `-k "formal or property"` 选中的 QUBO 形式化/属性测试（基于 numpy 随机种子的属性测试），
 > 验证 QUBO 矩阵对称性、能量公式正确性等数学性质。
@@ -300,7 +302,7 @@ TIANYAN_API_KEY=你的真实API密钥
 | 演示视频分镜脚本 | `演示视频分镜脚本.md` | ✅ 已完成 |
 | 演示视频（5分钟） | — | 🔄 待录制 |
 | 答辩PPT大纲 | `答辩PPT大纲.md` | ✅ 已完成 |
-| 实验数据报告 | `results/reports/` 下 23 份报告 | ✅ 已完成 |
+| 实验数据报告 | `results/reports/` 下 63 份报告 | ✅ 已完成 |
 
 ## 最终提交包说明
 

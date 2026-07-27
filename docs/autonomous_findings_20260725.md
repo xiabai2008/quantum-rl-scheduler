@@ -18,7 +18,7 @@
 
 **正确数字**（来源: AGENTS.md 权威锁定 + strategy_comparison.md）：
 - PPO vs FCFS: Mann-Whitney U p=1.032e-42, rank-biserial=-0.71（AGENTS.md 口径）
-- 或 Mann-Whitney U p=1.03e-42, rank-biserial r=-0.708（strategy_comparison.md 口径）
+- 或 Mann-Whitney U p=1.032e-42, rank-biserial r=-0.708（strategy_comparison.md 口径）
 
 **影响**: 答辩时被问到统计数字来源，如果与 AGENTS.md 不一致会被质疑数据可信度。
 
@@ -50,7 +50,7 @@
 
 **问题**: 三份文档在 ROI 分析、经济价值估算、行业场景方面大量重复，但使用不同版本的数字：
 - value_quantification.md: p=4.92e-55, d=-1.73（错误）
-- value_quantification.md: p=1.03e-42, r=-0.708（不同口径，已合并深度量化）
+- value_quantification.md: p=1.032e-42, r=-0.708（不同口径，已合并深度量化）
 - platform_landing_value.md: 未引用具体 p 值
 
 **影响**: 答辩准备时信息碎片化，难以快速定位权威数字。

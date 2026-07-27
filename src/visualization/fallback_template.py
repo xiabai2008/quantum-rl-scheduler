@@ -2224,7 +2224,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         {name: 'DQN', score: 1510},
         {name: 'SJF', score: 1462},
         {name: 'FCFS', score: 1261},
-        {name: 'Random', score: 1247},
+        {name: 'Random', score: 1217},
         {name: 'MAPPO', score: 1200},
         {name: 'Greedy', score: -26},
         {name: 'Quantum-Only', score: -920}
@@ -2445,10 +2445,10 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                 {rank:2, name:"DQN", reward:1527.65, lift:"+4.7%", note:""},
                 {rank:3, name:"SJF", reward:1462.39, lift:"+0.2%", note:""},
                 {rank:4, name:"FCFS", reward:1458.77, lift:"基线", note:"工业界默认"},
-                {rank:5, name:"Random", reward:1247.17, lift:"-14.5%", note:""},
+                {rank:5, name:"Random", reward:1217.08, lift:"-16.6%", note:""},
                 {rank:6, name:"Greedy", reward:-25.95, lift:"-101.8%", note:"此场景崩溃"}
             ],
-            conclusion: "均衡负载下PPO大幅领先所有基线（+88.3%），是稳态运行的最优选择。统计显著性：Mann-Whitney U p=1.03×10⁻⁴²，效应量r=-0.71（大效应）。",
+            conclusion: "均衡负载下PPO大幅领先所有基线（+88.3%），是稳态运行的最优选择。统计显著性：Mann-Whitney U p=1.032×10⁻⁴²，效应量r=-0.71（大效应）。",
             recommend: "PPO"
         },
         high_load: {
