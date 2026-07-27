@@ -1,8 +1,11 @@
 # 天衍-287 多seed真机实验统计分析报告
 
-> **⚠️ INVALID FOR FORMAL COMPARISON（invalid_for_formal_comparison=true）**
+> ## ⚠️ 已失效 — 请见 v2 版本
 >
-> 本报告基于旧混合数据，**不得作为权威结论引用**。失效原因：
+> **本报告已归档，不得作为权威结论引用。**
+> 请使用最新版本：[`multiseed_real_machine_report_10seeds_v2.md`](./multiseed_real_machine_report_10seeds_v2.md)
+>
+> 失效原因（Issue #398 P1-3）：
 > - 混合机器：`tianyan287`（无连字符）+ `tianyan176`（无连字符），均非正确的 `tianyan-287`
 > - 混合 shots：`1024`（old5）+ `32`（new5），不满足 Issue #58 统一口径
 > - `real_tasks_completed=0`：无任何真机任务真正完成
@@ -11,6 +14,12 @@
 >
 > 报告中的 PPO=1736.32、FCFS=382.99、Cohen's d=5.33 **不是权威结论**。
 > 正式 10-seed 真机验证需基于 `tianyan-287` + `shots=32` + `H Q1/M Q1` + 统一 Welch t-test 的全新数据。
+
+---
+
+> **⚠️ INVALID FOR FORMAL COMPARISON（invalid_for_formal_comparison=true）**
+>
+> 本报告基于旧混合数据，**不得作为权威结论引用**。失效原因见上方"已失效"标注。
 
 **数据文件**: `results\real_machine\tianyan287_multiseed\multiseed_data_10seeds_merged.json`
 
