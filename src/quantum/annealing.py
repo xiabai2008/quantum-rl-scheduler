@@ -112,8 +112,11 @@ class QuantumAnnealingOptimizer:
             max_qubo_memory_mb: 单个 QUBO 矩阵允许的最大内存（MiB，默认 64）。
                                 当 n_bits_per_weight 较大（如 8）时，QUBO 矩阵
                                 规模为 (num_weights * n_bits)²，此参数防止内存溢出。
-            random_state  : 随机种子（Issue #391）。固定后 numpy 模拟退火结果可复现；
+            random_state  : 随机种子（Issue #391/#354）。固定后 numpy 模拟退火结果可复现；
                             None 表示不固定（保持原行为）。neal 路径也会传入此种子。
+                            当传入非 None 时，会同步调用 ``src.utils.seeds.set_seed``
+                            统一全局随机源（Python/numpy/torch），消除死代码并保证
+                            外部依赖全局随机的代码也可复现。
         """
         if n_bits_per_weight < 2:
             raise ValueError("n_bits_per_weight 必须至少为 2（1 个符号位 + 1 个数值位）")
@@ -128,7 +131,15 @@ class QuantumAnnealingOptimizer:
         self.simulation_mode = bool(simulation_mode)
         self.cqlib_client = cqlib_client
         # Issue #391: 随机种子，固定后退火结果可复现
+        # Issue #354: 接入 set_seed 统一全局随机源（消除死代码）
         self.random_state: int | None = random_state
+        if random_state is not None:
+            try:
+                from src.utils.seeds import set_seed
+
+                set_seed(int(random_state))
+            except Exception as exc:  # pragma: no cover - 防御性兜底
+                logger.debug(f"set_seed 调用失败，仅使用本地 RNG: {exc}")
 
         # 检查比特编码精度，过低则发出警告
         if self.n_bits_per_weight < 4:

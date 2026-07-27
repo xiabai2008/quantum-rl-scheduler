@@ -46,6 +46,7 @@ if PROJECT_ROOT not in sys.path:
 
 from src.scheduler.agent import SchedulerAgent
 from src.scheduler.env import QuantumSchedulingEnv
+from src.utils.seeds import set_seed
 
 # ============================================================================
 # 日志配置
@@ -488,11 +489,8 @@ def train_single_seed(
     logger.info(f"开始训练 | 种子: {seed} | 实验: {experiment_name}")
     logger.info(f"{'=' * 60}")
 
-    # 设置随机种子
-    np.random.seed(seed)
-    import torch
-
-    torch.manual_seed(seed)
+    # 设置随机种子（Issue #354: 接入统一 set_seed，消除死代码）
+    set_seed(seed)
 
     # 创建环境
     env = QuantumSchedulingEnv(

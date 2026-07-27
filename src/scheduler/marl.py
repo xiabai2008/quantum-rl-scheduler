@@ -717,14 +717,23 @@ class MultiAgentPPO:
     # ------------------------------------------------------------------
 
     def _set_seed(self, seed: int | None) -> None:
-        """设置全局随机种子以保证可复现。"""
+        """设置全局随机种子以保证可复现。
+
+        Issue #354: 复用 ``src.utils.seeds.set_seed`` 统一播种（消除死代码），
+        同步设置 Python/numpy/torch/PYTHONHASHSEED。
+        """
         if seed is None:
             return
-        random.seed(seed)
-        np.random.seed(seed)
-        torch.manual_seed(seed)
-        if torch.cuda.is_available():
-            torch.cuda.manual_seed_all(seed)
+        try:
+            from src.utils.seeds import set_seed
+
+            set_seed(int(seed))
+        except Exception:  # pragma: no cover - 防御性兜底
+            random.seed(seed)
+            np.random.seed(seed)
+            torch.manual_seed(seed)
+            if torch.cuda.is_available():
+                torch.cuda.manual_seed_all(seed)
 
     def _to_tensor(self, x: np.ndarray) -> torch.Tensor:
         """将 numpy 数组转为设备上的 float32 张量。"""

@@ -1179,5 +1179,37 @@ class TestTimeIndexedQuboScheduling(unittest.TestCase):
         self.assertTrue(scheduler._is_scheduling_solution_feasible(schedule, 2))
 
 
+# ============================================================
+# Issue #354: 退火种子可复现性测试
+# ============================================================
+class TestAnnealingSeedReproducibility(unittest.TestCase):
+    """Issue #354: 同 seed 两次运行 _numpy_scheduling_annealing 应产生相同结果。"""
+
+    def test_same_seed_produces_same_annealing_result(self) -> None:
+        rng = np.random.default_rng(2024)
+        n = 8
+        qubo = rng.uniform(-1.0, 1.0, size=(n, n))
+        qubo = (qubo + qubo.T) / 2.0
+
+        scheduler_a = DAGScheduler(seed=12345)
+        scheduler_b = DAGScheduler(seed=12345)
+        result_a = scheduler_a._numpy_scheduling_annealing(qubo, num_reads=5)
+        result_b = scheduler_b._numpy_scheduling_annealing(qubo, num_reads=5)
+
+        np.testing.assert_array_equal(result_a, result_b)
+
+    def test_default_seed_is_42(self) -> None:
+        scheduler = DAGScheduler()
+        self.assertEqual(scheduler._annealing_seed, 42)
+
+    def test_custom_seed_stored(self) -> None:
+        scheduler = DAGScheduler(seed=999)
+        self.assertEqual(scheduler._annealing_seed, 999)
+
+    def test_seed_none_falls_back_to_42(self) -> None:
+        scheduler = DAGScheduler(seed=None)
+        self.assertEqual(scheduler._annealing_seed, 42)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -68,15 +68,24 @@ class DAGScheduler:
         failed: 已失败任务 ID 集合。
     """
 
-    def __init__(self, tasks: list[DAGTask] | None = None, max_qubits: int = 287) -> None:
+    def __init__(
+        self,
+        tasks: list[DAGTask] | None = None,
+        max_qubits: int = 287,
+        seed: int | None = None,
+    ) -> None:
         """初始化 DAG 调度器。
 
         Args:
             tasks: 初始任务列表，默认 None 表示空图。
             max_qubits: 单台机器最大量子比特数，默认 287（天衍-287）。
+            seed: 随机种子（Issue #354）。固定后内置 NumPy 模拟退火结果可复现；
+                  None 时使用默认值 42 以保证兜底退火行为的稳定性。
         """
         self.tasks: dict[str, DAGTask] = {}
         self.max_qubits: int = max_qubits
+        # Issue #354: 退火种子，统一接入 set_seed 体系
+        self._annealing_seed: int = 42 if seed is None else int(seed)
         self.completed: set[str] = set()
         self.failed: set[str] = set()
         self._last_annealing_solver: str | None = None
@@ -559,6 +568,7 @@ class DAGScheduler:
             sampleset = neal.SimulatedAnnealingSampler().sample_qubo(
                 qubo_dict,
                 num_reads=num_reads,
+                seed=self._annealing_seed,
             )
             sample = sampleset.first.sample
             self._last_annealing_solver = "neal"
@@ -571,14 +581,18 @@ class DAGScheduler:
             self._last_annealing_solver = "numpy_sa"
             return self._numpy_scheduling_annealing(qubo, num_reads)
 
-    @staticmethod
     def _numpy_scheduling_annealing(
+        self,
         qubo: np.ndarray,
         num_reads: int,
     ) -> np.ndarray:
-        """轻量 NumPy 模拟退火兜底，不依赖 torch。"""
+        """轻量 NumPy 模拟退火兜底，不依赖 torch。
+
+        Issue #354: 使用 ``self._annealing_seed`` 作为 RNG 种子，
+        同 seed 两次运行结果一致，可复现。
+        """
         n_variables = qubo.shape[0]
-        rng = np.random.default_rng(42)
+        rng = np.random.default_rng(self._annealing_seed)
         best = np.zeros(n_variables, dtype=np.int8)
         best_energy = float(best @ qubo @ best)
         sweeps = max(100, 20 * n_variables)

@@ -808,6 +808,42 @@ class TestNumpySimulatedAnnealing(unittest.TestCase):
 
 
 # ============================================================
+# Issue #354: set_seed 接入测试
+# ============================================================
+class TestSetSeedIntegration(unittest.TestCase):
+    """Issue #354: 验证 QuantumAnnealingOptimizer 在 random_state 给定时
+    会调用 src.utils.seeds.set_seed 统一全局随机源（消除死代码）。
+    """
+
+    def test_random_state_given_invokes_set_seed(self) -> None:
+        """传入非 None random_state 时应调用 set_seed 同步全局随机源。"""
+        from unittest.mock import patch as _patch
+
+        with _patch("src.utils.seeds.set_seed") as mock_set_seed:
+            QuantumAnnealingOptimizer(random_state=12345)
+            mock_set_seed.assert_called_once_with(12345)
+
+    def test_random_state_none_does_not_invoke_set_seed(self) -> None:
+        """random_state=None 时不应调用 set_seed（保持原行为）。"""
+        from unittest.mock import patch as _patch
+
+        with _patch("src.utils.seeds.set_seed") as mock_set_seed:
+            QuantumAnnealingOptimizer(random_state=None)
+            mock_set_seed.assert_not_called()
+
+    def test_global_numpy_rng_seeded_after_init(self) -> None:
+        """random_state 给定后，np.random 全局 RNG 应被同步播种。"""
+        QuantumAnnealingOptimizer(random_state=42)
+        # set_seed(42) 后 np.random.rand() 第一次应等于已知值
+        # 不直接断言具体数值（依赖 numpy 版本），但验证 seed 已生效
+        np.random.seed(42)
+        expected = np.random.rand()
+        QuantumAnnealingOptimizer(random_state=42)
+        actual = np.random.rand()
+        self.assertAlmostEqual(actual, expected, places=9)
+
+
+# ============================================================
 # Issue #362: C1 回归测试 formal/property 别名
 # 将 TestQuboFlipDelta / TestNumpySimulatedAnnealing 的关键回归
 # 挂到 formal 标记下，使其在 CI 专用数学验证 job 中执行
