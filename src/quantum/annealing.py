@@ -22,7 +22,6 @@ import math
 import os
 import random
 import time
-import warnings
 from typing import Any
 
 import numpy as np
@@ -1458,17 +1457,6 @@ class QuantumAnnealingOptimizer:
         return QuantumAnnealingOptimizer._get_policy_net(agent)
 
     @staticmethod
-    def _get_full_policy(agent: Any) -> nn.Module | None:
-        """[已弃用] 向后兼容别名，请使用 get_full_policy。"""
-        warnings.warn(
-            "QuantumAnnealingOptimizer._get_full_policy 已弃用，"
-            "请使用公共接口 get_full_policy。将在未来版本移除。",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return QuantumAnnealingOptimizer.get_full_policy(agent)
-
-    @staticmethod
     def extract_weights(
         network: nn.Module,
     ) -> tuple[list[np.ndarray], list[tuple[int, ...]]]:
@@ -1486,19 +1474,6 @@ class QuantumAnnealingOptimizer:
             weights.append(w)
             shapes.append(w.shape)
         return weights, shapes
-
-    @staticmethod
-    def _extract_weights(
-        network: nn.Module,
-    ) -> tuple[list[np.ndarray], list[tuple[int, ...]]]:
-        """[已弃用] 向后兼容别名，请使用 extract_weights。"""
-        warnings.warn(
-            "QuantumAnnealingOptimizer._extract_weights 已弃用，"
-            "请使用公共接口 extract_weights。将在未来版本移除。",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return QuantumAnnealingOptimizer.extract_weights(network)
 
     @staticmethod
     def _evaluate_network_quality(network: nn.Module) -> float:
@@ -1816,19 +1791,6 @@ class QuantumAnnealingOptimizer:
         best_bitstring = "".join(str(int(b)) for b in best_solution)
         return best_bitstring
 
-    def _numpy_simulated_annealing(
-        self,
-        qubo_matrix: np.ndarray,
-    ) -> str:
-        """[已弃用] 向后兼容别名，请使用 numpy_simulated_annealing。"""
-        warnings.warn(
-            "QuantumAnnealingOptimizer._numpy_simulated_annealing 已弃用，"
-            "请使用公共接口 numpy_simulated_annealing。将在未来版本移除。",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self.numpy_simulated_annealing(qubo_matrix)
-
     @staticmethod
     def compute_qubo_energy(solution: np.ndarray, qubo_matrix: np.ndarray) -> float:
         """
@@ -1842,17 +1804,6 @@ class QuantumAnnealingOptimizer:
             energy: 目标函数值
         """
         return float(solution @ qubo_matrix @ solution)
-
-    @staticmethod
-    def _compute_qubo_energy(solution: np.ndarray, qubo_matrix: np.ndarray) -> float:
-        """[已弃用] 向后兼容别名，请使用 compute_qubo_energy。"""
-        warnings.warn(
-            "QuantumAnnealingOptimizer._compute_qubo_energy 已弃用，"
-            "请使用公共接口 compute_qubo_energy。将在未来版本移除。",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return QuantumAnnealingOptimizer.compute_qubo_energy(solution, qubo_matrix)
 
 
 # ============================================================================
