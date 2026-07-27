@@ -327,6 +327,50 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
             "consecutive_failures": self._real_consecutive_failures,
         }
 
+    def export_real_feedback_log(self, path: str) -> int:
+        """导出真机反馈因果记录为 JSON 文件，返回记录条数（Issue #236）。
+
+        将 ``_real_feedback_log``（"RL动作→真机任务→结果→reward" 完整因果链）
+        序列化为 JSON，包含元数据（实验时间、环境参数、seed）和记录列表。
+
+        Args:
+            path: 输出 JSON 文件路径。父目录会自动创建。
+
+        Returns:
+            导出的因果记录条数（0 表示无真机反馈记录）。
+        """
+        import json
+        from datetime import datetime
+        from pathlib import Path
+
+        out_path = Path(path)
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+
+        records = list(self._real_feedback_log)
+        payload = {
+            "type": "real_feedback_log",
+            "exported_at": datetime.now().astimezone().isoformat(),
+            "metadata": {
+                "max_steps": self.max_steps,
+                "max_qubits": self.max_qubits,
+                "real_submit_probability": self.real_submit_probability,
+                "use_real_machine": self.use_real_machine,
+                "real_machine_feedback_weight": self.real_machine_feedback_weight,
+                "real_machine_shots": self.real_machine_shots,
+                "real_feedback_mode": self.real_feedback_mode,
+                "arrival_lambda": self.arrival_lambda,
+                "quantum_task_ratio": self.quantum_task_ratio,
+                "num_machines": len(self._machines),
+                "machine_names": [m.name for m in self._machines],
+            },
+            "stats": self.get_real_machine_stats(),
+            "record_count": len(records),
+            "records": records,
+        }
+        with open(out_path, "w", encoding="utf-8") as f:
+            json.dump(payload, f, indent=2, ensure_ascii=False, default=str)
+        return len(records)
+
     def get_tenant_stats(self) -> list[dict[str, Any]]:
         """返回所有租户的配额使用状态；未启用租户管理时返回空列表。"""
         if self._tenant_manager is None:
