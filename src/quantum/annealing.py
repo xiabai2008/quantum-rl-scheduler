@@ -1513,6 +1513,41 @@ class QuantumAnnealingOptimizer:
         return QuantumAnnealingOptimizer._get_policy_net(agent)
 
     @staticmethod
+    def _get_target_net(agent: Any) -> nn.Module | None:
+        """
+        从 agent 中获取 DQN 目标网络（用于计算 TD 目标的 next-Q 值）。
+
+        支持的 agent 结构（按优先级）：
+            - agent.target_net                    : 退火优化器约定的属性（如测试夹具）
+            - agent.model.policy.q_net_target     : SB3 DQN 包装在 SchedulerAgent.model 中
+            - agent.policy.q_net_target           : agent 本身即 SB3 DQN model
+
+        若以上均不存在，返回 None —— **调用方必须显式报错**，
+        严禁静默回退到在线 policy_net（Issue #357）。
+
+        Returns:
+            target_net: 目标网络（nn.Module），或 None（表示无法确定）。
+        """
+        # 方式 1：退火优化器约定的 target_net 属性
+        if hasattr(agent, "target_net") and isinstance(agent.target_net, nn.Module):
+            return agent.target_net
+
+        # 方式 2：SB3 DQN 包装在 SchedulerAgent.model 中
+        model = getattr(agent, "model", None)
+        if model is not None and hasattr(model, "policy"):
+            q_target = getattr(model.policy, "q_net_target", None)
+            if isinstance(q_target, nn.Module):
+                return q_target
+
+        # 方式 3：agent 本身即 SB3 DQN model
+        if hasattr(agent, "policy"):
+            q_target = getattr(agent.policy, "q_net_target", None)
+            if isinstance(q_target, nn.Module):
+                return q_target
+
+        return None
+
+    @staticmethod
     def extract_weights(
         network: nn.Module,
     ) -> tuple[list[np.ndarray], list[tuple[int, ...]]]:
@@ -1720,14 +1755,25 @@ class QuantumAnnealingOptimizer:
         # 获取 gamma
         gamma = getattr(agent, "gamma", 0.99)
 
+        # 获取目标网络（用于 TD 目标的 next-Q）。
+        # 严禁回退到在线 policy_net：若无法确定真实 target_net，明确报错。
+        target_net = QuantumAnnealingOptimizer._get_target_net(agent)
+        if target_net is None:
+            raise RuntimeError(
+                "无法确定 DQN 目标网络 target_net：agent 既无 target_net 属性，"
+                "也无 model.policy.q_net_target 或 policy.q_net_target。"
+                "TD 目标必须使用真实目标网络，禁止静默回退到在线 policy_net（Issue #357）。"
+            )
+
         # 前向传播
         policy_net.train()
         q_values = policy_net(observations)
         q_value = q_values.gather(1, actions).squeeze(1)
 
-        # 计算目标 Q 值
+        # 计算目标 Q 值：必须用 target_net 并在 no_grad 下 detach，保证目标静止
+        target_net.eval()
         with torch.no_grad():
-            next_q_values = policy_net(next_observations)
+            next_q_values = target_net(next_observations)
             next_q_value = next_q_values.max(1)[0]
             target_q = rewards + gamma * next_q_value * (1 - dones)
 
