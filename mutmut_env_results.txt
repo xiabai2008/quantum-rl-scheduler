@@ -1,6 +1,0 @@
-/mnt/c/Users/HZR/Desktop/揭榜挂帅擂台赛/quantum-rl-scheduler/.venv-mutmut/lib/python3.14/site-packages/mutmut/configuration.py:101: UserWarning: The config paths_to_mutate is deprecated. Please rename it to source_paths
-  warnings.warn("The config paths_to_mutate is deprecated. Please rename it to source_paths")
-Usage: mutmut run [OPTIONS] [MUTANT_NAMES]...
-Try 'mutmut run --help' for help.
-
-Error: No such option '--paths-to-mutate'.

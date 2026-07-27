@@ -5,6 +5,34 @@
 格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，
 版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## [v8.0] - 2026-07-27
+
+### 统计数字迁移与权威源建立（Issue #141 / #431 / #434）
+- 建立 `config/statistics.yaml` 单一权威统计源，消除 4 套 p 值混用问题
+- PPO vs FCFS 仿真 p 值统一为 `1.032e-42`（Mann-Whitney U 检验），淘汰 `1.0e-42`、`1.03×10⁻⁴²`、`p<0.001` 等不精确表述
+- Random 基线均值由旧值 `1247.17` 修正为权威值 `1217.08`（源自 `results/multiseed_evaluation/rewards_multiseed.json`，N=250）
+- CI 新增 `scripts/ci/check_stats_consistency.py` + `validate_authoritative_numbers.py` 自动校验文档数字一致性
+
+### 叙事文档重写
+- 技术白皮书 / 答辩 PPT 大纲 / 参赛总结报告全面对齐权威数字（+88.3%，N=250，p=1.032e-42）
+- 真机实验边界严格区分"可用性验证"与"性能验证"两级（Issue #128）
+
+### 退火模块优雅降级（2026-07-27）
+- 退火默认关闭（`annealing.enabled=false`），dimod/dwave-neal 降级为可选依赖
+- 退火方法标注 `deprecated`，探索性功能不再投入开发（统计不显著 p=0.9430）
+- 量子赋能 AI 主方向由 QUBO 退火转向真机噪声反馈
+
+### 新增能力
+- 编译 AI（PPO 替代 SABRE，SWAP 门 -76.4%）
+- VQE 行业场景（10 分子×100 任务，PPO +97.5% vs FCFS）
+- OR-Tools 对比（CP-SAT 静态最优，PPO 动态实时优势）
+- 多 seed 真机实验 v2（N=10 per group，Cohen's d=5.33，p<0.001）
+
+### 工程清理
+- 删除根目录 0 字节垃圾文件与临时杂物文件
+- `requirements.lock` 重生成，移除 plotly/redis 等已移除包
+- 文档计数同步（src 67 py / tests / reports）
+
 ## [Unreleased]
 
 ### Removed（Issue #255）

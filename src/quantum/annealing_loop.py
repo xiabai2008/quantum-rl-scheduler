@@ -71,6 +71,7 @@ class AsyncAnnealingLoop:
         queue_maxsize: int = 1,
         annealing_mode: str = "head_only",
         min_effective_reward_delta: float = 1.0,
+        config: dict[str, Any] | None = None,
     ):
         """
         初始化异步退火闭环
@@ -94,28 +95,49 @@ class AsyncAnnealingLoop:
                                   delta > 该阈值时才视为"有效介入"，计入 effective_triggers。
                                   impact_rate = effective_triggers / total_triggers 用于
                                   诊断退火是否对 RL 训练产生实质影响（Issue #194）。
+            config              : 配置字典（Issue #246）。当提供时，从字典中读取闭环参数，
+                                  覆盖构造函数默认值；为 None 时使用原始默认值（向后兼容）。
+                                  支持的 key 包括：eval_episodes、eval_deterministic、
+                                  initial_interval、min_interval、max_interval、
+                                  improvement_threshold、retry_delays、log_path、
+                                  queue_maxsize、annealing_mode、min_effective_reward_delta。
 
         Raises:
             ValueError: 当 annealing_mode 不在支持列表中时
         """
-        if annealing_mode not in self._SUPPORTED_ANNEALING_MODES:
+        # Issue #246: config 驱动的参数初始化
+        # 当 config 提供时从字典读取参数，否则使用构造函数默认值（向后兼容）
+        self._config: dict[str, Any] | None = config
+        _cfg: dict[str, Any] = config or {}
+
+        _annealing_mode = str(_cfg.get("annealing_mode", annealing_mode))
+        if _annealing_mode not in self._SUPPORTED_ANNEALING_MODES:
             raise ValueError(
                 f"annealing_mode 必须是 {self._SUPPORTED_ANNEALING_MODES} 之一，"
-                f"得到 {annealing_mode!r}"
+                f"得到 {_annealing_mode!r}"
             )
         self.optimizer = optimizer
         self.validation_env = validation_env
-        self.eval_episodes = int(eval_episodes)
-        self.eval_deterministic = bool(eval_deterministic)
-        self.min_interval = int(min_interval)
-        self.max_interval = int(max_interval)
-        self.improvement_threshold = float(improvement_threshold)
-        self.min_effective_reward_delta = float(min_effective_reward_delta)
-        self.retry_delays = retry_delays if retry_delays is not None else [5.0, 15.0]
-        self.log_path = str(log_path)
-        self.annealing_mode = str(annealing_mode)
+        self.eval_episodes = int(_cfg.get("eval_episodes", eval_episodes))
+        self.eval_deterministic = bool(
+            _cfg.get("eval_deterministic", eval_deterministic)
+        )
+        self.min_interval = int(_cfg.get("min_interval", min_interval))
+        self.max_interval = int(_cfg.get("max_interval", max_interval))
+        self.improvement_threshold = float(
+            _cfg.get("improvement_threshold", improvement_threshold)
+        )
+        self.min_effective_reward_delta = float(
+            _cfg.get("min_effective_reward_delta", min_effective_reward_delta)
+        )
+        _cfg_retry_delays = _cfg.get("retry_delays", retry_delays)
+        self.retry_delays = (
+            _cfg_retry_delays if _cfg_retry_delays is not None else [5.0, 15.0]
+        )
+        self.log_path = str(_cfg.get("log_path", log_path))
+        self.annealing_mode = _annealing_mode
 
-        self._current_interval = int(initial_interval)
+        self._current_interval = int(_cfg.get("initial_interval", initial_interval))
         self._consecutive_good = 0
         self._consecutive_bad = 0
 
@@ -123,7 +145,9 @@ class AsyncAnnealingLoop:
         self._total_triggers = 0
         self._effective_triggers = 0
 
-        self._queue: queue.Queue[dict[str, Any]] = queue.Queue(maxsize=queue_maxsize)
+        self._queue: queue.Queue[dict[str, Any]] = queue.Queue(
+            maxsize=int(_cfg.get("queue_maxsize", queue_maxsize))
+        )
         self._pending_result: dict[str, Any] | None = None
         self._history: list[dict[str, Any]] = []
         self._lock = threading.Lock()

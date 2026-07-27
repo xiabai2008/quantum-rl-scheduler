@@ -47,8 +47,8 @@ strategies_data = {
         "rank": 4,
     },
     "Random": {
-        "avg_reward": 1247.17,
-        "std_reward": 385.76,
+        "avg_reward": 1217.08,
+        "std_reward": 395.05,
         "avg_wait_time": 21.5,
         "completion_rate": 0.75,
         "qubit_utilization": 0.50,
