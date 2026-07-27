@@ -66,6 +66,10 @@ class QuantumConfig(BaseModel):
     max_qubits: int = Field(default=287, ge=1, description="最大量子比特数")
     shots: int = Field(default=1024, ge=1, description="测量次数")
     simulator: str = Field(default="qiskit-aer", description="模拟器")
+    # Issue #243: 真机提交间隔步数（每N步强制提交一次，保底机制）
+    real_submit_interval: int = Field(
+        default=20, ge=1, description="真机提交间隔步数（保底机制，与概率触发共存）"
+    )
 
 
 class AnnealingConfig(BaseModel):

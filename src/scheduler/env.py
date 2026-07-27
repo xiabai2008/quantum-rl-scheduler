@@ -64,6 +64,7 @@ from src.scheduler.env_types import (
     REAL_MACHINE_DEGRADE_FAIL_THRESHOLD,
     REAL_MACHINE_FAIL_PENALTY,
     REAL_MACHINE_MAX_POLL_STEPS,
+    REAL_MACHINE_SUBMIT_INTERVAL,
     REAL_MACHINE_SUCCESS_BONUS,
     REAL_SUBMIT_PROBABILITY_DEFAULT,
     REWARD_CLASSICAL,
@@ -108,6 +109,7 @@ __all__ = [
     "REAL_MACHINE_DEGRADE_FAIL_THRESHOLD",
     "REAL_MACHINE_FAIL_PENALTY",
     "REAL_MACHINE_MAX_POLL_STEPS",
+    "REAL_MACHINE_SUBMIT_INTERVAL",
     "REAL_MACHINE_SUCCESS_BONUS",
     "REAL_SUBMIT_PROBABILITY_DEFAULT",
     "REWARD_CLASSICAL",
@@ -143,6 +145,7 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
         seed: int | None = None,
         machine_configs: list[dict[str, Any]] | None = None,
         real_submit_probability: float = REAL_SUBMIT_PROBABILITY_DEFAULT,
+        real_submit_interval: int = REAL_MACHINE_SUBMIT_INTERVAL,
         use_real_machine: bool = False,
         real_machine_feedback_weight: float = 1.0,
         max_real_submissions: int | None = None,
@@ -160,6 +163,10 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
         self.max_qubits = max_qubits
         self.render_mode = render_mode
         self.real_submit_probability = float(real_submit_probability)
+        # Issue #243: 间隔触发保底（每N步强制提交一次），与概率触发共存
+        if real_submit_interval < 1:
+            raise ValueError("real_submit_interval must be >= 1")
+        self.real_submit_interval = int(real_submit_interval)
         self.use_real_machine = bool(use_real_machine)
         self.real_machine_feedback_weight = float(real_machine_feedback_weight)
         if max_real_submissions is not None and max_real_submissions < 0:

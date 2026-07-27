@@ -73,6 +73,9 @@ INITIAL_QUEUE_RANGE = (5, 20)  # reset 时初始任务队列大小范围
 # ---------------------------------------------------------------------------
 # 真机提交抽样概率（控制真机机时消耗：每个量子任务以此概率真正上真机）
 REAL_SUBMIT_PROBABILITY_DEFAULT = 0.0
+# 真机提交间隔步数（Issue #243：间隔触发保底，每N步强制提交一次）
+# 确保 probability-only 触发不会因路由机会少而完全错过真机参与
+REAL_MACHINE_SUBMIT_INTERVAL = 20
 # 真机任务成功完成时的奖励加成（叠加到 step reward，status_only 模式使用）
 REAL_MACHINE_SUCCESS_BONUS = 2.0
 # 真机任务失败时的惩罚（叠加到 step reward）
