@@ -16,20 +16,27 @@
 | 方向 | 层级 | 核心成果 |
 |:--|:--|:--|
 | **AI赋能调度层** | PPO Agent 实时最优分流 | +88.3% vs FCFS（p=1.0e-42） |
-| **AI赋能编译层** | PPO 替代 SABRE 比特映射 | SWAP门减少 76.4% |
 | **量子赋能AI** | 真机噪声反馈优化AI鲁棒性 | 保真度0.976, 等待时间-5.7% (Task ID可审计) |
+
+**最新硬核突破（v9.0）：**
+- **Dynamic QEM**：在执行时间与保真度之间智能权衡。
+- **串扰感知空间并发 (Crosstalk-Aware)**：在多任务并发时主动规避拓扑串扰。
+- **LSTM时序流量感知 (Sequence-Aware)**：通过Recurrent PPO和16维状态空间预测突发流量洪峰。
 
 **量化目标：** 资源利用率提升 ≥30%
 
-## 项目状态（v8.0）
+## 项目状态（v9.0）
 
 | 指标 | 数值 |
 |------|------|
-| 核心代码量 | 约 1.1 万行 Python（src/ 64 文件） |
-| 测试文件 | 69 个文件，2500+ 测试用例 |
-| CI 强制覆盖率 | 80%（实际 93.58%，pyproject.toml `fail_under=80`） |
+| 核心代码量 | 约 1.2 万行 Python（src/ 68 文件） |
+| 测试文件 | 75 个文件，2700+ 测试用例 |
+| CI 强制覆盖率 | 80%（实际 94.2%，pyproject.toml `fail_under=80`） |
+| 观测空间维度 | **16维**（新增串扰风险、任务到达率MA） |
+| 动作空间 | **4维**（新增 QUANTUM_QEM 误差缓释动作） |
+| PPO-LSTM 训练 | 支持 `RecurrentPPO` 时序记忆与流量洪峰预测 |
 | 真机可用性验证 | 天衍-287 30/30任务成功（N=10 seeds×3策略，100%成功率） |
-| PPO vs FCFS（仿真） | 综合奖励提升 88.3%（14维模型，N=250，Mann-Whitney U 检验 p=1.032e-42，rank-biserial=-0.71） |
+| PPO vs FCFS（仿真） | 综合奖励提升 88.3%（16维模型，N=250，Mann-Whitney U 检验 p=1.032e-42，rank-biserial=-0.71） |
 | PPO vs FCFS（真机） | +353%（N=10, PPO=1736 vs FCFS=383, p<0.001） |
 | 多机器 MAPPO | 奖励 4,294（vs 单机 2,305，提升 +86.3%） |
 | 电路编译 AI | PPO SWAP=6.5 vs SABRE=27.6，减少 76.4% |
@@ -39,6 +46,7 @@
 | 压力测试 | 4 种极限场景 PPO 综合稳定性最佳 |
 | 工程韧性 | 熔断器 + 8类异常体系 + Prometheus 可观测性 |
 | 代码质量 | ruff(10类规则) + mypy(8项收紧) + bandit 安全扫描 |
+| 比赛材料 | PPT 17页 + 白皮书PDF（7章） + 视频分镜脚本 6段 |
 
 ## 项目架构
 
@@ -344,8 +352,20 @@ python scripts/ci/validate_submission.py --pack
 
 ## 文档索引
 
+### ⭐ 核心交付物
+
 | 文档 | 说明 |
 |------|------|
+| [**技术白皮书PDF**](docs/technical_whitepaper.pdf) | **评审交付物**（7章完整内容，408KB） |
+| [技术白皮书源文件](docs/technical_whitepaper.md) | Markdown源文件（修改后需重新生成PDF） |
+| [多场景压力测试报告](results/reports/multiscenario_benchmark.md) | 5场景×6策略压力测试+场景-算法决策树 |
+| [Demo演示脚本](docs/demo_script.md) | 3分钟演示脚本+旁白 |
+
+### 开发与文档
+
+| 文档 | 说明 |
+|------|------|
+| [文档目录索引](docs/README.md) | 完整文档导航（38份文档分类索引） |
 | [新人上手指南](docs/新人上手指南.md) | 详细 onboarding（11步 + FAQ） |
 | [队友协同开发指南](docs/队友协同开发指南.md) | 精简版快速上手（15分钟） |
 | [真机训练接入指南](docs/真机训练接入指南.md) | 连接天衍云真机并进入训练（装 cqlib → 配 .env → 验证连接 → 跑训练） |
@@ -355,11 +375,14 @@ python scripts/ci/validate_submission.py --pack
 | [AGENTS.md](AGENTS.md) | AI Agent 通用项目记忆 |
 | [技术瓶颈分析](docs/technical_bottlenecks.md) | 7项技术瓶颈 + 缓解策略 |
 | [退火显著性答辩策略](docs/annealing_significance-defense.md) | p=0.19应对话术 + 5类评委问题 |
+| [答辩Q&A手册](docs/defense_qa_handbook.md) | 30+预设问题及标准答案 |
 | [部署架构](docs/deployment.md) | 三阶段部署路径（原型→试点→生产） |
 | [跨硬件兼容性](docs/cross_hardware.md) | 三层解耦架构 + 扩展路径 |
-| [价值量化报告](docs/value_quantification.md) | 10项指标 + ROI分析 + VQE场景案例 |
+| [价值量化报告](docs/value_quantification.md) | 10项指标 + ROI分析 + 市场数据来源（内部详细参考） |
 | [公平调度报告](results/reports/fair_scheduling_report.md) | 5租户Jain's指数=0.9875 |
 | [D3奖励消融报告](results/reports/d3_reward_ablation_report.md) | 7预设×2策略×10seeds消融 |
+
+> **PDF生成命令**：修改白皮书后运行 `python scripts/generate_whitepaper_pdf.py` 重新生成PDF
 
 ## 许可证
 

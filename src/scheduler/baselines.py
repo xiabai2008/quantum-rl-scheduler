@@ -25,6 +25,13 @@ from typing import Any
 import numpy as np
 from loguru import logger
 
+from src.scheduler.env_types import (
+    OBS_QUANTUM_QUEUE_RATIO,
+    OBS_QUBIT_AVAILABILITY,
+    OBS_TASK_TYPE_QUANTUM,
+    OBS_URGENCY_LEVEL,
+)
+
 __all__ = [
     "BaselineScheduler",
     "EDFScheduler",
@@ -809,10 +816,17 @@ class EnvBasedHEFTScheduler(EnvBasedScheduler):
         """
         obs = list(observation) if hasattr(observation, "__iter__") else [0.0] * 14
 
-        # 从观测中提取关键信息
-        is_quantum = float(obs[10]) > 0.5 if len(obs) > 10 else False
-        qubit_avail = float(obs[6]) if len(obs) > 6 else 0.5
-        quantum_queue = float(obs[7]) if len(obs) > 7 else 0.0
+        # Issue #380: 修复错误的观测索引，使用 env_types.py 命名常量
+        # 原实现 obs[10]/obs[6]/obs[7]/obs[13] 读取了错误的维度
+        is_quantum = (
+            float(obs[OBS_TASK_TYPE_QUANTUM]) > 0.5 if len(obs) > OBS_TASK_TYPE_QUANTUM else False
+        )
+        qubit_avail = (
+            float(obs[OBS_QUBIT_AVAILABILITY]) if len(obs) > OBS_QUBIT_AVAILABILITY else 0.5
+        )
+        quantum_queue = (
+            float(obs[OBS_QUANTUM_QUEUE_RATIO]) if len(obs) > OBS_QUANTUM_QUEUE_RATIO else 0.0
+        )
 
         # 估算量子加速比（从观测范围推算）
         speedup = self._QUANTUM_SPEEDUP_MIN + qubit_avail * (
@@ -820,7 +834,7 @@ class EnvBasedHEFTScheduler(EnvBasedScheduler):
         )
 
         # 估算执行时间（从 urgency 推算，高 urgency = 短时间）
-        urgency = float(obs[13]) if len(obs) > 13 else 0.5
+        urgency = float(obs[OBS_URGENCY_LEVEL]) if len(obs) > OBS_URGENCY_LEVEL else 0.5
         estimated_time = max(1.0, 10.0 * (1.0 - urgency))
 
         # 计算每种动作的完成时间
@@ -885,9 +899,16 @@ class EnvBasedMinMinScheduler(EnvBasedScheduler):
         """
         obs = list(observation) if hasattr(observation, "__iter__") else [0.0] * 14
 
-        is_quantum = float(obs[10]) > 0.5 if len(obs) > 10 else False
-        qubit_avail = float(obs[6]) if len(obs) > 6 else 0.5
-        quantum_queue = float(obs[7]) if len(obs) > 7 else 0.0
+        # Issue #380: 修复错误的观测索引，使用 env_types.py 命名常量
+        is_quantum = (
+            float(obs[OBS_TASK_TYPE_QUANTUM]) > 0.5 if len(obs) > OBS_TASK_TYPE_QUANTUM else False
+        )
+        qubit_avail = (
+            float(obs[OBS_QUBIT_AVAILABILITY]) if len(obs) > OBS_QUBIT_AVAILABILITY else 0.5
+        )
+        quantum_queue = (
+            float(obs[OBS_QUANTUM_QUEUE_RATIO]) if len(obs) > OBS_QUANTUM_QUEUE_RATIO else 0.0
+        )
 
         # Min-Min: 选择"最小"完成时间的动作
         # 量子动作的等效时间最短（加速比 2-5x），但需考虑可用性和队列

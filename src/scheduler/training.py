@@ -116,13 +116,16 @@ def resume_training(
         try:
             model = PPO.load(normalized_path, env=env)
             logger.info("[ResumeTraining] 已加载 PPO 模型")
-        except Exception as e:
+        except (FileNotFoundError, ValueError, RuntimeError) as e:
+            # Issue #389: 缩窄异常范围，仅捕获可恢复的加载失败
+            # 避免掩盖 TypeError/AttributeError 等编程错误
             load_errors.append(f"PPO: {e}")
     elif "dqn" in path_lower:
         try:
             model = DQN.load(normalized_path, env=env)
             logger.info("[ResumeTraining] 已加载 DQN 模型")
-        except Exception as e:
+        except (FileNotFoundError, ValueError, RuntimeError) as e:
+            # Issue #389: 缩窄异常范围，仅捕获可恢复的加载失败
             load_errors.append(f"DQN: {e}")
     else:
         # 文件名无明确算法标识，依次尝试 PPO / DQN
@@ -133,7 +136,8 @@ def resume_training(
                 model = cast(type[BaseAlgorithm], algo_cls).load(normalized_path, env=env)
                 logger.info(f"[ResumeTraining] 已加载 {algo_name} 模型")
                 break
-            except Exception as e:
+            except (FileNotFoundError, ValueError, RuntimeError) as e:
+                # Issue #389: 缩窄异常范围，仅捕获可恢复的加载失败
                 load_errors.append(f"{algo_name}: {e}")
 
     if model is None:

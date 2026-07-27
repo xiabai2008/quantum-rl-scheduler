@@ -951,9 +951,16 @@ class TestQuantumAssistScheduling(unittest.TestCase):
         scheduler = DAGScheduler()
         scheduler.add_task(DAGTask(task_id="a", qubits_required=2, estimated_time=5.0))
         scheduler.add_task(DAGTask(task_id="b", qubits_required=2, estimated_time=3.0))
-        schedule = scheduler.schedule_with_quantum_assist(
-            available_qubits=10, available_machines=2, optimizer=FailingOptimizer()
-        )
+        # Issue #389: 验证退火异常时记录 warning 日志
+        with patch("src.scheduler.dag_scheduler.logger") as mock_logger:
+            schedule = scheduler.schedule_with_quantum_assist(
+                available_qubits=10, available_machines=2, optimizer=FailingOptimizer()
+            )
+            # 验证 logger.warning 被调用，记录了退火失败信息
+            mock_logger.warning.assert_called_once()
+            args, _ = mock_logger.warning.call_args
+            self.assertIn("量子退火辅助调度失败", args[0])
+
         # 回退后仍返回有效调度
         self.assertEqual(len(schedule), 2)
         for item in schedule:
@@ -961,6 +968,29 @@ class TestQuantumAssistScheduling(unittest.TestCase):
             self.assertIn("start_time", item)
             self.assertIn("machine_id", item)
             self.assertIn("estimated_finish", item)
+
+    def test_schedule_with_quantum_assist_fallback_logs_exception_type(self) -> None:
+        """Issue #389: 退火异常日志应包含异常类型名，便于追踪故障根因。"""
+
+        class FailingOptimizer:
+            """模拟退火失败的优化器，抛出 ValueError。"""
+
+            def anneal(self, qubo_matrix: np.ndarray) -> str:
+                raise ValueError("invalid QUBO matrix")
+
+        scheduler = DAGScheduler()
+        scheduler.add_task(DAGTask(task_id="a", qubits_required=2, estimated_time=5.0))
+        with patch("src.scheduler.dag_scheduler.logger") as mock_logger:
+            scheduler.schedule_with_quantum_assist(
+                available_qubits=10, available_machines=1, optimizer=FailingOptimizer()
+            )
+            # 验证日志记录了异常类型
+            mock_logger.warning.assert_called_once()
+            args, kwargs = mock_logger.warning.call_args
+            # 第二个位置参数应为异常类型名
+            self.assertEqual(args[1], "ValueError")
+            # exc_info=True 确保堆栈被记录
+            self.assertTrue(kwargs.get("exc_info", False))
 
     def test_schedule_with_quantum_assist_returns_valid_format(self) -> None:
         """测试量子退火辅助调度返回格式与 schedule_with_resources 一致。"""

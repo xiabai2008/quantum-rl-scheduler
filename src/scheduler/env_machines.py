@@ -48,8 +48,10 @@ def select_best_machine(env: "QuantumSchedulingEnv", task: Task) -> QuantumMachi
     for m in env._machines:
         if not m.available:
             continue
-        # 比特数检查（available_ratio * total_qubits 为估算可用比特）
-        usable_qubits = int(m.total_qubits * m.available_ratio)
+        # 比特数检查（支持空间并发，检查剩余物理比特是否足够）
+        # 如果 m.used_qubits 有定义，则精确计算剩余比特
+        used_q = getattr(m, "used_qubits", 0)
+        usable_qubits = m.total_qubits - used_q
         if usable_qubits < task.qubit_count:
             continue
         # 门集合检查（任务所需门需被机器支持；这里按常见量子门粗粒度匹配）
@@ -96,6 +98,7 @@ def route_to_machine(
     rl_action: int = -1,
     rl_action_prob: float = 0.0,
     observation_snapshot: dict | None = None,
+    is_qem: bool = False,
 ) -> None:
     """将任务路由到选定的量子机器，更新队列与调度记录。
 
@@ -139,6 +142,11 @@ def route_to_machine(
             return
 
     machine.quantum_queue += 1
+    # 支持空间并发：将任务加入机器的 active_tasks，并增加 used_qubits
+    if hasattr(machine, "active_tasks") and hasattr(machine, "used_qubits"):
+        machine.active_tasks.append(task)
+        machine.used_qubits += getattr(task, "qubit_count", 0)
+
     env._last_selected_machine = machine.name
     env._machine_schedule_count[machine.name] = env._machine_schedule_count.get(machine.name, 0) + 1
 
@@ -161,6 +169,12 @@ def route_to_machine(
 
     if should_submit:
         env._submit_to_real_machine(machine, task, rl_action, rl_action_prob, observation_snapshot)
+        
+    # 如果是 QEM 动作，应用 QEM 惩罚和奖励：
+    if is_qem:
+        # QEM：执行时间乘 3，保真度提升（错误率减半）
+        task.execution_time *= 3.0
+        machine.fidelity = 1.0 - ((1.0 - machine.fidelity) * 0.5)
 
 
 def recompute_aggregate(env: "QuantumSchedulingEnv") -> None:
