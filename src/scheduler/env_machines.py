@@ -48,8 +48,10 @@ def select_best_machine(env: "QuantumSchedulingEnv", task: Task) -> QuantumMachi
     for m in env._machines:
         if not m.available:
             continue
-        # 比特数检查（available_ratio * total_qubits 为估算可用比特）
-        usable_qubits = int(m.total_qubits * m.available_ratio)
+        # 比特数检查（支持空间并发，检查剩余物理比特是否足够）
+        # 如果 m.used_qubits 有定义，则精确计算剩余比特
+        used_q = getattr(m, "used_qubits", 0)
+        usable_qubits = m.total_qubits - used_q
         if usable_qubits < task.qubit_count:
             continue
         # 门集合检查（任务所需门需被机器支持；这里按常见量子门粗粒度匹配）
@@ -140,6 +142,11 @@ def route_to_machine(
             return
 
     machine.quantum_queue += 1
+    # 支持空间并发：将任务加入机器的 active_tasks，并增加 used_qubits
+    if hasattr(machine, "active_tasks") and hasattr(machine, "used_qubits"):
+        machine.active_tasks.append(task)
+        machine.used_qubits += getattr(task, "qubit_count", 0)
+
     env._last_selected_machine = machine.name
     env._machine_schedule_count[machine.name] = env._machine_schedule_count.get(machine.name, 0) + 1
 
