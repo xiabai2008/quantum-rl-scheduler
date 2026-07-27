@@ -25,11 +25,11 @@ from stable_baselines3.common.monitor import Monitor
 
 from src.quantum.annealing import QuantumAnnealingOptimizer
 from src.scheduler.cache import SchedulerCache
-from src.utils.helpers import load_annealing_config
 from src.scheduler.callbacks import (
     AnnealingCallback,
     RealMachineCallback,
 )
+from src.utils.helpers import load_annealing_config
 
 
 class PPOAgent:
