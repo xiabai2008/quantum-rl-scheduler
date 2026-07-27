@@ -50,6 +50,7 @@ from src.scheduler.env import (
     OBS_DIM,
     QuantumSchedulingEnv,
 )
+from src.utils.lr_schedule import LRScheduleType, create_lr_schedule
 
 # ---------------------------------------------------------------------------
 # 多智能体环境包装器
@@ -633,6 +634,7 @@ class MultiAgentPPO:
         log_dir: str = "./logs/marl/",
         device: str = "auto",
         verbose: int = 1,
+        lr_schedule: LRScheduleType = "linear",
     ):
         """
         初始化 MAPPO 智能体。
@@ -655,6 +657,9 @@ class MultiAgentPPO:
             log_dir: 日志目录
             device: 计算设备（"auto"/"cpu"/"cuda"）
             verbose: 日志详细程度
+            lr_schedule: 学习率调度类型（Issue #403），可选 ``"linear"``
+                / ``"cosine"`` / ``"constant"``，默认 ``"linear"``。
+                ``"constant"`` 等价于旧行为（固定学习率）。
         """
         self.env = env
         self.wrapper = MultiAgentEnvWrapper(env)
@@ -665,6 +670,9 @@ class MultiAgentPPO:
 
         # 超参数
         self.learning_rate = learning_rate
+        # Issue #403: 学习率调度器
+        self.lr_schedule: LRScheduleType = lr_schedule
+        self._lr_fn = create_lr_schedule(learning_rate, lr_schedule)
         self.n_steps = n_steps
         self.batch_size = batch_size
         self.n_epochs = n_epochs
@@ -781,6 +789,25 @@ class MultiAgentPPO:
     # 训练
     # ------------------------------------------------------------------
 
+    def _update_learning_rate(self, total_timesteps: int) -> None:
+        """根据训练进度更新所有优化器的学习率（Issue #403）。
+
+        使用 ``self._lr_fn`` 计算当前进度对应的学习率，
+        并更新 Actor 和 Critic 优化器的 ``param_groups``。
+
+        Args:
+            total_timesteps: 训练总步数（用于计算进度）
+        """
+        if total_timesteps <= 0:
+            return
+        progress_remaining = max(1.0 - self.total_timesteps / total_timesteps, 0.0)
+        new_lr = self._lr_fn(progress_remaining)
+        for opt in self.actor_optimizers:
+            for pg in opt.param_groups:
+                pg["lr"] = new_lr
+        for pg in self.critic_optimizer.param_groups:
+            pg["lr"] = new_lr
+
     def train(
         self,
         total_timesteps: int = 50000,
@@ -827,6 +854,9 @@ class MultiAgentPPO:
 
             # ---- 3. 更新网络 ----
             update_info = self._update(advantages_per_agent, returns)
+
+            # ---- 3.5 更新学习率（Issue #403） ----
+            self._update_learning_rate(total_timesteps)
 
             n_rollouts += 1
             if self.verbose >= 1 and n_rollouts % log_interval == 0:
@@ -1138,6 +1168,7 @@ class MultiAgentPPO:
             "local_obs_dim": self.local_obs_dim,
             "global_state_dim": self.global_state_dim,
             "learning_rate": self.learning_rate,
+            "lr_schedule": self.lr_schedule,
             "n_steps": self.n_steps,
             "batch_size": self.batch_size,
             "n_epochs": self.n_epochs,

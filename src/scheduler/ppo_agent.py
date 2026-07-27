@@ -30,6 +30,7 @@ from src.scheduler.callbacks import (
     RealMachineCallback,
 )
 from src.utils.helpers import load_annealing_config
+from src.utils.lr_schedule import LRScheduleType, create_lr_schedule
 
 
 class PPOAgent:
@@ -43,6 +44,7 @@ class PPOAgent:
         env: 训练环境
         model: 训练好的 PPO 模型
         learning_rate: 学习率
+        lr_schedule: 学习率调度类型（"linear"/"cosine"/"constant"）
         n_steps: 每次更新的步数
         batch_size: 批次大小
         n_epochs: 每次更新的 epoch 数
@@ -56,13 +58,19 @@ class PPOAgent:
 
         Args:
             env: Gymnasium 环境实例
-            **kwargs: PPO 超参数
+            **kwargs: PPO 超参数，支持以下额外键：
+                lr_schedule: 学习率调度类型，可选 ``"linear"`` / ``"cosine"``
+                    / ``"constant"``（默认 ``"linear"``，Issue #403）。
+                    ``"constant"`` 等价于旧行为（固定学习率）。
         """
         self.env = env
         # 模型类型可能为 PPO 或 RecurrentPPO（启用 LSTM 时），用联合类型声明
         self.model: PPO | RecurrentPPO | None = None
 
         self.learning_rate = kwargs.get("learning_rate", 3e-4)
+        # Issue #403: 学习率调度器
+        self.lr_schedule: LRScheduleType = kwargs.get("lr_schedule", "linear")
+        self._lr_fn = create_lr_schedule(self.learning_rate, self.lr_schedule)
         self.n_steps = kwargs.get("n_steps", 2048)
         self.batch_size = kwargs.get("batch_size", 64)
         self.n_epochs = kwargs.get("n_epochs", 10)
@@ -177,7 +185,7 @@ class PPOAgent:
             model: PPO | RecurrentPPO = RecurrentPPO(
                 "MlpLstmPolicy",
                 self.env,
-                learning_rate=self.learning_rate,
+                learning_rate=self._lr_fn,
                 n_steps=self.n_steps,
                 batch_size=self.batch_size,
                 n_epochs=self.n_epochs,
@@ -197,7 +205,7 @@ class PPOAgent:
             model = PPO(
                 "MlpPolicy",
                 self.env,
-                learning_rate=self.learning_rate,
+                learning_rate=self._lr_fn,
                 n_steps=self.n_steps,
                 batch_size=self.batch_size,
                 n_epochs=self.n_epochs,
@@ -449,6 +457,7 @@ class PPOAgent:
             "observation_dim": self.observation_space.shape[0],
             "action_dim": self.action_space.n,
             "learning_rate": self.learning_rate,
+            "lr_schedule": self.lr_schedule,
             "n_steps": self.n_steps,
             "batch_size": self.batch_size,
             "n_epochs": self.n_epochs,

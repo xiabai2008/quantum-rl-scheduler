@@ -327,7 +327,10 @@ def test_build_model_passes_all_hyperparameters(monkeypatch, tiny_env: TinyEnv) 
     assert kwargs["ent_coef"] == 0.03
     assert kwargs["clip_range"] == 0.15
     assert kwargs["max_grad_norm"] == 0.7
-    assert kwargs["learning_rate"] == 5e-4
+    # Issue #403: learning_rate 现在是调度函数（callable），不再是固定 float
+    lr_fn = kwargs["learning_rate"]
+    assert callable(lr_fn)
+    assert lr_fn(1.0) == pytest.approx(5e-4)  # 起始学习率 = base_lr
     assert kwargs["n_steps"] == 64
     assert kwargs["batch_size"] == 16
     assert kwargs["n_epochs"] == 5
