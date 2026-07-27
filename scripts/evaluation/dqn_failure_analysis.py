@@ -122,8 +122,8 @@ def run_simulation(env, agent, max_steps=500):
                     obs_t = __import__("torch").from_numpy(obs_t)
                     with __import__("torch").no_grad():
                         q_vals = [float(agent.model.policy.predict_values(obs_t).item()), 0, 0]
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"[WARN] Q 值提取失败，跳过 value 记录: {type(e).__name__}: {e}")
 
         obs, reward, terminated, truncated, _ = env.step(int(action))
         total_reward += reward

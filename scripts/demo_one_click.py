@@ -22,6 +22,8 @@ import time
 import webbrowser
 from pathlib import Path
 
+from loguru import logger
+
 
 def print_banner():
     """打印启动横幅"""
@@ -207,8 +209,8 @@ def wait_for_server(port, timeout=60):
             req = urllib.request.urlopen(url, timeout=3)
             if req.getcode() == 200:
                 return True
-        except (urllib.error.URLError, ConnectionRefusedError, OSError):
-            pass
+        except (urllib.error.URLError, ConnectionRefusedError, OSError) as e:
+            logger.debug(f"等待服务器启动中: {e}")
         time.sleep(1)
 
         # 检查进程是否还在运行

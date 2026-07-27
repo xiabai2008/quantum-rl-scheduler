@@ -557,6 +557,77 @@ class TestAnneal(unittest.TestCase):
         opt.anneal(Q)
         self.assertIn(opt.solver_type, ("numpy_sa", "neal_sa"))
 
+    # ----------------------------------------------------------------
+    # Issue #229: 降级日志验证
+    # ----------------------------------------------------------------
+
+    def test_degradation_log_on_empty_dict_fallback(self):
+        """真机返回空 bitstring 时应记录 [降级] 日志（Issue #229）。"""
+        from unittest.mock import patch as _patch
+
+        client = MagicMock()
+        client.submit_annealing_task = MagicMock(return_value={"bitstring": ""})
+        opt = QuantumAnnealingOptimizer(simulation_mode=False, cqlib_client=client)
+        opt._sim_num_sweeps = 5
+        Q = np.array([[1.0, 0.5], [0.5, 1.0]])
+        with _patch("src.quantum.annealing.logger") as mock_logger:
+            opt.anneal(Q)
+            warning_msgs = [str(call.args[0]) for call in mock_logger.warning.call_args_list]
+            self.assertTrue(
+                any("[降级]" in msg for msg in warning_msgs),
+                f"期望 warning 日志包含 '[降级]'，实际: {warning_msgs}",
+            )
+
+    def test_degradation_log_on_unknown_type_fallback(self):
+        """真机返回未知类型时应记录 [降级] 日志（Issue #229）。"""
+        from unittest.mock import patch as _patch
+
+        client = MagicMock()
+        client.submit_annealing_task = MagicMock(return_value=12345)
+        opt = QuantumAnnealingOptimizer(simulation_mode=False, cqlib_client=client)
+        opt._sim_num_sweeps = 5
+        Q = np.array([[1.0, 0.5], [0.5, 1.0]])
+        with _patch("src.quantum.annealing.logger") as mock_logger:
+            opt.anneal(Q)
+            warning_msgs = [str(call.args[0]) for call in mock_logger.warning.call_args_list]
+            self.assertTrue(
+                any("[降级]" in msg and "无法识别" in msg for msg in warning_msgs),
+                f"期望 warning 包含 '[降级]' 和 '无法识别'，实际: {warning_msgs}",
+            )
+
+    def test_degradation_log_on_exception_fallback(self):
+        """真机异常降级时应记录 [降级] 日志及降级原因（Issue #229）。"""
+        from unittest.mock import patch as _patch
+
+        client = MagicMock()
+        client.submit_annealing_task = MagicMock(side_effect=RuntimeError("network down"))
+        opt = QuantumAnnealingOptimizer(simulation_mode=False, cqlib_client=client)
+        opt._sim_num_sweeps = 5
+        Q = np.array([[1.0, 0.5], [0.5, 1.0]])
+        with _patch("src.quantum.annealing.logger") as mock_logger:
+            opt.anneal(Q)
+            warning_msgs = [str(call.args[0]) for call in mock_logger.warning.call_args_list]
+            self.assertTrue(
+                any("[降级]" in msg and "RuntimeError" in msg for msg in warning_msgs),
+                f"期望 warning 包含 '[降级]' 和 'RuntimeError'，实际: {warning_msgs}",
+            )
+
+    def test_degradation_log_when_no_submit_annealing_task(self):
+        """cqlib_client 无 submit_annealing_task 方法时应记录 [降级] 日志（Issue #229）。"""
+        from unittest.mock import patch as _patch
+
+        client = MagicMock(spec=[])  # 空接口
+        opt = QuantumAnnealingOptimizer(simulation_mode=False, cqlib_client=client)
+        opt._sim_num_sweeps = 5
+        Q = np.array([[1.0, 0.5], [0.5, 1.0]])
+        with _patch("src.quantum.annealing.logger") as mock_logger:
+            opt.anneal(Q)
+            warning_msgs = [str(call.args[0]) for call in mock_logger.warning.call_args_list]
+            self.assertTrue(
+                any("[降级]" in msg and "submit_annealing_task" in msg for msg in warning_msgs),
+                f"期望 warning 包含 '[降级]' 和 'submit_annealing_task'，实际: {warning_msgs}",
+            )
+
 
 # ============================================================
 # _compute_qubo_energy ??
@@ -608,6 +679,78 @@ class TestQuboEnergy(unittest.TestCase):
         x = np.array([1, 0, 1, 1, 0], dtype=np.float64)
         expected = float(x @ Q @ x)
         self.assertAlmostEqual(self.opt.compute_qubo_energy(x, Q), expected)
+
+
+# ============================================================
+# QUBO 翻转能量差 & 默认仿真求解器正确性（C1 回归）
+# ============================================================
+class TestQuboFlipDelta(unittest.TestCase):
+    """回归测试：单比特翻转能量差公式（修复 C1）。
+
+    早期实现 ΔE=(1-2x_k)·(Q_k·x) 漏写 ×2 离对角项与对角项 Q[k,k]，
+    导致 Metropolis 接受概率偏离正确玻尔兹曼分布、累进能量漂移。
+    """
+
+    def _analytic_delta(self, Q: np.ndarray, x: np.ndarray, k: int) -> float:
+        x2 = x.copy()
+        x2[k] = 1.0 - x2[k]
+        return float(x2 @ Q @ x2) - float(x @ Q @ x)
+
+    def test_flip_delta_matches_analytic_many(self):
+        rng = np.random.default_rng(42)
+        for _ in range(50):
+            n = int(rng.integers(2, 8))
+            Q = rng.standard_normal((n, n))
+            Q = Q + Q.T
+            x = (rng.random(n) < 0.5).astype(float)
+            k = int(rng.integers(0, n))
+            got = QuantumAnnealingOptimizer._qubo_flip_delta(Q, x, k)
+            self.assertAlmostEqual(got, self._analytic_delta(Q, x, k), places=9)
+
+    def test_flip_delta_known_case(self):
+        # 子代理示例：Q=[[1,2],[2,3]], x=[1,1], flip k=0 -> 真值 ΔE=-5
+        Q = np.array([[1.0, 2.0], [2.0, 3.0]])
+        x = np.array([1.0, 1.0])
+        self.assertAlmostEqual(
+            QuantumAnnealingOptimizer._qubo_flip_delta(Q, x, 0), -5.0, places=9
+        )
+
+
+class TestNumpySimulatedAnnealing(unittest.TestCase):
+    """回归测试：默认 numpy 仿真求解器端到端正确性（修复 C1）。
+
+    修复前错误 ΔE 使退火无法稳定命中真值最优；修复后应在给定 RNG 种子下
+    稳定收敛到暴力枚举的全局最优。
+    """
+
+    def _brute_force_min(self, Q: np.ndarray) -> float:
+        n = Q.shape[0]
+        best = float("inf")
+        for mask in range(1 << n):
+            x = np.array([float((mask >> i) & 1) for i in range(n)])
+            e = float(x @ Q @ x)
+            if e < best:
+                best = e
+        return best
+
+    def test_finds_global_optimum_small_qubo(self):
+        import random
+
+        rng = np.random.default_rng(0)
+        Q = rng.standard_normal((6, 6))
+        Q = Q + Q.T
+        opt = QuantumAnnealingOptimizer()
+        random.seed(1234)
+        np.random.seed(1234)
+        opt._sim_initial_temp = 1.0
+        opt._sim_cooling_rate = 0.995
+        opt._sim_num_sweeps = 3000
+        bitstring = opt.numpy_simulated_annealing(Q)
+        x = np.array([float(int(b)) for b in bitstring])
+        found = float(x @ Q @ x)
+        truth = self._brute_force_min(Q)
+        # 正确求解器应命中全局最优；错误公式会显著偏离
+        self.assertAlmostEqual(found, truth, delta=1e-6)
 
 
 # ============================================================

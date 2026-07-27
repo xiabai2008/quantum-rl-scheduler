@@ -679,6 +679,51 @@ async def test_connection_manager_broadcast_removes_failed():
     assert ws_ok in mgr.active_connections
 
 
+@pytest.mark.asyncio
+async def test_connection_manager_connect_dedup():
+    """connect 应防护重复添加同一连接（Issue #216）。"""
+    mgr = ConnectionManager()
+    ws = AsyncMock()
+    await mgr.connect(ws)
+    # 重复 connect 不应重复添加
+    await mgr.connect(ws)
+    assert mgr.active_connections.count(ws) == 1
+
+
+@pytest.mark.asyncio
+async def test_websocket_endpoint_runtime_error_cleanup():
+    """WebSocket 端点在 RuntimeError 时应通过 finally 清理连接（Issue #216）。"""
+    from src.visualization import state as viz_state
+    from src.visualization.websocket_handler import websocket_endpoint
+
+    ws = AsyncMock()
+    ws.receive_text.side_effect = RuntimeError("connection reset")
+
+    with patch.object(viz_state, "manager") as mock_mgr:
+        mock_mgr.connect = AsyncMock()
+        mock_mgr.disconnect = MagicMock()
+        # 执行端点函数，应捕获 RuntimeError 并清理
+        await websocket_endpoint(ws)
+        # finally 块应调用 disconnect
+        mock_mgr.disconnect.assert_called_once_with(ws)
+
+
+@pytest.mark.asyncio
+async def test_websocket_endpoint_connection_closed_cleanup():
+    """WebSocket 端点在 ConnectionError 时应通过 finally 清理连接（Issue #216）。"""
+    from src.visualization import state as viz_state
+    from src.visualization.websocket_handler import websocket_endpoint
+
+    ws = AsyncMock()
+    ws.receive_text.side_effect = ConnectionError("connection closed")
+
+    with patch.object(viz_state, "manager") as mock_mgr:
+        mock_mgr.connect = AsyncMock()
+        mock_mgr.disconnect = MagicMock()
+        await websocket_endpoint(ws)
+        mock_mgr.disconnect.assert_called_once_with(ws)
+
+
 # ============================================================
 # 辅助函数：_load_vue3_template
 # ============================================================

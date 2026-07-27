@@ -18,12 +18,20 @@ Unit Tests for src/api/circuit_breaker.py
 import os
 import sys
 import unittest
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from src.api.circuit_breaker import CircuitBreaker, CircuitState
-from src.exceptions import CircuitOpenError
+from src.exceptions import CircuitOpenError, TianyanAPIError
+from src.scheduler.env import QuantumSchedulingEnv
+from src.scheduler.env_real_machine import submit_to_real_machine
+from src.scheduler.env_types import (
+    REAL_MACHINE_DEGRADE_FAIL_THRESHOLD,
+    QuantumMachine,
+    Task,
+)
 
 
 class TestCircuitStateEnum(unittest.TestCase):
@@ -785,6 +793,173 @@ class TestCircuitBreakerThreadSafety(unittest.TestCase):
         cb = CircuitBreaker()
         self.assertTrue(hasattr(cb, "_lock"))
         self.assertIsInstance(cb._lock, type(threading.RLock()))
+
+
+# ── 真机降级行为测试（Issue #264） ──
+#
+# 验证 src/scheduler/env_real_machine.py 中 submit_to_real_machine 的降级逻辑：
+# - 瞬态失败（网络抖动、超时、5xx）不触发降级（is_transient_exception 返回 True）
+# - 致命失败（认证失败、参数错误）3-5 次触发降级（REAL_MACHINE_DEGRADE_FAIL_THRESHOLD=3）
+# - 混合失败场景只有致命失败计数（瞬态失败被忽略）
+
+
+class _TransientFailingClient:
+    """submit_quantum_task 总是抛出瞬态异常（ConnectionError）的 mock 客户端。
+
+    ConnectionError 是 OSError 子类，is_transient_exception 判定为瞬态失败，
+    不计入连续失败计数，不触发降级。
+    """
+
+    def submit_quantum_task(self, **kwargs: Any) -> str:
+        raise ConnectionError("network timeout")
+
+    def get_task_status(self, task_id: str) -> dict[str, Any]:
+        return {"status": "running"}
+
+
+class _FatalFailingClient:
+    """submit_quantum_task 总是抛出致命异常（TianyanAPIError）的 mock 客户端。
+
+    TianyanAPIError(is_transient=False) 为永久性错误，is_transient_exception 判定为
+    致命失败，计入连续失败计数，达到阈值触发降级。
+    """
+
+    def submit_quantum_task(self, **kwargs: Any) -> str:
+        raise TianyanAPIError(
+            "authentication failed",
+            code="AUTH_ERROR",
+            is_transient=False,
+        )
+
+    def get_task_status(self, task_id: str) -> dict[str, Any]:
+        return {"status": "running"}
+
+
+class _MixedFailingClient:
+    """按预设序列抛出异常的 mock 客户端，用于混合失败场景测试。"""
+
+    def __init__(self, side_effects: list[Exception]) -> None:
+        self._side_effects = side_effects
+        self._index = 0
+
+    def submit_quantum_task(self, **kwargs: Any) -> str:
+        if self._index >= len(self._side_effects):
+            raise RuntimeError("no more side effects configured")
+        exc = self._side_effects[self._index]
+        self._index += 1
+        raise exc
+
+    def get_task_status(self, task_id: str) -> dict[str, Any]:
+        return {"status": "running"}
+
+
+class TestRealMachineDegradeBehavior(unittest.TestCase):
+    """真机降级行为测试（Issue #264）。
+
+    验证失败场景的降级逻辑：
+    - 瞬态失败（网络抖动、超时、5xx）不触发降级
+    - 致命失败（认证失败、参数错误）3-5 次触发降级
+    - 混合失败场景只有致命失败计数
+
+    降级阈值：REAL_MACHINE_DEGRADE_FAIL_THRESHOLD = 3
+    区分逻辑：is_transient_exception() 判断异常是否为瞬态（Issue #218）
+    """
+
+    @staticmethod
+    def _make_env(
+        client: object,
+    ) -> tuple[QuantumSchedulingEnv, QuantumMachine, Task]:
+        """构造带真机客户端的测试环境。
+
+        使用真实的 QuantumSchedulingEnv 实例以确保所有内部状态字段
+        （_real_machine_degraded / _real_consecutive_failures 等）正确初始化。
+        """
+        env = QuantumSchedulingEnv(
+            machine_configs=[
+                {
+                    "name": "tianyan176",
+                    "total_qubits": 287,
+                    "supported_gates": ("H", "M"),
+                    "is_real": True,
+                }
+            ],
+            use_real_machine=True,
+            max_real_submissions=None,  # 不限制提交次数，便于测试多次失败
+            real_machine_shots=64,
+        )
+        env.attach_real_clients({"tianyan176": client})
+        machine = QuantumMachine(name="tianyan176", total_qubits=287, is_real=True)
+        task = Task(task_id="t0", task_type="quantum", qubit_count=1, qcis="H Q0\nM Q0")
+        return env, machine, task
+
+    def test_transient_no_degrade(self) -> None:
+        """模拟 20 次瞬态失败，验证不触发降级。
+
+        瞬态失败（ConnectionError / TimeoutError / OSError / RateLimitError /
+        TianyanAPIError(is_transient=True)）仅记录日志，不计入连续失败计数，
+        即使发生 20 次（远超降级阈值 3）也不应触发降级。
+        """
+        client = _TransientFailingClient()
+        env, machine, task = self._make_env(client)
+
+        # 触发 20 次瞬态失败
+        for i in range(20):
+            task.task_id = f"t{i}"
+            submit_to_real_machine(env, machine, task)
+
+        # 瞬态失败不应触发降级
+        self.assertFalse(env._real_machine_degraded)
+        # 瞬态失败不应计入连续失败计数
+        self.assertEqual(env._real_consecutive_failures, 0)
+        # 提交尝试次数应累加（20 次都到达了 client.submit_quantum_task）
+        self.assertEqual(env._real_submission_attempts_total, 20)
+
+    def test_fatal_triggers_degrade(self) -> None:
+        """模拟 5 次致命失败，验证触发降级。
+
+        致命失败（TianyanAPIError(is_transient=False) / 其他非瞬态异常）计入
+        连续失败计数，达到 REAL_MACHINE_DEGRADE_FAIL_THRESHOLD=3 后触发降级。
+        降级后后续 submit_to_real_machine 调用被降级保护跳过。
+        """
+        client = _FatalFailingClient()
+        env, machine, task = self._make_env(client)
+
+        # 尝试触发 5 次致命失败（第 3 次后降级，后续调用被跳过）
+        for i in range(5):
+            task.task_id = f"t{i}"
+            submit_to_real_machine(env, machine, task)
+
+        # 致命失败应触发降级
+        self.assertTrue(env._real_machine_degraded)
+        # 连续失败计数应达到降级阈值（3 次后降级，后续提交被跳过）
+        self.assertEqual(env._real_consecutive_failures, REAL_MACHINE_DEGRADE_FAIL_THRESHOLD)
+        # 降级后后续调用被跳过，实际提交次数为 3
+        self.assertEqual(env._real_submission_attempts_total, REAL_MACHINE_DEGRADE_FAIL_THRESHOLD)
+
+    def test_mixed_failure_scenario(self) -> None:
+        """混合瞬态和致命失败，验证只有致命失败计数。
+
+        先触发 10 次瞬态失败（ConnectionError），再触发 3 次致命失败
+        （TianyanAPIError(is_transient=False)）。瞬态失败不计入连续失败计数，
+        致命失败累计达到阈值 3 后触发降级。
+        """
+        # 10 次瞬态失败 + 3 次致命失败
+        side_effects: list[Exception] = [ConnectionError("timeout")] * 10
+        side_effects += [TianyanAPIError("auth failed", code="AUTH_ERROR", is_transient=False)] * 3
+        client = _MixedFailingClient(side_effects)
+        env, machine, task = self._make_env(client)
+
+        # 触发 13 次混合失败
+        for i in range(13):
+            task.task_id = f"t{i}"
+            submit_to_real_machine(env, machine, task)
+
+        # 只有致命失败计入连续失败计数（10 次瞬态被忽略，3 次致命被计数）
+        self.assertEqual(env._real_consecutive_failures, 3)
+        # 3 次致命失败达到阈值，应触发降级
+        self.assertTrue(env._real_machine_degraded)
+        # 所有 13 次调用都到达了 client.submit_quantum_task（降级在第 13 次后触发）
+        self.assertEqual(env._real_submission_attempts_total, 13)
 
 
 if __name__ == "__main__":

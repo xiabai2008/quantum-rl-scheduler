@@ -48,8 +48,8 @@ def _setup_matplotlib_font():
             "DejaVu Sans",
         ]
         plt.rcParams["axes.unicode_minus"] = False
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"[WARN] 中文字体配置失败: {e}")
     return plt
 
 

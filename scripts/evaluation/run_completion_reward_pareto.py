@@ -26,6 +26,7 @@ import sys
 from pathlib import Path
 
 import numpy as np
+from loguru import logger
 
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 if str(_PROJECT_ROOT) not in sys.path:
@@ -96,8 +97,8 @@ def load_strategy_data() -> dict[str, dict]:
                 else:
                     # 更新已有策略的N为250（权威统计源）
                     strategies[name]["source"] = "dqn_ppo_fcfs_comparison + statistics.yaml (N=250)"
-    except ImportError:
-        pass
+    except ImportError as e:
+        logger.debug(f"可选依赖导入失败，跳过数据源2: {e}")
 
     # === 数据源3: 量子比例敏感度分析 (不同ratio下的PPO/FCFS) ===
     sens_path = _PROJECT_ROOT / "results" / "quantum_ratio_sensitivity.json"

@@ -103,8 +103,8 @@ def _json_default(o):
     if hasattr(o, "item"):
         try:
             return o.item()
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"numpy.item() 转换失败，尝试 tolist: {e}")
     if hasattr(o, "tolist"):
         return o.tolist()
     return str(o)
