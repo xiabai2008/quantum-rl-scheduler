@@ -21,6 +21,7 @@ from src.api.tianyan_cqlib import (
     MultiMachineCqlibCoordinator,
     create_multi_machine_clients,
 )
+from src.api.types import TaskResult
 
 __all__ = [
     "CircuitBreaker",
@@ -32,6 +33,7 @@ __all__ = [
     "MultiMachineCqlibCoordinator",
     "PhotonicBackend",
     "QuantumHardwareBackend",
+    "TaskResult",
     "TianyanAPIError",
     "TianyanClient",
     "create_hardware_backend",
