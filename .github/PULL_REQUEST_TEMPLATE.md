@@ -32,7 +32,7 @@ mypy src/
 ```
 
 - [ ] 单元测试全部通过
-- [ ] 覆盖率 ≥ 60%
+- [ ] 覆盖率 ≥ 80%（与 `pyproject.toml` `fail_under=80` 一致）
 - [ ] ruff check 通过
 - [ ] mypy 通过
 
