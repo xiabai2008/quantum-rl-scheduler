@@ -691,10 +691,10 @@ class TestQuboFlipDelta(unittest.TestCase):
     导致 Metropolis 接受概率偏离正确玻尔兹曼分布、累进能量漂移。
     """
 
-    def _analytic_delta(self, Q: np.ndarray, x: np.ndarray, k: int) -> float:
+    def _analytic_delta(self, q_matrix: np.ndarray, x: np.ndarray, k: int) -> float:
         x2 = x.copy()
         x2[k] = 1.0 - x2[k]
-        return float(x2 @ Q @ x2) - float(x @ Q @ x)
+        return float(x2 @ q_matrix @ x2) - float(x @ q_matrix @ x)
 
     def test_flip_delta_matches_analytic_many(self):
         rng = np.random.default_rng(42)
@@ -711,9 +711,7 @@ class TestQuboFlipDelta(unittest.TestCase):
         # 子代理示例：Q=[[1,2],[2,3]], x=[1,1], flip k=0 -> 真值 ΔE=-5
         Q = np.array([[1.0, 2.0], [2.0, 3.0]])
         x = np.array([1.0, 1.0])
-        self.assertAlmostEqual(
-            QuantumAnnealingOptimizer._qubo_flip_delta(Q, x, 0), -5.0, places=9
-        )
+        self.assertAlmostEqual(QuantumAnnealingOptimizer._qubo_flip_delta(Q, x, 0), -5.0, places=9)
 
 
 class TestNumpySimulatedAnnealing(unittest.TestCase):
@@ -723,12 +721,12 @@ class TestNumpySimulatedAnnealing(unittest.TestCase):
     稳定收敛到暴力枚举的全局最优。
     """
 
-    def _brute_force_min(self, Q: np.ndarray) -> float:
-        n = Q.shape[0]
+    def _brute_force_min(self, q: np.ndarray) -> float:
+        n = q.shape[0]
         best = float("inf")
         for mask in range(1 << n):
             x = np.array([float((mask >> i) & 1) for i in range(n)])
-            e = float(x @ Q @ x)
+            e = float(x @ q @ x)
             if e < best:
                 best = e
         return best

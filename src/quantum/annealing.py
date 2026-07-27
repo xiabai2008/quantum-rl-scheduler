@@ -1825,9 +1825,7 @@ class QuantumAnnealingOptimizer:
                 # 计算翻转后的能量变化（向量化，避免 Python 层内循环）
                 # 解析公式：ΔE = 2*(1-2x[flip])*(Q[flip]·x) + Q[flip,flip]
                 # 推导与回归测试见 _qubo_flip_delta
-                delta_energy = self._qubo_flip_delta(
-                    qubo_matrix, current_solution, flip_idx
-                )
+                delta_energy = self._qubo_flip_delta(qubo_matrix, current_solution, flip_idx)
 
                 # Metropolis 准则：以概率 min(1, exp(-ΔE/T)) 接受新解
                 if delta_energy < 0 or random.random() < math.exp(
