@@ -59,7 +59,8 @@ print("\n[对比] Standard vs Quantum-Noise-Calibrated PPO")
 
 results = {}
 for label in ["Standard", "QuantumNoise"]:
-    env = QuantumSchedulingEnv(max_steps=200, max_qubits=287, seed=42)
+    # Issue #457: 仿真规模对齐天衍-287 真实数据比特数（105 数据比特+182 耦合比特）
+    env = QuantumSchedulingEnv(max_steps=200, max_qubits=105, seed=42)
     sim_env = SimulationEnv(env=env, task_generator=SimulationTaskGenerator(seed=42))
 
     # 量子噪声注入：修改量子任务奖励
