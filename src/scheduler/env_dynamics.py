@@ -139,12 +139,27 @@ def advance_time(env: "QuantumSchedulingEnv", rng: np.random.Generator) -> None:
         # 在线状态随机波动（模拟真机维护/校准，5% 概率翻转）
         if rng.random() < 0.05:
             m.available = not m.available
-        # 该机器队列完成任务
-        completed_m = 0
-        for _ in range(m.quantum_queue):
-            if rng.random() < 0.15:  # 15% 概率完成一个量子任务
-                completed_m += 1
-        m.quantum_queue = max(0, m.quantum_queue - completed_m)
+            
+        # 处理空间并发的任务（基于 active_tasks）
+        if hasattr(m, "active_tasks") and hasattr(m, "used_qubits"):
+            completed_tasks = []
+            for t in m.active_tasks:
+                if rng.random() < 0.15:  # 15% 概率完成
+                    completed_tasks.append(t)
+            
+            for t in completed_tasks:
+                m.active_tasks.remove(t)
+                m.used_qubits -= getattr(t, "qubit_count", 0)
+                m.quantum_queue = max(0, m.quantum_queue - 1)
+                
+            m.used_qubits = max(0, m.used_qubits)
+        else:
+            # 兼容旧逻辑
+            completed_m = 0
+            for _ in range(m.quantum_queue):
+                if rng.random() < 0.15:  # 15% 概率完成一个量子任务
+                    completed_m += 1
+            m.quantum_queue = max(0, m.quantum_queue - completed_m)
 
     # 聚合到 env._quantum（保持旧版 obs/reward 逻辑不变）
     env._recompute_aggregate()
@@ -170,6 +185,13 @@ def advance_time(env: "QuantumSchedulingEnv", rng: np.random.Generator) -> None:
         if len(env._task_queue) < MAX_QUEUE_SIZE:
             new_id = env._total_scheduled + len(env._task_queue)
             env._task_queue.append(env._generate_random_task(rng, task_id=new_id))
+
+    # 更新任务到达率历史（支持 LSTM 突发流量预测）
+    if hasattr(env, "arrival_history"):
+        env.current_time_window_arrivals = new_task_count
+        env.arrival_history.append(new_task_count)
+        if len(env.arrival_history) > getattr(env, "max_arrival_history_length", 10):
+            env.arrival_history.pop(0)
 
 
 def pick_next_task(env: "QuantumSchedulingEnv") -> None:

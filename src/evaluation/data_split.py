@@ -53,10 +53,16 @@ class DataSplitter:
             元组 ``(train_seeds, test_seeds)``，两者互斥且并集为全集。
 
         Raises:
-            ValueError: ``seeds`` 为空或 ``train_ratio`` 不在 (0, 1) 区间。
+            ValueError: ``seeds`` 为空、``seeds`` 包含重复元素、或 ``train_ratio`` 不在 (0, 1) 区间。
         """
         if not seeds:
             raise ValueError("seeds 列表不能为空")
+        # Issue #386: 校验 seeds 无重复，防止训练/测试集重叠导致数据泄漏
+        if len(set(seeds)) != len(seeds):
+            duplicates = [s for s in set(seeds) if seeds.count(s) > 1]
+            raise ValueError(
+                f"seeds 列表包含重复元素: {duplicates}，训练/测试集可能重叠导致数据泄漏"
+            )
         if not 0.0 < train_ratio < 1.0:
             raise ValueError(f"train_ratio 必须在 (0, 1) 区间内，当前为 {train_ratio}")
 
@@ -96,10 +102,14 @@ class DataSplitter:
             长度为 k 的列表，每个元素为 ``(train_seeds, test_seeds)`` 元组。
 
         Raises:
-            ValueError: ``seeds`` 为空，或 ``k`` 不在 ``[2, len(seeds)]`` 区间。
+            ValueError: ``seeds`` 为空、``seeds`` 包含重复元素、或 ``k`` 不在 ``[2, len(seeds)]`` 区间。
         """
         if not seeds:
             raise ValueError("seeds 列表不能为空")
+        # Issue #386: 校验 seeds 无重复，防止 k 折交叉验证中训练/测试集重叠
+        if len(set(seeds)) != len(seeds):
+            duplicates = [s for s in set(seeds) if seeds.count(s) > 1]
+            raise ValueError(f"seeds 列表包含重复元素: {duplicates}，k 折分割可能重叠导致数据泄漏")
         if k < 2:
             raise ValueError(f"k 必须不小于 2，当前为 {k}")
         if k > len(seeds):

@@ -348,7 +348,13 @@ class ShortestJobFirstStrategy(BaseStrategy):
 # ---------------------------------------------------------------------------
 
 
-def make_env(tasks_per_episode: int, seed: int | None = None, obs_dim: int = 10) -> Any:
+def make_env(
+    tasks_per_episode: int,
+    seed: int | None = None,
+    obs_dim: int = 10,
+    arrival_lambda: float = 0.5,
+    quantum_ratio: float = 0.7,
+) -> Any:
     """创建仿真环境。
 
     Args:
@@ -356,6 +362,8 @@ def make_env(tasks_per_episode: int, seed: int | None = None, obs_dim: int = 10)
         seed: 随机种子
         obs_dim: 观测空间维度（10 或 14）。10 维使用 Obs10Wrapper 截断，
             14 维使用原生环境。
+        arrival_lambda: 泊松任务到达率（默认 0.5）
+        quantum_ratio: 量子任务占比（默认 0.7）
     """
     base = QuantumSchedulingEnv(
         max_steps=tasks_per_episode,

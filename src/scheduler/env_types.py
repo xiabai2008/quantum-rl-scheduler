@@ -37,15 +37,18 @@ OBS_SINGLE_GATE_FIDELITY = 10  # 单比特门平均保真度（SPAM error 补数
 OBS_TWO_GATE_FIDELITY = 11  # 两比特门平均保真度（CZ门误差率补数）
 OBS_COUPLING_DENSITY = 12  # 耦合图密度 = 实际连接数 / 全连接数
 OBS_AVG_CONNECTIVITY = 13  # 量子比特平均连通度 = 平均连接数 / max_connections
+OBS_CROSSTALK_RISK = 14  # 串扰风险（基于空间并发的任务密度）
+OBS_ARRIVAL_RATE_MA = 15  # 任务到达率滑动平均（流量突发感知）
 
-OBS_DIM = 14  # 状态空间维度（从10扩展到14）
+OBS_DIM = 16  # 状态空间维度（从15扩展到16）
 
 # ---------------------------------------------------------------------------
 # 动作常量
-# ---------------------------------------------------------------------------
+# ---------------------------------------------------------------------------   
 ACTION_CLASSICAL = 0  # 分配到经典计算资源
 ACTION_QUANTUM = 1  # 分配到量子计算资源
 ACTION_HYBRID = 2  # 混合执行
+ACTION_QUANTUM_QEM = 3  # 使用误差缓释（QEM）的量子执行
 
 # ---------------------------------------------------------------------------
 # 奖励参数（修改后：增强正确执行的奖励）
@@ -194,7 +197,11 @@ class QuantumMachine:
         two_gate_fidelity : 两比特门平均保真度（CZ门误差率补数）
         coupling_density : 耦合图密度 = 实际连接数 / 全连接数
         avg_connectivity : 量子比特平均连通度 = 平均连接数 / max_connections
+        active_tasks    : 当前正在该机器上并行执行的任务列表
+        used_qubits     : 当前已占用的量子比特数
     """
+
+    from dataclasses import field
 
     name: str = "tianyan_s"
     total_qubits: int = 287
@@ -210,6 +217,8 @@ class QuantumMachine:
     # 拓扑特征（阶段2）
     coupling_density: float = 0.5
     avg_connectivity: float = 0.5
+    active_tasks: list = field(default_factory=list)
+    used_qubits: int = 0
 
     def update_noise_features(self, rng: np.random.Generator) -> None:
         """
