@@ -33,7 +33,7 @@
 | R-F-01 | 实现量子任务的智能调度决策 | 功能 | `src/scheduler/env.py`<br>`src/scheduler/agent.py` | **已实现** | 单元测试 + 8策略对比 | "PPO 强化学习调度策略比 FCFS 提升 88.3%" | `results/reports/strategy_comparison.md` |
 | R-F-02 | 支持量子/经典/混合三种执行模式 | 功能 | `src/scheduler/env.py`<br>`src/scheduler/parser.py` | **已实现** | 单元测试 + 消融实验 | "系统支持任务智能分流到量子、经典或混合执行通道" | `src/scheduler/env.py` L46-200 |
 | R-F-03 | 接入天衍云真机 API | 功能 | `src/api/tianyan_client.py`<br>`src/api/tianyan_cqlib.py` | **已实现** | 真机提交验证 | "已成功提交 32 个量子任务到天衍云 3 台超导量子计算机" | `results/reports/real_machine_validation.md` |
-| R-F-04 | 实现量子退火优化RL训练（探索性方向） | 功能 | `src/quantum/annealing.py`<br>`src/scheduler/async_annealing_callback.py` | **已实现** | 5 Seed 消融实验 | "量子退火将策略网络权重映射为 QUBO 问题（当前使用经典模拟退火D-Wave neal），训练奖励提升 6.4%（p=0.190不显著，训练开销+74.5%）" | `results/reports/ablation_report.md` |
+| R-F-04 | 实现量子启发式退火优化RL训练（探索性方向） | 功能 | `src/quantum/annealing.py`<br>`src/scheduler/async_annealing_callback.py` | **已实现** | 5 Seed 消融实验 | "量子启发式退火将策略网络权重映射为 QUBO 问题（当前使用经典模拟退火D-Wave neal），训练奖励提升 6.4%（p=0.190不显著，训练开销+74.5%）" | `results/reports/ablation_report.md` |
 | R-F-05 | 支持多机器协同调度 | 功能 | `src/scheduler/marl.py`<br>`src/scheduler/env.py` | **已实现** | 单机 vs 多机对比 | "MAPPO 多智能体协同调度，3 台真机负载均衡 CV=0.246，奖励提升 86.3%" | `results/reports/ablation_report.md` |
 | R-F-06 | 任务解析与资源预估 | 功能 | `src/scheduler/parser.py` | **已实现** | 单元测试 | "支持 QASM 电路解析、资源约束校验、执行时间预估" | `tests/test_parser.py` |
 | R-F-07 | 多目标奖励设计（等待时间 + 利用率） | 功能 | `src/scheduler/multi_objective_env.py` | **已实现** | 多目标实验 + D3消融 | "多目标奖励函数同时优化吞吐量、资源平衡、服务质量；D3消融（7预设×2策略×10seeds）揭示各分量贡献占比：吞吐量27.6%、平衡21.2%、服务质量51.2%" | `tests/test_multi_objective.py`<br>`results/reports/d3_reward_ablation_report.md` |

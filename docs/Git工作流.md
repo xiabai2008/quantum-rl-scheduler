@@ -14,7 +14,7 @@
 main（保护分支，只接受PR合并）
   │
   ├── feature/rl-agent          ← 算法A开发RL智能体
-  ├── feature/quantum-annealing  ← 算法B开发量子退火
+  ├── feature/quantum-annealing  ← 算法B开发量子启发式退火
   ├── feature/task-parser        ← 算法C开发任务解析
   ├── feature/tianyan-api        ← 后端A开发天衍API
   ├── feature/scheduler-core     ← 后端B开发调度核心
@@ -84,7 +84,7 @@ git push origin feature/你的分支
 | type | 含义 | 示例 |
 |------|------|------|
 | `feat` | 新功能 | `feat: 实现DQN智能体训练循环` |
-| `fix` | 修Bug | `fix: 修复量子退火QUBO矩阵维度不匹配` |
+| `fix` | 修Bug | `fix: 修复量子启发式退火QUBO矩阵维度不匹配` |
 | `refactor` | 重构（不改功能） | `refactor: 提取奖励计算为独立函数` |
 | `test` | 添加测试 | `test: 添加任务解析器边界条件测试` |
 | `docs` | 文档 | `docs: 更新API接口文档` |

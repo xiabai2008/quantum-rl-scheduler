@@ -334,7 +334,7 @@ class TianyanCqlibClient(QuantumAPIClient):
     通过 cqlib SDK 直接连接天衍云超导量子计算机，支持：
     - 真机任务提交与结果查询
     - 多机器协调调度
-    - 量子退火任务提交（QUBO 问题求解）
+    - 量子启发式退火任务提交（QUBO 问题求解）
     """
 ```
 
@@ -416,7 +416,7 @@ def submit_annealing_task(
     machine_id: str = "tianyan_annealer"
 ) -> str:
     """
-    提交量子退火任务（QUBO 问题求解）
+    提交退火任务（QUBO 问题求解）
 
     Args:
         qubo_matrix: QUBO 矩阵（numpy 二维数组，形状 N×N）
@@ -1446,7 +1446,7 @@ QuantumSchedulerError (基类)
 ├── ConfigurationError (配置错误，不可重试)
 ├── TaskParseError (任务解析错误)
 ├── SchedulingError (调度错误)
-├── QuantumAnnealingError (量子退火错误)
+├── QuantumAnnealingError (量子启发式退火错误)
 ├── ResourceExhaustedError (资源耗尽错误)
 └── RateLimitError (API 限流错误，含 retry_after 属性，默认可重试)
 ```
@@ -1658,7 +1658,7 @@ API 层暴露以下 Prometheus 指标：
 | `tianyan_s` | 天衍-S | 287（105+182） | 超导量子计算机 |
 | `tianyan_sw` | 天衍-SW | 287（105+182） | 超导量子计算机 |
 | `tianyan_tn` | 天衍-TN | 287（105+182） | 超导量子计算机 |
-| `tianyan_annealer` | 天衍退火器 | - | 量子退火器 |
+| `tianyan_annealer` | 天衍退火器 | - | 退火求解器（仿真模拟退火） |
 
 ### 10.4 版本历史
 

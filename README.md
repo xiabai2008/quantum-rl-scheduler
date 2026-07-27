@@ -13,7 +13,7 @@
 
 **双向赋能机制：**
 - AI赋能量子：RL Agent 实时决策任务在量子/经典资源间的最优分流
-- 量子赋能AI：量子退火优化作为探索性方向（当前为经典模拟退火，训练有开销，奖励提升统计不显著）
+- 量子赋能AI：量子启发式退火[^annealing-sim]优化作为探索性方向（当前为经典模拟退火，训练有开销，奖励提升统计不显著）
 
 **量化目标：** 资源利用率提升 ≥30%
 
@@ -44,7 +44,7 @@ graph TB
     CLI --> Serve[Web监控面板 app.py]
     Train --> PPO[PPO / DQN / MAPPO]
     PPO --> Env[Gymnasium 14维调度环境]
-    Env --> Annealing[量子退火优化器 QUBO]
+    Env --> Annealing[量子启发式退火优化器 QUBO]
     Env --> Tianyan[天衍云API / 真机cqlib]
     Serve --> FastAPI[FastAPI 后端]
     FastAPI --> Vue[Vue3 + ECharts 前端]
@@ -57,7 +57,7 @@ quantum-rl-scheduler/
 │   ├── exceptions.py         # 统一异常体系（8 类）
 │   ├── scheduler/            # RL调度引擎（env + agent + parser + marl + multi_objective_env）
 │   ├── api/                  # 天衍云API封装（Mock/真实/cqlib 三模式 + 熔断器）
-│   ├── quantum/              # 量子退火加速模块（QUBO + 异步闭环）
+│   ├── quantum/              # 量子启发式退火加速模块（QUBO + 异步闭环）
 │   ├── visualization/        # FastAPI + Vue3 + Echarts 监控面板
 │   └── utils/                # 工具函数 + Prometheus 指标
 ├── tests/                    # 69 个测试文件，2500+ 用例
@@ -203,7 +203,7 @@ TIANYAN_API_KEY=你的真实API密钥
 | 深度学习 | PyTorch 2.0+ | 神经网络 |
 | 量子仿真 | Qiskit / PennyLane | 量子电路仿真 |
 | 量子真机 | 天衍云 cqlib SDK | 105数据比特+182耦合比特超导处理器 |
-| 量子退火 | D-Wave dimod / neal | QUBO求解 |
+| 量子启发式退火 | D-Wave dimod / neal | QUBO求解 |
 | Web后端 | FastAPI + Uvicorn | 监控API |
 | Web前端 | Vue3 + Echarts | 监控面板 |
 | CLI | Click | 统一命令行入口 |
@@ -244,7 +244,7 @@ TIANYAN_API_KEY=你的真实API密钥
 | RL智能体 | PPO（主力）+ DQN（备选）+ MAPPO（多智能体） | 已验证 |
 | 调度环境 | 14维状态空间 / 3类动作 / 异质化任务 | 已验证 |
 | 天衍API | Mock / REST / cqlib 三模式 + 多机器协调器 | 已验证 |
-| 量子退火 | QUBO映射 + 退火求解 + 异步闭环 | 已验证 |
+| 量子启发式退火 | QUBO映射 + 退火求解 + 异步闭环 | 已验证 |
 | 多机器调度 | 3台机器MAPPO协同，奖励+86.3%（仿真验证） | 已验证 |
 | 真机可用性验证 | 284次真机调用100%成功，SDK全链路验证 | 已完成 |
 | Web可视化 | FastAPI + Vue3 + Echarts + WebSocket | 已验证 |
@@ -356,3 +356,7 @@ python scripts/ci/validate_submission.py --pack
 ## 许可证
 
 MIT License © 2026 胡展瑞
+
+---
+
+[^annealing-sim]: 当前版本使用经典模拟退火（neal库）求解QUBO问题，真机量子退火为后续工作。详见 [技术瓶颈分析](docs/technical_bottlenecks.md) 瓶颈1。
