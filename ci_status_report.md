@@ -14,7 +14,7 @@
 |------|------|
 | **main 分支最近 CI 状态** | **FAILURE（连续 3 次 push 失败）** |
 | PR 级别 CI 状态 | 全部通过（最近 4 个 PR 均 success） |
-| 测试覆盖率门槛 | **70%**（`--cov-fail-under=70`） |
+| 测试覆盖率门槛 | **80%**（`--cov-fail-under=80`） |
 | Release Tag | **无**（无 v* 标签，无 GitHub Release） |
 | Open Issues 数量 | **12 个** |
 | 最近 PR 状态 | **#89 已合并**（MERGED） |
@@ -48,9 +48,9 @@
 
 ### 覆盖率门槛
 ```yaml
---cov-fail-under=70
+--cov-fail-under=80
 ```
-- **覆盖率低于 70% 将直接阻断 CI**（pytest 返回非零退出码）
+- **覆盖率低于 80% 将直接阻断 CI**（pytest 返回非零退出码）
 - 覆盖率报告格式：term-missing（终端显示）+ xml（Codecov 上传）
 - Codecov 上传仅在 `ubuntu-latest + Python 3.11` 条件下执行，且 `fail_ci_if_error: false`（上传失败不阻断）
 
@@ -59,7 +59,7 @@
 | Job | 名称 | 运行环境 | 依赖 | 阻断条件 | 超时 |
 |-----|------|----------|------|----------|------|
 | **lint** | Lint (ruff format + ruff check + bandit) | ubuntu-latest | 无 | **严格阻断** | 10min |
-| **test** | Test (Python 3.10/3.11/3.12 矩阵) | windows-latest | lint | **严格阻断**（含覆盖率<70%） | 30min |
+| **test** | Test (Python 3.10/3.11/3.12 矩阵) | windows-latest | lint | **严格阻断**（含覆盖率<80%） | 30min |
 | **typecheck** | Type Check (mypy) | ubuntu-latest | lint | **严格阻断** | 10min |
 | **security-audit** | Dependency Security Audit (pip-audit) | ubuntu-latest | lint | **不阻断**（continue-on-error: true） | 10min |
 | **mutation-testing** | Mutation Testing (mutmut) | ubuntu-latest | test | **不阻断**（continue-on-error: true，仅 main push） | 30min |
@@ -70,7 +70,7 @@
 2. **ruff check**：代码静态检查发现错误 → 阻断
 3. **bandit -ll**：安全扫描发现中高危漏洞 → 阻断
 4. **pytest 测试失败**：任何测试用例失败 → 阻断
-5. **覆盖率 < 70%**：`--cov-fail-under=70` → 阻断
+5. **覆盖率 < 80%**：`--cov-fail-under=80` → 阻断
 6. **单测超时 > 120s**：`--timeout=120` → 阻断
 7. **mypy 类型检查失败**（strict mode）→ 阻断
 
