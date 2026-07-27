@@ -6,7 +6,7 @@
 
 ## 1. 背景与目标
 
-当前量子退火优化器（`QuantumAnnealingOptimizer`）默认使用 `head_only` 模式，仅覆盖网络尾部 4 个参数张量（action_net + value_net 输出头），无法优化共享特征提取层（mlp_extractor）的参数。这导致退火优化覆盖的参数比例不足 12%，限制了量子退火对策略网络的全面优化能力。
+当前量子启发式退火优化器（`QuantumAnnealingOptimizer`）默认使用 `head_only` 模式，仅覆盖网络尾部 4 个参数张量（action_net + value_net 输出头），无法优化共享特征提取层（mlp_extractor）的参数。这导致退火优化覆盖的参数比例不足 12%，限制了量子启发式退火对策略网络的全面优化能力。
 
 **Issue #148 目标**：启用分层 QUBO 退火模式（`hierarchical`），通过分块策略逐块构造小规模 QUBO 并退火求解，覆盖全量网络参数，突破 `head_only` 的覆盖限制和全量 QUBO 的 OOM 风险。
 

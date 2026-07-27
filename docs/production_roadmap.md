@@ -64,7 +64,7 @@
 
 **评分说明**：
 - **功能完整性（8.5/10）**：核心调度三策略（PPO/DQN/FCFS）完整实现并经50seed统计验证，量子退火模块集成且可开关，DAG工作流支持多任务依赖调度。扣分项：多租户调度引擎尚未集成到调度主循环。
-- **测试覆盖率（9.1/10）**：CI强制覆盖率门槛70%，实际达91%，107+测试用例覆盖单元/集成/property-based/mutation测试。扣分项：跨平台测试仅Windows runner。
+- **测试覆盖率（9.1/10）**：CI强制覆盖率门槛80%，实际达93.58%，107+测试用例覆盖单元/集成/property-based/mutation测试。扣分项：跨平台测试仅Windows runner。
 - **部署自动化（7.0/10）**：Docker多阶段构建+docker-compose一键部署，CI 6 Job全严格阻断（lint/test/typecheck/security/mutation/benchmark）。扣分项：缺CD（持续部署）管道，无自动化发布流程。
 - **监控告警（6.5/10）**：loguru结构化日志完整，FastAPI健康检查端点（/health、/ready、/ws），7类Prometheus指标定义。扣分项：Prometheus/Grafana实际部署缺失，Alertmanager未配置通知渠道。
 - **文档完备性（8.0/10）**：Code_Wiki.md覆盖全模块，AGENTS.md项目记忆完整，10+实验报告，答辩QA手册。扣分项：缺运维SOP（标准作业程序）和故障排查手册。
@@ -280,7 +280,7 @@
 | 维度 | 权重 | 评分标准 | 当前得分 |
 |------|------|---------|---------|
 | 功能完整性 | 25% | 核心功能（调度/训练/评估/真机集成）全部实现，无阻塞性缺陷 | 9.0/10 |
-| 测试覆盖率 | 20% | 覆盖率 ≥70%（实际 91%），含 property-based / mutation / benchmark 测试 | 9.5/10 |
+| 测试覆盖率 | 20% | 覆盖率 ≥80%（实际 93.58%），含 property-based / mutation / benchmark 测试 | 9.5/10 |
 | 部署自动化 | 20% | Docker 一键部署 + CI/CD 流水线 + 检查点管理 | 7.5/10 |
 | 监控告警 | 15% | Prometheus 7 指标 + /metrics 端点 + 熔断器 + 配额追踪 | 7.0/10 |
 | 文档完备性 | 20% | AGENTS.md + 18 份实验报告 + API 参考 + 答辩 QA 手册 | 8.0/10 |

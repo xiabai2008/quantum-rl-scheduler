@@ -28,6 +28,7 @@ from src.scheduler.env_machines import (
 )
 from src.scheduler.env_observation import get_info, get_observation
 from src.scheduler.env_real_machine import (
+    FREE_TIER_MAX_QUBITS,
     poll_pending_real_tasks,
     record_real_failure,
     submit_to_real_machine,
@@ -63,6 +64,7 @@ from src.scheduler.env_types import (
     REAL_MACHINE_DEGRADE_FAIL_THRESHOLD,
     REAL_MACHINE_FAIL_PENALTY,
     REAL_MACHINE_MAX_POLL_STEPS,
+    REAL_MACHINE_SUBMIT_INTERVAL,
     REAL_MACHINE_SUCCESS_BONUS,
     REAL_SUBMIT_PROBABILITY_DEFAULT,
     REWARD_CLASSICAL,
@@ -107,6 +109,7 @@ __all__ = [
     "REAL_MACHINE_DEGRADE_FAIL_THRESHOLD",
     "REAL_MACHINE_FAIL_PENALTY",
     "REAL_MACHINE_MAX_POLL_STEPS",
+    "REAL_MACHINE_SUBMIT_INTERVAL",
     "REAL_MACHINE_SUCCESS_BONUS",
     "REAL_SUBMIT_PROBABILITY_DEFAULT",
     "REWARD_CLASSICAL",
@@ -142,6 +145,7 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
         seed: int | None = None,
         machine_configs: list[dict[str, Any]] | None = None,
         real_submit_probability: float = REAL_SUBMIT_PROBABILITY_DEFAULT,
+        real_submit_interval: int = REAL_MACHINE_SUBMIT_INTERVAL,
         use_real_machine: bool = False,
         real_machine_feedback_weight: float = 1.0,
         max_real_submissions: int | None = None,
@@ -150,6 +154,7 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
         tenant_manager: Any | None = None,
         arrival_lambda: float | Callable[[int, int], float] | None = None,
         quantum_task_ratio: float | None = None,
+        real_machine_max_qubits: int = FREE_TIER_MAX_QUBITS,
     ):
         """初始化量子任务调度环境（参数详见子模块文档）。"""
         super().__init__()
@@ -158,14 +163,21 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
         self.max_qubits = max_qubits
         self.render_mode = render_mode
         self.real_submit_probability = float(real_submit_probability)
+        # Issue #243: 间隔触发保底（每N步强制提交一次），与概率触发共存
+        if real_submit_interval < 1:
+            raise ValueError("real_submit_interval must be >= 1")
+        self.real_submit_interval = int(real_submit_interval)
         self.use_real_machine = bool(use_real_machine)
         self.real_machine_feedback_weight = float(real_machine_feedback_weight)
         if max_real_submissions is not None and max_real_submissions < 0:
             raise ValueError("max_real_submissions must be non-negative or None")
         if real_machine_shots <= 0:
             raise ValueError("real_machine_shots must be positive")
+        if real_machine_max_qubits <= 0:
+            raise ValueError("real_machine_max_qubits must be positive")
         self.max_real_submissions = max_real_submissions
         self.real_machine_shots = int(real_machine_shots)
+        self.real_machine_max_qubits = int(real_machine_max_qubits)
         # 真机结果反馈模式（Issue #235）：status_only / result_aware / shuffled
         from src.scheduler.env_types import REAL_FEEDBACK_MODES
 
@@ -225,6 +237,8 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
         self._pending_real_tasks: list[dict[str, Any]] = []
         # _real_result_records: 真机结果详细记录（Issue #235 可追溯性）
         self._real_result_records: list[dict[str, Any]] = []
+        # _real_feedback_log: 真机因果记录（Issue #235，"RL动作→真机任务→结果→reward"因果链）
+        self._real_feedback_log: list[dict[str, Any]] = []
         self._real_machine_degraded: bool = False  # 降级标志：True 时跳过真机提交
         self._real_consecutive_failures: int = 0  # 连续失败计数（触发降级）
         self._real_success_count: int = 0
@@ -350,6 +364,7 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
         # 仅在 __init__ 中初始化，reset 不清零，确保训练汇总统计准确
         self._pending_real_tasks = []
         self._real_result_records = []
+        self._real_feedback_log = []
 
         # 随机初始化任务队列（5-20 个任务）
         self._task_queue = []
@@ -440,15 +455,36 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
                     reward += self._compute_execution_reward(task, action, rng)
                     self._total_scheduled += 1
 
+                    # 构建观测快照（Issue #234）：记录关键状态字段用于因果追溯
+                    _obs_snapshot: dict[str, Any] = {
+                        "queue_length": len(self._task_queue),
+                        "qubit_avail": self._quantum.available_ratio,
+                        "fidelity": self._quantum.fidelity,
+                        "classical_load": self._classical.load,
+                        "quantum_queue": self._quantum.quantum_queue,
+                    }
+
                     if action == ACTION_QUANTUM:
                         self._quantum_success += 1
-                        self._route_to_machine(selected_machine, task, rng)
+                        self._route_to_machine(
+                            selected_machine,
+                            task,
+                            rng,
+                            rl_action=action,
+                            observation_snapshot=_obs_snapshot,
+                        )
                     elif action == ACTION_CLASSICAL:
                         self._classical_success += 1
                         self._last_selected_machine = None
                     else:
                         self._hybrid_success += 1
-                        self._route_to_machine(selected_machine, task, rng)
+                        self._route_to_machine(
+                            selected_machine,
+                            task,
+                            rng,
+                            rl_action=action,
+                            observation_snapshot=_obs_snapshot,
+                        )
 
                     machine_tag = (
                         f"@{selected_machine.name}" if selected_machine is not None else ""
@@ -525,12 +561,25 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
         return machine_supports_task(machine, task)
 
     def _route_to_machine(
-        self, machine: QuantumMachine | None, task: Task, rng: np.random.Generator
+        self,
+        machine: QuantumMachine | None,
+        task: Task,
+        rng: np.random.Generator,
+        rl_action: int = -1,
+        rl_action_prob: float = 0.0,
+        observation_snapshot: dict[str, Any] | None = None,
     ) -> None:
-        route_to_machine(self, machine, task, rng)
+        route_to_machine(self, machine, task, rng, rl_action, rl_action_prob, observation_snapshot)
 
-    def _submit_to_real_machine(self, machine: QuantumMachine, task: Task) -> None:
-        submit_to_real_machine(self, machine, task)
+    def _submit_to_real_machine(
+        self,
+        machine: QuantumMachine,
+        task: Task,
+        rl_action: int = -1,
+        rl_action_prob: float = 0.0,
+        observation_snapshot: dict[str, Any] | None = None,
+    ) -> None:
+        submit_to_real_machine(self, machine, task, rl_action, rl_action_prob, observation_snapshot)
 
     def _record_real_failure(self, machine_name: str, reason: str) -> None:
         record_real_failure(self, machine_name, reason)

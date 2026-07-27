@@ -23,7 +23,6 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
-from numpy.typing import NDArray
 
 from src.scheduler.env import (
     DEFAULT_MACHINE_CONFIGS,
@@ -583,7 +582,7 @@ class AblationRunner:
         return env
 
     @staticmethod
-    def _fcfs_action(obs: NDArray[Any]) -> int:
+    def _fcfs_action(obs: np.ndarray) -> int:
         """
         FCFS 基线策略：按任务类型路由到兼容资源。
 
@@ -601,7 +600,7 @@ class AblationRunner:
         return 0  # ACTION_CLASSICAL（含 universal 默认走经典）
 
     @staticmethod
-    def _make_random_policy(rng: np.random.Generator) -> Callable[[NDArray[Any]], int]:
+    def _make_random_policy(rng: np.random.Generator) -> Callable[[np.ndarray], int]:
         """
         构造随机策略（RL 的代理），从 {0,1,2} 均匀采样。
 
@@ -609,10 +608,10 @@ class AblationRunner:
             rng: 已设种子的随机数生成器
 
         Returns:
-            Callable[[NDArray[Any]], int]: 接收观测、返回动作的策略函数
+            Callable[[np.ndarray], int]: 接收观测、返回动作的策略函数
         """
 
-        def _policy(_obs: NDArray[Any]) -> int:
+        def _policy(_obs: np.ndarray) -> int:
             return int(rng.integers(0, 3))
 
         return _policy

@@ -111,6 +111,9 @@ results/multiseed_evaluation/*
 !results/real_machine/tianyan287/**
 !results/real_machine/tianyan287_multiseed/
 !results/real_machine/tianyan287_multiseed/**
+# Issue #249: 多比特真机验证实验数据（<5KB），作为可信度证据入库
+!results/real_machine/multi_qubit_validation/
+!results/real_machine/multi_qubit_validation/**
 
 # ── 变异测试 / 临时虚拟环境（切勿提交）──
 mutants/

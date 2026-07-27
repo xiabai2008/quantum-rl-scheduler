@@ -17,6 +17,7 @@ _real_clients 等），从而避免循环导入。
 
 import math
 import random
+from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any
 
 from loguru import logger
@@ -36,6 +37,7 @@ from src.scheduler.env_types import (
 
 if TYPE_CHECKING:
     # 仅用于类型标注，避免运行时循环导入
+    from src.api.types import TaskResult
     from src.scheduler.env import QuantumSchedulingEnv
 
 
@@ -66,6 +68,7 @@ def generate_qcis_circuit(
     max_qubits: int = _MAX_REAL_QUBITS,
     seed: int | None = None,
     two_qubit_gates: bool = False,
+    circuit_type: str = "random",
 ) -> str:
     """根据任务参数生成适合真机执行的 QCIS 电路。
 
@@ -84,6 +87,7 @@ def generate_qcis_circuit(
         max_qubits      : 真机最大比特数限制（默认 287）
         seed            : 可选的随机种子（用于可复现测试）
         two_qubit_gates : 是否包含两比特纠缠门（默认 False，真机稳定模式）
+        circuit_type    : 电路模板（random / bell / ghz3，默认 random）
 
     Returns:
         QCIS 格式的电路字符串，每行一条指令
@@ -94,6 +98,23 @@ def generate_qcis_circuit(
         >>> assert "H" in qcis or "X" in qcis
         >>> assert "M" in qcis
     """
+    if max_qubits <= 0:
+        raise ValueError("max_qubits must be positive")
+    if circuit_type not in {"random", "bell", "ghz3"}:
+        raise ValueError("circuit_type must be one of: random, bell, ghz3")
+
+    template_qubits = {"bell": 2, "ghz3": 3}
+    if circuit_type in template_qubits:
+        required_qubits = template_qubits[circuit_type]
+        if max_qubits < required_qubits:
+            raise ValueError(
+                f"{circuit_type} circuit requires at least {required_qubits} qubits, "
+                f"but max_qubits={max_qubits}"
+            )
+        if circuit_type == "bell":
+            return "H Q0\nCNOT Q0 Q1\nM Q0 Q1"
+        return "H Q0\nCNOT Q0 Q1\nCNOT Q1 Q2\nM Q0 Q1 Q2"
+
     rng = random.Random(seed if seed is not None else hash(task.task_id))
 
     # 确定参与比特数：至少 1 个，不超过任务需求和真机上限
@@ -137,16 +158,19 @@ def generate_qcis_circuit(
 # =============================================================================
 
 
-def parse_measurement_result(status: dict[str, Any]) -> dict[str, float]:
-    """从真机任务状态中解析测量概率分布。
+def parse_measurement_result(
+    status: "TaskResult | Mapping[str, Any]",
+) -> dict[str, float]:
+    """从统一任务结果或旧状态字典中解析测量概率分布。
 
-    天衍云 cqlib 返回的 status 字典可能包含：
+    Mock 与 cqlib 客户端的 ``TaskResult`` 以及兼容期旧字典可能包含：
     - ``probability``: 直接的概率分布字典 {"0": 0.5, "1": 0.5}
+    - ``counts``: 原始 shots 计数，在 probability 缺失时转换为概率
     - ``resultStatus``: 原始 shots 计数，需转换为概率
     - ``result``: 某些版本返回的嵌套结果
 
     Args:
-        status: get_task_status() 返回的状态字典
+        status: get_task_status() 返回的 ``TaskResult`` 或兼容字典
 
     Returns:
         归一化的概率分布字典 {"bitstring": probability}，空字典表示解析失败
@@ -155,7 +179,7 @@ def parse_measurement_result(status: dict[str, Any]) -> dict[str, float]:
 
     # 路径 1: 直接的 probability 字段
     raw_prob = status.get("probability")
-    if raw_prob and isinstance(raw_prob, dict):
+    if raw_prob and isinstance(raw_prob, Mapping):
         for key, val in raw_prob.items():
             try:
                 probability[str(key)] = float(val)
@@ -167,7 +191,17 @@ def parse_measurement_result(status: dict[str, Any]) -> dict[str, float]:
                 probability = {k: v / total for k, v in probability.items()}
             return probability
 
-    # 路径 2: resultStatus 原始 shots 计数
+    # 路径 2: 统一 TaskResult / Mock 的 counts 字段
+    raw_counts = status.get("counts")
+    if raw_counts and isinstance(raw_counts, Mapping):
+        try:
+            total_shots = sum(float(value) for value in raw_counts.values())
+            if total_shots > 0:
+                return {str(key): float(value) / total_shots for key, value in raw_counts.items()}
+        except (ValueError, TypeError):
+            pass
+
+    # 路径 3: resultStatus 原始 shots 计数
     result_status = status.get("resultStatus")
     if result_status and isinstance(result_status, str):
         try:
@@ -179,14 +213,14 @@ def parse_measurement_result(status: dict[str, Any]) -> dict[str, float]:
                 if total_shots > 0:
                     probability = {str(k): float(v) / total_shots for k, v in counts.items()}
                     return probability
-        except (json.JSONDecodeError, ValueError, TypeError):
-            pass
+        except (json.JSONDecodeError, ValueError, TypeError) as e:
+            logger.debug(f"resultStatus JSON 解析失败: {e}")
 
-    # 路径 3: result 字段（嵌套 probability）
+    # 路径 4: result 字段（嵌套 probability）
     result = status.get("result")
-    if result and isinstance(result, dict):
+    if result and isinstance(result, Mapping):
         inner_prob = result.get("probability")
-        if inner_prob and isinstance(inner_prob, dict):
+        if inner_prob and isinstance(inner_prob, Mapping):
             for key, val in inner_prob.items():
                 try:
                     probability[str(key)] = float(val)
@@ -238,6 +272,12 @@ def compute_theoretical_distribution(qcis: str) -> dict[str, float]:
         parts = line.replace("M", "").strip().split()
         measure_qubits.extend(parts)
     n_qubits = max(1, len(measure_qubits))
+
+    normalized_gates = [" ".join(gate.split()) for gate in gates]
+    if normalized_gates == ["H Q0", "CNOT Q0 Q1"] and n_qubits == 2:
+        return {"00": 0.5, "11": 0.5}
+    if normalized_gates == ["H Q0", "CNOT Q0 Q1", "CNOT Q1 Q2"] and n_qubits == 3:
+        return {"000": 0.5, "111": 0.5}
 
     if has_h and not has_x:
         # H 门产生均匀分布
@@ -367,6 +407,9 @@ def submit_to_real_machine(
     env: "QuantumSchedulingEnv",
     machine: QuantumMachine,
     task: Task,
+    rl_action: int = -1,
+    rl_action_prob: float = 0.0,
+    observation_snapshot: dict[str, Any] | None = None,
 ) -> None:
     """
     向真机提交一个量子任务（非阻塞，异常安全）。
@@ -378,10 +421,17 @@ def submit_to_real_machine(
     降级机制（Issue #64）：当 ``env._real_machine_degraded=True`` 时跳过提交，
     真机不可用时自动 fallback 到 Mock（仅计入仿真统计）。
 
+    RL 动作上下文（Issue #234）：pending 记录中增加 ``rl_action``、
+    ``rl_action_prob``、``observation_snapshot``、``machine_score`` 字段，
+    建立"RL决策→真机任务"的因果链。
+
     Args:
-        env     : 调度环境实例（提供真机客户端、pending 列表等内部状态）
-        machine : 目标真机
-        task    : 待提交任务
+        env                 : 调度环境实例（提供真机客户端、pending 列表等内部状态）
+        machine             : 目标真机
+        task                : 待提交任务
+        rl_action           : RL 动作类型（0=classical, 1=quantum, 2=hybrid，默认 -1 表示未知）
+        rl_action_prob      : 该动作被选择的概率（默认 0.0）
+        observation_snapshot: 观测向量摘要（队列长度、机器负载等关键字段，非完整向量）
     """
     # 降级保护：已知真机不可用时直接返回，不再消耗机时
     if env._real_machine_degraded:
@@ -408,7 +458,10 @@ def submit_to_real_machine(
     if not qcis:
         qcis = generate_qcis_circuit(
             task,
-            max_qubits=min(machine.total_qubits, FREE_TIER_MAX_QUBITS),
+            max_qubits=min(
+                machine.total_qubits,
+                getattr(env, "real_machine_max_qubits", FREE_TIER_MAX_QUBITS),
+            ),
         )
 
     try:
@@ -421,6 +474,10 @@ def submit_to_real_machine(
         # 登记到 pending 列表，后续轮询结果（Issue #64）
         # real_task_id 为 None 表示提交被拒绝（如机器校准中），计入失败
         if real_task_id is not None:
+            # 计算 machine_score（与 select_best_machine 评分公式一致）
+            machine_score = (
+                machine.fidelity * machine.available_ratio / (1.0 + machine.quantum_queue)
+            )
             env._pending_real_tasks.append(
                 {
                     "task_id": str(real_task_id),
@@ -429,6 +486,11 @@ def submit_to_real_machine(
                     "poll_count": 0,
                     "task_id_str": str(task.task_id),
                     "qcis_circuit": qcis,
+                    # RL 动作上下文（Issue #234）
+                    "rl_action": rl_action,
+                    "rl_action_prob": rl_action_prob,
+                    "observation_snapshot": observation_snapshot or {},
+                    "machine_score": float(machine_score),
                 }
             )
             if env.use_real_machine:
@@ -523,6 +585,7 @@ def poll_pending_real_tasks(env: "QuantumSchedulingEnv") -> float:
         # 客户端丢失（理论上不应发生），视为失败
         if client is None:
             total_feedback += REAL_MACHINE_FAIL_PENALTY * env.real_machine_feedback_weight
+            _record_causal_feedback(env, pending, {}, REAL_MACHINE_FAIL_PENALTY, -1.0, "", "failed")
             record_real_failure(env, machine_name, "客户端丢失")
             continue
 
@@ -546,6 +609,11 @@ def poll_pending_real_tasks(env: "QuantumSchedulingEnv") -> float:
             # 记录详细结果元数据（Issue #235 可追溯性）
             _record_real_result(env, pending, status, reward_delta, fidelity, formula)
 
+            # 写入因果记录到 _real_feedback_log（Issue #235）
+            _record_causal_feedback(
+                env, pending, status, reward_delta, fidelity, formula, "completed"
+            )
+
             # 真机执行时间回写队列（Issue #64 增强）
             actual_duration = status.get("execution_time_s", None)
             _update_task_duration(env, task_id_str, actual_duration)
@@ -558,10 +626,16 @@ def poll_pending_real_tasks(env: "QuantumSchedulingEnv") -> float:
         elif status_str == "error":
             # 真机失败：负向反馈 + 降级判断
             total_feedback += REAL_MACHINE_FAIL_PENALTY * env.real_machine_feedback_weight
+            _record_causal_feedback(
+                env, pending, status, REAL_MACHINE_FAIL_PENALTY, -1.0, "", "failed"
+            )
             record_real_failure(env, machine_name, "任务状态=error")
         elif pending["poll_count"] >= REAL_MACHINE_MAX_POLL_STEPS:
             # 超时：视为失败
             total_feedback += REAL_MACHINE_FAIL_PENALTY * env.real_machine_feedback_weight
+            _record_causal_feedback(
+                env, pending, status, REAL_MACHINE_FAIL_PENALTY, -1.0, "", "timeout"
+            )
             record_real_failure(env, machine_name, "轮询超时")
             logger.debug(
                 f"[真机闭环] 任务 {task_id_str} 轮询超时 (poll_count={pending['poll_count']})"
@@ -671,6 +745,61 @@ def _record_real_result(
     }
 
     env._real_result_records.append(record)
+
+
+def _record_causal_feedback(
+    env: "QuantumSchedulingEnv",
+    pending: dict[str, Any],
+    status: dict[str, Any],
+    reward: float,
+    fidelity: float,
+    formula: str,
+    outcome: str,
+) -> None:
+    """写入完整因果记录到 ``env._real_feedback_log``（Issue #235）。
+
+    记录"RL动作→真机任务→结果→reward"的完整因果链，每条记录包含：
+    - 提交步数 / 完成步数
+    - RL 动作类型和概率（来自 Issue #234 的 pending 记录）
+    - 任务 ID / 真机任务 ID / 机器名
+    - QCIS 电路 / 测量概率分布 / 保真度
+    - reward / 计算公式 / 结果状态
+
+    在成功、失败、超时场景下均写入记录（通过 ``outcome`` 字段区分）。
+
+    Args:
+        env      : 调度环境实例
+        pending  : pending 任务记录（含 rl_action, rl_action_prob 等字段）
+        status   : 真机返回的状态字典（失败时可为空字典）
+        reward   : 实际 reward 值
+        fidelity : 保真度（-1 表示未计算）
+        formula  : 计算公式描述（失败时为空字符串）
+        outcome  : 结果状态："completed" / "failed" / "timeout"
+    """
+    if not hasattr(env, "_real_feedback_log"):
+        env._real_feedback_log = []
+
+    measured = parse_measurement_result(status) if fidelity >= 0 and status else {}
+
+    record: dict[str, Any] = {
+        "submit_step": pending.get("submit_step", 0),
+        "complete_step": env._current_step,
+        "rl_action": pending.get("rl_action", -1),
+        "rl_action_prob": pending.get("rl_action_prob", 0.0),
+        "task_id": pending.get("task_id_str", ""),
+        "real_task_id": pending.get("task_id", ""),
+        "machine_name": pending.get("machine_name", ""),
+        "qcis_circuit": pending.get("qcis_circuit", ""),
+        "machine_score": pending.get("machine_score", 0.0),
+        "observation_snapshot": pending.get("observation_snapshot", {}),
+        "measured_prob": measured,
+        "fidelity": round(fidelity, 6) if fidelity >= 0 else None,
+        "reward": round(reward, 6),
+        "formula": formula,
+        "outcome": outcome,
+    }
+
+    env._real_feedback_log.append(record)
 
 
 # =============================================================================

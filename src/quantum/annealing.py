@@ -1,10 +1,18 @@
 """
-量子退火加速 RL 策略搜索模块
-Quantum Annealing Accelerator for Reinforcement Learning Policy Optimization
+量子启发式退火加速 RL 策略搜索模块
+Quantum-Inspired Annealing Accelerator for Reinforcement Learning Policy Optimization
+
+.. deprecated:: 2026-07-27
+    退火已降级为**探索性功能**，默认关闭，不再投入开发。
+    - 统计显著性不达标：配对Wilcoxon p=0.9430（需N=95才达80%功效）
+    - 实为经典模拟退火（neal库），非真机量子退火
+    - 量子赋能AI主方向已转向**真机噪声反馈优化PPO鲁棒性**
+    - 代码保留用于展示QUBO建模能力，竞赛答辩诚实标注为"探索性补充"
+    - 通过 ``annealing.enabled=false``（默认）或 ``ANNEALING_ENABLED=false`` 关闭
 
 核心思想：
     将 DQN 策略网络的参数优化问题映射为 QUBO（Quadratic Unconstrained Binary Optimization）问题，
-    利用量子退火器（或仿真模拟退火）来高效求解，从而加速策略搜索过程。
+    利用仿真模拟退火来高效求解，从而加速策略搜索过程。
 
 QUBO 问题形式：min  x^T Q x，其中 x ∈ {0,1}^n, Q 为 n×n 的实数矩阵。
 
@@ -22,7 +30,6 @@ import math
 import os
 import random
 import time
-import warnings
 from typing import Any
 
 import numpy as np
@@ -68,6 +75,7 @@ class QuantumAnnealingOptimizer:
 
     Attributes:
         num_qubits    : 量子比特数，决定 QUBO 问题的规模
+        n_bits_per_weight: 每个权重的编码位数（1 个符号位 + 数值位）
         annealing_time: 退火时间（微秒），仅在真机模式下生效
         shots         : 每次退火的采样次数，用于统计最优解
         use_dw        : 是否使用 D-Wave SDK 仿真器（优先级高于 numpy 仿真）
@@ -82,6 +90,8 @@ class QuantumAnnealingOptimizer:
         shots: int = 1000,
         simulation_mode: bool = True,
         cqlib_client: Any = None,
+        n_bits_per_weight: int = 4,
+        max_qubo_memory_mb: float = 64.0,
     ):
         """
         初始化量子退火策略优化器
@@ -97,21 +107,35 @@ class QuantumAnnealingOptimizer:
                             否则降级为仿真并打印日志。默认 True。
             cqlib_client  : 天衍云 cqlib 客户端实例（可选）。simulation_mode=False
                             且客户端具备 submit_annealing_task 方法时尝试真机退火。
+            n_bits_per_weight: 每个权重的编码位数（默认 4），其中 1 位为符号位。
+            max_qubo_memory_mb: 单个 QUBO 矩阵允许的最大内存（MiB，默认 64）。
+                                当 n_bits_per_weight 较大（如 8）时，QUBO 矩阵
+                                规模为 (num_weights * n_bits)²，此参数防止内存溢出。
         """
+        if n_bits_per_weight < 2:
+            raise ValueError("n_bits_per_weight 必须至少为 2（1 个符号位 + 1 个数值位）")
+        if max_qubo_memory_mb <= 0:
+            raise ValueError("max_qubo_memory_mb 必须大于 0")
         self.num_qubits = num_qubits
+        self.n_bits_per_weight = n_bits_per_weight
+        self.max_qubo_memory_mb = max_qubo_memory_mb
+        self.last_qubo_memory_bytes: int = 0
         self.annealing_time = annealing_time
         self.shots = shots
         self.simulation_mode = bool(simulation_mode)
         self.cqlib_client = cqlib_client
 
         # 检查比特编码精度，过低则发出警告
-        n_bits_per_weight = max(1, num_qubits // 4)
-        if n_bits_per_weight < 4:
+        if self.n_bits_per_weight < 4:
             logger.warning(
-                f"量子比特数 {num_qubits} 较低，每权重仅 {n_bits_per_weight} bit 编码 "
-                f"（1 符号位 + {n_bits_per_weight - 1} 数值位），精度可能不足。"
-                "建议 num_qubits ≥ 16 以获得更好的优化效果。"
+                f"每权重仅 {self.n_bits_per_weight} bit 编码 "
+                f"（1 符号位 + {self.n_bits_per_weight - 1} 数值位），精度可能不足。"
+                "建议 n_bits_per_weight ≥ 4 以获得更好的优化效果。"
             )
+        logger.info(
+            f"权重编码精度: {self.n_bits_per_weight} bit "
+            f"（1 符号位 + {self.n_bits_per_weight - 1} 数值位）"
+        )
 
         # 自动选择求解器：
         #   优先使用 D-Wave neal 模拟退火器（如果 SDK 可用）
@@ -138,6 +162,50 @@ class QuantumAnnealingOptimizer:
         self._last_solver: str = "none"
         # 记录最后一次 optimize_policy 的退火统计（供外部诊断无效化/接受率）
         self._last_anneal_stats: dict[str, Any] = {}
+
+    # ------------------------------------------------------------------
+    # 方法 1.1: get_annealing_config（Issue #247 退火参数可追溯）
+    # ------------------------------------------------------------------
+    def get_annealing_config(self) -> dict[str, Any]:
+        """返回当前退火优化器的完整参数配置（Issue #247）。
+
+        用于实验脚本在输出 JSON 中填充 ``annealing_config`` 字段，
+        确保不同实验使用的退火参数可追溯、可复现。
+
+        Returns:
+            包含全部退火参数的字典，字段说明：
+            - ``num_qubits``: 量子比特数
+            - ``annealing_time``: 退火时间（μs，仅真机有效）
+            - ``shots``: 采样次数
+            - ``simulation_mode``: 是否仿真模式
+            - ``solver_backend``: 求解器后端（"neal" / "numpy_sa"）
+            - ``sim_initial_temp``: 内置 SA 初始温度
+            - ``sim_cooling_rate``: 内置 SA 降温系数
+            - ``sim_num_sweeps``: 内置 SA 扫描次数
+            - ``n_bits_per_weight``: 每权重编码比特数
+            - ``max_qubo_memory_mb``: QUBO 矩阵内存上限（MiB）
+            - ``last_qubo_memory_bytes``: 最近一次 QUBO 矩阵实际内存（字节）
+            - ``last_solver``: 最后一次实际使用的求解器
+            - ``quantum_acceleration_enabled``: 全局加速开关
+        """
+        return {
+            "num_qubits": self.num_qubits,
+            "annealing_time": self.annealing_time,
+            "shots": self.shots,
+            "simulation_mode": self.simulation_mode,
+            "solver_backend": "neal" if self.use_dw else "numpy_sa",
+            "sim_initial_temp": self._sim_initial_temp,
+            "sim_cooling_rate": self._sim_cooling_rate,
+            "sim_num_sweeps": self._sim_num_sweeps,
+            "n_bits_per_weight": self.n_bits_per_weight,
+            "max_qubo_memory_mb": self.max_qubo_memory_mb,
+            "last_qubo_memory_bytes": self.last_qubo_memory_bytes,
+            "last_solver": self._last_solver,
+            "quantum_acceleration_enabled": os.environ.get(
+                "QUANTUM_ACCELERATION_ENABLED", "0"
+            ).lower()
+            in ("1", "true", "yes"),
+        }
 
     # ------------------------------------------------------------------
     # 方法 2: network_to_qubo
@@ -179,7 +247,7 @@ class QuantumAnnealingOptimizer:
             QUBO 矩阵 Q，形状为 (N, N)，其中 N 为编码后的总比特数
         """
         # ---------- 步骤 1：参数配置 ----------
-        n_bits_per_weight = max(1, self.num_qubits // 4)  # 增加比特数提高精度
+        n_bits_per_weight = self.n_bits_per_weight
         reg_lambda = 0.1  # L2 正则化系数，防止更新过大
 
         # ---------- 步骤 2：展平所有权重和梯度为一维向量 ----------
@@ -209,6 +277,23 @@ class QuantumAnnealingOptimizer:
         # 总比特数 = 权重数 × 每权重编码比特数
         # 编码格式：1 bit 符号位 + (n_bits-1) bit 数值位
         total_bits = num_weights * n_bits_per_weight
+
+        # QUBO 内存预估与保护（Issue #239）：
+        # QUBO 矩阵大小为 total_bits × total_bits × float64，
+        # 当 n_bits_per_weight=8 且参数量较大时可能超出内存限制。
+        estimated_bytes = total_bits * total_bits * np.dtype(np.float64).itemsize
+        self.last_qubo_memory_bytes = int(estimated_bytes)
+        estimated_mb = estimated_bytes / (1024 * 1024)
+        logger.info(
+            f"QUBO 内存预估: {total_bits}² float64 = {estimated_mb:.2f} MiB "
+            f"（上限 {self.max_qubo_memory_mb:.2f} MiB）"
+        )
+        if estimated_mb > self.max_qubo_memory_mb:
+            raise MemoryError(
+                f"QUBO 矩阵预计占用 {estimated_mb:.2f} MiB，"
+                f"超过配置上限 {self.max_qubo_memory_mb:.2f} MiB。"
+                f"可减小 n_bits_per_weight 或增大 max_qubo_memory_mb。"
+            )
 
         logger.debug(
             f"network_to_qubo (v2): {num_weights} 个权重参数, "
@@ -329,16 +414,17 @@ class QuantumAnnealingOptimizer:
     # ------------------------------------------------------------------
     def anneal(self, qubo_matrix: np.ndarray) -> str:
         """
-        调用量子退火器（或仿真）求解 QUBO 问题，返回最优比特串
+        调用退火求解器（真机/仿真）求解 QUBO 问题，返回最优比特串
 
         求解路径优先级：
             1. 真机退火：``simulation_mode=False`` 且 ``cqlib_client`` 提供
-               ``submit_annealing_task`` 方法时，提交 QUBO 到天衍云量子退火器
+               ``submit_annealing_task`` 方法时，提交 QUBO 到天衍云真机退火接口
             2. D-Wave neal 模拟退火：若 D-Wave Ocean SDK 可用
             3. 内置 numpy 模拟退火：始终可用的兜底实现
 
         天衍云 cqlib 为门控量子计算机 SDK，不提供 QUBO 退火接口；遇到此情况
         会打印"降级为仿真"日志并回退到 numpy/neal 路径，保证流程不中断。
+        实际使用的求解器类型记录在 ``self.solver_type`` 属性中（Issue #226）。
 
         Args:
             qubo_matrix: QUBO 矩阵 Q，形状为 (N, N)
@@ -372,11 +458,16 @@ class QuantumAnnealingOptimizer:
                             best_bitstring = bitstring_val
                             used_solver = "real_quantum"
                         else:
+                            logger.warning(
+                                f"[退火][降级] 真机返回 dict 无 bitstring 字段，"
+                                f"降级为 numpy_sa。QUBO 规模={n}x{n}, 返回={result}"
+                            )
                             best_bitstring = self.numpy_simulated_annealing(qubo_matrix)
                             used_solver = "numpy_sa"
                     else:
                         logger.warning(
-                            f"[退火] 真机退火返回类型 {type(result)} 无法识别，降级为仿真"
+                            f"[退火][降级] 真机退火返回类型 {type(result)} 无法识别，"
+                            f"降级为 numpy_sa。QUBO 规模={n}x{n}"
                         )
                         best_bitstring = self.numpy_simulated_annealing(qubo_matrix)
                         used_solver = "numpy_sa"
@@ -389,12 +480,17 @@ class QuantumAnnealingOptimizer:
                     return best_bitstring
                 except Exception as e:
                     # 真机退火涉及 cqlib SDK，异常类型无法穷举，保留宽捕获并记录日志
-                    logger.warning(f"[退火] 真机退火失败 ({type(e).__name__}: {e})，降级为仿真")
+                    logger.warning(
+                        f"[退火][降级] 真机退火失败 ({type(e).__name__}: {e})，"
+                        f"降级为 numpy_sa。QUBO 规模={n}x{n}, "
+                        f"降级原因=submit_annealing_task 异常"
+                    )
                     # 继续走下方仿真路径
             else:
-                logger.info(
-                    "[退火] cqlib 为门控量子 SDK，无 submit_annealing_task 接口，"
-                    "当前降级为仿真（numpy 模拟退火）"
+                logger.warning(
+                    f"[退火][降级] cqlib_client 无 submit_annealing_task 接口，"
+                    f"降级为仿真。QUBO 规模={n}x{n}, "
+                    f"降级原因=cqlib 为门控量子 SDK，仅支持电路接口"
                 )
 
         # ---- 路径 2/3：仿真退火 ----
@@ -429,8 +525,46 @@ class QuantumAnnealingOptimizer:
         return best_bitstring
 
     # ------------------------------------------------------------------
-    # 方法 4: bitstring_to_weights
+    # 方法 4: weight_deltas_to_bitstring / bitstring_to_weights
     # ------------------------------------------------------------------
+    def weight_deltas_to_bitstring(
+        self,
+        deltas: list[np.ndarray],
+        max_delta: float = 0.1,
+    ) -> str:
+        """将权重更新量编码为符号-数值比特串（Issue #239）。
+
+        该方法与 :meth:`bitstring_to_weights` 使用相同的定点数约定，
+        可用于验证 4/8 bit 等配置下的量化往返误差。
+
+        编码格式：每权重 n_bits_per_weight 位 = 1 符号位 + (n-1) 数值位。
+        数值位采用二进制小数编码（MSB = 1/2, LSB = 1/2^m），
+        与 ``bitstring_to_weights`` 的解码逻辑严格对应。
+
+        Args:
+            deltas    : 权重更新量列表，每个元素为 numpy array。
+            max_delta : 更新量的最大幅度，用于归一化。默认 0.1。
+
+        Returns:
+            编码后的比特串，长度 = sum(prod(shape)) × n_bits_per_weight。
+        """
+        if max_delta <= 0:
+            raise ValueError("max_delta 必须大于 0")
+
+        magnitude_bits = self.n_bits_per_weight - 1
+        scale = 2**magnitude_bits
+        max_encoded = scale - 1
+        flat_deltas = np.concatenate([d.flatten() for d in deltas])
+        encoded: list[str] = []
+
+        for value in flat_deltas:
+            sign = "1" if value < 0 else "0"
+            quantized = round(min(abs(float(value)) / max_delta, 1.0) * scale)
+            quantized = min(int(quantized), max_encoded)
+            encoded.append(f"{sign}{quantized:0{magnitude_bits}b}")
+
+        return "".join(encoded)
+
     def bitstring_to_weights(
         self,
         bitstring: str,
@@ -458,7 +592,7 @@ class QuantumAnnealingOptimizer:
         Returns:
             weights: 解码后的权重列表（或权重更新量列表）
         """
-        n_bits_per_weight = max(1, self.num_qubits // 4)
+        n_bits_per_weight = self.n_bits_per_weight
 
         # 将比特串转为 bit 数组
         bits = np.array([int(b) for b in bitstring], dtype=np.float64)
@@ -767,8 +901,10 @@ class QuantumAnnealingOptimizer:
 
         if not QUANTUM_ACCELERATION_ENABLED:
             logger.warning(
-                "量子加速功能已禁用 (QUANTUM_ACCELERATION_ENABLED 未设置)。"
+                "[退火][降级] 量子加速功能已禁用 (QUANTUM_ACCELERATION_ENABLED 未设置)。"
                 "跳过 optimize_policy，直接返回原始 agent。"
+                f"降级原因=QUANTUM_ACCELERATION_ENABLED 未启用, "
+                f"目标求解器=none, num_qubits={self.num_qubits}"
             )
             return agent
 
@@ -779,6 +915,28 @@ class QuantumAnnealingOptimizer:
         if policy_net is None:
             logger.error("无法获取策略网络，退出 optimize_policy")
             return agent
+
+        # 退火求解器选择日志（Issue #229: 显式记录目标求解器类型）
+        if self.simulation_mode:
+            target_solver = "neal_sa" if self.use_dw else "numpy_sa"
+            logger.info(
+                f"[退火] simulation_mode=True，使用仿真求解器={target_solver}, "
+                f"QUBO 比特数={self.num_qubits}, n_bits_per_weight={self.n_bits_per_weight}"
+            )
+        else:
+            target_solver = (
+                "real_quantum"
+                if (
+                    self.cqlib_client is not None
+                    and hasattr(self.cqlib_client, "submit_annealing_task")
+                )
+                else "neal_sa"
+            )
+            logger.info(
+                f"[退火] simulation_mode=False，目标求解器={target_solver}, "
+                f"cqlib_client={'已提供' if self.cqlib_client is not None else 'None'}, "
+                f"QUBO 比特数={self.num_qubits}"
+            )
 
         logger.info(
             f"开始量子退火策略优化 (v2 - 梯度引导): {num_iterations} 次迭代, "
@@ -1030,7 +1188,11 @@ class QuantumAnnealingOptimizer:
             agent: 优化后的智能体
         """
         if not QUANTUM_ACCELERATION_ENABLED:
-            logger.warning("量子加速功能已禁用，跳过分层退火。")
+            logger.warning(
+                "[退火][降级] 量子加速功能已禁用，跳过分层退火。"
+                f"降级原因=QUANTUM_ACCELERATION_ENABLED 未启用, "
+                f"目标求解器=none, num_qubits={self.num_qubits}"
+            )
             return agent
 
         policy_net = (
@@ -1046,7 +1208,7 @@ class QuantumAnnealingOptimizer:
         all_params = list(policy_net.parameters())
         total_tensors = len(all_params)
         total_params_count = sum(p.numel() for p in all_params)
-        n_bits_per_weight = max(1, self.num_qubits // 4)
+        n_bits_per_weight = self.n_bits_per_weight
 
         blocks = self._create_param_blocks(all_params, block_strategy, max_params_per_block)
 
@@ -1341,17 +1503,6 @@ class QuantumAnnealingOptimizer:
         return QuantumAnnealingOptimizer._get_policy_net(agent)
 
     @staticmethod
-    def _get_full_policy(agent: Any) -> nn.Module | None:
-        """[已弃用] 向后兼容别名，请使用 get_full_policy。"""
-        warnings.warn(
-            "QuantumAnnealingOptimizer._get_full_policy 已弃用，"
-            "请使用公共接口 get_full_policy。将在未来版本移除。",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return QuantumAnnealingOptimizer.get_full_policy(agent)
-
-    @staticmethod
     def extract_weights(
         network: nn.Module,
     ) -> tuple[list[np.ndarray], list[tuple[int, ...]]]:
@@ -1369,19 +1520,6 @@ class QuantumAnnealingOptimizer:
             weights.append(w)
             shapes.append(w.shape)
         return weights, shapes
-
-    @staticmethod
-    def _extract_weights(
-        network: nn.Module,
-    ) -> tuple[list[np.ndarray], list[tuple[int, ...]]]:
-        """[已弃用] 向后兼容别名，请使用 extract_weights。"""
-        warnings.warn(
-            "QuantumAnnealingOptimizer._extract_weights 已弃用，"
-            "请使用公共接口 extract_weights。将在未来版本移除。",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return QuantumAnnealingOptimizer.extract_weights(network)
 
     @staticmethod
     def _evaluate_network_quality(network: nn.Module) -> float:
@@ -1625,6 +1763,30 @@ class QuantumAnnealingOptimizer:
                     qubo_dict[(i, j)] = float(val)
         return qubo_dict
 
+    @staticmethod
+    def _qubo_flip_delta(
+        qubo_matrix: np.ndarray,
+        solution: np.ndarray,
+        flip_idx: int,
+    ) -> float:
+        """单比特翻转的能量变化 ΔE = E(x') - E(x)，其中 x' 在第 flip_idx 位取反。
+
+        QUBO 能量定义为 E(x) = x^T Q x（Q 对称，含对角项）。翻转第 k 位
+        （x_k -> 1 - x_k）后的解析能量差为：
+
+            ΔE = 2·(1 - 2·x_k)·(Σ_j Q[k,j]·x_j) + Q[k,k]
+
+        等价于 (1 - 2·x_k)·[2·Σ_{j≠k} Q[k,j]·x_j + Q[k,k]]。
+
+        该公式保证：从任意解出发，累进维护的 current_energy 始终等于
+        compute_qubo_energy(current_solution, Q)。早期实现漏写 ×2 的离对角项
+        与对角项 Q[k,k]，导致 Metropolis 接受概率偏离正确玻尔兹曼分布，且
+        累进能量与真实能量逐渐漂移——这是默认仿真求解器的严重正确性缺陷。
+        """
+        delta = 1.0 - 2.0 * solution[flip_idx]
+        linear_term = float(np.dot(qubo_matrix[flip_idx], solution))
+        return 2.0 * delta * linear_term + float(qubo_matrix[flip_idx, flip_idx])
+
     def numpy_simulated_annealing(
         self,
         qubo_matrix: np.ndarray,
@@ -1669,10 +1831,9 @@ class QuantumAnnealingOptimizer:
                 flip_idx = random.randint(0, n - 1)
 
                 # 计算翻转后的能量变化（向量化，避免 Python 层内循环）
-                # ΔE = (1 - 2*x[flip]) * (Σ_j Q[flip,j] * x[j])
-                delta = 1.0 - 2.0 * current_solution[flip_idx]
-                linear_term = np.dot(qubo_matrix[flip_idx], current_solution)
-                delta_energy = delta * linear_term
+                # 解析公式：ΔE = 2*(1-2x[flip])*(Q[flip]·x) + Q[flip,flip]
+                # 推导与回归测试见 _qubo_flip_delta
+                delta_energy = self._qubo_flip_delta(qubo_matrix, current_solution, flip_idx)
 
                 # Metropolis 准则：以概率 min(1, exp(-ΔE/T)) 接受新解
                 if delta_energy < 0 or random.random() < math.exp(
@@ -1699,19 +1860,6 @@ class QuantumAnnealingOptimizer:
         best_bitstring = "".join(str(int(b)) for b in best_solution)
         return best_bitstring
 
-    def _numpy_simulated_annealing(
-        self,
-        qubo_matrix: np.ndarray,
-    ) -> str:
-        """[已弃用] 向后兼容别名，请使用 numpy_simulated_annealing。"""
-        warnings.warn(
-            "QuantumAnnealingOptimizer._numpy_simulated_annealing 已弃用，"
-            "请使用公共接口 numpy_simulated_annealing。将在未来版本移除。",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self.numpy_simulated_annealing(qubo_matrix)
-
     @staticmethod
     def compute_qubo_energy(solution: np.ndarray, qubo_matrix: np.ndarray) -> float:
         """
@@ -1725,17 +1873,6 @@ class QuantumAnnealingOptimizer:
             energy: 目标函数值
         """
         return float(solution @ qubo_matrix @ solution)
-
-    @staticmethod
-    def _compute_qubo_energy(solution: np.ndarray, qubo_matrix: np.ndarray) -> float:
-        """[已弃用] 向后兼容别名，请使用 compute_qubo_energy。"""
-        warnings.warn(
-            "QuantumAnnealingOptimizer._compute_qubo_energy 已弃用，"
-            "请使用公共接口 compute_qubo_energy。将在未来版本移除。",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return QuantumAnnealingOptimizer.compute_qubo_energy(solution, qubo_matrix)
 
 
 # ============================================================================

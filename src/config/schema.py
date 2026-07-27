@@ -66,16 +66,54 @@ class QuantumConfig(BaseModel):
     max_qubits: int = Field(default=287, ge=1, description="最大量子比特数")
     shots: int = Field(default=1024, ge=1, description="测量次数")
     simulator: str = Field(default="qiskit-aer", description="模拟器")
+    # Issue #243: 真机提交间隔步数（每N步强制提交一次，保底机制）
+    real_submit_interval: int = Field(
+        default=20, ge=1, description="真机提交间隔步数（保底机制，与概率触发共存）"
+    )
 
 
 class AnnealingConfig(BaseModel):
-    """量子退火配置。"""
+    """量子退火配置。
 
-    annealing_time: float = Field(default=1.0, gt=0, description="退火时间（微秒）")
-    enabled: bool = Field(default=True, description="退火开关")
-    num_qubits: int = Field(default=10, ge=1, description="退火量子比特数")
-    num_reads: int = Field(default=100, ge=1, description="退火读取次数")
-    simulation_mode: bool = Field(default=True, description="仿真模式")
+    对应代码：src/quantum/annealing.py 的 QuantumAnnealingOptimizer。
+    所有参数均可通过环境变量覆盖（见 .env.example 的 ANNEALING_* 段）。
+    """
+
+    # ── 全局开关 ──
+    # 退火已降级为探索性功能（2026-07-27），默认关闭
+    enabled: bool = Field(default=False, description="退火开关（探索性功能，默认关闭）")
+
+    # ── 退火器基础参数（QuantumAnnealingOptimizer.__init__） ──
+    simulation_mode: bool = Field(default=True, description="仿真模式（true=纯仿真 numpy/neal）")
+    num_qubits: int = Field(default=16, ge=1, le=256, description="退火量子比特数，建议 ≥16")
+    shots: int = Field(default=1000, ge=1, le=10000, description="退火采样次数")
+    annealing_time: float = Field(
+        default=20.0, gt=0, le=1000.0, description="退火时间（微秒），仅真机模式生效"
+    )
+    n_bits_per_weight: int = Field(
+        default=4,
+        ge=2,
+        description="每个权重的编码位数（1 个符号位 + 数值位）",
+    )
+
+    # ── 仿真模拟退火超参数（仅 simulation_mode=true 时生效） ──
+    sim_initial_temp: float = Field(default=2.0, ge=0.1, le=10.0, description="初始温度")
+    sim_cooling_rate: float = Field(default=0.995, gt=0.0, lt=1.0, description="降温系数")
+    sim_num_sweeps: int = Field(default=200, ge=10, le=10000, description="扫描次数")
+
+    # ── QUBO 构造参数（network_to_qubo） ──
+    reg_lambda: float = Field(default=0.1, gt=0, le=1.0, description="L2 正则化系数")
+    max_delta_ratio: float = Field(default=0.1, gt=0.0, le=1.0, description="权重更新幅度比例")
+    accept_threshold_ratio: float = Field(default=0.01, ge=0.0, le=0.1, description="接受阈值比例")
+
+    # ── 分层退火参数（optimize_policy_hierarchical，对应 Issue #148） ──
+    head_only: bool = Field(default=True, description="仅优化尾部参数张量（true=head_only 模式）")
+    max_params_per_block: int = Field(
+        default=200, ge=10, le=10000, description="分层退火每块最大参数数"
+    )
+    block_strategy: str = Field(
+        default="tensor_wise", description="分块策略: tensor_wise / size_limited"
+    )
 
 
 class CacheConfig(BaseModel):

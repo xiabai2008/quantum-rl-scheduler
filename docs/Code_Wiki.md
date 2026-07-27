@@ -1,7 +1,7 @@
 # 量子RL调度系统 — Code Wiki
 
 > **作品名称**：量子RL驱动的天衍云平台智能调度系统
-> **核心创新**：AI 赋能量子计算（RL 智能调度） + 量子赋能 AI（量子退火优化RL，探索性方向）
+> **核心创新**：AI 赋能量子计算（RL 智能调度） + 量子赋能 AI（量子启发式退火优化RL，探索性方向）
 > **目标平台**：天衍云真机"天衍-287"（tianyan176，66 qubit，可用性验证）
 > **文档版本**：v8（PPO主力+MAPPO多智能体+退火异步闭环+14维状态空间+多目标奖励+真机闭环+统计显著性验证）
 > **最后更新**：2026-07-24
@@ -15,7 +15,7 @@
 - [3. 模块职责详解](#3-模块职责详解)
   - [3.1 调度引擎 src/scheduler/](#31-调度引擎-srcscheduler)
   - [3.2 API 客户端 src/api/](#32-api-客户端-srcapi)
-  - [3.3 量子退火模块 src/quantum/](#33-量子退火模块-srcquantum)
+  - [3.3 量子启发式退火模块 src/quantum/](#33-量子启发式退火模块-srcquantum)
   - [3.4 可视化 src/visualization/](#34-可视化-srcvisualization)
   - [3.5 工具函数 src/utils/](#35-工具函数-srcutils)
 - [4. 关键类与函数参考](#4-关键类与函数参考)
@@ -33,7 +33,7 @@
 **双向赋能核心**：
 
 - **AI 赋能量子计算**：用强化学习（RL）智能调度量子/经典混合任务，量化目标为资源利用率提升 ≥30%
-- **量子赋能 AI**：探索性方向——用量子退火（QUBO映射）优化RL策略搜索（当前使用经典模拟退火D-Wave neal，训练开销+74.5%，奖励提升+6.4%在5 seeds下p=0.190统计不显著）
+- **量子赋能 AI**：探索性方向——用量子启发式退火（QUBO映射）优化RL策略搜索（当前使用经典模拟退火D-Wave neal，训练开销+74.5%，奖励提升+6.4%在5 seeds下p=0.190统计不显著）
 
 **技术栈**：Python ≥3.10 + Stable-Baselines3（DQN/PPO）+ Gymnasium + PyTorch + Qiskit + D-Wave Ocean SDK + FastAPI + Vue3 + Echarts
 
@@ -47,7 +47,7 @@
 | v4 | 环境异质化 + PPO 主力算法 | PPO 单机平均奖励 +2,804，超越所有基线 92.5% |
 | v5 | 多机器调度 + 真机验证 | 多机器 PPO 奖励 +4,294（+86.3%），17 个任务成功提交天衍云真机 |
 | v6 | MAPPO 多智能体 + 异步退火闭环 + 14维状态 + 多目标奖励 | 新增 ~3,600 行代码 + 71 测试用例 |
-| v7 | ruff 142→0 + mypy 26→0 + CI全严格阻断 + 覆盖率70%→91% | 49个测试文件1663+用例，CI lint/typecheck从baseline升级为strict |
+| v7 | ruff 142→0 + mypy 26→0 + CI全严格阻断 + 覆盖率门槛提升至80%（实际91%） | 49个测试文件1663+用例，CI lint/typecheck从baseline升级为strict |
 | v8 | 50seed N=250验证 + 多seed真机实验 | PPO=2746.94±1160.72, +88.3%, p=1.032e-42, rank-biserial=-0.71；多seed真机PPO=1665.22±324.51 vs FCFS=353.22±53.33, d=5.64（效应量异常大，小样本探索性结果，需进一步验证）| | FCFS: 1458.77±60.47
 
 ---
@@ -78,7 +78,7 @@
         ┌────────────────────┼────────────────────┐
         ▼                    ▼                    ▼
 ┌───────────────┐   ┌─────────────────┐   ┌──────────────┐
-│ API 客户端     │   │  量子退火模块     │   │  工具函数     │
+│ API 客户端     │   │  量子启发式退火模块 │   │  工具函数     │
 │ src/api/      │   │  src/quantum/   │   │  src/utils/  │
 │               │   │                  │   │              │
 │ ┌───────────┐ │   │ ┌──────────────┐│   │ ┌──────────┐ │
@@ -122,7 +122,7 @@ RL Agent (PPO/MAPPO/DQN) → 输出动作 (0=经典/1=量子/2=混合)
 真机提交 (可选, real_submit_probability 控制)
       │
       ▼
-量子退火优化 (异步闭环)
+量子启发式退火优化 (异步闭环)
       │   ├── RL 训练 → 周期性触发退火
       │   ├── QUBO 映射 → 退火求解 → 权重更新
       │   └── 验证环境评估 → 自适应频率调整
@@ -171,7 +171,7 @@ Web 界面实时展示 (WebSocket 推送)
 | [callbacks.py](../src/scheduler/callbacks.py) | 275 | 训练回调 |
 | [marl.py](../src/scheduler/marl.py) | 993 | MAPPO 多智能体调度（CTDE 架构） |
 | [multi_objective_env.py](../src/scheduler/multi_objective_env.py) | 308 | 多目标奖励包装器（吞吐量/平衡/服务质量） |
-| [async_annealing_callback.py](../src/scheduler/async_annealing_callback.py) | 110 | 异步量子退火训练回调 |
+| [async_annealing_callback.py](../src/scheduler/async_annealing_callback.py) | 110 | 异步量子启发式退火训练回调 |
 | [baselines.py](../src/scheduler/baselines.py) | 318 | 基线启发式策略（FCFS/SJF/Random/Greedy 等） |
 | [ablation.py](../src/scheduler/ablation.py) | 519 | 消融实验框架 |
 | [dag_scheduler.py](../src/scheduler/dag_scheduler.py) | 431 | DAG 工作流调度 |
@@ -304,15 +304,15 @@ tianyan_swn, tianyan_sa, tianyan176, tianyan176-2
 
 ---
 
-### 3.3 量子退火模块 src/quantum/
+### 3.3 量子启发式退火模块 src/quantum/
 
-实现量子退火优化RL策略搜索（探索性方向，当前使用经典模拟退火D-Wave neal），核心思想是将神经网络权重优化问题映射为 QUBO 问题。
+实现量子启发式退火优化RL策略搜索（探索性方向，当前使用经典模拟退火D-Wave neal），核心思想是将神经网络权重优化问题映射为 QUBO 问题。
 
 #### 文件清单
 
 | 文件 | 行数 | 职责 |
 |------|------|------|
-| [annealing.py](../src/quantum/annealing.py) | 1286 | 量子退火策略优化器（QUBO 映射 + 退火求解） |
+| [annealing.py](../src/quantum/annealing.py) | 1286 | 量子启发式退火策略优化器（QUBO 映射 + 退火求解） |
 | [annealing_loop.py](../src/quantum/annealing_loop.py) | 343 | 异步退火闭环控制器（生产者-消费者） |
 | [__init__.py](../src/quantum/__init__.py) | 34 | 模块导出与旧版兼容别名 |
 
@@ -433,7 +433,7 @@ RL 训练线程（生产者）              退火工作线程（消费者）
 | [platform_compat.py](../src/utils/platform_compat.py) | 240 | 平台兼容 |
 | [__init__.py](../src/utils/__init__.py) | 34 | 模块导出 |
 
-`metrics.py` 定义了更完整的 9 个 Prometheus 指标，覆盖调度引擎、API 调用、量子退火与运行时状态。
+`metrics.py` 定义了更完整的 9 个 Prometheus 指标，覆盖调度引擎、API 调用、量子启发式退火与运行时状态。
 
 ---
 
@@ -493,7 +493,7 @@ class PPOAgent:
         use_lstm: bool = False,              # v6: LSTM 支持
         n_lstm_layers: int = 1,
         lstm_hidden_size: int = 64,
-        use_annealing: bool = False,         # 量子退火
+        use_annealing: bool = False,         # 量子启发式退火
         anneal_interval: int = 1000,
         anneal_qubits: int = 10,
         annealing_time: float = 20.0,
@@ -588,8 +588,8 @@ class MultiObjectiveRewardWrapper(gym.Wrapper):
 
 | 类 | 继承 | 用途 |
 |-----|------|------|
-| `AnnealingCallback` | `BaseCallback` | 同步量子退火优化（每 N 步阻塞训练） |
-| `AsyncAnnealingCallback` | `BaseCallback` | 异步量子退火（工作线程，不阻塞训练） |
+| `AnnealingCallback` | `BaseCallback` | 同步量子启发式退火优化（每 N 步阻塞训练） |
+| `AsyncAnnealingCallback` | `BaseCallback` | 异步量子启发式退火（工作线程，不阻塞训练） |
 | `RealMachineCallback` | `BaseCallback` | 真机抽样回调（按概率提交天衍云） |
 | `EpsilonExplorationCallback` | `BaseCallback` | Epsilon-Greedy 探索率衰减 |
 
@@ -683,11 +683,11 @@ def create_multi_machine_clients(login_key: str, machine_names: list[str]) -> di
 
 ---
 
-### 4.3 量子退火核心类
+### 4.3 量子启发式退火核心类
 
 #### `QuantumAnnealingOptimizer`
 
-量子退火策略优化器。
+量子启发式退火策略优化器。
 
 ```python
 class QuantumAnnealingOptimizer:
@@ -850,7 +850,7 @@ src/utils/
 | 强化学习 | gymnasium / stable-baselines3 / sb3-contrib | ≥0.28 / ≥2.0 / ≥2.0 | RL 框架 |
 | 深度学习 | torch / tensorboard | ≥2.0 / ≥2.14 | 神经网络 |
 | 量子计算 | qiskit / qiskit-aer / pennylane | ≥1.0 / ≥0.14 / ≥0.35 | 量子电路仿真 |
-| 量子退火 | D-Wave Ocean SDK（可选） | — | dimod/neal 退火求解 |
+| 量子启发式退火 | D-Wave Ocean SDK（可选） | — | dimod/neal 退火求解 |
 | Web | fastapi / uvicorn / pydantic | ≥0.104 / ≥0.24 / ≥2.0 | 监控界面 |
 | 前端 | Vue3 + Echarts（CDN） | — | 监控面板 |
 | 配置 | python-dotenv / pyyaml | ≥1.0 / ≥6.0 | 配置管理 |
@@ -1015,7 +1015,7 @@ from src.api import get_client
 client = get_client(mock_mode=True)
 task_id = client.submit_quantum_task(circuit_qasm=qasm, shots=1024)
 
-# 量子退火
+# 量子启发式退火
 from src.quantum.annealing import QuantumAnnealingOptimizer
 opt = QuantumAnnealingOptimizer(simulation_mode=True)
 optimized_agent = opt.optimize_policy(agent, num_iterations=10)
@@ -1039,7 +1039,7 @@ config = load_config()
 | [test_api.py](../tests/test_api.py) | API 客户端（最大用例集，95.96% 覆盖） |
 | [test_parser.py](../tests/test_parser.py) | 任务解析器（100% 覆盖） |
 | [test_scheduler.py](../tests/test_scheduler.py) | 调度核心（含 11 个多机器用例） |
-| [test_annealing.py](../tests/test_annealing.py) | 量子退火 |
+| [test_annealing.py](../tests/test_annealing.py) | 量子启发式退火 |
 | [test_helpers.py](../tests/test_helpers.py) | 工具函数 |
 | [test_visualization.py](../tests/test_visualization.py) | Web 可视化（90% 覆盖） |
 | [test_multi_objective.py](../tests/test_multi_objective.py) | 多目标奖励（v6） |
@@ -1167,7 +1167,7 @@ Docker 容器健康检查：`curl -f http://localhost:8000/api/status`，30 秒�
 | cqlib 真机 | [src/api/tianyan_cqlib.py](../src/api/tianyan_cqlib.py) | 547 |
 | Mock 客户端 | [src/api/mock_client.py](../src/api/mock_client.py) | 494 |
 | 配额追踪 | [src/api/quota_tracker.py](../src/api/quota_tracker.py) | 412 |
-| 量子退火 | [src/quantum/annealing.py](../src/quantum/annealing.py) | 1569 |
+| 量子启发式退火 | [src/quantum/annealing.py](../src/quantum/annealing.py) | 1569 |
 | 退火闭环 | [src/quantum/annealing_loop.py](../src/quantum/annealing_loop.py) | 304 |
 | Web 后端 | [src/visualization/app.py](../src/visualization/app.py) | 335 |
 | 路由 | [src/visualization/routes.py](../src/visualization/routes.py) | 618 |

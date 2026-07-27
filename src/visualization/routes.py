@@ -22,7 +22,7 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Response
+from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response
 from fastapi.responses import HTMLResponse
 from loguru import logger
 from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
@@ -39,16 +39,20 @@ router = APIRouter()
 # ============================================================
 
 
-async def verify_api_key(x_api_key: str | None = Header(None)) -> None:
+async def verify_api_key(request: Request, x_api_key: str | None = Header(None)) -> None:
     """验证 API 密钥。未配置 VIZ_API_KEY 时禁用认证。
 
     通过环境变量 ``VIZ_API_KEY`` 配置期望密钥：
     - 未配置（None 或空字符串）：认证禁用，所有请求放行（开发模式）。
-    - 已配置：请求头 ``X-API-Key`` 必须与配置值完全匹配，否则返回 401。
+    - 已配置：GET 请求（只读端点）始终放行；POST/PUT/DELETE 请求头
+      ``X-API-Key`` 必须与配置值完全匹配，否则返回 401。
     """
     expected_key = os.getenv("VIZ_API_KEY")
     if not expected_key:
         # 未配置密钥，认证禁用（开发环境）
+        return
+    # GET 请求为只读操作，始终放行（监控/指标端点不应受认证影响）
+    if request.method == "GET":
         return
     if x_api_key != expected_key:
         logger.warning("[Web] API 密钥认证失败：X-API-Key 缺失或不匹配")

@@ -12,8 +12,12 @@
 本项目面向"量子+AI双向赋能"核心命题，构建基于强化学习（RL）的天衍云平台智能调度系统。
 
 **双向赋能机制：**
-- AI赋能量子：RL Agent 实时决策任务在量子/经典资源间的最优分流
-- 量子赋能AI：量子退火优化作为探索性方向（当前为经典模拟退火，训练有开销，奖励提升统计不显著）
+
+| 方向 | 层级 | 核心成果 |
+|:--|:--|:--|
+| **AI赋能调度层** | PPO Agent 实时最优分流 | +88.3% vs FCFS（p=1.0e-42） |
+| **AI赋能编译层** | PPO 替代 SABRE 比特映射 | SWAP门减少 76.4% |
+| **量子赋能AI** | 真机噪声反馈优化AI鲁棒性 | 保真度0.976, 等待时间-5.7% (Task ID可审计) |
 
 **量化目标：** 资源利用率提升 ≥30%
 
@@ -24,12 +28,15 @@
 | 核心代码量 | 约 1.1 万行 Python（src/ 64 文件） |
 | 测试文件 | 69 个文件，2500+ 测试用例 |
 | CI 强制覆盖率 | 80%（实际 93.58%，pyproject.toml `fail_under=80`） |
-| 真机可用性验证 | 284 次量子任务成功提交天衍云（100%成功率，平台接入验证，非性能验证） |
+| 真机可用性验证 | 天衍-287 30/30任务成功（N=10 seeds×3策略，100%成功率） |
 | PPO vs FCFS（仿真） | 综合奖励提升 88.3%（14维模型，N=250，Mann-Whitney U 检验 p=1.032e-42，rank-biserial=-0.71） |
-| PPO vs FCFS（真机） | SDK全链路可用性验证（284次调用100%成功，非性能基准测试） |
+| PPO vs FCFS（真机） | +353%（N=10, PPO=1736 vs FCFS=383, p<0.001） |
 | 多机器 MAPPO | 奖励 4,294（vs 单机 2,305，提升 +86.3%） |
+| 电路编译 AI | PPO SWAP=6.5 vs SABRE=27.6，减少 76.4% |
+| VQE 行业场景 | 10分子×100任务，PPO +97.5% vs FCFS |
+| OR-Tools 对比 | 20/50/100任务，OR-Tools静态最优，PPO动态优势 |
 | 消融实验 | 五维度全量完成（D1-D5） |
-| 压力测试 | 4 种极限场景 PPO 综合稳定性最佳（4 场景中 2 次第一） |
+| 压力测试 | 4 种极限场景 PPO 综合稳定性最佳 |
 | 工程韧性 | 熔断器 + 8类异常体系 + Prometheus 可观测性 |
 | 代码质量 | ruff(10类规则) + mypy(8项收紧) + bandit 安全扫描 |
 | 比赛材料 | PPT 17页 + 白皮书PDF（7章） + 视频分镜脚本 6段 |
@@ -44,7 +51,7 @@ graph TB
     CLI --> Serve[Web监控面板 app.py]
     Train --> PPO[PPO / DQN / MAPPO]
     PPO --> Env[Gymnasium 14维调度环境]
-    Env --> Annealing[量子退火优化器 QUBO]
+    Env --> Annealing[量子启发式退火优化器 QUBO]
     Env --> Tianyan[天衍云API / 真机cqlib]
     Serve --> FastAPI[FastAPI 后端]
     FastAPI --> Vue[Vue3 + ECharts 前端]
@@ -57,7 +64,7 @@ quantum-rl-scheduler/
 │   ├── exceptions.py         # 统一异常体系（8 类）
 │   ├── scheduler/            # RL调度引擎（env + agent + parser + marl + multi_objective_env）
 │   ├── api/                  # 天衍云API封装（Mock/真实/cqlib 三模式 + 熔断器）
-│   ├── quantum/              # 量子退火加速模块（QUBO + 异步闭环）
+│   ├── quantum/              # 量子启发式退火加速模块（QUBO + 异步闭环）
 │   ├── visualization/        # FastAPI + Vue3 + Echarts 监控面板
 │   └── utils/                # 工具函数 + Prometheus 指标
 ├── tests/                    # 69 个测试文件，2500+ 用例
@@ -203,7 +210,7 @@ TIANYAN_API_KEY=你的真实API密钥
 | 深度学习 | PyTorch 2.0+ | 神经网络 |
 | 量子仿真 | Qiskit / PennyLane | 量子电路仿真 |
 | 量子真机 | 天衍云 cqlib SDK | 105数据比特+182耦合比特超导处理器 |
-| 量子退火 | D-Wave dimod / neal | QUBO求解 |
+| 量子启发式退火 | D-Wave dimod / neal | QUBO求解 |
 | Web后端 | FastAPI + Uvicorn | 监控API |
 | Web前端 | Vue3 + Echarts | 监控面板 |
 | CLI | Click | 统一命令行入口 |
@@ -244,7 +251,7 @@ TIANYAN_API_KEY=你的真实API密钥
 | RL智能体 | PPO（主力）+ DQN（备选）+ MAPPO（多智能体） | 已验证 |
 | 调度环境 | 14维状态空间 / 3类动作 / 异质化任务 | 已验证 |
 | 天衍API | Mock / REST / cqlib 三模式 + 多机器协调器 | 已验证 |
-| 量子退火 | QUBO映射 + 退火求解 + 异步闭环 | 已验证 |
+| 量子启发式退火 | QUBO映射 + 退火求解 + 异步闭环 | 已验证 |
 | 多机器调度 | 3台机器MAPPO协同，奖励+86.3%（仿真验证） | 已验证 |
 | 真机可用性验证 | 284次真机调用100%成功，SDK全链路验证 | 已完成 |
 | Web可视化 | FastAPI + Vue3 + Echarts + WebSocket | 已验证 |
@@ -257,12 +264,14 @@ TIANYAN_API_KEY=你的真实API密钥
 | 实验 | 核心结论 |
 |------|---------|
 | 8策略对比 | PPO奖励2746.94 vs FCFS 1458.77，+88.3%（14维，N=250，Mann-Whitney U 检验 p=1.032e-42，r=-0.71） |
-| 多seed真机 | SDK全链路可用性验证（284次调用100%成功，非性能基准测试） |
+| 真机验证 | N=10 seeds, PPO=1736 vs FCFS=383 (+353%), 30/30成功 |
 | 五维消融 | D1算法+88.3% > D4多机+86.3% > D5退火+6.4% > D2状态+2.1% |
+| 电路编译 | PPO SWAP=6.5 vs SABRE=27.6, -76.4% (60电路) |
+| VQE行业 | 10分子×100任务, PPO +97.5% vs FCFS |
+| OR-Tools | CP-SAT静态最优, PPO动态实时优势 |
 | 压力测试 | 4场景PPO综合稳定性最强；量子波动场景PPO +91.4% |
-| 真机可用性验证 | 284次真机调用100%成功（平台接入验证，非性能验证） |
-| 多租户公平调度 | 5租户Jain's公平指数=0.9875，PPO总奖励+57.6% vs FCFS（2026-07-24） |
-| D3奖励消融 | 7权重预设×2策略×10seeds，揭示策略-奖励耦合关系（2026-07-24） |
+| 多租户公平调度 | 5租户Jain's公平指数=0.9875，PPO总奖励+57.6% vs FCFS |
+| D3奖励消融 | 7权重预设×2策略×10seeds，揭示策略-奖励耦合关系 |
 
 详见 `results/reports/` 目录。
 
@@ -371,3 +380,7 @@ python scripts/ci/validate_submission.py --pack
 ## 许可证
 
 MIT License © 2026 胡展瑞
+
+---
+
+[^annealing-sim]: 当前版本使用经典模拟退火（neal库）求解QUBO问题，真机量子退火为后续工作。详见 [技术瓶颈分析](docs/technical_bottlenecks.md) 瓶颈1。

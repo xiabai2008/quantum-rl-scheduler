@@ -183,13 +183,17 @@ class TestAsyncAnnealingCallbackOnStep(unittest.TestCase):
     def test_on_step_deepcopy_failure_handled(self):
         """深拷贝策略网络失败时应捕获异常、不调用 submit 并更新触发步数（覆盖第 72-80 行）。"""
         mock_loop = _make_mock_loop(interval=100)
+        # 提供 state_dict 返回真实 dict，确保 _clone_tensor 被实际调用
+        model = MagicMock()
+        model.policy.state_dict.return_value = {"weight": MagicMock()}
         cb = _bind_callback(
             AsyncAnnealingCallback(loop=mock_loop, verbose=0),
             n_calls=100,
+            model=model,
         )
         cb._next_trigger_step = 100
         with patch(
-            "src.scheduler.async_annealing_callback.copy.deepcopy",
+            "src.scheduler.async_annealing_callback._clone_tensor",
             side_effect=RuntimeError("deepcopy fail"),
         ):
             result = cb._on_step()
@@ -203,14 +207,18 @@ class TestAsyncAnnealingCallbackOnStep(unittest.TestCase):
     def test_on_step_deepcopy_failure_logs_error(self):
         """深拷贝失败时应记录 error 日志（覆盖第 75-78 行）。"""
         mock_loop = _make_mock_loop(interval=100)
+        # 提供 state_dict 返回真实 dict，确保 _clone_tensor 被实际调用
+        model = MagicMock()
+        model.policy.state_dict.return_value = {"weight": MagicMock()}
         cb = _bind_callback(
             AsyncAnnealingCallback(loop=mock_loop, verbose=1),
             n_calls=100,
+            model=model,
         )
         cb._next_trigger_step = 100
         with (
             patch(
-                "src.scheduler.async_annealing_callback.copy.deepcopy",
+                "src.scheduler.async_annealing_callback._clone_tensor",
                 side_effect=TypeError("type error"),
             ),
             patch("src.scheduler.async_annealing_callback.logger") as mock_logger,

@@ -196,8 +196,8 @@ class EnhancedRealCallback(BaseCallback):
                 rl_action_meaning = ACTION_MEANINGS.get(rl_action, "unknown")
             if rewards is not None and len(rewards) > 0:
                 reward = float(rewards[0])
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"RL 决策记录提取失败: {type(e).__name__}: {e}")
 
         # 从环境获取量子加速比
         with contextlib.suppress(Exception):

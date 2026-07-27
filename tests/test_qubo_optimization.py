@@ -12,14 +12,68 @@ Issue #45: QUBO 矩阵构建性能剖析与加速 — 测试模块
 
 import numpy as np
 import pytest
+from hypothesis import given, settings
+from hypothesis import strategies as st
 
 from src.quantum.annealing import (
+    QuantumAnnealingOptimizer,
     benchmark_qubo_versions,
     build_qubo_matrix,
     build_qubo_matrix_optimized,
     find_optimal_qubo_params,
     profile_qubo_construction,
 )
+
+
+def _exact_minimum_bitstring(qubo: np.ndarray) -> str:
+    """穷举小型 QUBO，返回确定性的最低能量比特串。"""
+    n_variables = qubo.shape[0]
+    candidates = (
+        np.array(list(np.binary_repr(value, width=n_variables)), dtype=np.float64)
+        for value in range(2**n_variables)
+    )
+    best = min(candidates, key=lambda bits: float(bits @ qubo @ bits))
+    return "".join(str(int(bit)) for bit in best)
+
+
+@st.composite
+def weight_gradient_pairs(
+    draw: st.DrawFn,
+    *,
+    min_size: int = 1,
+    max_size: int = 4,
+) -> tuple[list[np.ndarray], list[np.ndarray]]:
+    """生成有限、非零梯度的随机权重与梯度。"""
+    size = draw(st.integers(min_value=min_size, max_value=max_size))
+    finite_float = st.floats(
+        min_value=-1.0,
+        max_value=1.0,
+        allow_nan=False,
+        allow_infinity=False,
+        width=32,
+    )
+    nonzero_gradient = st.one_of(
+        st.floats(
+            min_value=-2.0,
+            max_value=-0.25,
+            allow_nan=False,
+            allow_infinity=False,
+            width=32,
+        ),
+        st.floats(
+            min_value=0.25,
+            max_value=2.0,
+            allow_nan=False,
+            allow_infinity=False,
+            width=32,
+        ),
+    )
+    weights = draw(st.lists(finite_float, min_size=size, max_size=size))
+    gradients = draw(st.lists(nonzero_gradient, min_size=size, max_size=size))
+    return (
+        [np.asarray(weights, dtype=np.float64)],
+        [np.asarray(gradients, dtype=np.float64)],
+    )
 
 
 @pytest.fixture
@@ -256,7 +310,7 @@ class TestQuboMatrixProperties:
 # Issue #253: QUBO 形式化 / 属性验证（CI 通过 -k "formal or property" 选中）
 # 注意：pytest 的 -k 在本仓库区分大小写，因此测试“方法名”中显式包含
 # 小写子串 "formal" / "property"，确保 CI 步骤能稳定命中。
-# 仅使用 numpy + 标准库，不引入 hypothesis 等新依赖。
+# 本组历史测试仅使用 numpy + 标准库；Issue #252 的 Hypothesis 测试见文件末尾。
 # =============================================================================
 
 
@@ -326,3 +380,317 @@ class TestQuboPropertyBased:
             qubo = optimizer.network_to_qubo(weights)
             assert np.all(np.isreal(qubo)), "QUBO 矩阵应为实数矩阵"
             assert np.allclose(qubo, qubo.T, atol=1e-12), "QUBO 矩阵必须对称"
+
+
+class TestNetworkQuboHypothesisProperties:
+    """Issue #252：用 100 个随机用例验证网络权重 QUBO 性质。"""
+
+    @given(weight_gradient_pairs(max_size=1))
+    @settings(max_examples=100, deadline=None)
+    def test_property_optimum_follows_descent_direction(
+        self,
+        problem: tuple[list[np.ndarray], list[np.ndarray]],
+    ) -> None:
+        weights, gradients = problem
+        optimizer = QuantumAnnealingOptimizer(
+            n_bits_per_weight=4,
+            simulation_mode=True,
+        )
+        # 注意：main 分支的 network_to_qubo 使用硬编码 reg_lambda=0.1，
+        # 不再暴露 regularization_strength 参数；默认正则化下梯度项仍主导最优方向。
+        qubo = optimizer.network_to_qubo(
+            weights,
+            gradients=gradients,
+        )
+
+        decoded = optimizer.bitstring_to_weights(
+            _exact_minimum_bitstring(qubo),
+            [weights[0].shape],
+        )[0]
+        descent_direction = -gradients[0]
+
+        assert float(np.dot(decoded, descent_direction)) > 0
+
+    @given(
+        deltas=st.lists(
+            st.floats(
+                min_value=-0.1,
+                max_value=0.1,
+                allow_nan=False,
+                allow_infinity=False,
+                width=64,
+            ),
+            min_size=1,
+            max_size=16,
+        )
+    )
+    @settings(max_examples=100, deadline=None)
+    def test_property_encoding_roundtrip_within_precision(
+        self,
+        deltas: list[float],
+    ) -> None:
+        optimizer = QuantumAnnealingOptimizer(n_bits_per_weight=8)
+        original = np.asarray(deltas, dtype=np.float64)
+        max_delta = 0.1
+
+        encoded = optimizer.weight_deltas_to_bitstring([original], max_delta=max_delta)
+        decoded = optimizer.bitstring_to_weights(encoded, [original.shape])[0]
+        encoding_precision = max_delta / (2 ** (optimizer.n_bits_per_weight - 1))
+
+        assert np.all(np.abs(decoded - original) <= encoding_precision + 1e-12)
+
+    # 注：原 Issue #252 还设计了 test_property_regularization_energy_is_nonnegative，
+    # 通过对比 regularization_strength=0 与 regularization_strength=λ 的 QUBO 能量差来
+    # 验证 L2 正则化贡献非负。main 分支已将 reg_lambda 硬编码为 0.1（不再暴露该参数），
+    # 无法构建零正则化基线，故移除该用例。正则化能量 λ·||Δw||²≥0 由构造保证。
+
+
+# =============================================================================
+# Issue #251: QUBO 形式化验证（梯度一致性/能量单调性/往返一致性/正则化效果）
+# =============================================================================
+
+
+def _build_qubo_with_lambda(
+    weights: np.ndarray,
+    gradients: np.ndarray,
+    n_bits_per_weight: int,
+    reg_lambda: float,
+) -> np.ndarray:
+    """使用指定正则化系数 λ 手动构建 QUBO 矩阵。
+
+    遵循 ``network_to_qubo`` 的数学公式（不含跨权重耦合项）：
+        QUBO 目标: min_x  g^T Δw(x) + λ * ||Δw(x)||^2
+
+    用于验证 λ 增大时更新幅度减小的正则化效果。
+    注意：``network_to_qubo`` 中 ``reg_lambda`` 硬编码为 0.1，无法通过公开接口调整，
+    故此处手动构建 QUBO 以测试不同 λ 值的效果。
+    """
+    flat_weights = weights.flatten().astype(np.float64)
+    flat_gradients = gradients.flatten().astype(np.float64)
+    num_weights = flat_weights.size
+
+    grad_abs_max = np.max(np.abs(flat_gradients)) + 1e-8
+    flat_grad_norm = flat_gradients / grad_abs_max
+
+    weight_std = np.std(flat_weights) + 1e-8
+    max_delta = weight_std * 0.1
+
+    total_bits = num_weights * n_bits_per_weight
+    qubo = np.zeros((total_bits, total_bits), dtype=np.float64)
+    magnitude_bits = n_bits_per_weight - 1
+
+    for i in range(num_weights):
+        g_norm = flat_grad_norm[i]
+        target = -g_norm
+        base_idx = i * n_bits_per_weight
+
+        # 对角项 + 符号-数值耦合项
+        for bit_k in range(n_bits_per_weight):
+            global_idx = base_idx + bit_k
+            if bit_k == 0:
+                # 符号位对角项为 0
+                qubo[global_idx, global_idx] = 0.0
+            else:
+                mag_idx = bit_k - 1
+                bit_val = max_delta / (2 ** (mag_idx + 1))
+                qubo[global_idx, global_idx] = -target * bit_val + reg_lambda * bit_val * bit_val
+
+        # 符号位与数值位的耦合
+        sign_idx = base_idx
+        for mag_idx in range(magnitude_bits):
+            bit_k = 1 + mag_idx
+            bit_val = max_delta / (2 ** (mag_idx + 1))
+            qubo[sign_idx, bit_k] = 2.0 * target * bit_val
+            qubo[bit_k, sign_idx] = qubo[sign_idx, bit_k]
+
+        # 数值位之间的耦合（L2 正则化二次项）
+        for mk1 in range(magnitude_bits):
+            for mk2 in range(mk1 + 1, magnitude_bits):
+                b1 = 1 + mk1
+                b2 = 1 + mk2
+                val1 = max_delta / (2 ** (mk1 + 1))
+                val2 = max_delta / (2 ** (mk2 + 1))
+                coupling = 2.0 * reg_lambda * val1 * val2
+                qubo[b1 + base_idx, b2 + base_idx] = coupling
+                qubo[b2 + base_idx, b1 + base_idx] = coupling
+
+    return qubo
+
+
+class TestQuboFormalVerification:
+    """Issue #251: QUBO 形式化验证测试。
+
+    验证 QUBO 优化的数学正确性：
+    - 梯度下降一致性：最优解码方向与梯度下降一致
+    - 能量单调性：沿梯度下降方向 QUBO 能量单调递减
+    - 往返一致性：权重→比特串→解码权重的往返一致
+    - 正则化效果：λ 增大时更新幅度减小
+    """
+
+    def test_qubo_optimal_matches_gradient_descent(self) -> None:
+        """构造已知梯度，验证 QUBO 最优解码方向与梯度下降一致。
+
+        QUBO 目标函数: min_x  g^T Δw(x) + λ * ||Δw(x)||^2
+        最优解的 Δw 应与 -g（梯度下降方向）同向，即 <Δw, -g> > 0。
+        覆盖全正/全负/混合梯度方向多组场景。
+        """
+        optimizer = QuantumAnnealingOptimizer(
+            n_bits_per_weight=4,
+            simulation_mode=True,
+        )
+        rng = np.random.default_rng(seed=42)
+
+        test_cases = [
+            # (权重, 梯度) — 覆盖正/负/混合梯度方向
+            (np.array([0.5, -0.3, 0.8, 0.1]), np.array([1.0, 1.0, 1.0, 1.0])),
+            (np.array([0.5, -0.3, 0.8, 0.1]), np.array([-1.0, -1.0, -1.0, -1.0])),
+            (np.array([0.5, -0.3, 0.8, 0.1]), np.array([1.0, -1.0, 1.0, -1.0])),
+            (np.array([0.2, 0.4, -0.1, 0.3]), rng.uniform(-1.0, 1.0, size=4)),
+        ]
+
+        for weights_arr, gradient_arr in test_cases:
+            weights = [weights_arr.astype(np.float64)]
+            gradients = [gradient_arr.astype(np.float64)]
+
+            qubo = optimizer.network_to_qubo(weights, gradients=gradients)
+            optimal_bitstring = _exact_minimum_bitstring(qubo)
+            decoded_delta = optimizer.bitstring_to_weights(
+                optimal_bitstring,
+                [weights[0].shape],
+            )[0]
+
+            descent_direction = -gradients[0]
+            dot_product = float(np.dot(decoded_delta, descent_direction))
+            assert dot_product > 0, (
+                f"梯度={gradient_arr}, 解码Δw={decoded_delta}, 与下降方向点积={dot_product} 应为正"
+            )
+
+    def test_qubo_energy_monotonicity(self) -> None:
+        """验证沿梯度下降方向 QUBO 能量单调递减。
+
+        构造一系列在下降方向上幅度递增的比特串，
+        验证 QUBO 能量随幅度增大而递减（线性项主导区域）。
+        """
+        optimizer = QuantumAnnealingOptimizer(
+            n_bits_per_weight=4,
+            simulation_mode=True,
+        )
+
+        # 4 个权重（非零方差），强正梯度 -> 下降方向为负更新
+        weights = [np.array([0.5, 0.1, 0.9, 0.3], dtype=np.float64)]
+        gradients = [np.array([1.0, 1.0, 1.0, 1.0], dtype=np.float64)]
+
+        qubo = optimizer.network_to_qubo(weights, gradients=gradients)
+
+        num_weights = weights[0].size  # 4
+
+        # 构造下降方向（sign=1，负更新）上幅度递增的 per-weight 比特模式：
+        # "1000"(mag=0) < "1001"(mag=1/8) < "1011"(mag=3/8) < "1111"(mag=7/8)
+        per_weight_patterns = ["1000", "1001", "1011", "1111"]
+
+        # 将 per-weight 模式拼接为全权重比特串
+        bitstrings = ["".join(p) * num_weights for p in per_weight_patterns]
+
+        energies = []
+        for bs in bitstrings:
+            bits = np.array([int(b) for b in bs], dtype=np.float64)
+            energy = optimizer.compute_qubo_energy(bits, qubo)
+            energies.append(energy)
+
+        # 验证能量单调递减
+        for i in range(len(energies) - 1):
+            assert energies[i] >= energies[i + 1], (
+                f"能量未单调递减: E({per_weight_patterns[i]})={energies[i]:.6f} "
+                f"< E({per_weight_patterns[i + 1]})={energies[i + 1]:.6f}"
+            )
+
+        # 最大幅度下降能量应严格小于零更新能量
+        assert energies[-1] < energies[0], "最大幅度下降能量应小于零更新能量"
+
+    def test_qubo_encoding_roundtrip(self) -> None:
+        """验证权重→比特串→解码权重的往返一致性（在编码精度范围内）。
+
+        使用 weight_deltas_to_bitstring 编码，bitstring_to_weights 解码，
+        验证往返误差不超过 1 LSB 对应的精度。
+        """
+        optimizer = QuantumAnnealingOptimizer(n_bits_per_weight=8)
+        max_delta = 0.1
+
+        # 构造多种 delta 值：正/负/零/边界/小值/非整除值
+        test_deltas = np.array(
+            [
+                0.0,  # 零
+                0.05,  # 正中等
+                -0.05,  # 负中等
+                0.1,  # 正最大（边界）
+                -0.1,  # 负最大（边界）
+                0.001,  # 正小值
+                -0.001,  # 负小值
+                0.099,  # 接近最大
+                -0.099,  # 接近负最大
+                0.033,  # 非整除值
+                -0.067,  # 非整除值
+            ],
+            dtype=np.float64,
+        )
+
+        encoded = optimizer.weight_deltas_to_bitstring([test_deltas], max_delta=max_delta)
+        decoded = optimizer.bitstring_to_weights(encoded, [test_deltas.shape])[0]
+
+        # 编码精度 = max_delta / 2^(magnitude_bits)
+        magnitude_bits = optimizer.n_bits_per_weight - 1
+        encoding_precision = max_delta / (2**magnitude_bits)
+
+        errors = np.abs(decoded - test_deltas)
+        assert np.all(errors <= encoding_precision + 1e-12), (
+            f"往返误差 {errors.max():.8f} 超过编码精度 {encoding_precision:.8f}"
+        )
+
+    def test_qubo_regularization_effect(self) -> None:
+        """验证 λ 增大时更新幅度减小。
+
+        注意: ``network_to_qubo`` 中 ``reg_lambda`` 硬编码为 0.1，无法通过公开接口调整。
+        本测试使用与 ``network_to_qubo`` 相同的数学公式手动构建 QUBO（不含跨权重耦合），
+        对比不同 λ 值下最优解的更新幅度，验证 L2 正则化的抑制效果。
+        限制说明详见 PR body。
+        """
+        optimizer = QuantumAnnealingOptimizer(
+            n_bits_per_weight=4,
+            simulation_mode=True,
+        )
+
+        # 非零方差权重 + 强梯度，确保线性项和正则化项都可观测
+        weights = np.array([0.5, 0.1, 0.9, 0.3], dtype=np.float64)
+        gradients = np.array([1.0, 1.0, 1.0, 1.0], dtype=np.float64)
+
+        # 弱正则化 vs 强正则化
+        lambda_weak = 0.001
+        lambda_strong = 1000.0
+
+        qubo_weak = _build_qubo_with_lambda(weights, gradients, 4, lambda_weak)
+        qubo_strong = _build_qubo_with_lambda(weights, gradients, 4, lambda_strong)
+
+        # 暴力搜索最优比特串（16 bits = 65536 种组合，可接受）
+        optimal_weak = _exact_minimum_bitstring(qubo_weak)
+        optimal_strong = _exact_minimum_bitstring(qubo_strong)
+
+        # 解码为权重更新量（传入 current_weights 以使用与 QUBO 一致的 max_delta）
+        decoded_weak = optimizer.bitstring_to_weights(
+            optimal_weak, [weights.shape], current_weights=[weights]
+        )[0]
+        decoded_strong = optimizer.bitstring_to_weights(
+            optimal_strong, [weights.shape], current_weights=[weights]
+        )[0]
+
+        delta_weak = decoded_weak - weights
+        delta_strong = decoded_strong - weights
+
+        magnitude_weak = float(np.linalg.norm(delta_weak))
+        magnitude_strong = float(np.linalg.norm(delta_strong))
+
+        # 强正则化下更新幅度应严格小于弱正则化
+        assert magnitude_strong < magnitude_weak, (
+            f"λ增大时更新幅度应减小: "
+            f"||Δw(λ={lambda_weak})||={magnitude_weak:.8f}, "
+            f"||Δw(λ={lambda_strong})||={magnitude_strong:.8f}"
+        )

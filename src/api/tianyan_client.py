@@ -12,7 +12,7 @@ Tianyan Cloud Platform API Client
 import os
 import random
 import time
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterator, Mapping
 from contextlib import contextmanager
 from time import monotonic
 from typing import Any, TypeVar, cast
@@ -23,6 +23,7 @@ from dotenv import load_dotenv
 from loguru import logger
 
 from src.api.circuit_breaker import CircuitBreaker
+from src.api.types import TaskResult
 from src.exceptions import QuantumSchedulerError, RateLimitError
 from src.utils.metrics import (
     api_calls,
@@ -773,7 +774,7 @@ class TianyanClient:
     # 3. 查询任务状态
     # ------------------------------------------------------------------
 
-    def get_task_status(self, task_id: str) -> dict[str, Any]:
+    def get_task_status(self, task_id: str) -> TaskResult:
         """查询任务执行状态
 
         Args:
@@ -788,7 +789,7 @@ class TianyanClient:
         try:
             with self._observe_api_call("get_task_status", "task_status"):
                 if self.mock_mode and hasattr(self, "_mock_client") and self._mock_client:
-                    result = cast(dict[str, Any], self._mock_client.get_task_status(task_id))
+                    result = cast(TaskResult, self._mock_client.get_task_status(task_id))
                     if self._circuit_breaker:
                         self._circuit_breaker.on_success()
                     return result
@@ -824,7 +825,7 @@ class TianyanClient:
     # 4. 获取任务结果
     # ------------------------------------------------------------------
 
-    def get_task_result(self, task_id: str) -> dict[str, Any]:
+    def get_task_result(self, task_id: str) -> TaskResult:
         """获取任务执行结果
 
         仅当任务状态为 ``COMPLETED`` 时返回有效测量结果。
@@ -840,7 +841,7 @@ class TianyanClient:
         """
         if self.mock_mode and hasattr(self, "_mock_client") and self._mock_client:
             with self._observe_api_call("get_task_result", "task_result"):
-                return cast(dict[str, Any], self._mock_client.get_task_result(task_id))
+                return cast(TaskResult, self._mock_client.get_task_result(task_id))
 
         # 真实模式委托 cqlib
         if self._cqlib is not None:
@@ -1023,7 +1024,7 @@ class TianyanClient:
         task_id: str,
         poll_interval: float = 5.0,
         timeout: float = 3600.0,
-    ) -> dict[str, Any]:
+    ) -> TaskResult:
         """轮询等待任务完成并返回结果
 
         周期性查询任务状态，直到任务完成或失败，或超过超时时间。
@@ -1058,7 +1059,11 @@ class TianyanClient:
                 raise TianyanAPIError(
                     status_code=400,
                     message=f"任务 {task_id} 执行失败: {error_msg}",
-                    response_body=status_info,
+                    response_body=(
+                        status_info.to_dict()
+                        if isinstance(status_info, TaskResult)
+                        else dict(cast(Mapping[str, Any], status_info))
+                    ),
                 )
 
             logger.debug(f"任务 {task_id} 状态={status}，{poll_interval}s 后再次查询")

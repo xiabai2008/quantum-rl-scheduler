@@ -8,9 +8,12 @@ _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 
+import numpy as np
 import pytest
 
+from src.api.types import TaskResult
 from src.scheduler.env import QuantumSchedulingEnv
+from src.scheduler.env_machines import route_to_machine
 from src.scheduler.env_real_machine import (
     FREE_TIER_MAX_QUBITS,
     _compute_real_feedback,
@@ -30,6 +33,7 @@ from src.scheduler.env_types import (
     REAL_MACHINE_DEGRADE_FAIL_THRESHOLD,
     REAL_MACHINE_FAIL_PENALTY,
     REAL_MACHINE_MAX_POLL_STEPS,
+    REAL_MACHINE_SUBMIT_INTERVAL,
     REAL_MACHINE_SUCCESS_BONUS,
     REAL_RESULT_REWARD_MAX,
     REAL_RESULT_REWARD_MIN,
@@ -134,6 +138,40 @@ class TestGenerateQcisCircuit:
             for p in parts[1:]:
                 assert p.startswith("Q"), f"应为比特引用: {p}"
 
+    def test_bell_ghz_circuit_generation(self):
+        """Bell/GHZ 模板应生成固定纠缠电路。"""
+        task = Task(task_id="entangled", task_type="quantum", qubit_count=3, priority=3)
+
+        bell = generate_qcis_circuit(task, max_qubits=2, circuit_type="bell")
+        assert bell == "H Q0\nCNOT Q0 Q1\nM Q0 Q1"
+
+        ghz = generate_qcis_circuit(task, max_qubits=3, circuit_type="ghz3")
+        assert ghz == "H Q0\nCNOT Q0 Q1\nCNOT Q1 Q2\nM Q0 Q1 Q2"
+
+    @pytest.mark.parametrize(
+        ("circuit_type", "max_qubits"),
+        [("bell", 1), ("ghz3", 2)],
+    )
+    def test_entangled_template_respects_qubit_limit(
+        self,
+        circuit_type: str,
+        max_qubits: int,
+    ):
+        """模板不能在配置上限不足时生成越界量子比特。"""
+        task = Task(task_id="limited", task_type="quantum", qubit_count=3, priority=3)
+        with pytest.raises(ValueError, match="requires at least"):
+            generate_qcis_circuit(
+                task,
+                max_qubits=max_qubits,
+                circuit_type=circuit_type,
+            )
+
+    def test_invalid_circuit_type_raises(self):
+        """未知模板名称应显式拒绝。"""
+        task = Task(task_id="invalid", task_type="quantum", qubit_count=3, priority=3)
+        with pytest.raises(ValueError, match="circuit_type"):
+            generate_qcis_circuit(task, circuit_type="unknown")
+
 
 class TestTaskQcisField:
     """Task 数据类 qcis 字段测试"""
@@ -195,6 +233,19 @@ class TestRealSubmissionBudget:
             QuantumSchedulingEnv(max_real_submissions=-1)
         with pytest.raises(ValueError, match="real_machine_shots"):
             QuantumSchedulingEnv(real_machine_shots=0)
+        with pytest.raises(ValueError, match="real_machine_max_qubits"):
+            QuantumSchedulingEnv(real_machine_max_qubits=0)
+
+    def test_submission_uses_configured_real_machine_qubit_limit(self):
+        """动态生成的提交电路应遵守显式真机比特上限。"""
+        env, client, machine, _task = self._make_env()
+        env.real_machine_max_qubits = 2
+        task = Task(task_id="configured", task_type="quantum", qubit_count=5)
+
+        submit_to_real_machine(env, machine, task)
+
+        assert len(client.calls) == 1
+        assert "Q2" not in client.calls[0]["qcis"]
 
     def test_hard_limit_survives_reset_and_uses_configured_shots(self):
         env, client, machine, task = self._make_env()
@@ -287,6 +338,38 @@ class TestParseMeasurementResult:
         result = parse_measurement_result(status)
         assert result == {"0": 0.3, "1": 0.7}
 
+    def test_task_result_prefers_probability_over_counts(self):
+        """TaskResult 同时包含两者时必须优先采用真机 probability。"""
+        status = TaskResult(
+            task_id="real-1",
+            status="completed",
+            probability={"00": 0.25, "11": 0.75},
+            counts={"00": 90, "11": 10},
+            shots=100,
+            backend="tianyan-287",
+        )
+        assert parse_measurement_result(status) == {"00": 0.25, "11": 0.75}
+
+    def test_mock_counts_and_real_probability_are_consistent(self):
+        """Mock counts 与真机 probability 的统一结果应产生相同概率分布。"""
+        mock_result = TaskResult(
+            task_id="mock-1",
+            status="COMPLETED",
+            probability={},
+            counts={"00": 32, "11": 32},
+            shots=64,
+            backend="tianyan-simulator",
+        )
+        real_result = TaskResult(
+            task_id="real-1",
+            status="completed",
+            probability={"00": 0.5, "11": 0.5},
+            counts=None,
+            shots=64,
+            backend="tianyan-287",
+        )
+        assert parse_measurement_result(mock_result) == parse_measurement_result(real_result)
+
     def test_probability_normalization(self):
         """未归一化的 probability 自动归一化。"""
         status = {"probability": {"0": 30, "1": 70}}
@@ -350,6 +433,24 @@ class TestComputeTheoreticalDistribution:
         assert len(dist) == 4
         for v in dist.values():
             assert abs(v - 0.25) < 1e-9
+
+    @pytest.mark.parametrize(
+        ("qcis", "expected"),
+        [
+            ("H Q0\nCNOT Q0 Q1\nM Q0 Q1", {"00": 0.5, "11": 0.5}),
+            (
+                "H Q0\nCNOT Q0 Q1\nCNOT Q1 Q2\nM Q0 Q1 Q2",
+                {"000": 0.5, "111": 0.5},
+            ),
+        ],
+    )
+    def test_entangled_template_exact_distribution(
+        self,
+        qcis: str,
+        expected: dict[str, float],
+    ):
+        """Bell/GHZ 模板应返回精确理想分布，而非均匀近似。"""
+        assert compute_theoretical_distribution(qcis) == expected
 
     def test_no_measure_returns_default(self):
         """无测量行返回默认 {0: 1.0}。"""
@@ -1030,6 +1131,180 @@ class TestShuffleMeasurementAdditional:
         shuffled = shuffle_measurement(measured)
         # 值的多重集不变
         assert sorted(shuffled.values()) == sorted(measured.values())
+
+
+# =============================================================================
+# 间隔触发保底 + 概率触发（Issue #242 / #243）
+# =============================================================================
+
+
+class TestIntervalTrigger:
+    """Issue #243: 真机提交间隔触发保底 + 概率触发额外增加测试。
+
+    间隔触发确保即使 real_submit_probability=0.0，每 real_submit_interval
+    步也会强制提交一次真机任务，避免概率触发完全错过（根因见 Issue #242）。
+    """
+
+    @staticmethod
+    def _make_env_with_interval(
+        interval: int = 20,
+        probability: float = 0.0,
+    ) -> tuple:
+        """构造带间隔触发的真机环境，返回 (env, client, machine, task, rng)。"""
+        env = QuantumSchedulingEnv(
+            machine_configs=[
+                {
+                    "name": "tianyan176",
+                    "total_qubits": 287,
+                    "supported_gates": ("H", "M"),
+                    "is_real": True,
+                }
+            ],
+            use_real_machine=True,
+            real_submit_probability=probability,
+            real_submit_interval=interval,
+            max_real_submissions=100,
+            real_machine_shots=64,
+        )
+        client = _StatusClient()
+        env.attach_real_clients({"tianyan176": client})
+        machine = QuantumMachine(name="tianyan176", total_qubits=287, is_real=True)
+        task = Task(task_id="t0", task_type="quantum", qubit_count=1)
+        rng = np.random.default_rng(42)
+        return env, client, machine, task, rng
+
+    def test_default_interval_is_20(self):
+        """REAL_MACHINE_SUBMIT_INTERVAL 常量默认值为 20。"""
+        assert REAL_MACHINE_SUBMIT_INTERVAL == 20
+
+    def test_env_default_interval(self):
+        """env 默认 real_submit_interval 应为 REAL_MACHINE_SUBMIT_INTERVAL。"""
+        env = QuantumSchedulingEnv()
+        assert env.real_submit_interval == REAL_MACHINE_SUBMIT_INTERVAL
+
+    def test_invalid_interval_raises(self):
+        """real_submit_interval < 1 应抛出 ValueError。"""
+        with pytest.raises(ValueError, match="real_submit_interval"):
+            QuantumSchedulingEnv(real_submit_interval=0)
+        with pytest.raises(ValueError, match="real_submit_interval"):
+            QuantumSchedulingEnv(real_submit_interval=-5)
+
+    def test_interval_trigger_fires_at_multiples(self):
+        """间隔触发：step % interval == 0 时强制提交（probability=0 也能触发）。"""
+        env, client, machine, task, rng = self._make_env_with_interval(interval=20, probability=0.0)
+        # step=20 是 20 的倍数 → 应触发
+        env._current_step = 20
+        route_to_machine(env, machine, task, rng)
+        assert len(client.submitted) == 1
+
+    def test_interval_trigger_skips_non_multiples_with_zero_probability(self):
+        """间隔触发：非倍数步 + probability=0 → 不提交。"""
+        env, client, machine, task, rng = self._make_env_with_interval(interval=20, probability=0.0)
+        # step=15 不是 20 的倍数 → 不触发（probability=0 也不触发）
+        env._current_step = 15
+        route_to_machine(env, machine, task, rng)
+        assert len(client.submitted) == 0
+
+    def test_interval_trigger_step_zero(self):
+        """间隔触发：step=0 也应触发（0 % 任何数 == 0）。"""
+        env, client, machine, task, rng = self._make_env_with_interval(interval=20, probability=0.0)
+        env._current_step = 0
+        route_to_machine(env, machine, task, rng)
+        assert len(client.submitted) == 1
+
+    def test_probability_trigger_fires_on_non_interval_step(self):
+        """概率触发：非倍数步 + probability=1.0 → 应提交。"""
+        env, client, machine, task, rng = self._make_env_with_interval(interval=20, probability=1.0)
+        # step=15 不是 20 的倍数，但 probability=1.0 → 应通过概率触发提交
+        env._current_step = 15
+        route_to_machine(env, machine, task, rng)
+        assert len(client.submitted) == 1
+
+    def test_probability_trigger_skipped_on_interval_step(self):
+        """间隔触发优先：倍数步不走概率分支（不消耗 rng.random）。"""
+        env, client, machine, task, rng = self._make_env_with_interval(interval=20, probability=0.0)
+        # step=20 走间隔触发，不调用 rng.random()（probability 分支被 elif 跳过）
+        env._current_step = 20
+        rng_state_before = rng.bit_generator.state["state"]["state"]
+        route_to_machine(env, machine, task, rng)
+        rng_state_after = rng.bit_generator.state["state"]["state"]
+        assert rng_state_before == rng_state_after
+        assert len(client.submitted) == 1
+
+    def test_both_triggers_coexist(self):
+        """间隔触发与概率触发共存：多个步数混合验证。"""
+        env, client, machine, task, rng = self._make_env_with_interval(interval=10, probability=1.0)
+        # step=10: 间隔触发
+        env._current_step = 10
+        route_to_machine(env, machine, task, rng)
+        assert len(client.submitted) == 1
+
+        # step=13: 非倍数，但 probability=1.0 → 概率触发
+        env._current_step = 13
+        route_to_machine(env, machine, task, rng)
+        assert len(client.submitted) == 2
+
+        # step=20: 间隔触发
+        env._current_step = 20
+        route_to_machine(env, machine, task, rng)
+        assert len(client.submitted) == 3
+
+    def test_no_submit_without_real_client(self):
+        """无真机客户端时不提交（间隔触发和概率触发都跳过）。"""
+        env, client, machine, task, rng = self._make_env_with_interval(interval=20, probability=1.0)
+        # 清空客户端
+        env._real_clients = {}
+        env._current_step = 20
+        route_to_machine(env, machine, task, rng)
+        assert len(client.submitted) == 0
+
+    def test_no_submit_for_non_real_machine(self):
+        """非真机机器不触发提交。"""
+        env, client, _machine, task, rng = self._make_env_with_interval(
+            interval=20, probability=1.0
+        )
+        # 使用非真机机器
+        fake_machine = QuantumMachine(name="simulator", total_qubits=287, is_real=False)
+        env._current_step = 20
+        route_to_machine(env, fake_machine, task, rng)
+        assert len(client.submitted) == 0
+
+    def test_interval_trigger_custom_interval(self):
+        """自定义间隔值生效。"""
+        env, client, machine, task, rng = self._make_env_with_interval(interval=5, probability=0.0)
+        # step=5 是 5 的倍数 → 触发
+        env._current_step = 5
+        route_to_machine(env, machine, task, rng)
+        assert len(client.submitted) == 1
+
+        # step=7 不是 5 的倍数 + probability=0 → 不触发
+        env._current_step = 7
+        route_to_machine(env, machine, task, rng)
+        assert len(client.submitted) == 1
+
+        # step=10 是 5 的倍数 → 触发
+        env._current_step = 10
+        route_to_machine(env, machine, task, rng)
+        assert len(client.submitted) == 2
+
+    def test_interval_trigger_ensures_participation(self):
+        """Issue #242 核心修复验证：probability=0.05 + interval=20 确保参与率。
+
+        模拟根因场景：即使概率很低(5%)，间隔触发确保每20步至少1次提交机会。
+        """
+        env, client, machine, task, rng = self._make_env_with_interval(
+            interval=20, probability=0.05
+        )
+        submit_count = 0
+        # 模拟 100 步，每步都路由到真机
+        for step in range(1, 101):
+            env._current_step = step
+            route_to_machine(env, machine, task, rng)
+            submit_count = len(client.submitted)
+
+        # 间隔触发确保至少在 step=20,40,60,80,100 时提交
+        # 即至少 5 次提交（概率触发可能带来更多）
+        assert submit_count >= 5, f"间隔触发应确保至少5次提交，实际 {submit_count} 次"
 
 
 if __name__ == "__main__":

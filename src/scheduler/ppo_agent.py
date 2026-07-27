@@ -84,7 +84,7 @@ class PPOAgent:
         self.observation_space = env.observation_space
         self.action_space = env.action_space
 
-        # 量子退火器初始化（可选功能）
+        # 退火优化器初始化（可选功能）
         self.use_annealing = kwargs.get("use_annealing", False)
         self.annealing_optimizer = None
         self.anneal_interval = kwargs.get("anneal_interval", 1000)
@@ -97,10 +97,11 @@ class PPOAgent:
                 shots=kwargs.get("anneal_shots", 1000),
                 simulation_mode=kwargs.get("anneal_simulation_mode", True),
                 cqlib_client=kwargs.get("anneal_cqlib_client"),
+                n_bits_per_weight=kwargs.get("anneal_n_bits_per_weight", 4),
             )
             sim_tag = "仿真" if self.annealing_optimizer.simulation_mode else "真机"
             logger.info(
-                f"[PPOAgent] 量子退火器已启用（{sim_tag}模式），退火间隔={self.anneal_interval}步"
+                f"[PPOAgent] 退火优化器已启用（{sim_tag}模式），退火间隔={self.anneal_interval}步"
             )
 
         # 决策缓存（可选功能，Issue #140）

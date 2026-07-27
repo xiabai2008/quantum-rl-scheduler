@@ -16,11 +16,14 @@ from typing import TYPE_CHECKING, Any
 
 from loguru import logger
 
+from src.api.hardware_adapter import CircuitFormat, QuantumHardwareBackend
+from src.api.types import TaskResult
+
 if TYPE_CHECKING:
     from src.api.quota_tracker import QuotaTracker
 
 
-class CqlibTianyanClient:
+class CqlibTianyanClient(QuantumHardwareBackend):
     """基于 cqlib SDK 的天衍云真机客户端
 
     直接调用天衍云超导量子计算机执行量子电路。
@@ -80,6 +83,67 @@ class CqlibTianyanClient:
             logger.info("[Cqlib] 额外凭证已加载（api_secret/app_id），将在平台初始化时透传")
 
         logger.info(f"[Cqlib] 客户端初始化，默认机器={machine_name}")
+
+    # ------------------------------------------------------------------
+    # QuantumHardwareBackend ABC 接口实现（Issue #257）
+    # ------------------------------------------------------------------
+
+    @property
+    def supported_gates(self) -> list[str]:
+        """返回天衍云超导真机支持的量子门列表。"""
+        return ["H", "X", "Y", "Z", "RX", "RY", "RZ", "CNOT", "CZ", "M"]
+
+    @property
+    def topology(self) -> dict[str, Any]:
+        """返回天衍-287 的耦合图拓扑信息。
+
+        天衍-287 超导量子计算机：105 数据比特 + 182 耦合比特，
+        采用 2D 网格拓扑（最近邻耦合）。
+        """
+        return {
+            "type": "2d_grid",
+            "machine_name": self.machine_name,
+            "total_qubits": 287,
+            "data_qubits": 105,
+            "coupler_qubits": 182,
+            "connectivity": "nearest_neighbor",
+            "description": "天衍-287 超导量子计算机，2D 网格拓扑",
+        }
+
+    @property
+    def backend_type(self) -> str:
+        """返回后端类型标识。"""
+        return "superconducting"
+
+    @property
+    def circuit_format(self) -> CircuitFormat:
+        """天衍云超导后端使用 QCIS 指令格式。"""
+        return CircuitFormat.QCIS
+
+    def submit_circuit(
+        self,
+        circuit: str,
+        shots: int = 1024,
+        task_name: str = "Scheduler_Task",
+    ) -> str | None:
+        """提交量子电路到天衍云真机（QuantumHardwareBackend 接口实现）。
+
+        本方法是 ``submit_quantum_task`` 的 ABC 接口适配，
+        将 ``circuit`` 参数映射为 QCIS 指令字符串。
+
+        Args:
+            circuit   : QCIS 指令字符串
+            shots     : 测量次数
+            task_name : 任务名称
+
+        Returns:
+            task_id 字符串；全部机器不可用时返回 None
+        """
+        return self.submit_quantum_task(
+            qcis=circuit,
+            shots=shots,
+            task_name=task_name,
+        )
 
     @property
     def platform(self) -> Any:
@@ -416,7 +480,7 @@ class CqlibTianyanClient:
         logger.error("[Cqlib] 所有备用机器均不可用，放弃提交（返回 None）")
         return None
 
-    def get_task_status(self, task_id: str) -> dict[str, Any]:
+    def get_task_status(self, task_id: str) -> TaskResult:
         """查询任务状态（非阻塞，max_wait_time=2s 仅做一次 HTTP 尝试）。
 
         注意：cqlib 的 query_experiment 默认 max_wait_time=3600s，
@@ -435,42 +499,73 @@ class CqlibTianyanClient:
                 data = result[0]
                 if isinstance(data, dict):
                     has_result = "resultStatus" in data or "probability" in data
-                    return {
-                        "task_id": task_id,
-                        "status": "completed" if has_result else "running",
-                        "result": data.get("probability"),
-                        "raw": data,
-                    }
-            return {"task_id": task_id, "status": "unknown", "raw": result}
+                    probability = data.get("probability")
+                    counts = data.get("counts")
+                    return TaskResult(
+                        task_id=task_id,
+                        status="completed" if has_result else "running",
+                        probability=probability if isinstance(probability, dict) else {},
+                        counts=counts if isinstance(counts, dict) else None,
+                        shots=int(data.get("shots", 0) or 0),
+                        backend=str(data.get("machine", self.machine_name)),
+                        raw=data,
+                    )
+            return TaskResult(
+                task_id=task_id,
+                status="unknown",
+                probability={},
+                counts=None,
+                shots=0,
+                backend=self.machine_name,
+                raw=result,
+            )
         except CqlibRequestError as e:
             # SDK 同时使用 CqlibRequestError 表示"仍在运行"和服务端终态失败。
             # 终态失败必须立即返回 error，否则 wait_for_task 会无意义轮询到超时。
             message = str(e)
             terminal_failure_markers = ("运行失败", "run failure", "tasks have failed")
             if any(marker in message.lower() for marker in terminal_failure_markers):
-                return {"task_id": task_id, "status": "error", "error": message}
+                return TaskResult(
+                    task_id=task_id,
+                    status="error",
+                    probability={},
+                    counts=None,
+                    shots=0,
+                    backend=self.machine_name,
+                    error=message,
+                )
             # 已核实：不得把通用 CqlibRequestError 无条件标成 running
             # 可能是查询错误、网络问题或未知 SDK 状态
             # 标记为 query_error 而非 running，绝不能计为 completed
             logger.debug(f"[Cqlib] 查询任务 {task_id} CqlibRequestError: {message[:80]}")
-            return {
-                "task_id": task_id,
-                "status": "query_error",
-                "error": message[:200],
-                "raw": {},
-            }
+            return TaskResult(
+                task_id=task_id,
+                status="query_error",
+                probability={},
+                counts=None,
+                shots=0,
+                backend=self.machine_name,
+                error=message[:200],
+                raw={},
+            )
         except Exception as e:
             # cqlib 查询接口异常类型无法穷举，保留宽捕获并记录日志
             logger.debug(f"[Cqlib] 查询任务 {task_id} 状态失败: {e}")
-            return {"task_id": task_id, "status": "error", "error": str(e)}
+            return TaskResult(
+                task_id=task_id,
+                status="error",
+                probability={},
+                counts=None,
+                shots=0,
+                backend=self.machine_name,
+                error=str(e),
+            )
 
-    def get_task_result(self, task_id: str) -> dict[str, Any]:
+    def get_task_result(self, task_id: str) -> TaskResult:
         """获取任务执行结果"""
         return self.get_task_status(task_id)
 
-    def wait_for_task(
-        self, task_id: str, timeout: int = 300, poll_interval: int = 5
-    ) -> dict[str, Any]:
+    def wait_for_task(self, task_id: str, timeout: int = 300, poll_interval: int = 5) -> TaskResult:
         """轮询等待任务完成并返回结果
 
         Args:
@@ -486,7 +581,14 @@ class CqlibTianyanClient:
             if status["status"] == "error":
                 return status
             time.sleep(poll_interval)
-        return {"task_id": task_id, "status": "timeout"}
+        return TaskResult(
+            task_id=task_id,
+            status="timeout",
+            probability={},
+            counts=None,
+            shots=0,
+            backend=self.machine_name,
+        )
 
     def get_queue_status(self) -> dict[str, Any]:
         """获取队列状态（cqlib 无此接口，返回估算）"""

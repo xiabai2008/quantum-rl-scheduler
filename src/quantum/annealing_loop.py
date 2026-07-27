@@ -1,5 +1,10 @@
 """
-量子退火异步闭环训练模块
+量子启发式退火异步闭环训练模块（探索性功能）
+
+.. deprecated:: 2026-07-27
+    退火已降级为探索性功能，默认关闭，不再投入开发。
+    量子赋能AI主方向为真机噪声反馈优化PPO鲁棒性。
+    详见 src/quantum/annealing.py 的废弃说明。
 
 实现 "RL 训练 → 周期性触发退火优化 → 反馈权重 → 继续训练" 的全自动异步流程：
     - 训练线程通过 queue.Queue 提交退火任务，不被退火求解阻塞
@@ -125,6 +130,39 @@ class AsyncAnnealingLoop:
         self._stop_event = threading.Event()
         self._thread: threading.Thread | None = None
 
+    def get_annealing_config(self) -> dict[str, Any]:
+        """返回异步退火闭环的完整参数配置（Issue #247）。
+
+        合并底层优化器参数与闭环控制参数，用于实验脚本输出
+        ``annealing_config`` 字段，确保退火配置可追溯、可复现。
+
+        Returns:
+            包含闭环参数与底层优化器参数的合并字典：
+            - ``annealing_mode``: 退火模式（head_only / hierarchical）
+            - ``initial_interval``: 初始触发间隔
+            - ``min_interval`` / ``max_interval``: 触发间隔范围
+            - ``eval_episodes`` / ``eval_deterministic``: 评估参数
+            - ``improvement_threshold``: 奖励提升阈值
+            - ``min_effective_reward_delta``: 介入率诊断阈值
+            - ``retry_delays``: 真机失败重试延迟
+            - ``optimizer_config``: 底层 QuantumAnnealingOptimizer 的参数（来自其 get_annealing_config）
+        """
+        optimizer_config: dict[str, Any] = {}
+        if hasattr(self.optimizer, "get_annealing_config"):
+            optimizer_config = self.optimizer.get_annealing_config()
+        return {
+            "annealing_mode": self.annealing_mode,
+            "initial_interval": self._current_interval,
+            "min_interval": self.min_interval,
+            "max_interval": self.max_interval,
+            "eval_episodes": self.eval_episodes,
+            "eval_deterministic": self.eval_deterministic,
+            "improvement_threshold": self.improvement_threshold,
+            "min_effective_reward_delta": self.min_effective_reward_delta,
+            "retry_delays": list(self.retry_delays),
+            "optimizer_config": optimizer_config,
+        }
+
     def start(self) -> None:
         """启动异步退火工作线程。"""
         if self._thread is not None and self._thread.is_alive():
@@ -249,9 +287,20 @@ class AsyncAnnealingLoop:
             agent_wrapper = types.SimpleNamespace(policy=eval_policy)
 
             try:
-                old_reward = self._evaluate_policy(eval_policy)
+                baseline_evaluation = self._evaluate_policy(eval_policy)
+                old_reward = baseline_evaluation["reward"]
+                natural_evaluation = self._evaluate_policy(
+                    eval_policy,
+                    baseline_reward=old_reward,
+                )
+                natural_delta = natural_evaluation["counterfactual_delta"]
                 optimized_wrapper = self._run_annealing_with_retries(agent_wrapper, step)
-                new_reward = self._evaluate_policy(optimized_wrapper.policy)
+                optimized_evaluation = self._evaluate_policy(
+                    optimized_wrapper.policy,
+                    baseline_reward=old_reward,
+                    natural_delta=natural_delta,
+                )
+                new_reward = optimized_evaluation["reward"]
             except Exception as e:
                 # 退火与评估涉及优化器、网络推理、环境交互，异常类型无法穷举，保留宽捕获并记录日志
                 logger.error(f"[退火闭环] 步数 {step}: 退火或评估失败 ({type(e).__name__}: {e})")
@@ -259,6 +308,10 @@ class AsyncAnnealingLoop:
                 continue
 
             delta = new_reward - old_reward
+            counterfactual_delta = optimized_evaluation["counterfactual_delta"]
+            attribution = optimized_evaluation["attribution"]
+            attribution_ratio = optimized_evaluation["attribution_ratio"]
+            attribution_status = "退火无效" if attribution < 0.0 else "退火有效"
             is_effective = self._update_interval(delta)
             impact_rate = self.get_impact_rate()
 
@@ -271,6 +324,11 @@ class AsyncAnnealingLoop:
                 "old_reward": old_reward,
                 "new_reward": new_reward,
                 "delta": delta,
+                "counterfactual_delta": counterfactual_delta,
+                "natural_delta": natural_delta,
+                "attribution": attribution,
+                "attribution_ratio": attribution_ratio,
+                "attribution_status": attribution_status,
                 "interval": self.get_current_interval(),
                 "effective": is_effective,
                 "impact_rate": impact_rate,
@@ -282,6 +340,11 @@ class AsyncAnnealingLoop:
                     "step": step,
                     "state_dict": copy.deepcopy(optimized_wrapper.policy.state_dict()),
                     "delta": delta,
+                    "counterfactual_delta": counterfactual_delta,
+                    "natural_delta": natural_delta,
+                    "attribution": attribution,
+                    "attribution_ratio": attribution_ratio,
+                    "attribution_status": attribution_status,
                     "timestamp": record["timestamp"],
                 }
                 self._history.append(record)
@@ -291,6 +354,11 @@ class AsyncAnnealingLoop:
             logger.info(
                 f"[退火闭环] 步数 {step}: 旧奖励={old_reward:.4f}, "
                 f"新奖励={new_reward:.4f}, delta={delta:.4f}, "
+                f"counterfactual_delta={counterfactual_delta:.4f}, "
+                f"natural_delta={natural_delta:.4f}, "
+                f"attribution={attribution:.4f}, "
+                f"attribution_ratio={attribution_ratio:.1%}, "
+                f"归因诊断={attribution_status}, "
                 f"当前间隔={self.get_current_interval()}, "
                 f"有效={'是' if is_effective else '否'}, "
                 f"介入率={impact_rate:.1%}, "
@@ -383,23 +451,43 @@ class AsyncAnnealingLoop:
                 # 优化器内部涉及退火与权重更新，异常类型无法穷举，保留宽捕获并记录日志
                 if getattr(self.optimizer, "simulation_mode", True):
                     raise
+                # Issue #229: 显式记录降级上下文
+                qubo_n = getattr(self.optimizer, "num_qubits", "unknown")
+                solver = getattr(self.optimizer, "_last_solver", "unknown")
                 logger.warning(
-                    f"[退火闭环] 步数 {step}: 真机退火失败（第 {attempt + 1} 次），"
-                    f"{delay}s 后重试 ({type(e).__name__}: {e})"
+                    f"[退火闭环][降级] 步数 {step}: 真机退火失败（第 {attempt + 1} 次），"
+                    f"{delay}s 后重试。"
+                    f"降级原因={type(e).__name__}: {e}, "
+                    f"当前求解器={solver}, QUBO 比特数={qubo_n}"
                 )
                 time.sleep(delay)
 
         # 重试次数耗尽，降级为仿真退火
         try:
-            logger.warning(f"[退火闭环] 步数 {step}: 真机退火重试耗尽，降级为仿真退火")
+            # Issue #229: 首次降级时记录完整降级上下文
+            prev_solver = getattr(self.optimizer, "_last_solver", "unknown")
+            target_solver = "neal_sa" if getattr(self.optimizer, "use_dw", False) else "numpy_sa"
+            logger.warning(
+                f"[退火闭环][降级] 步数 {step}: 真机退火重试耗尽，"
+                f"降级为仿真退火。"
+                f"降级原因=retries_exhausted (max={len(self.retry_delays)}), "
+                f"前求解器={prev_solver}, 目标求解器={target_solver}, "
+                f"QUBO 比特数={getattr(self.optimizer, 'num_qubits', 'unknown')}"
+            )
             self.optimizer.simulation_mode = True
             return self._optimize_policy_call(agent_wrapper)
         except Exception as e:
             # 仿真退火仍可能失败（权重更新/张量运算），保留宽捕获并记录日志
-            logger.error(f"[退火闭环] 步数 {step}: 仿真退火也失败 ({type(e).__name__}: {e})")
+            logger.error(f"[退火闭环][降级] 步数 {step}: 仿真退火也失败 ({type(e).__name__}: {e})")
             raise
 
-    def _evaluate_policy(self, policy: Any) -> float:
+    def _evaluate_policy(
+        self,
+        policy: Any,
+        *,
+        baseline_reward: float | None = None,
+        natural_delta: float = 0.0,
+    ) -> dict[str, float]:
         """
         在验证环境上评估策略网络的平均回合奖励
 
@@ -408,9 +496,11 @@ class AsyncAnnealingLoop:
 
         Args:
             policy: 策略网络（需实现 predict 方法）
+            baseline_reward: 反事实比较的基准奖励；省略时以本次奖励为基准
+            natural_delta: 未应用退火时重复评估得到的自然奖励变化
 
         Returns:
-            平均回合奖励
+            包含平均奖励、反事实增量、自然增量、退火归因及归因占比的评估结果
         """
         episode_rewards: list[float] = []
         for ep_idx in range(self.eval_episodes):
@@ -432,7 +522,22 @@ class AsyncAnnealingLoop:
                 done = bool(terminated or truncated)
             episode_rewards.append(total_reward)
 
-        return float(np.mean(episode_rewards))
+        reward = float(np.mean(episode_rewards))
+        baseline = reward if baseline_reward is None else float(baseline_reward)
+        counterfactual_delta = reward - baseline
+        attribution = counterfactual_delta - float(natural_delta)
+        attribution_ratio = (
+            attribution / counterfactual_delta
+            if abs(counterfactual_delta) > np.finfo(float).eps
+            else 0.0
+        )
+        return {
+            "reward": reward,
+            "counterfactual_delta": counterfactual_delta,
+            "natural_delta": float(natural_delta),
+            "attribution": attribution,
+            "attribution_ratio": attribution_ratio,
+        }
 
     def _update_interval(self, delta: float) -> bool:
         """

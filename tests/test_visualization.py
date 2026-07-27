@@ -31,6 +31,7 @@ from pydantic import ValidationError
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
+from src.visualization import state as vis_state
 from src.visualization.app import (
     ConnectionManager,
     SystemStatusUpdate,
@@ -676,6 +677,51 @@ async def test_connection_manager_broadcast_removes_failed():
     await mgr.broadcast({"type": "test"})
     assert ws_failed not in mgr.active_connections
     assert ws_ok in mgr.active_connections
+
+
+@pytest.mark.asyncio
+async def test_connection_manager_connect_dedup():
+    """connect 应防护重复添加同一连接（Issue #216）。"""
+    mgr = ConnectionManager()
+    ws = AsyncMock()
+    await mgr.connect(ws)
+    # 重复 connect 不应重复添加
+    await mgr.connect(ws)
+    assert mgr.active_connections.count(ws) == 1
+
+
+@pytest.mark.asyncio
+async def test_websocket_endpoint_runtime_error_cleanup():
+    """WebSocket 端点在 RuntimeError 时应通过 finally 清理连接（Issue #216）。"""
+    from src.visualization import state as viz_state
+    from src.visualization.websocket_handler import websocket_endpoint
+
+    ws = AsyncMock()
+    ws.receive_text.side_effect = RuntimeError("connection reset")
+
+    with patch.object(viz_state, "manager") as mock_mgr:
+        mock_mgr.connect = AsyncMock()
+        mock_mgr.disconnect = MagicMock()
+        # 执行端点函数，应捕获 RuntimeError 并清理
+        await websocket_endpoint(ws)
+        # finally 块应调用 disconnect
+        mock_mgr.disconnect.assert_called_once_with(ws)
+
+
+@pytest.mark.asyncio
+async def test_websocket_endpoint_connection_closed_cleanup():
+    """WebSocket 端点在 ConnectionError 时应通过 finally 清理连接（Issue #216）。"""
+    from src.visualization import state as viz_state
+    from src.visualization.websocket_handler import websocket_endpoint
+
+    ws = AsyncMock()
+    ws.receive_text.side_effect = ConnectionError("connection closed")
+
+    with patch.object(viz_state, "manager") as mock_mgr:
+        mock_mgr.connect = AsyncMock()
+        mock_mgr.disconnect = MagicMock()
+        await websocket_endpoint(ws)
+        mock_mgr.disconnect.assert_called_once_with(ws)
 
 
 # ============================================================
@@ -1484,18 +1530,25 @@ class TestPydanticValidation:
 class TestAuthLayer:
     """verify_api_key 认证层测试（未配置/缺失/不匹配/匹配）。"""
 
+    @staticmethod
+    def _make_request(method: str = "POST") -> MagicMock:
+        """构造 mock Request 对象，指定 HTTP 方法。"""
+        req = MagicMock()
+        req.method = method
+        return req
+
     @pytest.mark.asyncio
     async def test_no_key_configured_allows(self, monkeypatch):
         """未配置 VIZ_API_KEY 时应放行（返回 None）。"""
         monkeypatch.delenv("VIZ_API_KEY", raising=False)
-        assert await verify_api_key(x_api_key=None) is None
+        assert await verify_api_key(self._make_request(), x_api_key=None) is None
 
     @pytest.mark.asyncio
     async def test_missing_header_rejected(self, monkeypatch):
         """配置密钥后缺失 X-API-Key 应抛 HTTPException 401。"""
         monkeypatch.setenv("VIZ_API_KEY", "secret-key-123")
         with pytest.raises(HTTPException) as exc:
-            await verify_api_key(x_api_key=None)
+            await verify_api_key(self._make_request("POST"), x_api_key=None)
         assert exc.value.status_code == 401
 
     @pytest.mark.asyncio
@@ -1503,20 +1556,26 @@ class TestAuthLayer:
         """配置密钥后不匹配的 X-API-Key 应抛 HTTPException 401。"""
         monkeypatch.setenv("VIZ_API_KEY", "secret-key-123")
         with pytest.raises(HTTPException) as exc:
-            await verify_api_key(x_api_key="wrong")
+            await verify_api_key(self._make_request("POST"), x_api_key="wrong")
         assert exc.value.status_code == 401
 
     @pytest.mark.asyncio
     async def test_correct_key_allows(self, monkeypatch):
         """配置密钥后匹配的 X-API-Key 应放行。"""
         monkeypatch.setenv("VIZ_API_KEY", "secret-key-123")
-        assert await verify_api_key(x_api_key="secret-key-123") is None
+        assert await verify_api_key(self._make_request("POST"), x_api_key="secret-key-123") is None
 
     @pytest.mark.asyncio
     async def test_empty_env_value_disables_auth(self, monkeypatch):
         """VIZ_API_KEY 为空字符串时应禁用认证。"""
         monkeypatch.setenv("VIZ_API_KEY", "")
-        assert await verify_api_key(x_api_key=None) is None
+        assert await verify_api_key(self._make_request(), x_api_key=None) is None
+
+    @pytest.mark.asyncio
+    async def test_get_request_bypasses_auth(self, monkeypatch):
+        """GET 请求应跳过认证（只读端点不受密钥影响）。"""
+        monkeypatch.setenv("VIZ_API_KEY", "secret-key-123")
+        assert await verify_api_key(self._make_request("GET"), x_api_key=None) is None
 
 
 class TestWebSocket:
@@ -1774,3 +1833,661 @@ class TestExplainabilityEndpoints:
         data = resp.json()
         assert data["total_decisions"] == 0
         assert data["feature_importance"] == []
+
+
+# ============================================================
+# Issue #207 扩展覆盖：state.py 访问器 / routes.py 端点 / websocket_handler
+# ============================================================
+
+
+class TestStateAccessors:
+    """state.py 线程安全访问器函数测试（Issue #207，覆盖 154-318 行）。"""
+
+    @pytest.fixture(autouse=True)
+    def restore_extended_state(self):
+        """保存并恢复 _resource_history / _decision_log / _battle_state。"""
+        saved_history = list(vis_state._resource_history)
+        saved_log = list(vis_state._decision_log)
+        yield
+        vis_state._resource_history.clear()
+        vis_state._resource_history.extend(saved_history)
+        vis_state._decision_log.clear()
+        vis_state._decision_log.extend(saved_log)
+
+    def test_get_system_status_returns_copy(self):
+        """get_system_status 应返回浅拷贝，修改拷贝不影响原状态。"""
+        original = vis_state.get_system_status()
+        original["qubit_utilization"] = 0.99
+        assert vis_state.system_status["qubit_utilization"] != 0.99
+
+    def test_get_system_status_ref_returns_reference(self):
+        """get_system_status_ref 应返回原字典引用。"""
+        assert vis_state.get_system_status_ref() is vis_state.system_status
+
+    def test_update_system_status_merges_and_updates_timestamp(self):
+        """update_system_status 应合并更新并刷新 last_update。"""
+        old_update = vis_state.system_status["last_update"]
+        vis_state.update_system_status({"completed_tasks": 999})
+        assert vis_state.system_status["completed_tasks"] == 999
+        assert vis_state.system_status["last_update"] != old_update
+
+    def test_get_task_queue_returns_copy(self):
+        """get_task_queue 应返回浅拷贝列表。"""
+        q = vis_state.get_task_queue()
+        original_len = len(vis_state.task_queue)
+        q.append({"fake": "task"})
+        assert len(vis_state.task_queue) == original_len
+
+    def test_get_task_queue_ref_returns_reference(self):
+        """get_task_queue_ref 应返回原列表引用。"""
+        assert vis_state.get_task_queue_ref() is vis_state.task_queue
+
+    def test_append_task_updates_queue_length(self):
+        """append_task 应追加任务并更新 queue_length 为 pending 任务数。"""
+        pending_before = len([t for t in vis_state.task_queue if t.get("status") == "pending"])
+        vis_state.append_task({"task_id": "TEST-001", "status": "pending"})
+        pending_after = len([t for t in vis_state.task_queue if t.get("status") == "pending"])
+        assert pending_after == pending_before + 1
+        assert vis_state.system_status["queue_length"] == pending_after
+
+    def test_append_task_non_pending_does_not_increase_queue_length(self):
+        """append_task 追加非 pending 任务不应增加 queue_length。"""
+        pending_before = len([t for t in vis_state.task_queue if t.get("status") == "pending"])
+        vis_state.append_task({"task_id": "TEST-002", "status": "running"})
+        pending_after = len([t for t in vis_state.task_queue if t.get("status") == "pending"])
+        assert pending_after == pending_before
+        assert vis_state.system_status["queue_length"] == pending_after
+
+    def test_get_pending_task_count(self):
+        """get_pending_task_count 应返回 pending 状态的任务数。"""
+        count = vis_state.get_pending_task_count()
+        expected = len([t for t in vis_state.task_queue if t.get("status") == "pending"])
+        assert count == expected
+
+    def test_append_resource_history_trims_to_max(self):
+        """append_resource_history 应自动裁剪到 MAX_RESOURCE_HISTORY。"""
+        vis_state._resource_history.clear()
+        for i in range(vis_state.MAX_RESOURCE_HISTORY + 10):
+            vis_state.append_resource_history({"step": i})
+        assert len(vis_state._resource_history) == vis_state.MAX_RESOURCE_HISTORY
+
+    def test_get_resource_history_with_limit(self):
+        """get_resource_history(limit) 应返回最近 limit 条数据。"""
+        vis_state._resource_history.clear()
+        for i in range(10):
+            vis_state.append_resource_history({"step": i})
+        recent = vis_state.get_resource_history(limit=3)
+        assert len(recent) == 3
+        assert recent[-1]["step"] == 9
+
+    def test_get_resource_history_default_all(self):
+        """get_resource_history() 默认返回全部数据。"""
+        vis_state._resource_history.clear()
+        for i in range(5):
+            vis_state.append_resource_history({"step": i})
+        all_data = vis_state.get_resource_history()
+        assert len(all_data) == 5
+
+    def test_append_decision_log_trims_to_max(self):
+        """append_decision_log 应自动裁剪到 MAX_DECISION_LOG。"""
+        vis_state._decision_log.clear()
+        for i in range(vis_state.MAX_DECISION_LOG + 10):
+            vis_state.append_decision_log({"step": i})
+        assert len(vis_state._decision_log) == vis_state.MAX_DECISION_LOG
+
+    def test_get_decision_log_with_limit(self):
+        """get_decision_log(limit) 应返回最近 limit 条记录。"""
+        vis_state._decision_log.clear()
+        for i in range(10):
+            vis_state.append_decision_log({"step": i})
+        recent = vis_state.get_decision_log(limit=3)
+        assert len(recent) == 3
+        assert recent[-1]["step"] == 9
+
+    def test_get_decision_log_default_all(self):
+        """get_decision_log() 默认返回全部记录。"""
+        vis_state._decision_log.clear()
+        for i in range(5):
+            vis_state.append_decision_log({"step": i})
+        all_data = vis_state.get_decision_log()
+        assert len(all_data) == 5
+
+    def test_get_battle_state_returns_copy(self):
+        """get_battle_state 应返回浅拷贝。"""
+        battle = vis_state.get_battle_state()
+        battle["running"] = True
+        assert vis_state._battle_state["running"] is False
+
+    def test_get_battle_state_ref_returns_reference(self):
+        """get_battle_state_ref 应返回原字典引用。"""
+        assert vis_state.get_battle_state_ref() is vis_state._battle_state
+
+    def test_reset_battle_state_clears_all_fields(self):
+        """reset_battle_state 应重置所有字段。"""
+        vis_state._battle_state["running"] = True
+        vis_state._battle_state["step"] = 10
+        vis_state._battle_state["ppo_reward"] = 100.0
+        vis_state._battle_state["fcfs_reward"] = 50.0
+        vis_state._battle_state["ppo_history"] = [{"step": 1}]
+        vis_state._battle_state["fcfs_history"] = [{"step": 1}]
+        vis_state.reset_battle_state()
+        assert vis_state._battle_state["running"] is False
+        assert vis_state._battle_state["step"] == 0
+        assert vis_state._battle_state["ppo_reward"] == 0.0
+        assert vis_state._battle_state["fcfs_reward"] == 0.0
+        assert vis_state._battle_state["ppo_history"] == []
+        assert vis_state._battle_state["fcfs_history"] == []
+        assert vis_state._battle_state["ppo_env"] is None
+        assert vis_state._battle_state["fcfs_env"] is None
+        assert vis_state._battle_state["ppo_obs"] is None
+        assert vis_state._battle_state["fcfs_obs"] is None
+
+    def test_get_connection_manager_returns_singleton(self):
+        """get_connection_manager 应返回全局 manager 单例。"""
+        assert vis_state.get_connection_manager() is vis_state.manager
+
+
+class TestQuotaEndpoint:
+    """/api/quota 端点测试（覆盖 437-444 行）。"""
+
+    @pytest.mark.asyncio
+    async def test_quota_no_tracker(self, async_client, monkeypatch):
+        """无配额追踪器时应返回 available=False。"""
+        monkeypatch.setattr(app_module, "_get_quota_tracker", lambda: None)
+        resp = await async_client.get("/api/quota")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["available"] is False
+        assert "message" in data
+
+    @pytest.mark.asyncio
+    async def test_quota_with_tracker(self, async_client, monkeypatch):
+        """有配额追踪器时应返回 available=True 及状态信息。"""
+        mock_tracker = MagicMock()
+        mock_tracker.status.return_value = {"total": 100, "used": 30, "remaining": 70}
+        monkeypatch.setattr(app_module, "_get_quota_tracker", lambda: mock_tracker)
+        resp = await async_client.get("/api/quota")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["available"] is True
+        assert data["total"] == 100
+
+    @pytest.mark.asyncio
+    async def test_quota_tracker_exception(self, async_client, monkeypatch):
+        """配额追踪器抛异常时应返回 available=False。"""
+        mock_tracker = MagicMock()
+        mock_tracker.status.side_effect = Exception("fail")
+        monkeypatch.setattr(app_module, "_get_quota_tracker", lambda: mock_tracker)
+        resp = await async_client.get("/api/quota")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["available"] is False
+
+
+class TestResourceHistoryEndpoint:
+    """/api/resource-history 端点测试（覆盖 452-463 行）。"""
+
+    @pytest.fixture(autouse=True)
+    def restore_history(self):
+        """保存并恢复 _resource_history。"""
+        saved = list(vis_state._resource_history)
+        yield
+        vis_state._resource_history.clear()
+        vis_state._resource_history.extend(saved)
+
+    @pytest.mark.asyncio
+    async def test_returns_history_list(self, async_client):
+        """应返回资源历史列表。"""
+        vis_state._resource_history.clear()
+        vis_state._resource_history.extend([{"step": 1}, {"step": 2}])
+        resp = await async_client.get("/api/resource-history")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "history" in data
+        assert len(data["history"]) == 2
+
+    @pytest.mark.asyncio
+    async def test_empty_history(self, async_client):
+        """空历史时应返回空列表。"""
+        vis_state._resource_history.clear()
+        resp = await async_client.get("/api/resource-history")
+        assert resp.status_code == 200
+        assert resp.json()["history"] == []
+
+
+class TestDecisionLogEndpoint:
+    """/api/decision-log 端点测试（覆盖 466-476 行）。"""
+
+    @pytest.fixture(autouse=True)
+    def restore_log(self):
+        """保存并恢复 _decision_log。"""
+        saved = list(vis_state._decision_log)
+        yield
+        vis_state._decision_log.clear()
+        vis_state._decision_log.extend(saved)
+
+    @pytest.mark.asyncio
+    async def test_returns_decisions(self, async_client):
+        """应返回决策日志列表。"""
+        vis_state._decision_log.clear()
+        vis_state._decision_log.extend([{"step": 1, "action": 0}, {"step": 2, "action": 1}])
+        resp = await async_client.get("/api/decision-log")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "decisions" in data
+        assert len(data["decisions"]) == 2
+
+    @pytest.mark.asyncio
+    async def test_empty_decisions(self, async_client):
+        """空日志时应返回空列表。"""
+        vis_state._decision_log.clear()
+        resp = await async_client.get("/api/decision-log")
+        assert resp.status_code == 200
+        assert resp.json()["decisions"] == []
+
+
+class TestMachinesComparisonEndpoint:
+    """/api/machines-comparison 端点测试（覆盖 484-498 行）。"""
+
+    @pytest.mark.asyncio
+    async def test_no_machines(self, async_client):
+        """无真机时应返回空列表。"""
+        vis_state.system_status["real_machines"] = []
+        resp = await async_client.get("/api/machines-comparison")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["machines"] == []
+
+    @pytest.mark.asyncio
+    async def test_with_machines(self, async_client):
+        """有真机时应返回机器对比数据。"""
+        vis_state.system_status["real_machines"] = [
+            {
+                "name": "tianyan_s",
+                "total_qubits": 20,
+                "available_ratio": 0.8,
+                "fidelity": 0.99,
+                "queue_depth": 3,
+                "status": "running",
+                "single_gate_fidelity": 0.999,
+                "two_gate_fidelity": 0.98,
+            }
+        ]
+        resp = await async_client.get("/api/machines-comparison")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert len(data["machines"]) == 1
+        m = data["machines"][0]
+        assert m["name"] == "tianyan_s"
+        assert m["total_qubits"] == 20
+        assert m["fidelity"] == 0.99
+        assert m["single_gate_fidelity"] == 0.999
+        assert m["two_gate_fidelity"] == 0.98
+
+    @pytest.mark.asyncio
+    async def test_machines_with_missing_fields(self, async_client):
+        """机器字段缺失时应使用默认值。"""
+        vis_state.system_status["real_machines"] = [{}]
+        resp = await async_client.get("/api/machines-comparison")
+        assert resp.status_code == 200
+        m = resp.json()["machines"][0]
+        assert m["name"] == "unknown"
+        assert m["total_qubits"] == 0
+        assert m["status"] == "unknown"
+
+
+class TestTenantsEndpoint:
+    """/api/tenants 端点测试（覆盖 510-517 行）。"""
+
+    @pytest.mark.asyncio
+    async def test_returns_tenants_or_empty(self, async_client):
+        """应返回租户列表或空列表（配置不存在时）。"""
+        resp = await async_client.get("/api/tenants")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "tenants" in data
+        assert isinstance(data["tenants"], list)
+
+    @pytest.mark.asyncio
+    async def test_tenants_exception_returns_empty(self, async_client, monkeypatch):
+        """TenantQuotaManager.from_config 抛异常时应返回空列表。"""
+        monkeypatch.setattr(
+            "src.scheduler.tenant.TenantQuotaManager.from_config",
+            MagicMock(side_effect=Exception("config fail")),
+        )
+        resp = await async_client.get("/api/tenants")
+        assert resp.status_code == 200
+        assert resp.json()["tenants"] == []
+
+
+class TestExplainabilityLatestEndpoint:
+    """/api/explainability/latest 端点测试（覆盖 590-607 行）。"""
+
+    @pytest.fixture(autouse=True)
+    def restore_log(self):
+        """保存并恢复 _decision_log。"""
+        saved = list(vis_state._decision_log)
+        yield
+        vis_state._decision_log.clear()
+        vis_state._decision_log.extend(saved)
+
+    @pytest.mark.asyncio
+    async def test_with_data(self, async_client):
+        """有决策日志时应返回最新一条含 feature_contributions 的记录。"""
+        vis_state._decision_log.clear()
+        vis_state._decision_log.extend(
+            [
+                {"step": 1, "action": 0, "feature_contributions": {"a": 0.1}},
+                {"step": 2, "action": 1, "feature_contributions": {"b": 0.2}},
+            ]
+        )
+        resp = await async_client.get("/api/explainability/latest")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["empty"] is False
+        assert data["latest"]["step"] == 2
+
+    @pytest.mark.asyncio
+    async def test_empty(self, async_client):
+        """空日志时应返回 empty=True。"""
+        vis_state._decision_log.clear()
+        resp = await async_client.get("/api/explainability/latest")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["empty"] is True
+        assert data["latest"] is None
+
+    @pytest.mark.asyncio
+    async def test_skips_entries_without_feature_contributions(self, async_client):
+        """无 feature_contributions 的记录应被跳过。"""
+        vis_state._decision_log.clear()
+        vis_state._decision_log.extend(
+            [
+                {"step": 1, "action": 0},
+                {"step": 2, "action": 1, "feature_contributions": {"a": 0.1}},
+            ]
+        )
+        resp = await async_client.get("/api/explainability/latest")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["empty"] is False
+        assert data["latest"]["step"] == 2
+
+
+class TestBattleEndpoints:
+    """/api/battle/* 对战端点测试（覆盖 619-730 行）。"""
+
+    @pytest.fixture(autouse=True)
+    def restore_battle(self):
+        """每个测试后重置对战状态。"""
+        yield
+        vis_state.reset_battle_state()
+
+    @pytest.mark.asyncio
+    async def test_battle_start_success(self, async_client, monkeypatch):
+        """battle/start 应成功启动对战。"""
+        mock_env = MagicMock()
+        mock_obs = MagicMock()
+        mock_obs.tolist.return_value = [0.1, 0.2, 0.3, 0.4, 0.5]
+        mock_env.reset.return_value = (mock_obs, {})
+        monkeypatch.setattr("src.scheduler.env.QuantumSchedulingEnv", lambda **kw: mock_env)
+        resp = await async_client.post("/api/battle/start")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["success"] is True
+        assert data["step"] == 0
+        assert "ppo_obs" in data
+        assert "fcfs_obs" in data
+
+    @pytest.mark.asyncio
+    async def test_battle_start_failure(self, async_client, monkeypatch):
+        """battle/start 环境创建失败时应返回 success=False。"""
+
+        def _raise(**kw):
+            raise RuntimeError("env fail")
+
+        monkeypatch.setattr("src.scheduler.env.QuantumSchedulingEnv", _raise)
+        resp = await async_client.post("/api/battle/start")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["success"] is False
+        assert "error" in data
+
+    @pytest.mark.asyncio
+    async def test_battle_step_not_running(self, async_client):
+        """battle/step 未启动对战时应返回 error。"""
+        vis_state.reset_battle_state()
+        resp = await async_client.post("/api/battle/step")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "error" in data
+        assert "未启动" in data["error"]
+
+    @pytest.mark.asyncio
+    async def test_battle_step_with_model(self, async_client, monkeypatch):
+        """battle/step 有 PPO 模型时应使用模型预测动作。"""
+        mock_env = MagicMock()
+        mock_env.step.return_value = ([0.5, 0.3, 0.2], 1.5, False, False, {})
+
+        battle = vis_state.get_battle_state_ref()
+        battle["running"] = True
+        battle["ppo_env"] = mock_env
+        battle["fcfs_env"] = mock_env
+        battle["ppo_obs"] = [0.5, 0.3, 0.2]
+        battle["fcfs_obs"] = [0.5, 0.3, 0.2]
+
+        mock_model = MagicMock()
+        mock_model.predict.return_value = (1, None)
+        monkeypatch.setattr(app_module, "_get_ppo_model", lambda: mock_model)
+
+        resp = await async_client.post("/api/battle/step")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["step"] == 1
+        assert data["ppo"]["action"] == 1
+        assert data["fcfs"]["action"] == 0
+        assert data["ppo_total"] == 1.5
+        assert "gap" in data
+
+    @pytest.mark.asyncio
+    async def test_battle_step_no_model(self, async_client, monkeypatch):
+        """battle/step 无 PPO 模型时应使用默认动作0。"""
+        mock_env = MagicMock()
+        mock_env.step.return_value = ([0.5, 0.3, 0.2], 1.0, False, False, {})
+
+        battle = vis_state.get_battle_state_ref()
+        battle["running"] = True
+        battle["ppo_env"] = mock_env
+        battle["fcfs_env"] = mock_env
+        battle["ppo_obs"] = [0.5, 0.3, 0.2]
+        battle["fcfs_obs"] = [0.5, 0.3, 0.2]
+
+        monkeypatch.setattr(app_module, "_get_ppo_model", lambda: None)
+
+        resp = await async_client.post("/api/battle/step")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["ppo"]["action"] == 0
+        assert data["ppo"]["reward"] == 0.0
+
+    @pytest.mark.asyncio
+    async def test_battle_step_with_done(self, async_client, monkeypatch):
+        """battle/step 环境结束时(terminated=True)应重置 obs。"""
+        mock_env = MagicMock()
+        mock_env.step.return_value = ([0.5], 1.0, True, False, {})
+        mock_env.reset.return_value = ([0.1], {})
+
+        battle = vis_state.get_battle_state_ref()
+        battle["running"] = True
+        battle["ppo_env"] = mock_env
+        battle["fcfs_env"] = mock_env
+        battle["ppo_obs"] = [0.5]
+        battle["fcfs_obs"] = [0.5]
+
+        monkeypatch.setattr(app_module, "_get_ppo_model", lambda: None)
+
+        resp = await async_client.post("/api/battle/step")
+        assert resp.status_code == 200
+        mock_env.reset.assert_called()
+
+    @pytest.mark.asyncio
+    async def test_battle_step_exception(self, async_client, monkeypatch):
+        """battle/step 抛异常时应返回 error。"""
+        mock_env = MagicMock()
+        mock_env.step.side_effect = RuntimeError("step fail")
+
+        battle = vis_state.get_battle_state_ref()
+        battle["running"] = True
+        battle["ppo_env"] = mock_env
+        battle["fcfs_env"] = mock_env
+        battle["ppo_obs"] = [0.5]
+        battle["fcfs_obs"] = [0.5]
+
+        monkeypatch.setattr(app_module, "_get_ppo_model", lambda: None)
+
+        resp = await async_client.post("/api/battle/step")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "error" in data
+
+    @pytest.mark.asyncio
+    async def test_battle_status(self, async_client):
+        """battle/status 应返回当前对战状态。"""
+        battle = vis_state.get_battle_state_ref()
+        battle["running"] = True
+        battle["step"] = 5
+        battle["ppo_reward"] = 100.0
+        battle["fcfs_reward"] = 50.0
+        battle["ppo_history"] = [
+            {"step": 1, "reward": 10, "cumulative": 10, "action": 1, "util": 0.5}
+        ]
+        battle["fcfs_history"] = [
+            {"step": 1, "reward": 5, "cumulative": 5, "action": 0, "util": 0.5}
+        ]
+
+        resp = await async_client.get("/api/battle/status")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["running"] is True
+        assert data["step"] == 5
+        assert data["ppo_total"] == 100.0
+        assert data["fcfs_total"] == 50.0
+        assert data["gap"] == 50.0
+        assert len(data["ppo_history"]) == 1
+        assert len(data["fcfs_history"]) == 1
+
+    @pytest.mark.asyncio
+    async def test_battle_reset(self, async_client):
+        """battle/reset 应重置对战状态。"""
+        battle = vis_state.get_battle_state_ref()
+        battle["running"] = True
+        battle["step"] = 10
+        battle["ppo_reward"] = 200.0
+
+        resp = await async_client.post("/api/battle/reset")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["success"] is True
+        assert vis_state._battle_state["running"] is False
+        assert vis_state._battle_state["step"] == 0
+        assert vis_state._battle_state["ppo_reward"] == 0.0
+
+
+class TestWebSocketAdvanced:
+    """WebSocket 高级功能测试（Issue #207，覆盖 websocket_handler.py 44-55 行）。"""
+
+    @pytest.fixture(autouse=True)
+    def restore_extended_state(self):
+        """保存并恢复 _resource_history / _decision_log。"""
+        saved_history = list(vis_state._resource_history)
+        saved_log = list(vis_state._decision_log)
+        yield
+        vis_state._resource_history.clear()
+        vis_state._resource_history.extend(saved_history)
+        vis_state._decision_log.clear()
+        vis_state._decision_log.extend(saved_log)
+
+    def test_init_with_ppo_stats(self, tmp_path):
+        """WebSocket init 消息应包含 PPO 排名数据（当结果文件存在时）。"""
+        results_dir = tmp_path / "results"
+        results_dir.mkdir()
+        sim_data = {"PPO": {"avg_reward": 2804}, "FCFS": {"avg_reward": 1456}}
+        (results_dir / "simulation_results_test.json").write_text(
+            json.dumps(sim_data), encoding="utf-8"
+        )
+
+        with (
+            patch.object(app_module, "_PROJECT_ROOT", str(tmp_path)),
+            patch.object(app_module, "simulate_scheduler", _noop_simulate_scheduler),
+            TestClient(app) as client,
+            client.websocket_connect("/ws") as ws,
+        ):
+            msg = ws.receive_json()
+            assert msg["type"] == "init"
+            assert "ppo_stats" in msg
+            assert msg["ppo_stats"]["ppo_rank"] == 1
+            assert msg["ppo_stats"]["total"] == 2
+
+    def test_init_ppo_stats_no_files(self, tmp_path):
+        """无结果文件时 ppo_stats 应为空字典。"""
+        (tmp_path / "results").mkdir()
+
+        with (
+            patch.object(app_module, "_PROJECT_ROOT", str(tmp_path)),
+            patch.object(app_module, "simulate_scheduler", _noop_simulate_scheduler),
+            TestClient(app) as client,
+            client.websocket_connect("/ws") as ws,
+        ):
+            msg = ws.receive_json()
+            assert msg["type"] == "init"
+            assert msg["ppo_stats"] == {}
+
+    def test_init_ppo_stats_invalid_json(self, tmp_path):
+        """结果文件非法 JSON 时 ppo_stats 应为空字典（优雅降级）。"""
+        results_dir = tmp_path / "results"
+        results_dir.mkdir()
+        (results_dir / "simulation_results_test.json").write_text("not-json", encoding="utf-8")
+
+        with (
+            patch.object(app_module, "_PROJECT_ROOT", str(tmp_path)),
+            patch.object(app_module, "simulate_scheduler", _noop_simulate_scheduler),
+            TestClient(app) as client,
+            client.websocket_connect("/ws") as ws,
+        ):
+            msg = ws.receive_json()
+            assert msg["type"] == "init"
+            assert msg["ppo_stats"] == {}
+
+    def test_get_decisions_action(self):
+        """发送 get_decisions 动作应返回决策日志。"""
+        vis_state._decision_log.clear()
+        vis_state._decision_log.extend([{"step": 1, "action": 0}])
+
+        with (
+            patch.object(app_module, "simulate_scheduler", _noop_simulate_scheduler),
+            TestClient(app) as client,
+            client.websocket_connect("/ws") as ws,
+        ):
+            ws.receive_json()  # consume init
+            ws.send_text(json.dumps({"action": "get_decisions"}))
+            resp = ws.receive_json()
+            assert resp["type"] == "decision_log"
+            assert "decisions" in resp
+            assert len(resp["decisions"]) == 1
+
+    def test_get_resource_history_action(self):
+        """发送 get_resource_history 动作应返回资源历史。"""
+        vis_state._resource_history.clear()
+        vis_state._resource_history.extend([{"step": 1, "qubit_utilization": 0.5}])
+
+        with (
+            patch.object(app_module, "simulate_scheduler", _noop_simulate_scheduler),
+            TestClient(app) as client,
+            client.websocket_connect("/ws") as ws,
+        ):
+            ws.receive_json()  # consume init
+            ws.send_text(json.dumps({"action": "get_resource_history"}))
+            resp = ws.receive_json()
+            assert resp["type"] == "resource_history"
+            assert "history" in resp
+            assert len(resp["history"]) == 1

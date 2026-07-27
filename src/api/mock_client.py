@@ -35,6 +35,8 @@ from typing import Any, cast
 
 from loguru import logger
 
+from src.api.types import TaskResult
+
 
 class MockTianyanClient:
     """天衍云平台 Mock 客户端
@@ -276,7 +278,7 @@ class MockTianyanClient:
     # 3. 查询任务状态（Mock）
     # ------------------------------------------------------------------
 
-    def get_task_status(self, task_id: str) -> dict[str, Any]:
+    def get_task_status(self, task_id: str) -> TaskResult:
         """Mock 查询任务执行状态
 
         模拟任务状态轮转：
@@ -288,7 +290,7 @@ class MockTianyanClient:
             task_id: 任务 ID
 
         Returns:
-            状态字典
+            统一任务结果
 
         Raises:
             ValueError: task_id 不存在时抛出
@@ -325,13 +327,29 @@ class MockTianyanClient:
                 logger.debug(f"Mock 任务 {task_id} 状态变更: RUNNING → COMPLETED")
 
         logger.debug(f"Mock 任务 {task_id} 状态: {task['status']}")
-        return {"task_id": task_id, "status": task["status"]}
+        result = task.get("result") or {}
+        counts = result.get("counts")
+        shots = int(task.get("shots", 0))
+        probability = (
+            {state: count / shots for state, count in counts.items()}
+            if counts and shots > 0
+            else {}
+        )
+        return TaskResult(
+            task_id=task_id,
+            status=str(task["status"]),
+            probability=probability,
+            counts=counts,
+            shots=shots,
+            backend=str(task.get("backend", "tianyan-287")),
+            raw=result or None,
+        )
 
     # ------------------------------------------------------------------
     # 4. 获取任务结果（Mock）
     # ------------------------------------------------------------------
 
-    def get_task_result(self, task_id: str) -> dict[str, Any]:
+    def get_task_result(self, task_id: str) -> TaskResult:
         """Mock 获取任务执行结果
 
         Args:
@@ -358,7 +376,19 @@ class MockTianyanClient:
                 raise ValueError(f"Mock 任务 {task_id} 尚未完成，当前状态: {task['status']}")
 
         logger.info(f"Mock 获取任务 {task_id} 结果成功")
-        return cast(dict[str, Any], task["result"])
+        result = cast(dict[str, Any], task["result"])
+        counts = cast(dict[str, int], result.get("counts", {}))
+        shots = int(task.get("shots", 0))
+        probability = {state: count / shots for state, count in counts.items()} if shots > 0 else {}
+        return TaskResult(
+            task_id=task_id,
+            status=str(task["status"]),
+            probability=probability,
+            counts=counts,
+            shots=shots,
+            backend=str(task.get("backend", "tianyan-287")),
+            raw=result,
+        )
 
     # ------------------------------------------------------------------
     # 5. 列出可用量子后端（Mock）
@@ -483,7 +513,7 @@ class MockTianyanClient:
         task_id: str,
         poll_interval: float = 1.0,  # Mock 模式下轮询间隔更短
         timeout: float = 60.0,  # Mock 模式下超时更短
-    ) -> dict[str, Any]:
+    ) -> TaskResult:
         """Mock 轮询等待任务完成并返回结果
 
         Args:

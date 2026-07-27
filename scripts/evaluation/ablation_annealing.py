@@ -24,6 +24,7 @@ import numpy as np
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
+from src.quantum.annealing import QuantumAnnealingOptimizer
 from src.scheduler.agent import PPOAgent
 from src.scheduler.env import QuantumSchedulingEnv
 
@@ -121,6 +122,26 @@ def run_multi_seed():
     with_anneal_mean = with_anneal_matrix.mean(axis=0)
     with_anneal_std = with_anneal_matrix.std(axis=0)
 
+    # ---- 收集完整退火参数配置（Issue #247）----
+    _cfg_optimizer = QuantumAnnealingOptimizer(
+        num_qubits=ANNEAL_QUBITS,
+        annealing_time=20.0,
+        shots=1000,
+        simulation_mode=True,
+    )
+    annealing_config = _cfg_optimizer.get_annealing_config()
+    annealing_config.update(
+        {
+            "experiment": "ablation_annealing_multiseed",
+            "seeds": SEEDS,
+            "total_timesteps": TOTAL_TIMESTEPS,
+            "eval_freq": EVAL_FREQ,
+            "n_eval_episodes": N_EVAL_EPISODES,
+            "anneal_interval": ANNEAL_INTERVAL,
+            "max_steps": MAX_STEPS,
+        }
+    )
+
     # ---- 保存 JSON ----
     report = {
         "timestamp": timestamp,
@@ -132,6 +153,7 @@ def run_multi_seed():
             "anneal_interval": ANNEAL_INTERVAL,
             "anneal_qubits": ANNEAL_QUBITS,
         },
+        "annealing_config": annealing_config,
         "no_anneal": {
             "per_seed": all_no_anneal,
             "mean": no_anneal_mean.tolist(),

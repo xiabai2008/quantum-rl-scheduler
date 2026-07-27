@@ -34,6 +34,8 @@ from typing import TYPE_CHECKING, Any
 
 from loguru import logger
 
+from src.api.types import TaskResult
+
 if TYPE_CHECKING:
     from src.api.tianyan_cqlib import CqlibTianyanClient
 
@@ -476,7 +478,7 @@ class CqlibRecordingClient:
         )
         return task_id
 
-    def get_task_status(self, task_id: str) -> dict[str, Any]:
+    def get_task_status(self, task_id: str) -> TaskResult:
         """录制任务状态查询响应。
 
         根据 status 自动保存到 running 或 completed fixture 文件。
@@ -509,7 +511,7 @@ class CqlibRecordingClient:
             )
         return status
 
-    def get_task_result(self, task_id: str) -> dict[str, Any]:
+    def get_task_result(self, task_id: str) -> TaskResult:
         """录制任务结果查询响应。
 
         Args:
@@ -529,9 +531,7 @@ class CqlibRecordingClient:
         )
         return result
 
-    def wait_for_task(
-        self, task_id: str, timeout: int = 300, poll_interval: int = 5
-    ) -> dict[str, Any]:
+    def wait_for_task(self, task_id: str, timeout: int = 300, poll_interval: int = 5) -> TaskResult:
         """录制等待任务完成的最终结果。
 
         轮询过程中的中间状态由 ``get_task_status`` 录制，

@@ -14,7 +14,7 @@
 量子RL调度系统是 2026 年"揭榜挂帅"擂台赛参赛作品，核心创新为 **AI 赋能量子计算 + 量子赋能 AI** 的双向赋能：
 
 - 用强化学习（PPO/DQN/MAPPO）智能调度量子/经典任务
-- 用量子退火（QUBO映射）优化RL决策（探索性方向：当前使用经典模拟退火D-Wave neal，训练开销+74.5%，奖励提升+6.4%在5 seeds下p=0.190统计不显著）
+- 用量子启发式退火（QUBO映射）优化RL决策（探索性方向：当前使用经典模拟退火D-Wave neal，训练开销+74.5%，奖励提升+6.4%在5 seeds下p=0.190统计不显著）
 
 目标平台为天衍云平台真机"天衍-287"（105数据比特+182耦合比特超导量子计算机）。
 
@@ -137,7 +137,7 @@ git push origin feature/你的分支
 | type | 含义 | 示例 |
 |------|------|------|
 | `feat` | 新功能 | `feat: 实现 DQN 智能体训练循环` |
-| `fix` | 修 Bug | `fix: 修复量子退火 QUBO 矩阵维度不匹配` |
+| `fix` | 修 Bug | `fix: 修复量子启发式退火 QUBO 矩阵维度不匹配` |
 | `docs` | 文档 | `docs: 更新 API 接口文档` |
 | `test` | 添加测试 | `test: 添加任务解析器边界条件测试` |
 | `refactor` | 重构（不改功能） | `refactor: 提取奖励计算为独立函数` |
@@ -245,7 +245,7 @@ pytest tests/benchmarks/ --benchmark-only
 - 每个新功能必须有对应的测试用例
 - 测试文件与 `src/` 目录结构对应（如 `src/scheduler/agent.py` ↔ `tests/test_agent.py`）
 - 函数/类必须写 docstring（中文）
-- 测试覆盖率目标：**≥ 60%**（CI 强制门禁），长期目标 80%+
+- 测试覆盖率目标：**≥ 80%**（CI 强制门禁，与 `pyproject.toml` `fail_under=80` 一致）
 
 ### 6.3 测试标记
 
@@ -282,7 +282,7 @@ import pytest
 | Job | 内容 |
 |-----|------|
 | **Lint** | ruff check + ruff format + bandit 安全扫描 |
-| **Test** | pytest 多版本测试（Python 3.10 / 3.11 / 3.12）+ 覆盖率（≥ 60%） |
+| **Test** | pytest 多版本测试（Python 3.10 / 3.11 / 3.12）+ 覆盖率（≥ 80%） |
 | **Type Check** | mypy 类型检查 |
 | **Benchmarks** | 性能基准测试 |
 

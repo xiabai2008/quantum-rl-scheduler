@@ -93,17 +93,34 @@ def route_to_machine(
     machine: QuantumMachine | None,
     task: Task,
     rng: np.random.Generator,
+    rl_action: int = -1,
+    rl_action_prob: float = 0.0,
+    observation_snapshot: dict | None = None,
 ) -> None:
     """将任务路由到选定的量子机器，更新队列与调度记录。
 
-    若机器为真机模式（is_real=True 且已 attach 客户端），则以
-    ``real_submit_probability`` 概率真正提交到天衍云真机，控制机时消耗。
+    若机器为真机模式（is_real=True 且已 attach 客户端），则按以下策略
+    提交到天衍云真机，控制机时消耗：
+
+    - **间隔触发（保底）**：每 ``real_submit_interval`` 步强制提交一次，
+      确保真机参与率不被概率遗漏（Issue #243）。
+    - **概率触发（额外）**：在非间隔步以 ``real_submit_probability``
+      概率额外增加提交机会（Issue #64 原始逻辑）。
+
+    两者共存：间隔触发是保底，概率触发是增强，互不排斥。
+
+    RL 动作上下文（Issue #234）：将 ``rl_action``、``rl_action_prob``、
+    ``observation_snapshot`` 透传给 ``submit_to_real_machine``，
+    使 pending 记录包含完整因果链信息。
 
     Args:
-        env     : 调度环境实例
-        machine : 选定的量子机器（None 时不做任何操作）
-        task    : 被执行的任务
-        rng     : 随机数生成器（用于抽样是否上真机）
+        env                 : 调度环境实例
+        machine             : 选定的量子机器（None 时不做任何操作）
+        task                : 被执行的任务
+        rng                 : 随机数生成器（用于抽样是否上真机）
+        rl_action           : RL 动作类型（0=classical, 1=quantum, 2=hybrid，默认 -1）
+        rl_action_prob      : 该动作被选择的概率（默认 0.0）
+        observation_snapshot: 观测向量摘要（默认 None）
     """
     if machine is None:
         env._last_selected_machine = None
@@ -126,13 +143,24 @@ def route_to_machine(
     env._machine_schedule_count[machine.name] = env._machine_schedule_count.get(machine.name, 0) + 1
 
     # 选择性真机提交（控制机时成本）
-    if (
-        machine.is_real
-        and machine.name in env._real_clients
-        and env.real_submit_probability > 0.0
-        and float(rng.random()) < env.real_submit_probability
-    ):
-        env._submit_to_real_machine(machine, task)
+    # Issue #243: 间隔触发保底 + 概率触发额外增加
+    #   - 间隔触发：每 real_submit_interval 步强制提交一次，确保真机参与率
+    #     不因路由机会少 + 概率遗漏而完全错过（根因见 Issue #242 诊断报告）
+    #   - 概率触发：在非间隔步以 real_submit_probability 概率额外增加提交机会
+    #   两者共存：间隔触发是保底，概率触发是增强，互不排斥
+    should_submit = False
+    if machine.is_real and machine.name in env._real_clients:
+        if env._current_step % env.real_submit_interval == 0:
+            # 间隔触发：每N步强制提交一次（保底）
+            should_submit = True
+        elif (
+            env.real_submit_probability > 0.0 and float(rng.random()) < env.real_submit_probability
+        ):
+            # 概率触发：额外增加提交机会
+            should_submit = True
+
+    if should_submit:
+        env._submit_to_real_machine(machine, task, rl_action, rl_action_prob, observation_snapshot)
 
 
 def recompute_aggregate(env: "QuantumSchedulingEnv") -> None:

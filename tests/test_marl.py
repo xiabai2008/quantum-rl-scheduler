@@ -15,6 +15,7 @@ import gc
 import os
 import sys
 import unittest
+from unittest.mock import patch
 
 import numpy as np
 
@@ -905,6 +906,60 @@ class TestActionAggregationHybrid(unittest.TestCase):
         self.assertEqual(info["env_action"], 0)
         self.assertIsNone(info["chosen_machine"])
         self.assertEqual(len(local_obs), wrapper.num_agents)
+
+
+# ---------------------------------------------------------------------------
+# 测试 7：覆盖补全（Issue #263）
+# ---------------------------------------------------------------------------
+class TestCoverageCompletion(unittest.TestCase):
+    """Issue #263: 补全覆盖 marl.py 中难以触发的两个分支。
+
+    目标行：
+        - marl.py:728 ``torch.cuda.manual_seed_all(seed)`` — 仅在 CUDA 可用时执行
+        - marl.py:845 ``logger.info(...)`` — 仅在 verbose>=1 且训练命中 eval 频率时执行
+    """
+
+    def test_set_seed_invokes_cuda_manual_seed_all_when_cuda_available(self):
+        """``_set_seed`` 在 CUDA 可用时应调用 ``torch.cuda.manual_seed_all``。
+
+        通过 mock ``torch.cuda.is_available`` 为 True，验证
+        ``torch.cuda.manual_seed_all`` 被调用且不抛异常。
+        """
+        env = _make_env(machine_configs=DEFAULT_MACHINE_CONFIGS[:2], max_steps=20, seed=99)
+        agent = MultiAgentPPO(env, n_steps=16, batch_size=8, n_epochs=1, seed=99, verbose=0)
+
+        with (
+            patch("src.scheduler.marl.torch.cuda.is_available", return_value=True),
+            patch("src.scheduler.marl.torch.cuda.manual_seed_all") as mock_cuda_seed,
+        ):
+            agent._set_seed(123)
+            # 注意：torch.manual_seed 内部也会调用 manual_seed_all（因 is_available 被 mock 为 True），
+            # 因此调用次数 >=1 即可，关键是验证以 seed=123 调用
+            mock_cuda_seed.assert_called_with(123)
+            self.assertGreaterEqual(mock_cuda_seed.call_count, 1)
+
+    def test_train_verbose_logs_eval_reward(self):
+        """``train`` 在 verbose>=1 且命中 eval_freq 时应输出评估日志。"""
+        env = _make_env(machine_configs=DEFAULT_MACHINE_CONFIGS[:2], max_steps=20, seed=100)
+        agent = MultiAgentPPO(
+            env,
+            n_steps=16,
+            batch_size=8,
+            n_epochs=1,
+            seed=100,
+            verbose=1,
+        )
+
+        with patch("src.scheduler.marl.logger") as mock_logger:
+            # eval_freq=32 保证 total_timesteps=64 时至少触发一次评估
+            agent.train(total_timesteps=64, eval_freq=32, n_eval_episodes=1)
+            # verbose>=1 应记录至少一次 "[MAPPO] 评估" 日志
+            info_calls = [
+                call
+                for call in mock_logger.info.call_args_list
+                if "评估" in str(call) and "mean_reward" in str(call)
+            ]
+            self.assertGreaterEqual(len(info_calls), 1)
 
 
 if __name__ == "__main__":

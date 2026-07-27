@@ -48,14 +48,65 @@ def _setup_matplotlib_font():
             "DejaVu Sans",
         ]
         plt.rcParams["axes.unicode_minus"] = False
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"[WARN] 中文字体配置失败: {e}")
     return plt
 
 
 # ---------------------------------------------------------------------------
 # 实验 1：8策略对比
 # ---------------------------------------------------------------------------
+
+
+def run_env_based_baseline_comparison(
+    episodes: int = 20, tasks_per_episode: int = 200, seed: int = 42
+) -> dict:
+    """使用 Gymnasium 环境模式运行基线对比（Issue #230/#231）。
+
+    所有基线策略通过 ``EnvBasedScheduler`` 在相同的 ``QuantumSchedulingEnv``
+    中运行，reward 由 ``env.step(action)`` 返回（``env_reward.py`` 计算），
+    确保与 PPO 使用相同的奖励函数。
+
+    Args:
+        episodes         : 每 seed 重复次数
+        tasks_per_episode: 每 episode 步数
+        seed             : 随机种子
+
+    Returns:
+        各基线策略的对比结果，包含 ``comparison_mode: "env_based"``
+    """
+    from src.scheduler.baselines import get_all_env_based_schedulers
+    from src.scheduler.env import QuantumSchedulingEnv
+
+    env_schedulers = get_all_env_based_schedulers()
+    results = {}
+
+    for scheduler in env_schedulers:
+        print(f"  [env-{scheduler.name}] 运行中...", end=" ", flush=True)
+        rewards = []
+
+        for ep in range(episodes):
+            scheduler.reset()
+            env = QuantumSchedulingEnv(max_steps=tasks_per_episode, max_qubits=287, seed=seed + ep)
+            obs = env.reset(seed=seed + ep)[0]
+            total_reward = 0.0
+            done = False
+            while not done:
+                action = scheduler.select_action(obs, env)
+                obs, reward, terminated, truncated, _info = env.step(action)
+                total_reward += reward
+                done = terminated or truncated
+            rewards.append(total_reward)
+
+        results[scheduler.name] = {
+            "avg_reward": float(np.mean(rewards)),
+            "std_reward": float(np.std(rewards)),
+            "completed_episodes": episodes,
+            "comparison_mode": "env_based",
+        }
+        print(f"reward={results[scheduler.name]['avg_reward']:.1f}")
+
+    return results
 
 
 def run_strategy_comparison(
@@ -303,6 +354,18 @@ def main():
     parser.add_argument("--seed", type=int, default=42, help="随机种子")
     parser.add_argument("--output-dir", type=str, default="./results/", help="输出目录")
     parser.add_argument("--skip-ablation", action="store_true", help="跳过消融实验")
+    parser.add_argument(
+        "--use-env",
+        action="store_true",
+        default=True,
+        help="使用 Gymnasium 环境模式运行基线对比（Issue #231，默认开启）",
+    )
+    parser.add_argument(
+        "--no-use-env",
+        dest="use_env",
+        action="store_false",
+        help="使用旧版独立模拟流程运行基线对比（向后兼容）",
+    )
     args = parser.parse_args()
 
     os.makedirs(args.output_dir, exist_ok=True)
@@ -320,6 +383,12 @@ def main():
     all_results["strategy_comparison"] = run_strategy_comparison(
         episodes=args.episodes, tasks_per_episode=args.tasks, seed=args.seed
     )
+
+    if args.use_env:
+        print("\n[实验1b] 环境一致性基线对比（Issue #230/#231）")
+        all_results["env_based_baseline_comparison"] = run_env_based_baseline_comparison(
+            episodes=args.episodes, tasks_per_episode=args.tasks, seed=args.seed
+        )
 
     if not args.skip_ablation:
         print("\n[实验2] 消融实验")
