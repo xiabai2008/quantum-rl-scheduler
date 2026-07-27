@@ -142,7 +142,8 @@ for n in [20, 50, 100]:
         for i, t in enumerate(tks)
     ]
     ort_r = cp_sat(ort_in)
-    env3 = QuantumSchedulingEnv(max_steps=n, max_qubits=287, seed=42)
+    # Issue #457: 仿真规模对齐天衍-287 真实数据比特数（105 数据比特+182 耦合比特）
+    env3 = QuantumSchedulingEnv(max_steps=n, max_qubits=105, seed=42)
     se = SimulationEnv(env=env3, task_generator=SimulationTaskGenerator(seed=42))
     pf = run_strategy(
         se, PPOStrategy(ppo_load), num_episodes=3, tasks_per_episode=n, max_steps=n, verbose=False

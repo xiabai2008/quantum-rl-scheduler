@@ -5,7 +5,6 @@
 观测构建→env_observation.py。本文件保留核心类与薄包装，重新导出全部符号以保持向后兼容。
 """
 
-import copy
 from collections.abc import Callable
 from typing import Any
 
@@ -40,7 +39,6 @@ from src.scheduler.env_types import (
     ACTION_CLASSICAL,
     ACTION_HYBRID,
     ACTION_QUANTUM,
-    ACTION_QUANTUM_QEM,
     DEFAULT_MACHINE_CONFIGS,
     INITIAL_QUEUE_RANGE,
     MAX_QUEUE_SIZE,
@@ -142,6 +140,8 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
     def __init__(
         self,
         max_steps: int = MAX_STEPS_DEFAULT,
+        # Issue #457: 287 为天衍-287 含耦合比特的命名规模（105 数据比特+182 耦合比特）。
+        # 仿真验证时应在调用方显式传 max_qubits=105 以对齐真实数据比特规模。
         max_qubits: int = 287,
         render_mode: str | None = None,
         seed: int | None = None,
@@ -200,9 +200,9 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
             float(quantum_task_ratio) if quantum_task_ratio is not None else None
         )
 
-        # Gymnasium 标准空间定义（扩充 Discrete(4) 支持 QEM）
+        # Gymnasium 标准空间定义（保持 14 维 obs + Discrete(3) 不变，确保 PPO 模型可复用）
         self.observation_space = spaces.Box(low=0.0, high=1.0, shape=(OBS_DIM,), dtype=np.float32)
-        self.action_space = spaces.Discrete(4)
+        self.action_space = spaces.Discrete(3)
 
         # ---- 多机器调度扩展 ----
         # machine_configs=None → 单机模式（与旧版完全等价）
@@ -215,8 +215,6 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
                     "is_real": False,
                 }
             ]
-        # 保存原始机器配置，供 _create_eval_env 创建独立副本（Issue #399）
-        self._machine_configs: list[dict[str, Any]] = copy.deepcopy(machine_configs)
         self._machines: list[QuantumMachine] = [
             QuantumMachine(
                 name=cfg.get("name", "tianyan_s"),
@@ -241,11 +239,6 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
         self._pending_real_tasks: list[dict[str, Any]] = []
         # _real_result_records: 真机结果详细记录（Issue #235 可追溯性）
         self._real_result_records: list[dict[str, Any]] = []
-
-        # 流量突发感知：任务到达率历史（滑动窗口）
-        self.arrival_history: list[int] = []
-        self.current_time_window_arrivals: int = 0
-        self.max_arrival_history_length: int = 10
         # _real_feedback_log: 真机因果记录（Issue #235，"RL动作→真机任务→结果→reward"因果链）
         self._real_feedback_log: list[dict[str, Any]] = []
         self._real_machine_degraded: bool = False  # 降级标志：True 时跳过真机提交
@@ -277,9 +270,6 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
         self._hybrid_success: int = 0
         self._mismatch_count: int = 0
         self._episode_reward: float = 0.0
-
-        # 连续无任务步数（Issue #400）：用于提前终止，减少无效空转步
-        self._consecutive_idle_steps: int = 0
 
         # 用于 ANSI 渲染的日志缓冲区
         self._render_log: list[str] = []
@@ -339,50 +329,6 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
             "consecutive_failures": self._real_consecutive_failures,
         }
 
-    def export_real_feedback_log(self, path: str) -> int:
-        """导出真机反馈因果记录为 JSON 文件，返回记录条数（Issue #236）。
-
-        将 ``_real_feedback_log``（"RL动作→真机任务→结果→reward" 完整因果链）
-        序列化为 JSON，包含元数据（实验时间、环境参数、seed）和记录列表。
-
-        Args:
-            path: 输出 JSON 文件路径。父目录会自动创建。
-
-        Returns:
-            导出的因果记录条数（0 表示无真机反馈记录）。
-        """
-        import json
-        from datetime import datetime
-        from pathlib import Path
-
-        out_path = Path(path)
-        out_path.parent.mkdir(parents=True, exist_ok=True)
-
-        records = list(self._real_feedback_log)
-        payload = {
-            "type": "real_feedback_log",
-            "exported_at": datetime.now().astimezone().isoformat(),
-            "metadata": {
-                "max_steps": self.max_steps,
-                "max_qubits": self.max_qubits,
-                "real_submit_probability": self.real_submit_probability,
-                "use_real_machine": self.use_real_machine,
-                "real_machine_feedback_weight": self.real_machine_feedback_weight,
-                "real_machine_shots": self.real_machine_shots,
-                "real_feedback_mode": self.real_feedback_mode,
-                "arrival_lambda": self.arrival_lambda,
-                "quantum_task_ratio": self.quantum_task_ratio,
-                "num_machines": len(self._machines),
-                "machine_names": [m.name for m in self._machines],
-            },
-            "stats": self.get_real_machine_stats(),
-            "record_count": len(records),
-            "records": records,
-        }
-        with open(out_path, "w", encoding="utf-8") as f:
-            json.dump(payload, f, indent=2, ensure_ascii=False, default=str)
-        return len(records)
-
     def get_tenant_stats(self) -> list[dict[str, Any]]:
         """返回所有租户的配额使用状态；未启用租户管理时返回空列表。"""
         if self._tenant_manager is None:
@@ -410,9 +356,6 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
         self._episode_reward = 0.0
         self._render_log = []
 
-        # 重置连续无任务步数（Issue #400）
-        self._consecutive_idle_steps = 0
-
         # 重置多机器调度记录
         self._last_selected_machine = None
         self._machine_schedule_count = {m.name: 0 for m in self._machines}
@@ -424,10 +367,6 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
         self._pending_real_tasks = []
         self._real_result_records = []
         self._real_feedback_log = []
-
-        # 重置到达率历史
-        self.arrival_history = []
-        self.current_time_window_arrivals = 0
 
         # 随机初始化任务队列（5-20 个任务）
         self._task_queue = []
@@ -484,8 +423,7 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
                 )
             else:
                 # 兼容分配：为量子任务选择最佳机器
-                quantum_action = action in (ACTION_QUANTUM, ACTION_HYBRID, ACTION_QUANTUM_QEM)
-                is_qem = action == ACTION_QUANTUM_QEM
+                quantum_action = action in (ACTION_QUANTUM, ACTION_HYBRID)
                 selected_machine = None
                 if quantum_action:
                     selected_machine = self._select_best_machine(task)
@@ -493,7 +431,7 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
                 quantum_unavailable = quantum_action and selected_machine is None
 
                 if quantum_unavailable:
-                    if action in (ACTION_QUANTUM, ACTION_QUANTUM_QEM):
+                    if action == ACTION_QUANTUM:
                         # 纯量子动作：任务重新排队，半个 mismatch 惩罚
                         reward += REWARD_MISMATCH * 0.5
                         task.wait_steps += 1
@@ -516,7 +454,7 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
                         )
                 else:
                     # 兼容分配：计算执行奖励
-                    reward += self._compute_execution_reward(task, action, rng, selected_machine)
+                    reward += self._compute_execution_reward(task, action, rng)
                     self._total_scheduled += 1
 
                     # 构建观测快照（Issue #234）：记录关键状态字段用于因果追溯
@@ -528,7 +466,7 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
                         "quantum_queue": self._quantum.quantum_queue,
                     }
 
-                    if action in (ACTION_QUANTUM, ACTION_QUANTUM_QEM):
+                    if action == ACTION_QUANTUM:
                         self._quantum_success += 1
                         self._route_to_machine(
                             selected_machine,
@@ -536,7 +474,6 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
                             rng,
                             rl_action=action,
                             observation_snapshot=_obs_snapshot,
-                            is_qem=is_qem,
                         )
                     elif action == ACTION_CLASSICAL:
                         self._classical_success += 1
@@ -561,14 +498,9 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
 
             self._render_log.append(log_msg)
 
-            # 有任务可调度，重置连续空转计数器（Issue #400）
-            self._consecutive_idle_steps = 0
-
         else:
             # 无任务可调度，轻微惩罚
             reward -= 1.0
-            # 追踪连续无任务步数（Issue #400）
-            self._consecutive_idle_steps += 1
 
         # 等待超时惩罚（全局队列惩罚）
         reward += self._compute_wait_penalty()
@@ -593,12 +525,9 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
         # 累计奖励
         self._episode_reward += reward
 
-        # 判断终止（Issue #400: 修复 Gymnasium 语义）
-        # terminated=True → 自然终止（连续无任务，环境无意义继续），不 Bootstrap
-        # truncated=True → 因 max_steps 外部限制截断（任务可能未完成），需要 Bootstrap
-        idle_termination_threshold = 10
-        terminated = self._consecutive_idle_steps >= idle_termination_threshold
-        truncated = self._current_step >= self.max_steps
+        # 判断终止
+        terminated = self._current_step >= self.max_steps
+        truncated = False
 
         return self._get_observation(), reward, terminated, truncated, self._get_info()
 
@@ -641,11 +570,8 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
         rl_action: int = -1,
         rl_action_prob: float = 0.0,
         observation_snapshot: dict[str, Any] | None = None,
-        is_qem: bool = False,
     ) -> None:
-        route_to_machine(
-            self, machine, task, rng, rl_action, rl_action_prob, observation_snapshot, is_qem
-        )
+        route_to_machine(self, machine, task, rng, rl_action, rl_action_prob, observation_snapshot)
 
     def _submit_to_real_machine(
         self,
@@ -666,22 +592,13 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
     def _recompute_aggregate(self) -> None:
         recompute_aggregate(self)
 
-    def _compute_execution_reward(
-        self, task: Task, action: int, rng: np.random.Generator, selected_machine: Any = None
-    ) -> float:
-        crosstalk_penalty = 0.0
-        if selected_machine is not None and hasattr(selected_machine, "active_tasks"):
-            active_count = len(selected_machine.active_tasks)
-            if active_count > 0:
-                crosstalk_penalty = 0.1 * active_count
-
+    def _compute_execution_reward(self, task: Task, action: int, rng: np.random.Generator) -> float:
         return compute_execution_reward(
             task=task,
             action=action,
             rng=rng,
             quantum_fidelity=self._quantum.fidelity,
             quantum_available_ratio=self._quantum.available_ratio,
-            crosstalk_penalty=crosstalk_penalty,
         )
 
     def _compute_wait_penalty(self) -> float:
