@@ -16,6 +16,7 @@ REST API 路由处理器
     替换，必须保留在 app 模块上。
 """
 
+import hmac
 import json
 import os
 import uuid
@@ -40,21 +41,25 @@ router = APIRouter()
 
 
 async def verify_api_key(request: Request, x_api_key: str | None = Header(None)) -> None:
-    """验证 API 密钥。未配置 VIZ_API_KEY 时禁用认证。
+    """验证 API 密钥。未配置 VIZ_API_KEY 时仅放行只读 GET 请求。
 
     通过环境变量 ``VIZ_API_KEY`` 配置期望密钥：
-    - 未配置（None 或空字符串）：认证禁用，所有请求放行（开发模式）。
-    - 已配置：GET 请求（只读端点）始终放行；POST/PUT/DELETE 请求头
-      ``X-API-Key`` 必须与配置值完全匹配，否则返回 401。
+    - GET 请求（只读端点，如监控/指标）：始终放行，不受认证影响。
+    - 未配置 ``VIZ_API_KEY`` 时：写操作（POST/PUT/DELETE）一律返回 401，
+      避免零认证放行的安全风险。
+    - 已配置：POST/PUT/DELETE 请求头 ``X-API-Key`` 须通过恒定时间比较
+      与配置值完全匹配，否则返回 401。
     """
     expected_key = os.getenv("VIZ_API_KEY")
-    if not expected_key:
-        # 未配置密钥，认证禁用（开发环境）
-        return
-    # GET 请求为只读操作，始终放行（监控/指标端点不应受认证影响）
+    # GET 请求为只读操作（监控/指标端点），始终放行，不受认证影响。
     if request.method == "GET":
         return
-    if x_api_key != expected_key:
+    # 写操作（POST/PUT/DELETE）必须配置密钥，否则一律拒绝，避免零认证放行。
+    if not expected_key:
+        logger.warning("[Web] 未配置 VIZ_API_KEY，写操作被拒绝")
+        raise HTTPException(status_code=401, detail="未配置认证，写操作被拒绝")
+    # 使用恒定时间比较，防止时序侧信道攻击；x_api_key 为 None 时回退为空串。
+    if not hmac.compare_digest(x_api_key or "", expected_key):
         logger.warning("[Web] API 密钥认证失败：X-API-Key 缺失或不匹配")
         raise HTTPException(status_code=401, detail="无效的 API 密钥")
 
