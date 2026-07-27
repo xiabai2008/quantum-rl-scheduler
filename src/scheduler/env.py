@@ -371,6 +371,10 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
         self._pending_real_tasks = []
         self._real_result_records = []
         self._real_feedback_log = []
+        
+        # 重置到达率历史
+        self.arrival_history = []
+        self.current_time_window_arrivals = 0
 
         # 随机初始化任务队列（5-20 个任务）
         self._task_queue = []

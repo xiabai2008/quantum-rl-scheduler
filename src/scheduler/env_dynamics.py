@@ -186,6 +186,13 @@ def advance_time(env: "QuantumSchedulingEnv", rng: np.random.Generator) -> None:
             new_id = env._total_scheduled + len(env._task_queue)
             env._task_queue.append(env._generate_random_task(rng, task_id=new_id))
 
+    # 更新任务到达率历史（支持 LSTM 突发流量预测）
+    if hasattr(env, "arrival_history"):
+        env.current_time_window_arrivals = new_task_count
+        env.arrival_history.append(new_task_count)
+        if len(env.arrival_history) > getattr(env, "max_arrival_history_length", 10):
+            env.arrival_history.pop(0)
+
 
 def pick_next_task(env: "QuantumSchedulingEnv") -> None:
     """
