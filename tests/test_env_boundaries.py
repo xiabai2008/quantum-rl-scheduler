@@ -103,7 +103,7 @@ def test_hybrid_unavailable_falls_back_to_classical() -> None:
 
 
 def test_empty_queue_step_is_safe_and_terminates() -> None:
-    """空队列仍应返回合法状态，并按 max_steps 正常终止。"""
+    """空队列仍应返回合法状态，并按 max_steps 正常截断（Issue #400）。"""
     env = QuantumSchedulingEnv(max_steps=1, seed=7)
     env.reset(seed=7)
     env._task_queue = []
@@ -113,8 +113,9 @@ def test_empty_queue_step_is_safe_and_terminates() -> None:
 
     assert env.observation_space.contains(obs)
     assert isinstance(reward, float)
-    assert terminated is True
-    assert truncated is False
+    # Issue #400: max_steps 截断现在是 truncated=True（需要 Bootstrap），而非 terminated
+    assert terminated is False
+    assert truncated is True
     assert info["total_scheduled"] == 0
 
 

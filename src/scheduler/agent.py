@@ -35,6 +35,7 @@ Reinforcement Learning Agent for Quantum-Classical Hybrid Task Scheduling
     为保持向后兼容，所有拆分出去的符号通过本模块重新导出（见 __all__）。
 """
 
+import copy
 import os
 from typing import Any, cast
 
@@ -185,6 +186,28 @@ class SchedulerAgent:
         # 初始化模型（延迟到 train() 或 predict() 时创建）
         self.model: DQN | None = None
 
+    def _create_eval_env(self) -> gym.Env[Any, Any]:
+        """创建独立的环境副本用于评估（Issue #399）。
+
+        评估环境与训练环境隔离，避免评估 episode 的 reset/step 污染训练状态。
+        非 QuantumSchedulingEnv（如测试用 mock 环境）回退到直接包装训练环境。
+        """
+        from src.scheduler.env import QuantumSchedulingEnv
+
+        env: Any = self.env
+        if not isinstance(env, QuantumSchedulingEnv):
+            return Monitor(env)
+        eval_env = QuantumSchedulingEnv(
+            max_steps=env.max_steps,
+            max_qubits=env.max_qubits,
+            machine_configs=copy.deepcopy(env._machine_configs),
+            arrival_lambda=env.arrival_lambda,
+            quantum_task_ratio=env.quantum_task_ratio,
+            real_submit_probability=env.real_submit_probability,
+            use_real_machine=False,  # 评估环境不使用真机
+        )
+        return Monitor(eval_env)
+
     def _build_model(self) -> DQN:
         """
         构建 Dueling DQN 模型
@@ -302,8 +325,8 @@ class SchedulerAgent:
         if self.model is None:
             self.model = self._build_model()
 
-        # 创建评估环境
-        eval_env: gym.Env[Any, Any] = Monitor(self.env)
+        # 创建评估环境（Issue #399: 使用独立副本而非训练环境本身）
+        eval_env: gym.Env[Any, Any] = self._create_eval_env()
 
         # 构建 Epsilon 探索回调
         epsilon_callback = EpsilonExplorationCallback(

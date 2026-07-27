@@ -6,6 +6,7 @@ PPO (Proximal Policy Optimization) Agent for Quantum-Classical Scheduling
 为保持向后兼容，agent.py 通过 __all__ 重新导出 PPOAgent。
 """
 
+import copy
 import os
 from typing import Any
 
@@ -118,6 +119,29 @@ class PPOAgent:
         if self.use_cache:
             logger.info("[PPOAgent] 决策缓存已启用（余弦相似度阈值=0.95）")
 
+    def _create_eval_env(self) -> gym.Env[Any, Any]:
+        """创建独立的环境副本用于评估（Issue #399）。
+
+        评估环境与训练环境隔离，避免评估 episode 的 reset/step 污染训练状态。
+        使用 deepcopy 复制机器配置等可变状态，确保完全独立。
+        非 QuantumSchedulingEnv（如测试用 mock 环境）回退到直接包装训练环境。
+        """
+        from src.scheduler.env import QuantumSchedulingEnv
+
+        env: Any = self.env
+        if not isinstance(env, QuantumSchedulingEnv):
+            return Monitor(env)
+        eval_env = QuantumSchedulingEnv(
+            max_steps=env.max_steps,
+            max_qubits=env.max_qubits,
+            machine_configs=copy.deepcopy(env._machine_configs),
+            arrival_lambda=env.arrival_lambda,
+            quantum_task_ratio=env.quantum_task_ratio,
+            real_submit_probability=env.real_submit_probability,
+            use_real_machine=False,  # 评估环境不使用真机
+        )
+        return Monitor(eval_env)
+
     def _build_model(self) -> PPO | RecurrentPPO:
         """
         构建 PPO 模型。
@@ -223,7 +247,7 @@ class PPOAgent:
         real_cb_save_path = kwargs.pop("real_callback_save_path", "results/real_times.json")
         real_cb_shots = int(kwargs.pop("real_callback_shots", 512))
 
-        eval_env: gym.Env[Any, Any] = Monitor(self.env)
+        eval_env: gym.Env[Any, Any] = self._create_eval_env()  # Issue #399: 独立评估环境
         eval_callback = EvalCallback(
             eval_env=eval_env,
             best_model_save_path=os.path.join(self.log_dir, "best_model"),
