@@ -159,6 +159,87 @@ def test_effect_tracking(tmp_path):
     assert loaded[0]["delta"] == 3.0
 
 
+def test_attribution_metrics_in_evaluation_history_and_log(tmp_path):
+    """成对评估应在返回值、历史和 JSON 日志中输出退火归因。"""
+    optimizer = FakeOptimizer(weight_boost=1.0)
+    env = FakeEnv()
+    log_path = tmp_path / "attribution_log.json"
+    loop = AsyncAnnealingLoop(
+        optimizer,
+        env,
+        eval_episodes=2,
+        retry_delays=[0.0, 0.0],
+        log_path=str(log_path),
+    )
+
+    evaluation = loop._evaluate_policy(
+        FakePolicy(weight=1.0),
+        baseline_reward=0.0,
+        natural_delta=0.5,
+    )
+    assert evaluation == {
+        "reward": 3.0,
+        "counterfactual_delta": 3.0,
+        "natural_delta": 0.5,
+        "attribution": 2.5,
+        "attribution_ratio": pytest.approx(2.5 / 3.0),
+    }
+
+    loop.start()
+    loop.submit(FakePolicy(weight=0.0), step=10)
+    loop.shutdown()
+
+    record = loop.get_history()[0]
+    assert record["counterfactual_delta"] == 3.0
+    assert record["natural_delta"] == 0.0
+    assert record["attribution"] == 3.0
+    assert record["attribution_ratio"] == 1.0
+    assert record["attribution_status"] == "退火有效"
+
+    with open(log_path, encoding="utf-8") as f:
+        logged = json.load(f)[0]
+    assert logged["attribution"] == 3.0
+    assert logged["attribution_ratio"] == 1.0
+
+
+def test_negative_attribution_is_marked_ineffective(tmp_path):
+    """归因度量为负时，诊断结果必须明确标记“退火无效”并随结果回写。"""
+    optimizer = FakeOptimizer(weight_boost=-1.0)
+    loop = AsyncAnnealingLoop(
+        optimizer,
+        FakeEnv(),
+        eval_episodes=2,
+        retry_delays=[0.0, 0.0],
+        log_path=str(tmp_path / "negative_attribution.json"),
+    )
+    loop.start()
+    loop.submit(FakePolicy(weight=1.0), step=20)
+    loop.shutdown()
+
+    record = loop.get_history()[0]
+    assert record["attribution"] == -3.0
+    assert record["attribution_ratio"] == 1.0
+    assert record["attribution_status"] == "退火无效"
+
+    pending = loop.peek_pending_result()
+    assert pending is not None
+    assert pending["attribution"] == -3.0
+    assert pending["attribution_status"] == "退火无效"
+
+
+def test_attribution_ratio_is_zero_when_counterfactual_delta_is_zero():
+    """反事实增量为零时归因占比应为零，避免除零或无穷值。"""
+    loop = AsyncAnnealingLoop(FakeOptimizer(), FakeEnv(), retry_delays=[0.0, 0.0])
+    evaluation = loop._evaluate_policy(
+        FakePolicy(weight=0.0),
+        baseline_reward=0.0,
+        natural_delta=1.0,
+    )
+    assert evaluation["counterfactual_delta"] == 0.0
+    assert evaluation["attribution"] == -1.0
+    assert evaluation["attribution_ratio"] == 0.0
+
+
 def test_adaptive_interval():
     """验证自适应频率：连续 3 次有效减半，连续 3 次无效加倍。"""
     optimizer = FakeOptimizer()
