@@ -20,6 +20,7 @@ import os
 import sys
 import unittest
 from typing import Any
+from unittest.mock import patch
 
 import numpy as np
 
@@ -988,6 +989,164 @@ class TestQuantumAssistScheduling(unittest.TestCase):
             scheduler.schedule_with_quantum_assist(available_qubits=10, available_machines=2),
             [],
         )
+
+
+class TestTimeIndexedQuboScheduling(unittest.TestCase):
+    """Issue #286：时间索引 DAG QUBO 与退火调度验证。"""
+
+    @staticmethod
+    def _exact_solution(qubo: np.ndarray) -> np.ndarray:
+        """穷举小型 QUBO 的确定性最优二进制解。"""
+        n_variables = qubo.shape[0]
+        candidates = (
+            np.array(list(np.binary_repr(value, width=n_variables)), dtype=np.int8)
+            for value in range(2**n_variables)
+        )
+        return min(candidates, key=lambda bits: float(bits @ qubo @ bits))
+
+    @staticmethod
+    def _by_id(schedule: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+        return {str(item["task_id"]): item for item in schedule}
+
+    def test_build_scheduling_qubo_shape(self) -> None:
+        scheduler = DAGScheduler(
+            [
+                DAGTask(task_id="a", estimated_time=1.0),
+                DAGTask(task_id="b", estimated_time=1.0),
+                DAGTask(task_id="c", estimated_time=1.0),
+            ]
+        )
+
+        qubo, variable_map = scheduler.build_scheduling_qubo(time_horizon=4)
+
+        self.assertEqual(qubo.shape, (12, 12))
+        self.assertEqual(len(variable_map), 12)
+        self.assertTrue(np.allclose(qubo, qubo.T))
+        self.assertEqual(variable_map[0], ("a", 0))
+        self.assertEqual(variable_map[11], ("c", 3))
+
+    def test_qubo_uniqueness_constraint(self) -> None:
+        scheduler = DAGScheduler(
+            [
+                DAGTask(task_id="a"),
+                DAGTask(task_id="b"),
+            ]
+        )
+        qubo, variable_map = scheduler.build_scheduling_qubo(time_horizon=2)
+
+        bits = self._exact_solution(qubo)
+        selected: dict[str, int] = {"a": 0, "b": 0}
+        for index, bit in enumerate(bits):
+            if bit:
+                selected[variable_map[index][0]] += 1
+
+        self.assertEqual(selected, {"a": 1, "b": 1})
+
+    def test_qubo_precedence_respected(self) -> None:
+        scheduler = DAGScheduler(
+            [
+                DAGTask(task_id="a", estimated_time=1.0),
+                DAGTask(task_id="b", estimated_time=1.0, dependencies=["a"]),
+                DAGTask(task_id="c", estimated_time=1.0, dependencies=["a"]),
+                DAGTask(task_id="d", estimated_time=1.0, dependencies=["b", "c"]),
+            ],
+            max_qubits=20,
+        )
+
+        schedule = scheduler.schedule_with_annealing(time_horizon=5, num_reads=200)
+        by_id = self._by_id(schedule)
+
+        self.assertNotEqual(scheduler._last_annealing_solver, "classical_fallback")
+        self.assertGreaterEqual(by_id["b"]["start_time"], by_id["a"]["estimated_finish"])
+        self.assertGreaterEqual(by_id["c"]["start_time"], by_id["a"]["estimated_finish"])
+        self.assertGreaterEqual(by_id["d"]["start_time"], by_id["b"]["estimated_finish"])
+        self.assertGreaterEqual(by_id["d"]["start_time"], by_id["c"]["estimated_finish"])
+
+    def test_qubo_capacity_respected(self) -> None:
+        scheduler = DAGScheduler(
+            [
+                DAGTask(task_id="a", qubits_required=4, estimated_time=1.0),
+                DAGTask(task_id="b", qubits_required=4, estimated_time=1.0),
+                DAGTask(task_id="c", qubits_required=4, estimated_time=1.0),
+            ],
+            max_qubits=10,
+        )
+
+        schedule = scheduler.schedule_with_annealing(time_horizon=4, num_reads=200)
+
+        self.assertNotEqual(scheduler._last_annealing_solver, "classical_fallback")
+        self.assertTrue(scheduler._is_scheduling_solution_feasible(schedule, 4))
+        starts = [float(item["start_time"]) for item in schedule]
+        self.assertGreater(len(set(starts)), 1)
+
+    def test_schedule_with_annealing_returns_valid_schedule(self) -> None:
+        scheduler = DAGScheduler(
+            [
+                DAGTask(task_id="a", qubits_required=2, estimated_time=1.0),
+                DAGTask(
+                    task_id="b",
+                    qubits_required=3,
+                    estimated_time=1.0,
+                    dependencies=["a"],
+                ),
+            ],
+            max_qubits=10,
+        )
+
+        schedule = scheduler.schedule_with_annealing(time_horizon=4, num_reads=100)
+
+        self.assertEqual(len(schedule), 2)
+        for item in schedule:
+            self.assertEqual(
+                set(item),
+                {"task_id", "start_time", "machine_id", "estimated_finish"},
+            )
+            self.assertEqual(item["machine_id"], 0)
+        self.assertTrue(scheduler._is_scheduling_solution_feasible(schedule, 4))
+
+    def test_annealing_fallback_on_infeasible(self) -> None:
+        scheduler = DAGScheduler(
+            [
+                DAGTask(task_id="a", estimated_time=1.0),
+                DAGTask(task_id="b", estimated_time=1.0, dependencies=["a"]),
+            ]
+        )
+        expected = scheduler.schedule_with_resources(scheduler.max_qubits)
+
+        with patch.object(
+            scheduler,
+            "_solve_scheduling_qubo",
+            return_value=np.zeros(6, dtype=np.int8),
+        ):
+            actual = scheduler.schedule_with_annealing(time_horizon=3, fallback=True)
+
+        self.assertEqual(actual, expected)
+        self.assertEqual(scheduler._last_annealing_solver, "classical_fallback")
+
+    def test_annealing_matches_classical_on_trivial(self) -> None:
+        scheduler = DAGScheduler(
+            [
+                DAGTask(task_id="a", estimated_time=1.0),
+                DAGTask(task_id="b", estimated_time=1.0, dependencies=["a"]),
+                DAGTask(task_id="c", estimated_time=1.0, dependencies=["b"]),
+            ]
+        )
+
+        annealed = scheduler.schedule_with_annealing(time_horizon=4, num_reads=200)
+        classical = scheduler.schedule_with_resources(scheduler.max_qubits)
+
+        annealed_makespan = max(float(item["estimated_finish"]) for item in annealed)
+        classical_makespan = max(float(item["estimated_finish"]) for item in classical)
+        self.assertEqual(annealed_makespan, classical_makespan)
+
+    def test_numpy_fallback_without_neal(self) -> None:
+        scheduler = DAGScheduler([DAGTask(task_id="only", estimated_time=1.0)])
+
+        with patch.dict(sys.modules, {"neal": None}):
+            schedule = scheduler.schedule_with_annealing(time_horizon=2, num_reads=10)
+
+        self.assertEqual(scheduler._last_annealing_solver, "numpy_sa")
+        self.assertTrue(scheduler._is_scheduling_solution_feasible(schedule, 2))
 
 
 if __name__ == "__main__":
