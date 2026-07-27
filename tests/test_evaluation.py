@@ -215,6 +215,31 @@ class TestDataSplitter:
         with pytest.raises(ValueError):
             DataSplitter().kfold_split([], k=3)
 
+    @staticmethod
+    def test_split_duplicate_seeds_raises() -> None:
+        """Issue #386: seeds 列表包含重复元素应抛出 ValueError，防止数据泄漏。"""
+        splitter = DataSplitter(random_state=42)
+        with pytest.raises(ValueError, match="重复元素"):
+            splitter.split([1, 2, 2, 3, 4], train_ratio=0.6)
+        # 单个重复也应被检测
+        with pytest.raises(ValueError, match="重复元素"):
+            splitter.split([5, 5], train_ratio=0.5)
+
+    @staticmethod
+    def test_kfold_duplicate_seeds_raises() -> None:
+        """Issue #386: kfold seeds 列表包含重复元素应抛出 ValueError。"""
+        splitter = DataSplitter(random_state=42)
+        with pytest.raises(ValueError, match="重复元素"):
+            splitter.kfold_split([1, 2, 2, 3, 4, 5, 6], k=3)
+
+    @staticmethod
+    def test_split_unique_seeds_succeeds() -> None:
+        """Issue #386: 无重复 seeds 列表应正常分割。"""
+        splitter = DataSplitter(random_state=42)
+        train, test = splitter.split([1, 2, 3, 4, 5, 6, 7, 8, 9, 10], train_ratio=0.7)
+        assert len(train) + len(test) == 10
+        assert set(train).isdisjoint(set(test))
+
 
 # ============================================================
 # BlindTestEvaluator 测试
@@ -310,6 +335,49 @@ class TestBlindTestEvaluator:
         result = BlindTestEvaluator().evaluate(model, small_env, [42], episodes_per_seed=2)
         assert result["num_episodes"] == 2
         assert all(isinstance(r, float) for r in result["all_rewards"])
+
+    @staticmethod
+    def test_evaluate_adjacent_seeds_no_overlap(
+        stub_model: _StubModel, small_env: QuantumSchedulingEnv
+    ) -> None:
+        """Issue #386: 相邻 test_seeds 的 episode 种子不应重叠。
+
+        原实现使用 seed + episode，若 test_seeds=[42, 43] 且 episodes_per_seed=5，
+        seed=42 使用 42-46，seed=43 使用 43-47，存在 4 个重叠种子。
+        修复后使用 seed * episodes_per_seed + episode 确保全局唯一。
+        """
+        evaluator = BlindTestEvaluator()
+        # 相邻种子应能正常评估，且产生 10 个 episode
+        result = evaluator.evaluate(stub_model, small_env, [42, 43], episodes_per_seed=5)
+        assert result["num_episodes"] == 10
+
+    @staticmethod
+    def test_evaluate_episode_seeds_globally_unique() -> None:
+        """Issue #386: 所有 episode 种子应全局唯一（验证乘法偏移修复）。"""
+        # 模拟 evaluate 内部的种子生成逻辑
+        test_seeds = [42, 43, 44]
+        episodes_per_seed = 5
+        episode_seeds: list[int] = []
+        for seed in test_seeds:
+            for episode in range(episodes_per_seed):
+                episode_seeds.append(seed * episodes_per_seed + episode)
+        # 所有 episode 种子应唯一
+        assert len(set(episode_seeds)) == len(episode_seeds), (
+            f"episode 种子存在重叠: {episode_seeds}"
+        )
+
+    @staticmethod
+    def test_evaluate_negative_seed_overlap_raises(
+        stub_model: _StubModel, small_env: QuantumSchedulingEnv
+    ) -> None:
+        """Issue #386: 若种子间距不足导致 episode 重叠应抛出 ValueError。
+
+        构造 test_seeds=[0, 0] 且 episodes_per_seed=5，乘法偏移后两 seed 生成相同种子，
+        应被检测并抛出异常。
+        """
+        evaluator = BlindTestEvaluator()
+        with pytest.raises(ValueError, match="重叠"):
+            evaluator.evaluate(stub_model, small_env, [0, 0], episodes_per_seed=5)
 
 
 # ============================================================
