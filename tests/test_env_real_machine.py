@@ -769,6 +769,39 @@ class TestPollPendingRealTasks:
         assert feedback == 0.0
         assert len(env._pending_real_tasks) == 1
 
+    def test_query_error_keeps_pending_below_threshold(self):
+        """query_error 状态在阈值（3次）以下保留在 pending 列表。"""
+        client = _StatusClient(statuses={"real-1": {"status": "query_error"}})
+        env, _, machine, task = _make_env_with_client(client=client)
+        submit_to_real_machine(env, machine, task)
+
+        # 第1次：query_fail_count=1，仍保留
+        feedback = poll_pending_real_tasks(env)
+        assert feedback == 0.0
+        assert len(env._pending_real_tasks) == 1
+        assert env._pending_real_tasks[0]["query_fail_count"] == 1
+
+        # 第2次：query_fail_count=2，仍保留
+        poll_pending_real_tasks(env)
+        assert len(env._pending_real_tasks) == 1
+        assert env._pending_real_tasks[0]["query_fail_count"] == 2
+
+    def test_query_error_triggers_failure_at_threshold(self):
+        """query_error 连续 3 次后视为失败并从 pending 移除。"""
+        client = _StatusClient(statuses={"real-1": {"status": "query_error"}})
+        env, _, machine, task = _make_env_with_client(client=client)
+        submit_to_real_machine(env, machine, task)
+
+        # 推到阈值前一刻（前2次已查询失败）
+        env._pending_real_tasks[0]["query_fail_count"] = 2
+
+        # 第3次：达到阈值，触发失败
+        feedback = poll_pending_real_tasks(env)
+        assert feedback < 0
+        assert env._real_fail_count == 1
+        assert env._real_consecutive_failures == 1
+        assert len(env._pending_real_tasks) == 0
+
 
 # =============================================================================
 # 真机反馈计算（_compute_real_feedback）

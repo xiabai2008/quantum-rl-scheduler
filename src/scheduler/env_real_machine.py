@@ -655,6 +655,21 @@ def poll_pending_real_tasks(env: "QuantumSchedulingEnv") -> float:
                 env, pending, status, REAL_MACHINE_FAIL_PENALTY, -1.0, "", "failed"
             )
             record_real_failure(env, machine_name, "任务状态=error")
+        elif status_str == "query_error":
+            # 查询失败：连续3次后视为失败，避免无效轮询（Issue #407）
+            pending["query_fail_count"] = pending.get("query_fail_count", 0) + 1
+            if pending["query_fail_count"] >= 3:
+                total_feedback += REAL_MACHINE_FAIL_PENALTY * env.real_machine_feedback_weight
+                _record_causal_feedback(
+                    env, pending, status, REAL_MACHINE_FAIL_PENALTY, -1.0, "", "query_error"
+                )
+                record_real_failure(env, machine_name, "连续查询失败(query_error)")
+                logger.debug(
+                    f"[真机闭环] 任务 {task_id_str} 连续查询失败 "
+                    f"(query_fail_count={pending['query_fail_count']})"
+                )
+            else:
+                still_pending.append(pending)
         elif pending["poll_count"] >= REAL_MACHINE_MAX_POLL_STEPS:
             # 超时：视为失败
             total_feedback += REAL_MACHINE_FAIL_PENALTY * env.real_machine_feedback_weight
