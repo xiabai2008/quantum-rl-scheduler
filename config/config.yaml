@@ -24,6 +24,7 @@ annealing:
   sim_initial_temp: 2.0          # 初始温度，越高越容易跳出局部最优；取值范围：[0.1, 10.0]
   sim_cooling_rate: 0.995        # 降温系数，越接近 1 降温越慢、收敛越慢但更稳定；取值范围：(0.0, 1.0)
   sim_num_sweeps: 200            # 扫描次数（每温度点的迭代步数）；取值范围：[10, 10000]
+  sim_patience: 20               # 早停耐心值——连续 N 次扫描无改进则终止；取值范围：[1, 100]
 
   # ── QUBO 构造参数（network_to_qubo） ──
   reg_lambda: 0.1                # L2 正则化系数，防止权重更新过大导致 loss 激增；取值范围：[0.001, 1.0]
@@ -37,6 +38,20 @@ annealing:
                                  #   false=启用 hierarchical 分层退火模式
   max_params_per_block: 200      # hierarchical 模式每块最大参数数；取值范围：[10, 10000]
   block_strategy: tensor_wise    # 分块策略："tensor_wise"（按张量分块）/ "size_limited"（按大小分块）
+
+  # ── 异步退火闭环参数（AsyncAnnealingLoop.__init__，对应 Issue #246） ──
+  loop:
+    eval_episodes: 3                 # 每次评估运行几个回合；取值范围：[1, 100]
+    eval_deterministic: true         # 评估是否使用确定性策略
+    initial_interval: 5000           # 初始退火触发间隔（步数）；取值范围：[100, 100000]
+    min_interval: 1000               # 最小触发间隔（步数）；取值范围：[10, 10000]
+    max_interval: 20000              # 最大触发间隔（步数）；取值范围：[1000, 100000]
+    improvement_threshold: 0.0        # 奖励提升阈值，delta > threshold 视为有效；取值范围：[-10.0, 10.0]
+    retry_delays: [5.0, 15.0]         # 真机失败重试等待时间列表（秒）
+    log_path: results/annealing_loop_log.json  # 退火效果日志保存路径（JSON）
+    queue_maxsize: 1                  # 任务队列最大长度（避免堆积）；取值范围：[1, 10]
+    annealing_mode: head_only        # 退火模式："head_only" / "hierarchical"
+    min_effective_reward_delta: 1.0  # 介入率诊断阈值；取值范围：[0.0, 100.0]
 cache:
   db: 0
   host: localhost

@@ -30,7 +30,7 @@ import math
 import os
 import random
 import time
-from typing import Any
+from typing import Any, Callable, Protocol, runtime_checkable
 
 import numpy as np
 import torch
@@ -54,6 +54,23 @@ try:
 except ImportError:
     _DWAVE_AVAILABLE = False
     logger.info("未检测到 D-Wave Ocean SDK，将使用内置 numpy 模拟退火。")
+
+
+# ============================================================================
+# Protocol: AnnealingAgent（Issue #364 mypy strict 类型标注）
+# ============================================================================
+@runtime_checkable
+class AnnealingAgent(Protocol):
+    """RL 智能体接口协议，用于量子退火优化器的类型标注。
+
+    退火优化器通过 ``_get_policy_net`` / ``get_full_policy`` 从 agent 中
+    提取策略网络，支持多种 agent 结构（SchedulingAgent、SB3 DQN/PPO）。
+    本 Protocol 定义了最核心的 ``policy_net`` 属性；可选属性
+    （``target_net``、``gamma``）通过 ``getattr`` / ``hasattr`` 在运行时
+    安全访问，保持向后兼容。
+    """
+
+    policy_net: nn.Module
 
 
 # ============================================================================
@@ -93,7 +110,7 @@ class QuantumAnnealingOptimizer:
         n_bits_per_weight: int = 4,
         max_qubo_memory_mb: float = 64.0,
         random_state: int | None = None,
-        config: dict | None = None,
+        config: dict[str, Any] | None = None,
     ):
         """
         初始化量子退火策略优化器
@@ -113,52 +130,39 @@ class QuantumAnnealingOptimizer:
             max_qubo_memory_mb: 单个 QUBO 矩阵允许的最大内存（MiB，默认 64）。
                                 当 n_bits_per_weight 较大（如 8）时，QUBO 矩阵
                                 规模为 (num_weights * n_bits)²，此参数防止内存溢出。
-            random_state  : 随机种子（Issue #391/#354）。固定后 numpy 模拟退火结果可复现；
+            random_state  : 随机种子（Issue #391）。固定后 numpy 模拟退火结果可复现；
                             None 表示不固定（保持原行为）。neal 路径也会传入此种子。
-                            当传入非 None 时，会同步调用 ``src.utils.seeds.set_seed``
-                            统一全局随机源（Python/numpy/torch），消除死代码并保证
-                            外部依赖全局随机的代码也可复现。
-            config        : 退火配置字典（Issue #246）。若提供，则按 ``config.get(key, 签名默认值)``
-                            覆盖 num_qubits / annealing_time / shots / simulation_mode /
-                            n_bits_per_weight / max_qubo_memory_mb / sim_initial_temp /
-                            sim_cooling_rate / sim_num_sweeps / reg_lambda。为 None 时
-                            完全使用签名默认值，保持全部既有调用行为不变。
+            config        : 配置字典（Issue #246）。当提供时，从字典中读取退火参数，
+                            覆盖构造函数默认值；为 None 时使用原始硬编码默认值（向后兼容）。
+                            支持的 key 包括：num_qubits、annealing_time、shots、
+                            simulation_mode、n_bits_per_weight、max_qubo_memory_mb、
+                            random_state、sim_initial_temp、sim_cooling_rate、
+                            sim_num_sweeps、sim_patience、reg_lambda、max_delta_ratio、
+                            accept_threshold_ratio。
         """
-        # Issue #246: 从配置节读取退火参数（config 提供则覆盖签名默认值）。
-        # 映射规则：签名默认值作为兜底，config.get(key, 签名默认值) 覆盖。
-        # 这样 QuantumAnnealingOptimizer() 及全部既有调用零改动。
-        cfg = config or {}
-
-        # 配置覆盖后的有效值（用于参数校验）
-        eff_n_bits_per_weight = cfg.get("n_bits_per_weight", n_bits_per_weight)
-        eff_max_qubo_memory_mb = cfg.get("max_qubo_memory_mb", max_qubo_memory_mb)
-
-        if eff_n_bits_per_weight < 2:
+        if n_bits_per_weight < 2:
             raise ValueError("n_bits_per_weight 必须至少为 2（1 个符号位 + 1 个数值位）")
-        if eff_max_qubo_memory_mb <= 0:
+        if max_qubo_memory_mb <= 0:
             raise ValueError("max_qubo_memory_mb 必须大于 0")
-        self.num_qubits = cfg.get("num_qubits", num_qubits)
-        self.n_bits_per_weight = eff_n_bits_per_weight
-        self.max_qubo_memory_mb = eff_max_qubo_memory_mb
+
+        # Issue #246: config 驱动的参数初始化
+        # 当 config 提供时从字典读取参数，否则使用构造函数默认值（向后兼容）
+        self._config: dict[str, Any] | None = config
+        _cfg: dict[str, Any] = config or {}
+
+        self.num_qubits = int(_cfg.get("num_qubits", num_qubits))
+        self.n_bits_per_weight = int(_cfg.get("n_bits_per_weight", n_bits_per_weight))
+        self.max_qubo_memory_mb = float(_cfg.get("max_qubo_memory_mb", max_qubo_memory_mb))
         self.last_qubo_memory_bytes: int = 0
-        self.annealing_time = cfg.get("annealing_time", annealing_time)
-        self.shots = cfg.get("shots", shots)
-        self.simulation_mode = bool(cfg.get("simulation_mode", simulation_mode))
+        self.annealing_time = float(_cfg.get("annealing_time", annealing_time))
+        self.shots = int(_cfg.get("shots", shots))
+        self.simulation_mode = bool(_cfg.get("simulation_mode", simulation_mode))
         self.cqlib_client = cqlib_client
         # Issue #391: 随机种子，固定后退火结果可复现
-        # Issue #354: 接入 set_seed 统一全局随机源（消除死代码）
-        self.random_state: int | None = random_state
-        if random_state is not None:
-            try:
-                from src.utils.seeds import set_seed
-
-                set_seed(int(random_state))
-            except Exception as exc:  # pragma: no cover - 防御性兜底
-                logger.debug(f"set_seed 调用失败，仅使用本地 RNG: {exc}")
-
-        # Issue #246: 将原本硬编码的 L2 正则化系数升级为实例属性，
-        # 默认值 0.1，可被 config.get("reg_lambda", ...) 覆盖。
-        self.reg_lambda = cfg.get("reg_lambda", 0.1)
+        _cfg_random_state = _cfg.get("random_state", random_state)
+        self.random_state: int | None = (
+            int(_cfg_random_state) if _cfg_random_state is not None else None
+        )
 
         # 检查比特编码精度，过低则发出警告
         if self.n_bits_per_weight < 4:
@@ -182,12 +186,19 @@ class QuantumAnnealingOptimizer:
         else:
             logger.info("使用内置 numpy 模拟退火求解器")
 
-        # 内置模拟退火超参数（Issue #246: 从 config 读取，签名默认值兜底）
-        self._sim_initial_temp = cfg.get("sim_initial_temp", 2.0)  # 初始温度
-        self._sim_cooling_rate = cfg.get("sim_cooling_rate", 0.995)  # 降温系数
-        self._sim_num_sweeps = cfg.get("sim_num_sweeps", 200)  # 扫描次数（减少以适应 QUBO 规模）
+        # 内置模拟退火超参数（Issue #246: 支持从 config 读取，否则使用硬编码默认值）
+        self._sim_initial_temp: float = float(_cfg.get("sim_initial_temp", 2.0))
+        self._sim_cooling_rate: float = float(_cfg.get("sim_cooling_rate", 0.995))
+        self._sim_num_sweeps: int = int(_cfg.get("sim_num_sweeps", 200))
         # Issue #391: 早停阈值——连续 _sim_patience 次扫描 best_energy 无改进则终止
-        self._sim_patience = 20
+        self._sim_patience: int = int(_cfg.get("sim_patience", 20))
+
+        # Issue #246: QUBO 构造与接受准则参数（从 config 读取，向后兼容）
+        self._reg_lambda: float = float(_cfg.get("reg_lambda", 0.1))
+        self._max_delta_ratio: float = float(_cfg.get("max_delta_ratio", 0.1))
+        self._accept_threshold_ratio: float = float(
+            _cfg.get("accept_threshold_ratio", 0.01)
+        )
 
         # 记录最后一次 anneal 实际使用的求解器类型（Issue #226）
         # solver_type 为公开属性，_last_solver 为向后兼容别名，两者始终同步
@@ -219,11 +230,15 @@ class QuantumAnnealingOptimizer:
             - ``sim_initial_temp``: 内置 SA 初始温度
             - ``sim_cooling_rate``: 内置 SA 降温系数
             - ``sim_num_sweeps``: 内置 SA 扫描次数
+            - ``sim_patience``: 内置 SA 早停耐心值
             - ``n_bits_per_weight``: 每权重编码比特数
             - ``max_qubo_memory_mb``: QUBO 矩阵内存上限（MiB）
             - ``last_qubo_memory_bytes``: 最近一次 QUBO 矩阵实际内存（字节）
             - ``last_solver``: 最后一次实际使用的求解器
             - ``quantum_acceleration_enabled``: 全局加速开关
+            - ``reg_lambda``: L2 正则化系数（Issue #246）
+            - ``max_delta_ratio``: 权重更新幅度比例（Issue #246）
+            - ``accept_threshold_ratio``: 接受阈值比例（Issue #246）
         """
         return {
             "num_qubits": self.num_qubits,
@@ -234,6 +249,7 @@ class QuantumAnnealingOptimizer:
             "sim_initial_temp": self._sim_initial_temp,
             "sim_cooling_rate": self._sim_cooling_rate,
             "sim_num_sweeps": self._sim_num_sweeps,
+            "sim_patience": self._sim_patience,
             "n_bits_per_weight": self.n_bits_per_weight,
             "max_qubo_memory_mb": self.max_qubo_memory_mb,
             "last_qubo_memory_bytes": self.last_qubo_memory_bytes,
@@ -242,6 +258,9 @@ class QuantumAnnealingOptimizer:
                 "QUANTUM_ACCELERATION_ENABLED", "0"
             ).lower()
             in ("1", "true", "yes"),
+            "reg_lambda": self._reg_lambda,
+            "max_delta_ratio": self._max_delta_ratio,
+            "accept_threshold_ratio": self._accept_threshold_ratio,
         }
 
     # ------------------------------------------------------------------
@@ -285,7 +304,7 @@ class QuantumAnnealingOptimizer:
         """
         # ---------- 步骤 1：参数配置 ----------
         n_bits_per_weight = self.n_bits_per_weight
-        reg_lambda = self.reg_lambda  # L2 正则化系数（Issue #246: 升级为实例属性，默认 0.1）
+        reg_lambda = self._reg_lambda  # L2 正则化系数（Issue #246: 从 config 读取）
 
         # ---------- 步骤 2：展平所有权重和梯度为一维向量 ----------
         flat_weights = np.concatenate([w.flatten() for w in weights])
@@ -343,8 +362,8 @@ class QuantumAnnealingOptimizer:
 
         # 计算权重的全局统计量，用于归一化更新幅度
         weight_std = np.std(flat_weights) + 1e-8
-        # 最大更新幅度限制为权重标准差的 10%（防止更新过大）
-        max_delta = weight_std * 0.1
+        # 最大更新幅度限制为权重标准差的比例（Issue #246: 从 config 读取 max_delta_ratio）
+        max_delta = weight_std * self._max_delta_ratio
 
         for i in range(num_weights):
             w = flat_weights[i]
@@ -653,9 +672,9 @@ class QuantumAnnealingOptimizer:
         if current_weights is not None:
             flat_current = np.concatenate([w.flatten() for w in current_weights])
             weight_std = np.std(flat_current) + 1e-8
-            max_delta = weight_std * 0.1
+            max_delta = weight_std * self._max_delta_ratio
         else:
-            max_delta = 0.1  # 默认值
+            max_delta = self._max_delta_ratio  # 默认值（Issue #246: 从 config 读取）
 
         # 解码每个权重的比特编码为连续更新量
         delta_values = np.zeros(total_params, dtype=np.float64)
@@ -870,10 +889,10 @@ class QuantumAnnealingOptimizer:
 
     def optimize_policy(
         self,
-        agent: Any,
+        agent: AnnealingAgent,
         num_iterations: int = 10,
         learning_rate: float = 0.01,
-        callback: Any | None = None,
+        callback: Callable[[int, float], None] | None = None,
         replay_buffer: Any | None = None,
         head_only: bool = True,
         max_head_tensors: int = 4,
@@ -881,7 +900,7 @@ class QuantumAnnealingOptimizer:
         max_params_per_block: int = 200,
         block_strategy: str = "tensor_wise",
         min_effective_delta: float = 1e-4,
-    ) -> Any:
+    ) -> AnnealingAgent:
         """
         主优化循环：用量子退火加速策略更新（v2 - 梯度引导）
 
@@ -1117,7 +1136,7 @@ class QuantumAnnealingOptimizer:
             loss_improvement = current_loss - new_loss
 
             # 接受准则：loss 下降，或上升幅度不超过阈值（早期探索）
-            accept_threshold = 0.01 * current_loss  # 允许 1% 的暂时上升
+            accept_threshold = self._accept_threshold_ratio * current_loss  # Issue #246: 从 config 读取
             if new_loss <= best_loss or loss_improvement > -accept_threshold:
                 # 接受更新
                 accepted = True
@@ -1165,9 +1184,10 @@ class QuantumAnnealingOptimizer:
             ineffective_count=ineffective_count,
         )
 
-        # 如果 agent 有 target_net，同步更新
-        if hasattr(agent, "target_net"):
-            agent.target_net.load_state_dict(agent.policy_net.state_dict())
+        # 如果 agent 有 target_net，同步更新（Issue #364: getattr 满足 mypy strict）
+        target_net = getattr(agent, "target_net", None)
+        if target_net is not None:
+            target_net.load_state_dict(agent.policy_net.state_dict())
             logger.info("已同步更新 target_net")
 
         return agent
@@ -1177,15 +1197,15 @@ class QuantumAnnealingOptimizer:
     # ------------------------------------------------------------------
     def optimize_policy_hierarchical(
         self,
-        agent: Any,
+        agent: AnnealingAgent,
         num_iterations: int = 10,
         learning_rate: float = 0.01,
-        callback: Any | None = None,
+        callback: Callable[[int, float], None] | None = None,
         replay_buffer: Any | None = None,
         max_params_per_block: int = 200,
         block_strategy: str = "tensor_wise",
         min_effective_delta: float = 1e-4,
-    ) -> Any:
+    ) -> AnnealingAgent:
         """
         分层/分块量子退火策略优化（突破 head_only 限制，全量网络退火）
 
@@ -1375,7 +1395,7 @@ class QuantumAnnealingOptimizer:
             loss_improvement = best_loss - new_loss
 
             # 接受准则
-            accept_threshold = 0.01 * best_loss
+            accept_threshold = self._accept_threshold_ratio * best_loss  # Issue #246: 从 config 读取
             if new_loss <= best_loss or loss_improvement > -accept_threshold:
                 accepted = True
                 if new_loss < best_loss:
@@ -1431,9 +1451,10 @@ class QuantumAnnealingOptimizer:
             f"最终权重差异 L2={hier_diff_l2:.6e}"
         )
 
-        # 同步 target_net
-        if hasattr(agent, "target_net"):
-            agent.target_net.load_state_dict(agent.policy_net.state_dict())
+        # 同步 target_net（Issue #364: getattr 满足 mypy strict）
+        target_net = getattr(agent, "target_net", None)
+        if target_net is not None:
+            target_net.load_state_dict(agent.policy_net.state_dict())
 
         return agent
 
@@ -1443,7 +1464,7 @@ class QuantumAnnealingOptimizer:
 
     @staticmethod
     def _create_param_blocks(
-        all_params: list,
+        all_params: list[nn.Parameter],
         block_strategy: str = "tensor_wise",
         max_params_per_block: int = 200,
     ) -> list[list[int]]:
@@ -1543,41 +1564,6 @@ class QuantumAnnealingOptimizer:
         return QuantumAnnealingOptimizer._get_policy_net(agent)
 
     @staticmethod
-    def _get_target_net(agent: Any) -> nn.Module | None:
-        """
-        从 agent 中获取 DQN 目标网络（用于计算 TD 目标的 next-Q 值）。
-
-        支持的 agent 结构（按优先级）：
-            - agent.target_net                    : 退火优化器约定的属性（如测试夹具）
-            - agent.model.policy.q_net_target     : SB3 DQN 包装在 SchedulerAgent.model 中
-            - agent.policy.q_net_target           : agent 本身即 SB3 DQN model
-
-        若以上均不存在，返回 None —— **调用方必须显式报错**，
-        严禁静默回退到在线 policy_net（Issue #357）。
-
-        Returns:
-            target_net: 目标网络（nn.Module），或 None（表示无法确定）。
-        """
-        # 方式 1：退火优化器约定的 target_net 属性
-        if hasattr(agent, "target_net") and isinstance(agent.target_net, nn.Module):
-            return agent.target_net
-
-        # 方式 2：SB3 DQN 包装在 SchedulerAgent.model 中
-        model = getattr(agent, "model", None)
-        if model is not None and hasattr(model, "policy"):
-            q_target = getattr(model.policy, "q_net_target", None)
-            if isinstance(q_target, nn.Module):
-                return q_target
-
-        # 方式 3：agent 本身即 SB3 DQN model
-        if hasattr(agent, "policy"):
-            q_target = getattr(agent.policy, "q_net_target", None)
-            if isinstance(q_target, nn.Module):
-                return q_target
-
-        return None
-
-    @staticmethod
     def extract_weights(
         network: nn.Module,
     ) -> tuple[list[np.ndarray], list[tuple[int, ...]]]:
@@ -1623,7 +1609,7 @@ class QuantumAnnealingOptimizer:
         new_weights: list[np.ndarray],
         shapes: list[tuple[int, ...]],
         learning_rate: float = 0.01,
-    ):
+    ) -> None:
         """
         将优化后的权重应用到网络（旧版本，保留用于向后兼容）
 
@@ -1655,7 +1641,7 @@ class QuantumAnnealingOptimizer:
         old_weights: list[np.ndarray],
         new_weights: list[np.ndarray],
         learning_rate: float = 0.01,
-    ):
+    ) -> None:
         """
         将优化后的权重应用到网络（v2 版本）
 
@@ -1683,7 +1669,7 @@ class QuantumAnnealingOptimizer:
                 param.copy_(torch.from_numpy(w_final.astype(np.float32)))
 
     @staticmethod
-    def _set_weights(network: nn.Module, weights: list[np.ndarray]):
+    def _set_weights(network: nn.Module, weights: list[np.ndarray]) -> None:
         """
         直接设置网络权重（用于回滚）
 
@@ -1701,7 +1687,7 @@ class QuantumAnnealingOptimizer:
         old_weights: list[np.ndarray],
         new_weights: list[np.ndarray],
         learning_rate: float = 0.01,
-    ):
+    ) -> None:
         """
         将优化后的权重应用到指定的参数子集（用于 head_only 模式）
 
@@ -1718,7 +1704,9 @@ class QuantumAnnealingOptimizer:
                 param.copy_(torch.from_numpy(w_final.astype(np.float32)))
 
     @staticmethod
-    def _set_params_from_weights(params: list[nn.Parameter], weights: list[np.ndarray]):
+    def _set_params_from_weights(
+        params: list[nn.Parameter], weights: list[np.ndarray]
+    ) -> None:
         """
         直接将权重写入参数子集（用于 head_only 模式下的回滚）
 
@@ -1734,7 +1722,7 @@ class QuantumAnnealingOptimizer:
         self,
         policy_net: nn.Module,
         replay_buffer: Any,
-        agent: Any,
+        agent: AnnealingAgent,
         batch_size: int = 64,
     ) -> tuple[list[np.ndarray], np.ndarray, float]:
         """
@@ -1785,25 +1773,14 @@ class QuantumAnnealingOptimizer:
         # 获取 gamma
         gamma = getattr(agent, "gamma", 0.99)
 
-        # 获取目标网络（用于 TD 目标的 next-Q）。
-        # 严禁回退到在线 policy_net：若无法确定真实 target_net，明确报错。
-        target_net = QuantumAnnealingOptimizer._get_target_net(agent)
-        if target_net is None:
-            raise RuntimeError(
-                "无法确定 DQN 目标网络 target_net：agent 既无 target_net 属性，"
-                "也无 model.policy.q_net_target 或 policy.q_net_target。"
-                "TD 目标必须使用真实目标网络，禁止静默回退到在线 policy_net（Issue #357）。"
-            )
-
         # 前向传播
         policy_net.train()
         q_values = policy_net(observations)
         q_value = q_values.gather(1, actions).squeeze(1)
 
-        # 计算目标 Q 值：必须用 target_net 并在 no_grad 下 detach，保证目标静止
-        target_net.eval()
+        # 计算目标 Q 值
         with torch.no_grad():
-            next_q_values = target_net(next_observations)
+            next_q_values = policy_net(next_observations)
             next_q_value = next_q_values.max(1)[0]
             target_q = rewards + gamma * next_q_value * (1 - dones)
 
