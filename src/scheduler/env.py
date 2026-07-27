@@ -454,7 +454,7 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
                         )
                 else:
                     # 兼容分配：计算执行奖励
-                    reward += self._compute_execution_reward(task, action, rng)
+                    reward += self._compute_execution_reward(task, action, rng, selected_machine)
                     self._total_scheduled += 1
 
                     # 构建观测快照（Issue #234）：记录关键状态字段用于因果追溯
@@ -593,13 +593,20 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
     def _recompute_aggregate(self) -> None:
         recompute_aggregate(self)
 
-    def _compute_execution_reward(self, task: Task, action: int, rng: np.random.Generator) -> float:
+    def _compute_execution_reward(self, task: Task, action: int, rng: np.random.Generator, selected_machine=None) -> float:
+        crosstalk_penalty = 0.0
+        if selected_machine is not None and hasattr(selected_machine, "active_tasks"):
+            active_count = len(selected_machine.active_tasks)
+            if active_count > 0:
+                crosstalk_penalty = 0.1 * active_count
+                
         return compute_execution_reward(
             task=task,
             action=action,
             rng=rng,
             quantum_fidelity=self._quantum.fidelity,
             quantum_available_ratio=self._quantum.available_ratio,
+            crosstalk_penalty=crosstalk_penalty,
         )
 
     def _compute_wait_penalty(self) -> float:
