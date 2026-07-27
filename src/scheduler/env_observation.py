@@ -34,6 +34,7 @@ from src.scheduler.env_types import (
     OBS_TIME_OF_DAY,
     OBS_TWO_GATE_FIDELITY,
     OBS_URGENCY_LEVEL,
+    OBS_CROSSTALK_RISK,
 )
 
 if TYPE_CHECKING:
@@ -60,12 +61,13 @@ def get_observation(env: "QuantumSchedulingEnv") -> NDArray[Any]:
         [11] two_gate_fidelity : 两比特门平均保真度（所有机器加权平均）
         [12] coupling_density  : 耦合图密度（所有机器加权平均）
         [13] avg_connectivity  : 量子比特平均连通度（所有机器加权平均）
+        [14] crosstalk_risk    : 串扰风险（基于空间并发的任务密度）
 
     Args:
         env: 调度环境实例
 
     Returns:
-        NDArray[Any]: 形状 (14,)，dtype=float32，值域 [0, 1]
+        NDArray[Any]: 形状 (15,)，dtype=float32，值域 [0, 1]
     """
     obs: NDArray[Any] = np.zeros(OBS_DIM, dtype=np.float32)
 
@@ -131,6 +133,11 @@ def get_observation(env: "QuantumSchedulingEnv") -> NDArray[Any]:
             obs[OBS_AVG_CONNECTIVITY] = float(
                 np.clip(np.average(conn_arr, weights=qubits_arr), 0.0, 1.0)
             )
+            
+            # 计算串扰风险 (Crosstalk Risk): 所有机器中 (used_qubits / total_qubits) 的最大值或加权平均
+            # 这里我们使用所有机器使用的 qubits 总和 / 所有机器的总 qubits
+            used_q = sum(m.used_qubits for m in env._machines)
+            obs[OBS_CROSSTALK_RISK] = float(np.clip(used_q / total_q, 0.0, 1.0))
 
     return obs
 
