@@ -752,6 +752,73 @@ class TestNumpySimulatedAnnealing(unittest.TestCase):
 
 
 # ============================================================
+# Issue #362: C1 回归测试 formal/property 别名
+# 将 TestQuboFlipDelta / TestNumpySimulatedAnnealing 的关键回归
+# 挂到 formal 标记下，使其在 CI 专用数学验证 job 中执行
+# ============================================================
+
+
+class TestQuboFlipDeltaFormal(unittest.TestCase):
+    """C1 回归 formal 别名：单比特翻转 ΔE 公式（Issue #362）。"""
+
+    def _analytic_delta(self, q_matrix: np.ndarray, x: np.ndarray, k: int) -> float:
+        x2 = x.copy()
+        x2[k] = 1.0 - x2[k]
+        return float(x2 @ q_matrix @ x2) - float(x @ q_matrix @ x)
+
+    def test_formal_flip_delta_matches_analytic(self):
+        """formal: ΔE 公式与解析值一致（覆盖多组随机 QUBO）。"""
+        rng = np.random.default_rng(42)
+        for _ in range(50):
+            n = int(rng.integers(2, 8))
+            Q = rng.standard_normal((n, n))
+            Q = Q + Q.T
+            x = (rng.random(n) < 0.5).astype(float)
+            k = int(rng.integers(0, n))
+            got = QuantumAnnealingOptimizer._qubo_flip_delta(Q, x, k)
+            self.assertAlmostEqual(got, self._analytic_delta(Q, x, k), places=9)
+
+    def test_formal_flip_delta_known_case(self):
+        """formal: 已知用例 Q=[[1,2],[2,3]], x=[1,1], flip k=0 → ΔE=-5。"""
+        Q = np.array([[1.0, 2.0], [2.0, 3.0]])
+        x = np.array([1.0, 1.0])
+        self.assertAlmostEqual(QuantumAnnealingOptimizer._qubo_flip_delta(Q, x, 0), -5.0, places=9)
+
+
+class TestNumpySimulatedAnnealingFormal(unittest.TestCase):
+    """C1 回归 formal 别名：numpy 仿真退火端到端正确性（Issue #362）。"""
+
+    def _brute_force_min(self, q: np.ndarray) -> float:
+        n = q.shape[0]
+        best = float("inf")
+        for mask in range(1 << n):
+            x = np.array([float((mask >> i) & 1) for i in range(n)])
+            e = float(x @ q @ x)
+            if e < best:
+                best = e
+        return best
+
+    def test_formal_finds_global_optimum_small_qubo(self):
+        """formal: numpy 退火应命中暴力搜索的全局最优（C1 回归）。"""
+        import random
+
+        rng = np.random.default_rng(0)
+        Q = rng.standard_normal((6, 6))
+        Q = Q + Q.T
+        opt = QuantumAnnealingOptimizer()
+        random.seed(1234)
+        np.random.seed(1234)
+        opt._sim_initial_temp = 1.0
+        opt._sim_cooling_rate = 0.995
+        opt._sim_num_sweeps = 3000
+        bitstring = opt.numpy_simulated_annealing(Q)
+        x = np.array([float(int(b)) for b in bitstring])
+        found = float(x @ Q @ x)
+        truth = self._brute_force_min(Q)
+        self.assertAlmostEqual(found, truth, delta=1e-6)
+
+
+# ============================================================
 # ?????????
 # ============================================================
 class TestWeightExtraction(unittest.TestCase):
