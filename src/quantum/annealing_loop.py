@@ -446,20 +446,34 @@ class AsyncAnnealingLoop:
                 # 优化器内部涉及退火与权重更新，异常类型无法穷举，保留宽捕获并记录日志
                 if getattr(self.optimizer, "simulation_mode", True):
                     raise
+                # Issue #229: 显式记录降级上下文
+                qubo_n = getattr(self.optimizer, "num_qubits", "unknown")
+                solver = getattr(self.optimizer, "_last_solver", "unknown")
                 logger.warning(
-                    f"[退火闭环] 步数 {step}: 真机退火失败（第 {attempt + 1} 次），"
-                    f"{delay}s 后重试 ({type(e).__name__}: {e})"
+                    f"[退火闭环][降级] 步数 {step}: 真机退火失败（第 {attempt + 1} 次），"
+                    f"{delay}s 后重试。"
+                    f"降级原因={type(e).__name__}: {e}, "
+                    f"当前求解器={solver}, QUBO 比特数={qubo_n}"
                 )
                 time.sleep(delay)
 
         # 重试次数耗尽，降级为仿真退火
         try:
-            logger.warning(f"[退火闭环] 步数 {step}: 真机退火重试耗尽，降级为仿真退火")
+            # Issue #229: 首次降级时记录完整降级上下文
+            prev_solver = getattr(self.optimizer, "_last_solver", "unknown")
+            target_solver = "neal_sa" if getattr(self.optimizer, "use_dw", False) else "numpy_sa"
+            logger.warning(
+                f"[退火闭环][降级] 步数 {step}: 真机退火重试耗尽，"
+                f"降级为仿真退火。"
+                f"降级原因=retries_exhausted (max={len(self.retry_delays)}), "
+                f"前求解器={prev_solver}, 目标求解器={target_solver}, "
+                f"QUBO 比特数={getattr(self.optimizer, 'num_qubits', 'unknown')}"
+            )
             self.optimizer.simulation_mode = True
             return self._optimize_policy_call(agent_wrapper)
         except Exception as e:
             # 仿真退火仍可能失败（权重更新/张量运算），保留宽捕获并记录日志
-            logger.error(f"[退火闭环] 步数 {step}: 仿真退火也失败 ({type(e).__name__}: {e})")
+            logger.error(f"[退火闭环][降级] 步数 {step}: 仿真退火也失败 ({type(e).__name__}: {e})")
             raise
 
     def _evaluate_policy(
