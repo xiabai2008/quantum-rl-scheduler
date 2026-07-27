@@ -245,7 +245,7 @@ pytest tests/benchmarks/ --benchmark-only
 - 每个新功能必须有对应的测试用例
 - 测试文件与 `src/` 目录结构对应（如 `src/scheduler/agent.py` ↔ `tests/test_agent.py`）
 - 函数/类必须写 docstring（中文）
-- 测试覆盖率目标：**≥ 60%**（CI 强制门禁），长期目标 80%+
+- 测试覆盖率目标：**≥ 80%**（CI 强制门禁，与 `pyproject.toml` `fail_under=80` 一致）
 
 ### 6.3 测试标记
 
@@ -282,7 +282,7 @@ import pytest
 | Job | 内容 |
 |-----|------|
 | **Lint** | ruff check + ruff format + bandit 安全扫描 |
-| **Test** | pytest 多版本测试（Python 3.10 / 3.11 / 3.12）+ 覆盖率（≥ 60%） |
+| **Test** | pytest 多版本测试（Python 3.10 / 3.11 / 3.12）+ 覆盖率（≥ 80%） |
 | **Type Check** | mypy 类型检查 |
 | **Benchmarks** | 性能基准测试 |
 
