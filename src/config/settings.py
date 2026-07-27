@@ -278,7 +278,9 @@ class Settings:
     max_steps: int = 1000
     algorithm: str = "DQN"
     # ── 量子配置 ──
-    annealing_enabled: bool = True
+    # 退火已降级为探索性功能（2026-07-27），默认关闭
+    # 量子赋能AI主方向为真机噪声反馈优化PPO鲁棒性
+    annealing_enabled: bool = False
     quantum_shots: int = 1024
     # ── 日志配置 ──
     log_level: str = "INFO"
