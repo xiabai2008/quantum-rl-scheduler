@@ -35,6 +35,7 @@ from typing import Any
 from loguru import logger
 
 from src.visualization.connection import ConnectionManager
+from src.visualization.security import WS_MAX_CONNECTIONS
 
 # ============================================================
 # 常量
@@ -117,7 +118,8 @@ task_queue: list[dict[str, Any]] = [
 ]
 
 # WebSocket 连接管理器实例（全局单例）
-manager = ConnectionManager()
+# Issue #514: 通过 WS_MAX_CONNECTIONS 限制最大并发连接数
+manager = ConnectionManager(max_connections=WS_MAX_CONNECTIONS)
 
 # 资源利用率历史数据（内存缓存，最多保留 MAX_RESOURCE_HISTORY 个数据点）
 _resource_history: list[dict[str, Any]] = []

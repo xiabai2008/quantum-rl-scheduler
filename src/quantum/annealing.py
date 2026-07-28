@@ -46,6 +46,19 @@ QUANTUM_ACCELERATION_ENABLED = os.environ.get(
     "QUANTUM_ACCELERATION_ENABLED", "0"
 ).strip().lower() in ("1", "true", "yes")
 
+# Issue #589: 退火已降级为探索性功能，启用时发出 FutureWarning 提示
+# 使用 FutureWarning（而非 DeprecationWarning），因为 pyproject.toml 中
+# pytest 配置了 -W ignore::DeprecationWarning，DeprecationWarning 会被静默
+if QUANTUM_ACCELERATION_ENABLED:
+    import warnings
+
+    warnings.warn(
+        "量子退火模块已降级为探索性功能（p=0.9430不显著）。"
+        "量子→AI主方向已转向真机噪声反馈。",
+        FutureWarning,
+        stacklevel=2,
+    )
+
 # 尝试导入 D-Wave Ocean SDK（真机模式所需）
 try:
     import neal  # D-Wave 的模拟退火求解器
@@ -214,6 +227,18 @@ class QuantumAnnealingOptimizer:
         self._last_solver: str = "none"
         # 记录最后一次 optimize_policy 的退火统计（供外部诊断无效化/接受率）
         self._last_anneal_stats: dict[str, Any] = {}
+
+        # Issue #589: 退火优化器为探索性功能，构造时发出 FutureWarning 提示
+        # 使用 FutureWarning（而非 DeprecationWarning），避免被 pytest 的
+        # -W ignore::DeprecationWarning 静默
+        import warnings
+
+        warnings.warn(
+            "QuantumAnnealingOptimizer 为探索性功能，默认关闭。"
+            "p=0.9430 不显著，量子→AI主方向已转向真机噪声反馈。",
+            FutureWarning,
+            stacklevel=2,
+        )
 
     # ------------------------------------------------------------------
     # 方法 1.1: get_annealing_config（Issue #247 退火参数可追溯）

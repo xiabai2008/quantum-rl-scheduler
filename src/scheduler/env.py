@@ -471,6 +471,12 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
         # 本步总奖励 = 执行收益 + 队列等待惩罚 + 资源利用率惩罚
         reward = 0.0
 
+        # Issue #522 性能优化：本步只构建一次观测并缓存复用。
+        # 原实现中 step() 兼容分支、_compute_execution_reward()、返回值各调用一次
+        # _get_observation()，单步共 3 次观测构建（含 numpy 向量化加权平均），开销大。
+        # 缓存后保证单步内观测一致，并将构建次数降为 1。
+        obs = self._get_observation()
+
         if self._current_task is not None:
             task = self._current_task
             is_compatible = self._check_compatibility(task, action)
@@ -510,7 +516,7 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
                         )
                     else:
                         # 混合动作：降级为经典执行，避免系统空转
-                        reward += self._compute_execution_reward(task, ACTION_CLASSICAL, rng)
+                        reward += self._compute_execution_reward(task, ACTION_CLASSICAL, rng, obs)
                         self._total_scheduled += 1
                         self._classical_success += 1
                         self._last_selected_machine = None
@@ -519,12 +525,11 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
                             f"混合任务{task.task_id}降级为经典执行，reward={reward:.2f}"
                         )
                 else:
-                    # 兼容分配：计算执行奖励
-                    obs = self._get_observation()
+                    # 兼容分配：计算执行奖励（复用步首缓存的 obs，避免重复构建观测）
                     crosstalk_risk = obs[OBS_CROSSTALK_RISK]
                     crosstalk_penalty = crosstalk_risk * 2.0
 
-                    reward += self._compute_execution_reward(task, action, rng) - crosstalk_penalty
+                    reward += self._compute_execution_reward(task, action, rng, obs) - crosstalk_penalty
                     self._total_scheduled += 1
 
                     # 构建观测快照（Issue #234）：记录关键状态字段用于因果追溯
@@ -609,7 +614,8 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
             self._consecutive_idle_steps >= idle_termination_threshold
         )
 
-        return self._get_observation(), reward, terminated, truncated, self._get_info()
+        # Issue #522: 返回步首缓存的观测，保证单步内观测一致且只构建一次
+        return obs, reward, terminated, truncated, self._get_info()
 
     # -- 薄包装方法：委托给子模块，保留实例方法签名以兼容现有测试 --
 
@@ -709,8 +715,29 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
     def _recompute_aggregate(self) -> None:
         recompute_aggregate(self)
 
-    def _compute_execution_reward(self, task: Task, action: int, rng: np.random.Generator) -> float:
-        crosstalk_risk = self._get_observation()[OBS_CROSSTALK_RISK]
+    def _compute_execution_reward(
+        self,
+        task: Task,
+        action: int,
+        rng: np.random.Generator,
+        obs: NDArray[Any] | None = None,
+    ) -> float:
+        """计算执行奖励（委托给 env_reward.compute_execution_reward）。
+
+        Args:
+            task: 待执行任务。
+            action: 调度动作（ACTION_CLASSICAL / ACTION_QUANTUM / ACTION_HYBRID）。
+            rng: 随机数生成器。
+            obs: 步首缓存的全局观测向量。若提供则直接读取串扰风险，避免重复构建观测
+                （Issue #522 性能优化）；若为 None 则回退到即时构建。
+
+        Returns:
+            执行奖励标量。
+        """
+        # Issue #522: 优先复用步首缓存的观测，避免在奖励计算中重复调用 _get_observation()
+        if obs is None:
+            obs = self._get_observation()
+        crosstalk_risk = obs[OBS_CROSSTALK_RISK]
         crosstalk_penalty = crosstalk_risk * 2.0  # 惩罚因子可调
 
         return compute_execution_reward(

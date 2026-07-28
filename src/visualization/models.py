@@ -32,3 +32,29 @@ class SystemStatusUpdate(BaseModel):
     queue_length: int = Field(default=0, ge=0, le=100000)
     completed_tasks: int = Field(default=0, ge=0, le=10**9)
     average_wait_time: float = Field(default=0.0, ge=0.0, le=86400.0)
+
+
+class CircuitSubmit(BaseModel):
+    """量子电路提交请求体（Issue #515）。
+
+    用于 POST /api/circuit/submit 端点，提交 QCIS/QASM 格式的
+    量子电路内容进行校验与调度。电路内容在路由层经过
+    ``validate_quantum_circuit`` 校验后才会被接受。
+    """
+
+    circuit: str = Field(
+        ...,
+        min_length=1,
+        max_length=1024 * 1024,
+        description="量子电路内容（QCIS 或 OpenQASM 格式）",
+    )
+    format: str = Field(
+        default="qcis",
+        description="电路格式: qcis 或 openqasm",
+    )
+    shots: int = Field(default=1024, ge=1, le=65536, description="测量次数")
+    task_name: str = Field(
+        default="Web_Submit",
+        max_length=128,
+        description="任务名称",
+    )

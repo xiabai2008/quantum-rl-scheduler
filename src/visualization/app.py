@@ -37,12 +37,14 @@ import asyncio
 import json
 import os
 import sys
+import uuid
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 from loguru import logger
 
 # 确保项目根目录在 Python 路径中
@@ -315,6 +317,47 @@ if os.path.isdir(_dist_assets):
 
     app.mount("/assets", StaticFiles(directory=_dist_assets), name="assets")
     logger.info(f"[Web] 静态资源目录已挂载: {_dist_assets}")
+
+
+# ============================================================
+# 全局异常处理器：错误消息净化（Issue #516）
+# ============================================================
+
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    """全局未处理异常处理器（Issue #516）。
+
+    捕获所有未被路由级 try/except 处理的异常，返回通用错误消息，
+    避免泄露内部文件路径、堆栈跟踪、变量名等敏感信息。
+
+    响应中包含 ``correlation_id`` 用于关联服务端日志，便于调试。
+
+    Args:
+        request: 触发异常的请求对象
+        exc: 捕获的异常
+
+    Returns:
+        JSONResponse: ``{"detail": "Internal server error", "correlation_id": "..."}``，
+                      HTTP 500
+    """
+    correlation_id = str(uuid.uuid4())
+    # 完整异常信息记录到日志（含堆栈），但不返回给客户端。
+    # 注意：不将 {exc} 直接拼入 f-string 传给 logger，因为 loguru 默认会对
+    # 消息调用 .format()，若异常消息含 { 字符（如 KeyError 的 'type'）
+    # 会导致 KeyError。exc_info=True 已在日志中记录完整堆栈与异常消息。
+    logger.error(
+        f"[Web] 未处理异常 correlation_id={correlation_id} "
+        f"path={request.url.path} method={request.method}",
+        exc_info=True,
+    )
+    return JSONResponse(
+        status_code=500,
+        content={
+            "detail": "Internal server error",
+            "correlation_id": correlation_id,
+        },
+    )
 
 
 # ============================================================

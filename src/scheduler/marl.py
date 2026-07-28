@@ -791,12 +791,32 @@ class MultiAgentPPO:
         """将全局状态转为 Critic 输入张量（带 batch 维）。"""
         return self._to_tensor(global_state).unsqueeze(0)
 
+    def _global_state_from_local_obs(self, local_obs: dict[str, np.ndarray]) -> np.ndarray:
+        """从局部观测字典拼接全局状态（避免重复调用 get_local_observations）。
+
+        Issue #523 性能优化：``MultiAgentEnvWrapper.get_global_state`` 内部会重新调用
+        ``get_local_observations`` 进而触发 ``env._get_observation``。在 rollout 热路径中
+        local_obs 已经在手，直接按 machine_names 顺序拼接即可，省去一次观测构建。
+
+        Args:
+            local_obs: 机器名 -> 局部观测向量的字典。
+
+        Returns:
+            拼接后的全局状态向量（float32），等价于 ``wrapper.get_global_state()``。
+        """
+        return np.concatenate(
+            [local_obs[name] for name in self.machine_names]
+        ).astype(np.float32)
+
     # ------------------------------------------------------------------
     # 动作采样
     # ------------------------------------------------------------------
 
     def _sample_actions(
-        self, local_obs: dict[str, np.ndarray], deterministic: bool = False
+        self,
+        local_obs: dict[str, np.ndarray],
+        deterministic: bool = False,
+        global_state: np.ndarray | None = None,
     ) -> tuple[dict[str, int], list[float], float]:
         """
         为所有 Agent 采样动作。
@@ -804,6 +824,9 @@ class MultiAgentPPO:
         Args:
             local_obs: 机器名 -> 局部观测
             deterministic: 是否贪心选择
+            global_state: 调用方预先计算的全局状态。若提供则直接用于 Critic 估值，
+                避免重复构建所有 Agent 观测（Issue #523 性能优化）；若为 None 则
+                回退到 ``wrapper.get_global_state()`` 即时构建。
 
         Returns:
             (actions, log_probs, value):
@@ -820,7 +843,9 @@ class MultiAgentPPO:
                 actions[name] = int(action.item())
                 log_probs.append(float(log_prob.item()))
             # 集中式 Critic 估值
-            global_state = self.wrapper.get_global_state()
+            # Issue #523: 优先复用调用方传入的 global_state，避免重复构建所有 Agent 观测
+            if global_state is None:
+                global_state = self.wrapper.get_global_state()
             value_t = self.critic(self._global_state_tensor(global_state))
             value = float(value_t.item())
         return actions, log_probs, value
@@ -874,7 +899,8 @@ class MultiAgentPPO:
         """
         # 初始化环境
         self._last_obs, _ = self.wrapper.reset(seed=self.seed)
-        self._last_global_state = self.wrapper.get_global_state()
+        # Issue #523: 直接从 local_obs 拼接全局状态，避免重复构建所有 Agent 观测
+        self._last_global_state = self._global_state_from_local_obs(self._last_obs)
 
         best_eval_reward = -float("inf")
         n_rollouts = 0
@@ -941,7 +967,10 @@ class MultiAgentPPO:
         assert self._last_global_state is not None, "必须先调用 train() 初始化全局状态"
 
         for _ in range(self.n_steps):
-            actions, log_probs, value = self._sample_actions(self._last_obs)
+            # Issue #523: 传入已缓存的全局状态，避免 _sample_actions 内部重复构建观测
+            actions, log_probs, value = self._sample_actions(
+                self._last_obs, global_state=self._last_global_state
+            )
             local_obs, reward, terminated, truncated, _info = self.wrapper.step(actions)
             done = bool(terminated or truncated)
 
@@ -965,7 +994,9 @@ class MultiAgentPPO:
                 self._last_obs, _ = self.wrapper.reset()
             else:
                 self._last_obs = local_obs
-            self._last_global_state = self.wrapper.get_global_state()
+            # Issue #523: 直接从 local_obs 拼接全局状态，避免再次调用 get_global_state()
+            # （后者会重新构建所有 Agent 观测，与刚返回的 local_obs 重复计算）
+            self._last_global_state = self._global_state_from_local_obs(self._last_obs)
 
         self._last_episode_rewards = ep_rewards
 
@@ -1091,7 +1122,11 @@ class MultiAgentPPO:
             聚合后的 env action（0/1/2）
         """
         local_obs = self.wrapper.get_local_observations()
-        actions, _, _ = self._sample_actions(local_obs, deterministic=deterministic)
+        # Issue #523: 从 local_obs 直接拼接全局状态，避免 _sample_actions 内部重复构建观测
+        global_state = self._global_state_from_local_obs(local_obs)
+        actions, _, _ = self._sample_actions(
+            local_obs, deterministic=deterministic, global_state=global_state
+        )
         env_action, _ = self.wrapper.aggregate_actions(actions)
         return env_action
 
