@@ -381,7 +381,7 @@ Issues全面清理  ████████████████████
 **口径切换声明要求**：
 - 10维和14维结果不可直接比较
 - 报告/表格必须标注观测维度
-- PPO +88.3% 为14维原生环境权威对比结果（50 seeds × 5 episodes = 250次独立运行），PPO 模型文件为 ppo_best_model_14dim.zip。10维 Obs10Wrapper 仅用于与旧版 10维 DQN 模型的公平对比
+- PPO +88.3% 为14维原生环境对比结果（50 seeds × 5 episodes = 250次独立运行），PPO 模型文件为 ppo_best_model_14dim.zip。10维 Obs10Wrapper 截断仅用于与旧版 10维 DQN 模型的公平对比
 
 详见 `docs/observation_dim_standard.md`
 

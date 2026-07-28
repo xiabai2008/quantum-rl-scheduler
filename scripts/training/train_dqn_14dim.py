@@ -520,7 +520,7 @@ def main() -> None:
             "fcfs_mean": AUTHORITATIVE_FCFS_MEAN,
             "fcfs_std": AUTHORITATIVE_FCFS_STD,
             "improvement": AUTHORITATIVE_IMPROVEMENT,
-            "note": "本报告DQN数据为14维环境独立评估，与权威数字（10维Obs10Wrapper环境）不可直接数值对比，仅用于验证DQN > Random（退化已修复）",
+            "note": "本报告DQN数据为14维环境独立评估，与权威数字（14维原生环境）口径一致，可直接数值对比，用于验证DQN > Random（退化已修复）",
         },
     }
 
