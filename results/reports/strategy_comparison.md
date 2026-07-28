@@ -104,4 +104,35 @@ python scripts/evaluation/statistical_significance.py \
 
 ---
 
+## 五、附录：DQN 100k 步重训口径说明（Issue #427）
+
+> **背景**：`results/reports/dqn_14dim_retrain_report.json` 报告 DQN 100k 步重训平均奖励 3404.77，
+> 高于 PPO 权威数字 2746.94。此数字在 Issue #427 中被标记为"基线公平性"问题。
+
+### 口径差异
+
+| 配置项 | 权威实验（本报告） | DQN 100k 重训 | 差异 |
+|:--|:--|:--|:--|
+| **max_steps** | 200 步/episode | 500 步/episode | **2.5x** |
+| episodes/seed | 5 | 50 | 10x |
+| seeds | 50 | 5 | — |
+| 总评估 episodes | 250 | 250 | 相同 |
+| **FCFS 基线** | **1458.77** | **3434.47** | **2.35x** |
+
+### 关键判断
+
+DQN 100k 步重训的 3404.77 **不可与 PPO 2746.94 直接比较**：
+1. **max_steps=500 vs 200**：500 步/episode 累计奖励自然是 200 步的 ~2.5 倍
+2. **FCFS 也在 3434**：同配置下 FCFS=3434.47，DQN vs FCFS 仅 -0.9%（DQN 并未超越 FCFS）
+3. **reward_clipping [-1,1]**：DQN 训练时使用了奖励裁剪，但评估时未裁剪，导致奖励分布不同
+
+### 结论
+
+- 交付的 DQN 模型 `dqn_best_model_14dim.zip` 在权威实验配置（max_steps=200）下评估为 **1527.65**，这是与 PPO 2746.94 公平对比的数字
+- 100k 步重训的 3404.77 是在 max_steps=500 配置下的结果，与权威实验不可直接比较
+- DQN 在 100k 步重训配置下仍未超越 FCFS（-0.9%），说明 DQN 在该环境下不是 PPO 的竞争者
+- **PPO +88.3% 的核心叙事不受影响**
+
+---
+
 *报告生成时间: 2026-07-19 | 数据源: results/multiseed_evaluation/rewards_multiseed.json | 统计方法: SciPy + Bootstrap + Bonferroni校正*
