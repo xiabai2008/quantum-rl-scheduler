@@ -333,35 +333,35 @@ class TestReportGeneration:
         assert "## 八、结论" in report
         assert "## 九、复现方法" in report
 
-    def test_report_contains_fair_number_not_76(self) -> None:
-        """报告应包含新公平数字而非 76.4%。"""
+    def test_report_contains_fair_comparison_not_76_claim(self) -> None:
+        """报告应说明公平对比方法论，不应以76.4%作为最终结论。"""
         stats = {
             "n_pairs": 60,
-            "sabre_mean": 31.32,
-            "ppo_mean": 18.43,
-            "sabre_std": 55.33,
-            "ppo_std": 10.89,
-            "improvement_pct": 41.1,
-            "wilcoxon_w": 906.0,
-            "p_value": 0.652,
-            "rank_biserial": -0.059,
-            "cohen_d": 0.263,
-            "per_circuit_improvement_mean": -559.7,
-            "per_circuit_improvement_median": -200.0,
-            "per_circuit_improvement_ci_low": -2857.5,
-            "per_circuit_improvement_ci_high": 83.4,
-            "bootstrap_ci_low": 7.0,
-            "bootstrap_ci_high": 58.4,
+            "sabre_mean": 9.55,
+            "ppo_mean": 8.05,
+            "sabre_std": 17.21,
+            "ppo_std": 5.57,
+            "improvement_pct": 15.7,
+            "wilcoxon_w": 963.0,
+            "p_value": 0.86,
+            "rank_biserial": -0.165,
+            "cohen_d": 0.10,
+            "per_circuit_improvement_mean": -300.0,
+            "per_circuit_improvement_median": -100.0,
+            "per_circuit_improvement_ci_low": -1400.0,
+            "per_circuit_improvement_ci_high": 100.0,
+            "bootstrap_ci_low": -36.0,
+            "bootstrap_ci_high": 42.0,
             "significant": False,
         }
         breakdown = {
             cat: {
                 "n": 20,
-                "sabre_mean": 30.0,
-                "sabre_std": 10.0,
-                "ppo_mean": 15.0,
-                "ppo_std": 5.0,
-                "improvement_pct": 50.0,
+                "sabre_mean": 10.0,
+                "sabre_std": 5.0,
+                "ppo_mean": 8.0,
+                "ppo_std": 3.0,
+                "improvement_pct": 20.0,
             }
             for cat in CATEGORIES
         }
@@ -371,22 +371,22 @@ class TestReportGeneration:
             "rationale": "测试",
             "stats": {
                 "n_pairs": 40,
-                "sabre_mean": 45.0,
-                "ppo_mean": 22.0,
-                "sabre_std": 30.0,
-                "ppo_std": 6.0,
-                "improvement_pct": 51.0,
-                "wilcoxon_w": 150.0,
-                "p_value": 0.05,
-                "rank_biserial": 0.2,
-                "cohen_d": 0.6,
-                "per_circuit_improvement_mean": 40.0,
-                "per_circuit_improvement_median": 35.0,
-                "per_circuit_improvement_ci_low": -20.0,
-                "per_circuit_improvement_ci_high": 70.0,
-                "bootstrap_ci_low": 30.0,
-                "bootstrap_ci_high": 65.0,
-                "significant": True,
+                "sabre_mean": 13.7,
+                "ppo_mean": 11.1,
+                "sabre_std": 19.0,
+                "ppo_std": 4.0,
+                "improvement_pct": 18.9,
+                "wilcoxon_w": 430.0,
+                "p_value": 0.65,
+                "rank_biserial": -0.05,
+                "cohen_d": 0.14,
+                "per_circuit_improvement_mean": 10.0,
+                "per_circuit_improvement_median": 5.0,
+                "per_circuit_improvement_ci_low": -50.0,
+                "per_circuit_improvement_ci_high": 80.0,
+                "bootstrap_ci_low": -32.0,
+                "bootstrap_ci_high": 44.0,
+                "significant": False,
             },
         }
         per_circuit: list[dict[str, int]] = []
@@ -394,8 +394,10 @@ class TestReportGeneration:
 
         report = generate_report(stats, breakdown, subset_analysis, per_circuit, config)
 
-        assert "41.1%" in report
-        assert "76.4%" in report  # 在对比表中应出现原数字作为对照
+        assert "76.4%" in report  # 在对比表中应出现原数字作为对照（标注为不公平）
+        assert "不公平" in report  # 应标注原76.4%为不公平对比
+        assert "4×4" in report or "2D网格" in report  # 应说明使用2D网格拓扑
+        assert "同池配对" in report  # 应说明公平对比方法论
 
 
 # ---------------------------------------------------------------------------

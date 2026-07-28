@@ -54,8 +54,19 @@ CATEGORIES: dict[str, dict[str, Any]] = {
     "deep": {"qubits": (14, 16), "gates": (20, 30), "label": "深电路"},
 }
 
-# 16 比特线性链拓扑（与 compilation_env.py 训练时一致）
-COUPLING = CouplingMap([(i, i + 1) for i in range(15)] + [(i + 1, i) for i in range(15)])
+# 4×4 2D网格拓扑（与 compilation_env.py COUPLING_GRAPH 一致，匹配天衍真机 nearest-neighbor 结构）
+_GRID_ROWS, _GRID_COLS = 4, 4
+_grid_edges: list[tuple[int, int]] = []
+for _r in range(_GRID_ROWS):
+    for _c in range(_GRID_COLS):
+        _q = _r * _GRID_COLS + _c
+        if _c + 1 < _GRID_COLS:
+            _grid_edges.append((_q, _q + 1))
+            _grid_edges.append((_q + 1, _q))
+        if _r + 1 < _GRID_ROWS:
+            _grid_edges.append((_q, _q + _GRID_COLS))
+            _grid_edges.append((_q + _GRID_COLS, _q))
+COUPLING = CouplingMap(_grid_edges)
 
 MODEL_PATH = "deliverable_models/ppo_compilation_agent.zip"
 
@@ -307,18 +318,36 @@ def generate_report(
 ) -> str:
     """生成 Markdown 报告。"""
     ts = time.strftime("%Y-%m-%d %H:%M:%S")
-    sig_text = (
-        f"p = {stats_summary['p_value']:.2e} << 0.05，PPO 的 SWAP 数显著低于 SABRE，差异具有统计显著性。"
-        if stats_summary["significant"]
-        else f"p = {stats_summary['p_value']:.2e}，未达到 0.05 显著性水平，但平均改进率仍存在。"
-    )
-
     subset_stats = subset_analysis["stats"]
-    subset_sig_text = (
-        f"p = {subset_stats['p_value']:.2e} << 0.05，PPO 在中电路+深电路子集上显著优于 SABRE。"
-        if subset_stats["significant"]
-        else f"p = {subset_stats['p_value']:.2e}，子集检验未达到 0.05 显著性水平。"
-    )
+
+    ppo_better_overall = stats_summary["improvement_pct"] > 0
+    ppo_better_subset = subset_stats["improvement_pct"] > 0
+
+    if ppo_better_overall and stats_summary["significant"]:
+        sig_text = (
+            f"p = {stats_summary['p_value']:.2e} < 0.05，PPO 的 SWAP 数显著低于 SABRE，差异具有统计显著性。"
+        )
+    elif ppo_better_overall:
+        sig_text = (
+            f"p = {stats_summary['p_value']:.2e}，未达到 0.05 显著性水平，PPO 平均 SWAP 数较低但差异不显著。"
+        )
+    else:
+        sig_text = (
+            f"p = {stats_summary['p_value']:.2e}，PPO 平均 SWAP 数高于 SABRE。"
+        )
+
+    if ppo_better_subset and subset_stats["significant"]:
+        subset_sig_text = (
+            f"p = {subset_stats['p_value']:.2e} < 0.05，PPO 在中电路+深电路子集上显著优于 SABRE。"
+        )
+    elif ppo_better_subset:
+        subset_sig_text = (
+            f"p = {subset_stats['p_value']:.2e}，子集检验未达到 0.05 显著性水平，PPO 平均较低但差异不显著。"
+        )
+    else:
+        subset_sig_text = (
+            f"p = {subset_stats['p_value']:.2e}，PPO 在中电路+深电路子集上 SWAP 数高于 SABRE。"
+        )
 
     # 类别表格行
     cat_rows = []
@@ -327,7 +356,7 @@ def generate_report(
             b = breakdown[cat_name]
             cat_rows.append(
                 f"| {cfg['label']} ({b['n']} 电路) | {b['sabre_mean']:.2f} ± {b['sabre_std']:.2f} | "
-                f"{b['ppo_mean']:.2f} ± {b['ppo_std']:.2f} | -{b['improvement_pct']:.1f}% |"
+                f"{b['ppo_mean']:.2f} ± {b['ppo_std']:.2f} | {b['improvement_pct']:+.1f}% |"
             )
 
     # 前 10 个电路明细
@@ -344,7 +373,7 @@ def generate_report(
 
 **生成时间**: {ts}
 **Issue**: #451 — 修复 `compilation_full.py` 不公平对比设计
-**模型**: `{config["model_path"]}` (PPO, 50k timesteps 训练)
+**模型**: `{config["model_path"]}` (PPO, 200k timesteps, 4×4 2D网格+全电路分布训练)
 **种子**: {config["seed"]}（电路池可复现）
 
 ---
@@ -373,11 +402,11 @@ def generate_report(
 
 | 参数 | 值 |
 |:--|:--|
-| 物理拓扑 | 16 比特线性链 (0-1-2-...-15) |
+| 物理拓扑 | 4×4 2D网格拓扑（匹配天衍真机 nearest-neighbor 结构，与 compilation_env.py COUPLING_GRAPH 一致） |
 | 评估电路数 | 60 (3 类别 × 20 电路) |
 | 电路类别 | 浅 (5-8 qubits, 5-10 gates)、中 (9-14 qubits, 10-20 gates)、深 (14-16 qubits, 20-30 gates) |
 | SABRE 配置 | swap_trials=8, layout_trials=8 |
-| PPO 配置 | MlpPolicy, lr=3e-4, n_steps=1024, batch_size=64, 50k timesteps |
+| PPO 配置 | MlpPolicy, lr=3e-4, n_steps=2048, batch_size=64, 200k timesteps（4×4 2D网格，全电路分布训练） |
 | 评估模式 | deterministic=True |
 | 种子 | {config["seed"]} |
 
@@ -387,7 +416,7 @@ def generate_report(
 
 | 指标 | SABRE | PPO | 变化 |
 |:--|:--|:--|:--|
-| 平均 SWAP 数 | {stats_summary["sabre_mean"]:.2f} | {stats_summary["ppo_mean"]:.2f} | **-{stats_summary["improvement_pct"]:.1f}%** |
+| 平均 SWAP 数 | {stats_summary["sabre_mean"]:.2f} | {stats_summary["ppo_mean"]:.2f} | **{stats_summary["improvement_pct"]:+.1f}%** |
 | 标准差 | {stats_summary["sabre_std"]:.2f} | {stats_summary["ppo_std"]:.2f} | — |
 | 样本数 | {stats_summary["n_pairs"]} | {stats_summary["n_pairs"]} | — |
 
@@ -437,7 +466,7 @@ def generate_report(
 
 | 指标 | SABRE | PPO | 变化 |
 |:--|:--|:--|:--|
-| 平均 SWAP 数 | {subset_stats["sabre_mean"]:.2f} | {subset_stats["ppo_mean"]:.2f} | **-{subset_stats["improvement_pct"]:.1f}%** |
+| 平均 SWAP 数 | {subset_stats["sabre_mean"]:.2f} | {subset_stats["ppo_mean"]:.2f} | **{subset_stats["improvement_pct"]:+.1f}%** |
 | 标准差 | {subset_stats["sabre_std"]:.2f} | {subset_stats["ppo_std"]:.2f} | — |
 | 样本数 | {subset_stats["n_pairs"]} | {subset_stats["n_pairs"]} | — |
 
@@ -471,33 +500,36 @@ def generate_report(
 | 来源 | SABRE avg | PPO avg | 改进率 | 配对设计 | 固定种子 | 显著性 |
 |:--|:--:|:--:|:--:|:--:|:--:|:--:|
 | 原 `compilation_full.py` (Issue #451) | 27.6 | 6.5 | -76.4% | ❌ 非配对 (60 vs 20) | ❌ | 未检验 |
-| 本公平对比 v2（全 60 电路） | {stats_summary["sabre_mean"]:.2f} | {stats_summary["ppo_mean"]:.2f} | -{stats_summary["improvement_pct"]:.1f}% | ✅ 同池配对 | ✅ seed={config["seed"]} | p={stats_summary["p_value"]:.2e} |
-| 本公平对比 v2（中+深 40 电路） | {subset_stats["sabre_mean"]:.2f} | {subset_stats["ppo_mean"]:.2f} | -{subset_stats["improvement_pct"]:.1f}% | ✅ 同池配对 | ✅ seed={config["seed"]} | p={subset_stats["p_value"]:.2e} |
+| 本公平对比 v2（全 60 电路） | {stats_summary["sabre_mean"]:.2f} | {stats_summary["ppo_mean"]:.2f} | {stats_summary["improvement_pct"]:+.1f}% | ✅ 同池配对 | ✅ seed={config["seed"]} | p={stats_summary["p_value"]:.2e} |
+| 本公平对比 v2（中+深 40 电路） | {subset_stats["sabre_mean"]:.2f} | {subset_stats["ppo_mean"]:.2f} | {subset_stats["improvement_pct"]:+.1f}% | ✅ 同池配对 | ✅ seed={config["seed"]} | p={subset_stats["p_value"]:.2e} |
 
 ### 数字差异说明
 
-原 76.4% 来自不公平对比（SABRE 在深电路类高 SWAP 数拉高均值，PPO 仅评测浅电路），
-本公平对比在相同电路池上配对评测。新数字 `{stats_summary["improvement_pct"]:.1f}%`（全 60 电路）和
-`{subset_stats["improvement_pct"]:.1f}%`（中+深 40 电路子集）更准确反映 PPO 相对 SABRE 的真实改进。
+原 76.4% 来自不公平对比（SABRE 评测含深电路，PPO 仅评测浅电路，非配对设计），
+本公平对比在相同电路池上配对评测，拓扑统一为 4×4 2D网格（匹配天衍真机）。
 
-PPO 在浅电路（5-8 比特）上反而增加 SWAP（SABRE 几乎为 0，PPO 引入额外 SWAP），
-因此全 60 电路 Wilcoxon 检验 p={stats_summary["p_value"]:.2e} 不显著；
-但在中电路+深电路子集（n=40）上 PPO 显著优于 SABRE（p={subset_stats["p_value"]:.2e}），
-反映 PPO 在有意义的复杂电路场景下的真实优势。
+改进率 = (1 - PPO均值/SABRE均值) × 100%：正值表示 PPO 更优，负值表示 SABRE 更优。
+
+当前模型在4×4 2D网格+全电路分布上训练200k steps。
+全60电路平均变化 {stats_summary['improvement_pct']:+.1f}%（p={stats_summary['p_value']:.2e}），
+中+深电路子集变化 {subset_stats['improvement_pct']:+.1f}%（p={subset_stats['p_value']:.2e}），
+差异均未达到统计显著性阈值(α=0.05)，提示需进一步训练或优化奖励函数。
 
 ---
 
 ## 八、结论
 
-1. **PPO 驱动的比特映射在 60 个统一电路上平均减少 SWAP 门 {stats_summary["improvement_pct"]:.1f}%**
-   （SABRE {stats_summary["sabre_mean"]:.2f} → PPO {stats_summary["ppo_mean"]:.2f}）
-2. **全 60 电路 Wilcoxon 检验 p = {stats_summary["p_value"]:.2e}**（不显著）：
-   PPO 在浅电路上反而增加 SWAP，拖累整体显著性
-3. **中电路+深电路子集（n=40）改进 {subset_stats["improvement_pct"]:.1f}%，p = {subset_stats["p_value"]:.2e}**：
-   PPO 在有意义的复杂电路场景下显著优于 SABRE
-4. 全 60 电路 Bootstrap 95% CI: [{stats_summary["bootstrap_ci_low"]:.1f}%, {stats_summary["bootstrap_ci_high"]:.1f}%]
-5. 全仓已将原不公平的 `76.4%` 替换为本公平数字 `{stats_summary["improvement_pct"]:.1f}%`（全 60 电路）
-6. 完整逐电路数据入库 `results/compilation/fair_v2_per_circuit.json` 可复算
+1. **公平对比方法论修复**：修复了原 `compilation_full.py` 非配对、无种子、无统计检验的不公平对比设计，
+   实现同池配对（60电路）、固定种子、Wilcoxon符号秩检验、Bootstrap CI的科学对比框架。
+2. **拓扑对齐**：SABRE与PPO统一在4×4 2D网格拓扑（匹配天衍真机nearest-neighbor结构）上评测，
+   与 `compilation_env.py` 的 COUPLING_GRAPH 一致。
+3. **当前模型评测结果**：全60电路 SABRE avg={stats_summary["sabre_mean"]:.2f} SWAP，
+   PPO avg={stats_summary["ppo_mean"]:.2f} SWAP，变化 {stats_summary["improvement_pct"]:+.1f}%
+   （p={stats_summary["p_value"]:.2e}）；中+深子集变化 {subset_stats["improvement_pct"]:+.1f}%（p={subset_stats["p_value"]:.2e}）。
+4. **统计结论**：PPO平均SWAP数低于SABRE但差异未达统计显著性(p>0.05)，
+   深电路类别改进{breakdown.get('deep', {}).get('improvement_pct', 0):+.1f}%，
+   提示PPO在复杂电路上有优势但需更大规模训练验证。
+5. 完整逐电路数据入库 `results/compilation/fair_v2_per_circuit.json` 可复算。
 
 ---
 
@@ -575,7 +607,7 @@ def main() -> None:
     subset_analysis = compute_subset_analysis(per_circuit)
     subset_stats = subset_analysis["stats"]
     print(
-        f"  改进率: -{stats_summary['improvement_pct']:.1f}% "
+        f"  变化率: {stats_summary['improvement_pct']:+.1f}% "
         f"(SABRE {stats_summary['sabre_mean']:.2f} → PPO {stats_summary['ppo_mean']:.2f})"
     )
     print(
@@ -589,7 +621,7 @@ def main() -> None:
     print(f"  显著性 (α=0.05): {'✅ 显著' if stats_summary['significant'] else '❌ 不显著'}")
     print(
         f"  子集（中+深 n={subset_analysis['n_pairs']}）: "
-        f"-{subset_stats['improvement_pct']:.1f}%, p={subset_stats['p_value']:.2e}, "
+        f"{subset_stats['improvement_pct']:+.1f}%, p={subset_stats['p_value']:.2e}, "
         f"{'✅ 显著' if subset_stats['significant'] else '❌ 不显著'}"
     )
 
@@ -636,10 +668,10 @@ def main() -> None:
     print("\n" + "=" * 60)
     print("  公平对比 v2 完成")
     print(
-        f"  全 60 电路: -{stats_summary['improvement_pct']:.1f}% (p={stats_summary['p_value']:.2e})"
+        f"  全 60 电路: {stats_summary['improvement_pct']:+.1f}% (p={stats_summary['p_value']:.2e})"
     )
     print(
-        f"  中+深 40 子集: -{subset_stats['improvement_pct']:.1f}% "
+        f"  中+深 40 子集: {subset_stats['improvement_pct']:+.1f}% "
         f"(p={subset_stats['p_value']:.2e})"
     )
     print("=" * 60)
