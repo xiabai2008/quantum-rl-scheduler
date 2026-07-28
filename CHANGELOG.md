@@ -23,7 +23,7 @@
 - 量子赋能 AI 主方向由 QUBO 退火转向真机噪声反馈
 
 ### 新增能力
-- 编译 AI（PPO 替代 SABRE，SWAP 门 -76.4%）
+- 编译 AI（PPO 替代 SABRE，SWAP 门 -41.1%，公平对比v2 同池配对60电路，Issue #451；原 -76.4% 为不公平对比已废弃）
 - VQE 行业场景（10 分子×100 任务，PPO +97.5% vs FCFS）
 - OR-Tools 对比（CP-SAT 静态最优，PPO 动态实时优势）
 - 多 seed 真机实验 v2（N=10 per group，Cohen's d=5.33，p<0.001）
