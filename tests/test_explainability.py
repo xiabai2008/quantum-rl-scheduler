@@ -39,8 +39,8 @@ class TestDecisionRecord(unittest.TestCase):
 
     def test_create_record(self):
         """应正确创建 DecisionRecord 实例。"""
-        state = np.arange(14, dtype=np.float64)
-        contribs = {f"f{i}": float(i) / 100.0 for i in range(14)}
+        state = np.arange(16, dtype=np.float64)
+        contribs = {f"f{i}": float(i) / 100.0 for i in range(16)}
         rec = DecisionRecord(
             step=5,
             state=state,
@@ -137,7 +137,7 @@ class TestDecisionExplainerExplain(unittest.TestCase):
     def setUp(self):
         self.explainer = DecisionExplainer()
         self.state = np.array(
-            [0.8, 0.3, 0.6, 0.5, 0.4, 0.2, 0.1, 0.05, 0.3, 0.7, 0.5, 0.2, 0.9, 0.1],
+            [0.8, 0.3, 0.6, 0.5, 0.4, 0.2, 0.1, 0.05, 0.3, 0.7, 0.5, 0.2, 0.9, 0.1, 0.4, 0.6],
             dtype=np.float64,
         )
 
@@ -159,7 +159,7 @@ class TestDecisionExplainerExplain(unittest.TestCase):
         self.assertEqual(rec.action, 1)
         self.assertAlmostEqual(rec.action_prob, 0.7)
         self.assertIsNotNone(rec.q_values)
-        self.assertEqual(len(rec.feature_contributions), 14)
+        self.assertEqual(len(rec.feature_contributions), 16)
         self.assertTrue(rec.timestamp)
 
     def test_contributions_normalized_with_q_values(self):
@@ -175,11 +175,11 @@ class TestDecisionExplainerExplain(unittest.TestCase):
         self.assertAlmostEqual(total, 1.0, places=6)
 
     def test_contributions_keys_are_feature_names(self):
-        """贡献度字典的键应为标准 14 个特征名。"""
+        """贡献度字典的键应为标准 16 个特征名。"""
         rec = self.explainer.explain(self.state, action=0)
         for name in STATE_FEATURE_NAMES:
             self.assertIn(name, rec.feature_contributions)
-        self.assertEqual(len(rec.feature_contributions), 14)
+        self.assertEqual(len(rec.feature_contributions), 16)
 
     def test_q_values_stored_correctly(self):
         """q_values 应被正确存储（一维数组）。"""
@@ -225,7 +225,7 @@ class TestFormatExplanation(unittest.TestCase):
     def setUp(self):
         self.explainer = DecisionExplainer()
         self.state = np.array(
-            [0.9, 0.1, 0.8, 0.2, 0.3, 0.1, 0.1, 0.1, 0.2, 0.6, 0.4, 0.1, 0.7, 0.1],
+            [0.9, 0.1, 0.8, 0.2, 0.3, 0.1, 0.1, 0.1, 0.2, 0.6, 0.4, 0.1, 0.7, 0.1, 0.3, 0.5],
             dtype=np.float64,
         )
 
@@ -570,7 +570,7 @@ class TestDecisionLogger(unittest.TestCase):
             logger_obj = DecisionLogger(log_dir=tmp)
             explainer = DecisionExplainer()
             rec = explainer.explain(
-                np.arange(14, dtype=np.float64),
+                np.arange(16, dtype=np.float64),
                 action=1,
                 q_values=np.array([1.0, 2.0, 3.0]),
                 action_prob=0.8,
@@ -582,15 +582,15 @@ class TestDecisionLogger(unittest.TestCase):
             self.assertEqual(loaded[0].step, 3)
             self.assertEqual(loaded[0].action, 1)
             self.assertAlmostEqual(loaded[0].action_prob, 0.8)
-            np.testing.assert_array_almost_equal(loaded[0].state, np.arange(14, dtype=np.float64))
+            np.testing.assert_array_almost_equal(loaded[0].state, np.arange(16, dtype=np.float64))
 
     def test_jsonl_format(self):
         """日志文件应为 JSONL 格式（每行一个 JSON 对象）。"""
         with tempfile.TemporaryDirectory() as tmp:
             logger_obj = DecisionLogger(log_dir=tmp)
             explainer = DecisionExplainer()
-            r1 = explainer.explain(np.zeros(14), action=0, step=0)
-            r2 = explainer.explain(np.ones(14), action=1, step=1)
+            r1 = explainer.explain(np.zeros(16), action=0, step=0)
+            r2 = explainer.explain(np.ones(16), action=1, step=1)
             logger_obj.log(r1)
             logger_obj.log(r2)
             self.assertTrue(os.path.exists(logger_obj.log_path))
@@ -607,7 +607,7 @@ class TestDecisionLogger(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             logger_obj = DecisionLogger(log_dir=tmp)
             explainer = DecisionExplainer()
-            logger_obj.log(explainer.explain(np.zeros(14), action=0, step=0))
+            logger_obj.log(explainer.explain(np.zeros(16), action=0, step=0))
             self.assertEqual(len(logger_obj.load()), 1)
             logger_obj.clear()
             self.assertEqual(len(logger_obj.load()), 0)
@@ -626,7 +626,7 @@ class TestDecisionLogger(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             logger_obj = DecisionLogger(log_dir=tmp)
             explainer = DecisionExplainer()  # 默认中文特征名
-            rec = explainer.explain(np.arange(14, dtype=np.float64), action=0, step=0)
+            rec = explainer.explain(np.arange(16, dtype=np.float64), action=0, step=0)
             logger_obj.log(rec)
             with open(logger_obj.log_path, encoding="utf-8") as f:
                 content = f.read()
@@ -645,7 +645,7 @@ class TestDecisionLogger(unittest.TestCase):
             logger_obj = DecisionLogger(log_dir=tmp)
             explainer = DecisionExplainer()
             for i in range(5):
-                logger_obj.log(explainer.explain(np.zeros(14), action=0, step=i))
+                logger_obj.log(explainer.explain(np.zeros(16), action=0, step=i))
             loaded = logger_obj.load()
             self.assertEqual(len(loaded), 5)
             self.assertEqual(loaded[0].step, 0)
@@ -657,7 +657,7 @@ class TestDecisionLogger(unittest.TestCase):
             logger_obj = DecisionLogger(log_dir=tmp)
             explainer = DecisionExplainer()
             rec = explainer.explain(
-                np.arange(14, dtype=np.float64),
+                np.arange(16, dtype=np.float64),
                 action=1,
                 q_values=np.array([1.0, 2.0, 3.0]),
                 step=0,
@@ -677,24 +677,24 @@ class TestEdgeCases(unittest.TestCase):
     def test_all_zero_state(self):
         """全零状态不应崩溃，贡献度应均匀分布。"""
         explainer = DecisionExplainer()
-        rec = explainer.explain(np.zeros(14), action=0)
+        rec = explainer.explain(np.zeros(16), action=0)
         total = sum(rec.feature_contributions.values())
         self.assertAlmostEqual(total, 1.0, places=6)
         # 全零状态退化为均匀分布
         for v in rec.feature_contributions.values():
-            self.assertAlmostEqual(v, 1.0 / 14, places=6)
+            self.assertAlmostEqual(v, 1.0 / 16, places=6)
 
     def test_constant_nonzero_state(self):
         """常量非零状态应可处理且归一化。"""
         explainer = DecisionExplainer()
-        rec = explainer.explain(np.full(14, 0.5), action=0)
+        rec = explainer.explain(np.full(16, 0.5), action=0)
         total = sum(rec.feature_contributions.values())
         self.assertAlmostEqual(total, 1.0, places=6)
 
     def test_single_record_session(self):
         """单条记录的会话汇总应正确。"""
         explainer = DecisionExplainer()
-        rec = explainer.explain(np.arange(14, dtype=np.float64), action=1, step=0)
+        rec = explainer.explain(np.arange(16, dtype=np.float64), action=1, step=0)
         summary = explainer.summarize_session([rec])
         self.assertEqual(summary["total_steps"], 1)
         self.assertEqual(summary["action_distribution"], {1: 1})
@@ -718,7 +718,7 @@ class TestEdgeCases(unittest.TestCase):
 
     def test_state_shorter_than_feature_names(self):
         """状态向量短于特征名列表时应补齐特征名。"""
-        explainer = DecisionExplainer()  # 14 个特征名
+        explainer = DecisionExplainer()  # 16 个特征名
         rec = explainer.explain(np.array([0.1, 0.2, 0.3]), action=0)
         # 应仅包含 3 个特征（前 3 个标准特征名）
         self.assertEqual(len(rec.feature_contributions), 3)
@@ -727,7 +727,7 @@ class TestEdgeCases(unittest.TestCase):
     def test_q_values_with_negative_advantage(self):
         """q_values 差分为负（选中动作低于均值）时也应正常计算。"""
         explainer = DecisionExplainer()
-        state = np.arange(14, dtype=np.float64)
+        state = np.arange(16, dtype=np.float64)
         # action=0 的 q 值最低
         rec = explainer.explain(state, action=0, q_values=np.array([1.0, 5.0, 3.0]))
         total = sum(rec.feature_contributions.values())
@@ -815,7 +815,7 @@ class TestCoverageFiller(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             logger_obj = DecisionLogger(log_dir=tmp)
             explainer = DecisionExplainer()
-            rec = explainer.explain(np.zeros(14), action=0, step=0)
+            rec = explainer.explain(np.zeros(16), action=0, step=0)
             logger_obj.log(rec)
             # 追加空行和空白行
             with open(logger_obj.log_path, "a", encoding="utf-8") as f:

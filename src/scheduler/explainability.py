@@ -24,7 +24,7 @@ Decision Explainability Tracking Module
 
     explainer = DecisionExplainer()
     record = explainer.explain(
-        state=np.random.rand(14), action=1, q_values=np.array([1.0, 3.0, 2.0]),
+        state=np.random.rand(16), action=1, q_values=np.array([1.0, 3.0, 2.0]),
         action_prob=0.85, step=10,
     )
     print(explainer.format_explanation(record, top_k=5))
@@ -46,7 +46,7 @@ from numpy.typing import NDArray
 # 常量定义
 # ---------------------------------------------------------------------------
 
-# 状态空间 14 维特征名（与 env_types.py 的 OBS_* 常量严格对应）
+# 状态空间 16 维特征名（与 env_types.py 的 OBS_* 常量严格对应）
 STATE_FEATURE_NAMES: list[str] = [
     "量子比特可用率",  # OBS_QUBIT_AVAILABILITY = 0
     "队列长度",  # OBS_QUEUE_LENGTH = 1
@@ -62,6 +62,8 @@ STATE_FEATURE_NAMES: list[str] = [
     "两比特门保真度",  # OBS_TWO_GATE_FIDELITY = 11
     "耦合图密度",  # OBS_COUPLING_DENSITY = 12
     "平均连通度",  # OBS_AVG_CONNECTIVITY = 13
+    "串扰风险",  # OBS_CROSSTALK_RISK = 14
+    "到达率MA",  # OBS_ARRIVAL_RATE_MA = 15
 ]
 
 # 异常决策检测：低置信度阈值（action_prob 低于此值视为异常）
@@ -83,7 +85,7 @@ class DecisionRecord:
 
     Attributes:
         step                 : 决策步序号
-        state                : 决策时的状态向量（14维）
+        state                : 决策时的状态向量（16维）
         action               : 选择的动作编号
         action_prob          : 动作概率/置信度（0-1）
         q_values             : 各动作的 Q 值（DQN 可用，PPO 可为 None）
@@ -175,7 +177,7 @@ class DecisionExplainer:
         初始化决策解释器。
 
         Args:
-            feature_names: 状态空间特征名列表，为 None 时使用默认 14 维特征名
+            feature_names: 状态空间特征名列表，为 None 时使用默认 16 维特征名
         """
         self.feature_names: list[str] = (
             list(feature_names) if feature_names is not None else list(STATE_FEATURE_NAMES)

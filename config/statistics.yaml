@@ -278,29 +278,33 @@ real_machine_10seed_v2:
     significant: false
 
 # =============================================================================
-# 实验3: 退火消融实验 (head_only, n=5)
-# 数据源: results/reports/head_only_validation.md
+# 实验3: 退火消融实验 (20seeds, 权威)
+# 数据源: results/reports/annealing_ablation_20seeds_report.md
+# 注: 旧 5seed 实验已废弃，p=0.190 已被 20seed 的 p=0.9430 替代
 # =============================================================================
 annealing_ablation_head_only:
-  experiment_name: "退火消融实验（head_only验证）"
+  experiment_name: "退火消融实验（20seeds权威验证）"
   applicable_condition: >
-    5 Seed 消融实验，对比有/无量子退火加速的PPO策略性能差异。
-    使用Wilcoxon秩和检验（非参数，小样本）。
+    20 Seed 消融实验，对比有/无量子退火加速的PPO策略性能差异。
+    使用Wilcoxon秩和检验（非参数）。
+    替代旧的 5seed 实验（p=0.190 已废弃）。
   alpha: 0.05
-  n: 5
-  data_source: "results/reports/head_only_validation.md"
+  n: 20
+  data_source: "results/reports/annealing_ablation_20seeds_report.md"
+  supersedes: "5seed 旧实验（p=0.190，已废弃）"
 
   with_vs_without_annealing:
     test_method: "Wilcoxon"
-    p_value: 0.190
+    p_value: 0.9430
     effect_size_type: "Cliff's delta"
     effect_size: 0.40
     significant: false
-    applicable_condition: "退火消融，head_only验证，n=5"
+    applicable_condition: "退火消融，20seeds权威验证，n=20"
     note: >
-      p=0.190 > 0.05，退火加速效果统计上不显著。
-      Cliff's delta=0.40为中等效应量，暗示可能存在实际差异但样本量不足。
+      p=0.9430 > 0.05，退火加速效果统计上不显著。
+      Cliff's delta=0.40为中等效应量，暗示可能存在实际差异但样本量扩大后仍不显著。
       答辩话术: 诚实披露不显著，强调效应量方向积极。
+      旧 5seed 实验的 p=0.190 已废弃，禁止再使用。
 
 # =============================================================================
 # 实验4: 真机闭环验证 (N=5)

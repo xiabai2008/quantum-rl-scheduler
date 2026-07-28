@@ -212,9 +212,9 @@ def run_multiseed(
     seeds: int = 10,
     episodes_per_seed: int = 5,
     tasks_per_episode: int = 200,
-    ppo_model: str = "deliverable_models/ppo_best_model_14dim.zip",
-    dqn_model: str = "deliverable_models/dqn_best_model_14dim.zip",
-    obs_dim: int = 14,
+    ppo_model: str = "deliverable_models/ppo_best_model_16dim.zip",
+    dqn_model: str | None = None,
+    obs_dim: int = 16,
     alpha: float = 0.05,
     n_workers: int = 1,
     use_cache: bool = False,
@@ -226,9 +226,9 @@ def run_multiseed(
         seeds: 随机种子数量
         episodes_per_seed: 每个seed的episode数
         tasks_per_episode: 每episode最大步数
-        ppo_model: PPO模型路径
-        dqn_model: DQN模型路径
-        obs_dim: 观测空间维度（10或14）
+        ppo_model: PPO模型路径（默认16维交付模型）
+        dqn_model: DQN模型路径（None表示不加载DQN）
+        obs_dim: 观测空间维度（10/14/16，默认16）
         alpha: 显著性水平
         n_workers: 并行worker进程数（1=串行，保持向后兼容）
         use_cache: 是否启用PPO决策缓存
@@ -870,13 +870,13 @@ def main():
         "--tasks-per-episode", type=int, default=200, help="每episode最大步数（默认200）"
     )
     parser.add_argument(
-        "--ppo-model", type=str, default="deliverable_models/ppo_best_model_14dim.zip"
+        "--ppo-model", type=str, default="deliverable_models/ppo_best_model_16dim.zip"
     )
     parser.add_argument(
-        "--dqn-model", type=str, default="deliverable_models/dqn_best_model_14dim.zip"
+        "--dqn-model", type=str, default=None, help="DQN模型路径（默认None，DQN已不在交付目录中）"
     )
     parser.add_argument(
-        "--obs-dim", type=int, default=14, choices=[10, 14], help="观测空间维度：10 或 14（默认14）"
+        "--obs-dim", type=int, default=16, choices=[10, 14, 16], help="观测空间维度：10/14/16（默认16，与交付模型一致）"
     )
     parser.add_argument("--alpha", type=float, default=0.05, help="显著性水平")
     parser.add_argument(

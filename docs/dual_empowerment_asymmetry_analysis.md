@@ -16,7 +16,7 @@
 | 维度 | 噪声反馈（当前主线） | QUBO退火（已降级） |
 |:--|:--|:--|
 | **核心方法** | 真机噪声模型提取→仿真环境校准→PPO鲁棒性提升 | QUBO映射+模拟退火优化RL权重 |
-| **统计显著性** | 10-seed真机实验 Cohen's d=5.33, p<0.001 | p=0.190 不显著 |
+| **统计显著性** | 10-seed真机实验 Cohen's d=5.33, p<0.001 | p=0.9430 不显著（20seeds权威值，旧5seed的p=0.190已废弃） |
 | **定位** | 量子→AI 主线 | 探索性功能，默认关闭 |
 | **代码** | `scripts/evaluation/quantum_noise_calibration.py` | `src/quantum/annealing.py`（@deprecated） |
 
