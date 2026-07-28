@@ -21,7 +21,7 @@ Classic Scheduling Strategy Baselines
 """
 
 from collections.abc import Callable
-from typing import Any, NamedTuple
+from typing import Any, ClassVar, NamedTuple
 
 import numpy as np
 from loguru import logger
@@ -360,16 +360,22 @@ class HEFTScheduler(BaselineScheduler):
 
 
 class MinMinScheduler(BaselineScheduler):
-    """Min-Min 经典调度策略（Issue #270）。
+    """Min-Min 经典调度策略（Issue #270/#583）。
 
-    Min-Min 算法每轮选择所有任务中完成时间最小的任务-处理器对。
-    在 ``select_action`` 接口中，简化为选择估算执行时间最短的任务
-    （等效于 SPTF，但 Min-Min 的核心思想是"最小最小"——
-    先选最小完成时间的任务，再选最小完成时间的处理器）。
+    标准 Min-Min 迭代贪心算法（Braun 2001）：每轮在所有(任务,机器)对中
+    选择最小完成时间(MCT)的组合，分配后更新机器可用时间，重复直至所有任务分配完毕。
 
-    与 SPTF 的区别在于 Min-Min 是迭代贪心算法，在多处理器场景下
-    会重新计算每轮的完成时间。在单选择器接口中，两者表现一致。
+    在 ``select_action`` 接口中，返回第一轮选中的任务索引（MCT 最小的任务）。
+    当 ``available_resources`` 包含 ``machines`` 字段时启用迭代贪心；
+    否则回退为按估算执行时间升序选择（向后兼容，等效于 SPTF）。
     """
+
+    # 默认机器类型及其相对速度（1.0=基准速度）
+    _DEFAULT_MACHINES: ClassVar[dict[str, float]] = {
+        "classical": 1.0,
+        "quantum": 3.0,
+        "hybrid": 1.5,
+    }
 
     sort_key = staticmethod(
         lambda task: _get_float(task, "estimated_time", _DEFAULT_ESTIMATED_TIME)
@@ -379,6 +385,83 @@ class MinMinScheduler(BaselineScheduler):
     def __init__(self) -> None:
         """初始化 Min-Min 策略。"""
         super().__init__("MinMin")
+
+    def _estimate_comp_time(self, task: dict, machine_type: str) -> float:
+        """估算任务在指定机器类型上的计算时间。
+
+        Args:
+            task         : 任务字典
+            machine_type : 机器类型（classical/quantum/hybrid）
+
+        Returns:
+            估算计算时间
+        """
+        base_time = _get_float(task, "estimated_time", _DEFAULT_ESTIMATED_TIME)
+        speedup = self._DEFAULT_MACHINES.get(machine_type, 1.0)
+        return base_time / max(speedup, 0.1)
+
+    def _min_min_iterative(self, tasks: list[dict], machines: dict[str, float]) -> dict[int, str]:
+        """Min-Min 迭代贪心算法（Braun 2001）。
+
+        每轮在所有(任务,机器)对中选择 MCT 最小的组合，
+        分配后更新机器可用时间，重复直至所有任务分配完毕。
+
+        Args:
+            tasks    : 任务列表
+            machines : {machine_type: speedup} 机器类型及其加速比
+
+        Returns:
+            {task_index: machine_type} 任务到机器的分配方案
+        """
+        machine_avail: dict[str, float] = dict.fromkeys(machines, 0.0)
+        remaining = list(range(len(tasks)))
+        assignment: dict[int, str] = {}
+
+        while remaining:
+            best_pair: tuple[int, str] | None = None
+            best_mct = float("inf")
+            for ti in remaining:
+                task = tasks[ti]
+                for m in machines:
+                    mct = machine_avail[m] + self._estimate_comp_time(task, m)
+                    if mct < best_mct:
+                        best_mct = mct
+                        best_pair = (ti, m)
+            if best_pair is None:
+                break
+            ti, m = best_pair
+            assignment[ti] = m
+            machine_avail[m] = best_mct
+            remaining.remove(ti)
+        return assignment
+
+    def select_action(self, tasks: list[dict], available_resources: dict) -> int:
+        """按 Min-Min 迭代贪心策略选择任务（Issue #583）。
+
+        当 ``available_resources`` 包含 ``machines`` 字段时启用迭代贪心；
+        否则回退为按估算执行时间升序选择（向后兼容）。
+
+        Args:
+            tasks              : 任务列表
+            available_resources: 可用资源（可含 ``machines`` 字段）
+
+        Returns:
+            选中的任务索引，空列表返回 -1
+        """
+        if not tasks:
+            return -1
+
+        machines = available_resources.get("machines")
+        if machines is None:
+            # 向后兼容：无机器信息时按 estimated_time 升序
+            return self._select_by_sort_key(tasks, self.sort_key, self.reverse)
+
+        # 迭代贪心：返回第一轮选中的任务索引（MCT 最小的任务）
+        assignment = self._min_min_iterative(tasks, machines)
+        if not assignment:
+            return -1
+        # dict 在 Python 3.7+ 保持插入顺序，第一个 key = 第一轮分配的任务
+        return next(iter(assignment))
 
 
 # ---------------------------------------------------------------------------

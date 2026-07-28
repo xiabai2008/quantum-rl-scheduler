@@ -365,6 +365,81 @@ class TestMinMinScheduler(unittest.TestCase):
         self.assertEqual(s.name, "MinMin")
         self.assertIn("MinMin", repr(s))
 
+    def test_iterative_assignment_correctness(self):
+        """迭代贪心应正确分配所有任务到机器（Issue #583）。
+
+        3 个任务，2 种机器（classical=1.0, quantum=3.0）：
+        A(30): classical=30, quantum=10
+        B(5):  classical=5,  quantum=1.67
+        C(20): classical=20, quantum=6.67
+
+        第1轮：B on quantum (MCT=1.67) 最小 → 量子机忙到 1.67
+        第2轮：A on quantum (MCT=1.67+10=11.67) vs C on quantum (1.67+6.67=8.34) vs A on classical (30) vs C on classical (20)
+              C on quantum (8.34) 最小 → 量子机忙到 8.34
+        第3轮：A on quantum (8.34+10=18.34) vs A on classical (30)
+              A on quantum (18.34) 最小
+        """
+        scheduler = MinMinScheduler()
+        tasks = [
+            _make_task("A", estimated_time=30.0),
+            _make_task("B", estimated_time=5.0),
+            _make_task("C", estimated_time=20.0),
+        ]
+        machines = {"classical": 1.0, "quantum": 3.0}
+        assignment = scheduler._min_min_iterative(tasks, machines)
+        self.assertEqual(len(assignment), 3)
+        self.assertEqual(assignment[1], "quantum")  # B → quantum (MCT 最小)
+        self.assertEqual(assignment[2], "quantum")  # C → quantum
+        self.assertEqual(assignment[0], "quantum")  # A → quantum
+
+    def test_select_action_with_machines_uses_mct(self):
+        """带 machines 字段时应按 MCT 选择，而非纯执行时间（Issue #583）。
+
+        无 machines 时按 estimated_time 升序选 B(5)。
+        带 machines 时第一轮 MCT 最小的也是 B on quantum (1.67)，
+        返回索引 1。
+        """
+        tasks = [
+            _make_task("A", estimated_time=30.0),
+            _make_task("B", estimated_time=5.0),
+            _make_task("C", estimated_time=20.0),
+        ]
+        resources = {"qubits": 20, "machines": {"classical": 1.0, "quantum": 3.0}}
+        scheduler = MinMinScheduler()
+        idx = scheduler.select_action(tasks, resources)
+        self.assertEqual(idx, 1)  # B on quantum MCT 最小
+
+    def test_select_action_backward_compatible_no_machines(self):
+        """无 machines 字段时应回退为按 estimated_time 升序（Issue #583）。"""
+        tasks = [
+            _make_task("A", estimated_time=30.0),
+            _make_task("B", estimated_time=5.0),
+            _make_task("C", estimated_time=20.0),
+        ]
+        scheduler = MinMinScheduler()
+        idx = scheduler.select_action(tasks, _EMPTY_RESOURCES)
+        self.assertEqual(idx, 1)  # B 最短，向后兼容行为
+
+    def test_iterative_updates_machine_availability(self):
+        """迭代贪心应更新机器可用时间（Issue #583）。
+
+        两个相同任务(10s)，两种机器(classical=1.0, quantum=2.0)：
+        classical MCT=10, quantum MCT=5
+        第1轮：选 quantum (MCT=5)，量子机忙到 5
+        第2轮：quantum MCT=5+5=10 vs classical MCT=10 → 相等，选 quantum
+        两个任务都分配到 quantum。
+        """
+        scheduler = MinMinScheduler()
+        tasks = [
+            _make_task("T1", estimated_time=10.0),
+            _make_task("T2", estimated_time=10.0),
+        ]
+        machines = {"classical": 1.0, "quantum": 2.0}
+        assignment = scheduler._min_min_iterative(tasks, machines)
+        self.assertEqual(len(assignment), 2)
+        self.assertEqual(assignment[0], "quantum")
+        self.assertEqual(assignment[1], "quantum")
+
 
 # ============================================================
 # TestRunBaselineComparison
