@@ -25,7 +25,7 @@ vcrpy>=6.0.0
 
 # === 编译层实验依赖（Issue #439） ===
 # scripts/evaluation/compilation_full.py 依赖 qiskit 和 ortools
-# 用于电路编译 AI 实验（PPO SWAP -76.4% vs SABRE）
+# 用于电路编译 AI 实验（PPO替代SABRE，公平对比v2 4×4 2D网格，Issue #451）
 # 非核心运行时依赖，仅编译层实验需要
 qiskit>=1.0
 ortools>=9.8

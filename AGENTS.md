@@ -3,7 +3,7 @@
 > 此文件供所有 AI Agent（CodeBuddy / TRAE / Claude / Cursor 等）读取，以快速理解项目全貌。
 > 每次重要变更后请更新本文档的"最后更新"日期和对应章节。
 
-**最后更新**：2026-07-27（退火优雅降级：默认关闭+依赖可选化+deprecated标注；量子赋能AI主方向为真机噪声反馈；新增编译AI/VQE/OR-Tools）（完成P0/P1批次issues清理：关闭16个(#94/#97/#98/#102/#114/#115/#117/#118/#119/#120/#122/#148/#150/#153/#162/#194)；新增分层QUBO退火模式(#148)、退火权重放大机制+介入率诊断(#194)、私有方法重构(#153)、状态持久化设计文档(#114)、扩展性梯度测试(#117)、覆盖率提升env_real_machine 29%→97%/marl 64%→99%(#97/#98)、变异测试增强86用例(#122)、权威市场数据9源+10篇2024-2026论文(#115/#119)；当前仍有39个open issues待处理（#430+批次为P2/P3清理与扩展实验）；2824+测试全通过）
+**最后更新**：2026-07-27（退火优雅降级：默认关闭+依赖可选化+deprecated标注；量子赋能AI主方向为真机噪声反馈；新增编译AI/VQE/OR-Tools）（完成P0/P1批次issues清理：关闭16个(#94/#97/#98/#102/#114/#115/#117/#118/#119/#120/#122/#148/#150/#153/#162/#194)；新增分层QUBO退火模式(#148)、退火权重放大机制+介入率诊断(#194)、私有方法重构(#153)、状态持久化设计文档(#114)、扩展性梯度测试(#117)、覆盖率提升env\_real\_machine 29%→97%/marl 64%→99%(#97/#98)、变异测试增强86用例(#122)、权威市场数据9源+10篇2024-2026论文(#115/#119)；当前仍有39个open issues待处理（#430+批次为P2/P3清理与扩展实验）；2824+测试全通过）
 
 ***
 
@@ -34,7 +34,8 @@ feat / fix / docs / test / refactor / chore
 **负责人**：瑞哥（GitHub: xiabai2008）
 
 **核心创新—双向赋能**：
-- AI 赋能 量子计算：调度层(PPO +88.3%) + 编译层(PPO SWAP -76.4% vs SABRE)
+
+- AI 赋能 量子计算：调度层(PPO +88.3%, p<0.001) + 编译层(PPO替代SABRE，公平对比v2，Issue #451；4×4 2D网格拓扑下同池配对60电路，深电路(14-16q)SWAP减少约33%；原-76.4%为不公平对比已废弃)
 - 量子 赋能 AI：真机噪声特征建模与PPO鲁棒性评估（tianyan-287 H门1024 shots→保真度0.976→噪声分布建模→PPO噪声鲁棒性基准。注：单seed等待时间-5.7%为探索性结果，10seeds分布实验揭示噪声对RL的挑战）
 - 退火模块：探索性功能，默认关闭，不再投入开发（20seeds统计不显著 p=0.9430，实为经典模拟退火）
 - 量化目标：综合调度收益+88.3%（核心目标，已达成）；资源利用率+7.9%（p=0.0046，多目标权衡维度）
@@ -45,15 +46,15 @@ feat / fix / docs / test / refactor / chore
 
 ## 2. 关键时间节点
 
-| 日期         | 事项     | 状态      |
-| ---------- | ------ | ------- |
-| 2026-06-30 | 报名截止   | 已通过 |
+| 日期         | 事项                          | 状态  |
+| ---------- | --------------------------- | --- |
+| 2026-06-30 | 报名截止                        | 已通过 |
 | 2026-07-01 | Track A 工程收尾 / Track B 比赛材料 | 已完成 |
-| 2026-07-09 | P0可信度修复（依赖/统计/数字） | 已完成 |
-| 2026-08-15 | 代码冻结   | 📅 |
-| 2026-09-15 | 作品提交截止 | 📅 |
-| 2026-09-30 | 初审结果公布 | 📅 |
-| 2026-11    | 终审擂台赛  | 📅 |
+| 2026-07-09 | P0可信度修复（依赖/统计/数字）           | 已完成 |
+| 2026-08-15 | 代码冻结                        | 📅  |
+| 2026-09-15 | 作品提交截止                      | 📅  |
+| 2026-09-30 | 初审结果公布                      | 📅  |
+| 2026-11    | 终审擂台赛                       | 📅  |
 
 ## 3. 项目代码结构（v8）
 
@@ -206,26 +207,27 @@ quantum-rl-scheduler/
 
 ## 4. 技术栈
 
-| 层级  | 技术                     | 用途               |
-| --- | ---------------------- | ---------------- |
-| 语言  | Python 3.10+                | 全部               |
-| RL  | Stable-Baselines3 (PPO/DQN/MAPPO)    | 双算法 + 多智能体    |
-| RL  | Gymnasium              | 环境封装             |
-| DL  | PyTorch ≥2.0                | 神经网络             |
-| 量子  | 天衍云 cqlib SDK              | 105数据比特+182耦合比特超导处理器（可选，requirements-quantum.txt） |
-| 量子  | D-Wave dimod / dwave-neal     | 量子启发式退火（QUBO+模拟退火，**探索性功能，默认关闭**，requirements.txt已注释为可选） |
-| Web | FastAPI + Uvicorn      | 监控界面（routes.py含/metrics） |
-| 前端  | Vue3 + Echarts         | 监控面板             |
-| CLI | Click | 统一命令行入口 |
-| 可观测 | Prometheus + prometheus_client | 7个指标（Gauge/Counter/Histogram），/metrics端点已暴露 |
-| 统计 | SciPy | 统计显著性检验（t/Welch/Mann-Whitney + Bonferroni校正） |
-| 代码质量 | ruff(10类) + mypy(8项) + bandit | v1技术提升方案 |
-| CI | GitHub Actions 4 Job + Codecov + Dependabot | 自动化质量门禁 |
+| 层级   | 技术                                          | 用途                                                       |
+| ---- | ------------------------------------------- | -------------------------------------------------------- |
+| 语言   | Python 3.10+                                | 全部                                                       |
+| RL   | Stable-Baselines3 (PPO/DQN/MAPPO)           | 双算法 + 多智能体                                               |
+| RL   | Gymnasium                                   | 环境封装                                                     |
+| DL   | PyTorch ≥2.0                                | 神经网络                                                     |
+| 量子   | 天衍云 cqlib SDK                               | 105数据比特+182耦合比特超导处理器（可选，requirements-quantum.txt）        |
+| 量子   | D-Wave dimod / dwave-neal                   | 量子启发式退火（QUBO+模拟退火，**探索性功能，默认关闭**，requirements.txt已注释为可选） |
+| Web  | FastAPI + Uvicorn                           | 监控界面（routes.py含/metrics）                                 |
+| 前端   | Vue3 + Echarts                              | 监控面板                                                     |
+| CLI  | Click                                       | 统一命令行入口                                                  |
+| 可观测  | Prometheus + prometheus\_client             | 7个指标（Gauge/Counter/Histogram），/metrics端点已暴露              |
+| 统计   | SciPy                                       | 统计显著性检验（t/Welch/Mann-Whitney + Bonferroni校正）             |
+| 代码质量 | ruff(10类) + mypy(8项) + bandit               | v1技术提升方案                                                 |
+| CI   | GitHub Actions 4 Job + Codecov + Dependabot | 自动化质量门禁                                                  |
 
 ## 5. v1 技术提升方案落地成果
 
 ### 代码质量强化
-- mypy：8项严格配置（disallow_untyped_defs + disallow_incomplete_defs + warn_return_any + strict_equality 等），当前2模块豁免（annealing/scripts.*）。2026-07-20 修复全部 26 个类型错误，CI mypy 从 baseline 升级为 strict mode
+
+- mypy：8项严格配置（disallow\_untyped\_defs + disallow\_incomplete\_defs + warn\_return\_any + strict\_equality 等），当前2模块豁免（annealing/scripts.\*）。2026-07-20 修复全部 26 个类型错误，CI mypy 从 baseline 升级为 strict mode
 - ruff：完全替代 flake8 + black + isort，10类规则集（E/W/F/I/N/B/SIM/C4/UP/RUF）。2026-07-20 清理全部 142 个历史遗留错误，CI ruff check 从 --exit-zero 升级为严格阻断
 - CI 工具栈对齐：2026-07-19 将 CI lint job 从 black+isort+flake8 迁移到 ruff format + ruff check + bandit，与 .pre-commit-config.yaml 完全一致
   - ruff format --check：严格阻断（格式基线）
@@ -234,19 +236,22 @@ quantum-rl-scheduler/
   - bandit：严格阻断（安全扫描）
 
 ### 工程韧性
+
 - 统一异常体系：8类异常（QuantumSchedulerError → 5子类），code + retryable 语义
-- API 熔断器：CLOSED/OPEN/HALF_OPEN 三态转换
+- API 熔断器：CLOSED/OPEN/HALF\_OPEN 三态转换
 - Prometheus 指标：7个指标覆盖调度/API/退火三个维度，/metrics端点在routes.py暴露
 - Click CLI：train/simulate/serve/demo 四子命令统一入口
 - 依赖可复现：requirements.txt 核心依赖；cqlib 通过 requirements-quantum.txt 安装；dimod/dwave-neal 已注释为可选（退火默认关闭）
 
 ### 测试升级
+
 - 测试文件：5 → 76（+71个专用测试模块）
 - 测试用例：100+ → 2883+（Issue #398 P1-4 统一口径，pytest --collect-only 实测 2026-07-27）
 - CI 强制覆盖率：40% → 80%（实际 93.58%，pyproject.toml `fail_under=80`）
 - 新增：property-based testing + 性能基准测试 + mutation testing + 统计显著性检验
 
 ### 实验可信度（v8新增）
+
 - 多seed评估：50 seeds × 5 episodes = 250 次独立运行（N=250）
 - 统计显著性：Bonferroni校正，PPO vs FCFS p=1.032e-42（Mann-Whitney U检验）
 - 权威数字锁定：PPO=2746.94±1160.72 vs FCFS=1458.77±60.47，提升 +88.3%
@@ -256,52 +261,54 @@ quantum-rl-scheduler/
 > **权威实验配置**：14维原生环境、50 seeds × 5 episodes = 250次独立运行（N=250）、200步/episode、泊松到达λ=0.5
 > **统计显著性**：PPO vs FCFS 使用 Mann-Whitney U 检验，p=1.032e-42，rank-biserial=-0.71（大效应量），Bonferroni校正后显著
 
-| 排名 | 策略 | 平均奖励 | 标准差 | 提升 vs FCFS |
-|:--:|:--|:--:|:--:|:--:|
-| 1 | **PPO** | **2746.94** | 1160.72 | **+88.3%** |
-| 2 | DQN | 1527.65 | 124.02 | +4.7% |
-| 3 | SJF | 1462.39 | 134.32 | +0.2% |
-| 4 | FCFS | 1458.77 | 60.47 | 基线 |
-| 5 | Random | 1217.08 | 395.05 | -16.6% |
-| 6 | Greedy | -25.95 | 625.52 | -101.8% |
-| 7 | Quantum-Only | -920.54 | 232.68 | -163.1% |
-| 8 | Classical-Only | -1128.29 | 59.46 | -177.3% |
+|  排名 | 策略             |     平均奖励    |   标准差   | 提升 vs FCFS |
+| :-: | :------------- | :---------: | :-----: | :--------: |
+|  1  | **PPO**        | **2746.94** | 1160.72 | **+88.3%** |
+|  2  | DQN            |   1527.65   |  124.02 |    +4.7%   |
+|  3  | SJF            |   1462.39   |  134.32 |    +0.2%   |
+|  4  | FCFS           |   1458.77   |  60.47  |     基线     |
+|  5  | Random         |   1217.08   |  395.05 |   -16.6%   |
+|  6  | Greedy         |    -25.95   |  625.52 |   -101.8%  |
+|  7  | Quantum-Only   |   -920.54   |  232.68 |   -163.1%  |
+|  8  | Classical-Only |   -1128.29  |  59.46  |   -177.3%  |
 
 ### 消融实验（参考）
-| 实验 | 核心结论 |
-|------|---------|
-| 五维消融 | D4多机+86.3% > D1算法+88.3% > D5退火+6.4% > D2状态+2.1% |
-| 压力测试 | 4场景PPO综合稳定性最强；量子波动场景PPO +91.4% |
-| 真机验证 | **可用性验证**：315次SDK调用100%成功，全链路验证通过 |
+
+| 实验          | 核心结论                                                                                        |
+| ----------- | ------------------------------------------------------------------------------------------- |
+| 五维消融        | D4多机+86.3% > D1算法+88.3% > D5退火+6.4% > D2状态+2.1%                                             |
+| 压力测试        | 4场景PPO综合稳定性最强；量子波动场景PPO +91.4%                                                              |
+| 真机验证        | **可用性验证**：315次SDK调用100%成功，全链路验证通过                                                           |
 | **多seed真机** | **小样本策略对比**（N=5/组）：PPO d=5.64 vs FCFS, p=6.83e-04, Bonferroni显著（小样本探索性结果，效应量异常大，待更多seeds验证） |
 
 > **⚠️ 真机验证结论边界（Issue #128）**
 >
 > 真机实验结论严格区分为**可用性验证**和**性能验证**两级：
+>
 > - ✅ **可用性验证（已达成）**：SDK认证、任务提交、状态轮询、结果获取全链路验证通过，315次真机调用100%成功（284次主验证+31次审计补充）；Issue #128 新增 tianyan176 H门任务成功（P(0)=50.9%, P(1)=49.1%）
-> - ⚠️ **性能验证（不充分）**：mixed_real vs simulation p=0.344不显著（N=5, 需N≥18）；多seed策略对比p=6.83e-04显著，但真机 reward 占比极低（1/96步），策略间差异主要由仿真 reward 驱动
+> - ⚠️ **性能验证（不充分）**：mixed\_real vs simulation p=0.344不显著（N=5, 需N≥18）；多seed策略对比p=6.83e-04显著，但真机 reward 占比极低（1/96步），策略间差异主要由仿真 reward 驱动
 > - **性能提升结论由仿真实验支撑**：PPO vs FCFS +88.3%（N=250, p=1.032e-42, rank-biserial=-0.71）
 >
 > 详见 `docs/real_machine_verification_boundary.md`
 
 ### 多seed真机实验（2026-07-22新增，N=5 per group）
 
-> **实验配置**：5 seeds [42,123,456,789,1024] × 3策略 [PPO,FCFS,SJF] × 1真机任务/run = 15次运行
+> **实验配置**：5 seeds \[42,123,456,789,1024] × 3策略 \[PPO,FCFS,SJF] × 1真机任务/run = 15次运行
 > **真机平台**：天衍-287（实际回退至 tianyan176），96步/episode，泊松到达λ=0.5
 > **统计方法**：Cohen's d + 95% CI（效应量决策范式），Bonferroni校正α=0.0167
 > **⚠️ 边界说明**：真机任务成功完成（15/15, mock=false），但真机 reward 占总 reward 比例极低（1/96步），策略间差异主要由仿真 reward 驱动
 
-| 策略 | N | 均值 | 标准差 | min | max |
-|:--:|:--:|:--:|:--:|:--:|:--:|
-| **PPO** | 5 | **1665.22** | 324.51 | 1224.13 | 2097.05 |
-| SJF | 5 | 567.20 | 206.33 | 383.93 | 854.43 |
-| FCFS | 5 | 353.22 | 53.33 | 288.77 | 410.23 |
+|    策略   |  N  |      均值     |   标准差  |   min   |   max   |
+| :-----: | :-: | :---------: | :----: | :-----: | :-----: |
+| **PPO** |  5  | **1665.22** | 324.51 | 1224.13 | 2097.05 |
+|   SJF   |  5  |    567.20   | 206.33 |  383.93 |  854.43 |
+|   FCFS  |  5  |    353.22   |  53.33 |  288.77 |  410.23 |
 
-| 比较 | Cohen's d | 效应等级 | 95% CI | p值 | Bonferroni | 判定 |
-|:--:|:--:|:--:|:--:|:--:|:--:|:--:|
-| PPO vs FCFS | 5.64 | 大效应 | [911.78, 1712.22] | 6.83e-04 | 显著 | **支持** |
-| PPO vs SJF | 4.04 | 大效应 | [688.67, 1507.37] | 4.25e-04 | 显著 | **支持** |
-| SJF vs FCFS | 1.42 | 大效应 | [-38.82, 466.78] | 0.080 | 不显著 | 不支持 |
+|      比较     | Cohen's d | 效应等级 |       95% CI       |    p值    | Bonferroni |   判定   |
+| :---------: | :-------: | :--: | :----------------: | :------: | :--------: | :----: |
+| PPO vs FCFS |    5.64   |  大效应 | \[911.78, 1712.22] | 6.83e-04 |     显著     | **支持** |
+|  PPO vs SJF |    4.04   |  大效应 | \[688.67, 1507.37] | 4.25e-04 |     显著     | **支持** |
+| SJF vs FCFS |    1.42   |  大效应 |  \[-38.82, 466.78] |   0.080  |     不显著    |   不支持  |
 
 详见 `results/reports/multiseed_real_machine_report.md`。
 
@@ -309,27 +316,27 @@ quantum-rl-scheduler/
 
 ## 7. 比赛材料
 
-| 材料 | 路径 | 状态 |
-|------|------|------|
-| 答辩PPT（制作中）.pptx` | ✅ 制作中（+88.3%，p=1.032e-42，N=250，284真机调用，新增2页应用价值） |
-| 技术白皮书（11章） | `../技术白皮书_量子RL调度系统_v5.docx` | ✅ 制作中（+88.3%，284真机调用，100%成功率，新增第10章落地与价值量化） |
-| 价值量化报告 | `docs/value_quantification.md` | ✅ 已完成（6节，10项指标，ROI分析，VQE场景案例） |
-| 技术瓶颈分析 | `docs/technical_bottlenecks.md` | ✅ 已完成（7项瓶颈+缓解策略，2026-07-24） |
-| 公平调度实验报告 | `results/reports/fair_scheduling_report.md` | ✅ 已完成（5租户Jain's指数=0.9875，PPO总奖励+57.6%，2026-07-24） |
-| 退火显著性答辩策略 | `docs/annealing_significance-defense.md` | ✅ 已完成（5类评委问题应对话术，p=0.19→delta=0.40，2026-07-24） |
-| 部署架构文档 | `docs/deployment.md` | ✅ 已完成（三阶段部署路径+ONNX优化+K8s配置，2026-07-24） |
-| D3奖励消融报告 | `results/reports/d3_reward_ablation_report.md` | ✅ 已完成（7预设×2策略×10seeds，策略-奖励耦合分析，2026-07-24） |
-| 高负载公平调度报告 | `results/reports/high_load_fairness_report.md` | ✅ 已完成（λ=1.2高负载5租户公平调度，PPO/FCFS/SJF对比，2026-07-25） |
-| MAPPO热力图 | `results/reports/marl_heatmap.html` | ✅ 已完成（多智能体调度策略热力图可视化，2026-07-25） |
-| PPT数据分离可视化 | `results/reports/ppt_separation_visualization.html` | ✅ 已完成（策略奖励分布分离度可视化，2026-07-25） |
-| 演示视频分镜脚本 | `演示视频分镜脚本.md` | 已完成 |
-| 演示视频（5分钟） | — | 待录制 |
-| 统计显著性报告 | `results/reports/statistical_validation.md` | ✅ 已完成 |
-| 分层退火对比报告 | `results/reports/hierarchical_annealing_report.md` | ✅ 已完成（参数覆盖11.9%→100%，8.4x提升，2026-07-26） |
-| 扩展性梯度测试报告 | `results/reports/scalability_test.md` | ✅ 已完成（5规模×3策略，PPO决策延迟O(1)，2026-07-26） |
-| 退火lr扫描报告 | `results/reports/annealing_lr_sweep_report.md` | ✅ 已完成（根因诊断：lr=0.01导致退火无效化，2026-07-26） |
-| 状态持久化设计 | `docs/state_persistence_design.md` | ✅ 已完成（SQLite/Redis双方案+MVP路线图，2026-07-26） |
-| SOTA对比表 | `docs/sota_comparison.md` | ✅ 已完成（10篇2024-2026论文+差异化定位，2026-07-26） |
+| 材料                | 路径                                                  | 状态                                                |
+| ----------------- | --------------------------------------------------- | ------------------------------------------------- |
+| 答辩PPT（制作中）.pptx\` | ✅ 制作中（+88.3%，p=1.032e-42，N=250，284真机调用，新增2页应用价值）    | <br />                                            |
+| 技术白皮书（11章）        | `../技术白皮书_量子RL调度系统_v5.docx`                         | ✅ 制作中（+88.3%，284真机调用，100%成功率，新增第10章落地与价值量化）       |
+| 价值量化报告            | `docs/value_quantification.md`                      | ✅ 已完成（6节，10项指标，ROI分析，VQE场景案例）                     |
+| 技术瓶颈分析            | `docs/technical_bottlenecks.md`                     | ✅ 已完成（7项瓶颈+缓解策略，2026-07-24）                       |
+| 公平调度实验报告          | `results/reports/fair_scheduling_report.md`         | ✅ 已完成（5租户Jain's指数=0.9875，PPO总奖励+57.6%，2026-07-24） |
+| 退火显著性答辩策略         | `docs/annealing_significance-defense.md`            | ✅ 已完成（5类评委问题应对话术，p=0.19→delta=0.40，2026-07-24）    |
+| 部署架构文档            | `docs/deployment.md`                                | ✅ 已完成（三阶段部署路径+ONNX优化+K8s配置，2026-07-24）            |
+| D3奖励消融报告          | `results/reports/d3_reward_ablation_report.md`      | ✅ 已完成（7预设×2策略×10seeds，策略-奖励耦合分析，2026-07-24）       |
+| 高负载公平调度报告         | `results/reports/high_load_fairness_report.md`      | ✅ 已完成（λ=1.2高负载5租户公平调度，PPO/FCFS/SJF对比，2026-07-25）  |
+| MAPPO热力图          | `results/reports/marl_heatmap.html`                 | ✅ 已完成（多智能体调度策略热力图可视化，2026-07-25）                  |
+| PPT数据分离可视化        | `results/reports/ppt_separation_visualization.html` | ✅ 已完成（策略奖励分布分离度可视化，2026-07-25）                    |
+| 演示视频分镜脚本          | `演示视频分镜脚本.md`                                       | 已完成                                               |
+| 演示视频（5分钟）         | —                                                   | 待录制                                               |
+| 统计显著性报告           | `results/reports/statistical_validation.md`         | ✅ 已完成                                             |
+| 分层退火对比报告          | `results/reports/hierarchical_annealing_report.md`  | ✅ 已完成（参数覆盖11.9%→100%，8.4x提升，2026-07-26）           |
+| 扩展性梯度测试报告         | `results/reports/scalability_test.md`               | ✅ 已完成（5规模×3策略，PPO决策延迟O(1)，2026-07-26）             |
+| 退火lr扫描报告          | `results/reports/annealing_lr_sweep_report.md`      | ✅ 已完成（根因诊断：lr=0.01导致退火无效化，2026-07-26）             |
+| 状态持久化设计           | `docs/state_persistence_design.md`                  | ✅ 已完成（SQLite/Redis双方案+MVP路线图，2026-07-26）          |
+| SOTA对比表           | `docs/sota_comparison.md`                           | ✅ 已完成（10篇2024-2026论文+差异化定位，2026-07-26）            |
 
 ## 8. 当前进度
 
@@ -373,26 +380,27 @@ Issues全面清理  ████████████████████
 
 项目中存在两种观测维度，严格按以下规范使用：
 
-| 维度 | 适用场景 | 包装器 |
-|:--|:--|:--|
-| 14维（原生） | PPO训练/评估、真机实验、答辩提交 | 无（QuantumSchedulingEnv 原生） |
-| 10维（Obs10Wrapper） | DQN基线对比（与旧版10维 DQN 公平对比） | Obs10Wrapper（截断前10维） |
+| 维度                | 适用场景                     | 包装器                        |
+| :---------------- | :----------------------- | :------------------------- |
+| 14维（原生）           | PPO训练/评估、真机实验、答辩提交       | 无（QuantumSchedulingEnv 原生） |
+| 10维（Obs10Wrapper） | DQN基线对比（与旧版10维 DQN 公平对比） | Obs10Wrapper（截断前10维）       |
 
 **口径切换声明要求**：
+
 - 10维和14维结果不可直接比较
 - 报告/表格必须标注观测维度
-- PPO +88.3% 为14维原生环境对比结果（50 seeds × 5 episodes = 250次独立运行），PPO 模型文件为 ppo_best_model_14dim.zip。10维 Obs10Wrapper 截断仅用于与旧版 10维 DQN 模型的公平对比
+- PPO +88.3% 为14维原生环境权威对比结果（50 seeds × 5 episodes = 250次独立运行），PPO 模型文件为 ppo_best_model_14dim.zip。10维 Obs10Wrapper 仅用于与旧版 10维 DQN 模型的公平对比
 
 详见 `docs/observation_dim_standard.md`
 
 ### 生产落地路径（Issue #130）
 
-| 阶段 | 时间 | 目标 |
-|:--|:--|:--|
-| 阶段1 竞赛交付 | 截止 08/15 | 代码冻结 + 交付物完善 + 答辩准备 |
-| 阶段2 试点部署 | 08-10月 | 状态持久化 + Redis接入 + 监控告警完善 |
-| 阶段3 生产部署 | 10-01月 | 多租户集成 + 高可用 + 性能调优 |
-| 阶段4 规模化 | 01-06月 | 多硬件适配 + K8s云原生 + SLA 99.9% |
+| 阶段       | 时间       | 目标                         |
+| :------- | :------- | :------------------------- |
+| 阶段1 竞赛交付 | 截止 08/15 | 代码冻结 + 交付物完善 + 答辩准备        |
+| 阶段2 试点部署 | 08-10月   | 状态持久化 + Redis接入 + 监控告警完善   |
+| 阶段3 生产部署 | 10-01月   | 多租户集成 + 高可用 + 性能调优         |
+| 阶段4 规模化  | 01-06月   | 多硬件适配 + K8s云原生 + SLA 99.9% |
 
 **生产就绪度评级**：研究原型向工程原型过渡，具备试点部署能力（综合 8.0/10）
 
@@ -449,13 +457,14 @@ docker-compose up -d
 
 ## 12. 重要文件路径速查
 
-| 用途 | 路径 |
-|------|------|
-| 权威PPO模型（14维） | `deliverable_models/ppo_best_model_14dim.zip` |
-| 权威DQN模型（10维） | `deliverable_models/dqn_best_model_10dim.zip` |
-| 归档模型目录 | `deliverable_models/`（已入库，详见 MODELS.md） |
-| 多seed评估数据 | `results/multiseed_evaluation/rewards_multiseed.json` |
-| 统计显著性报告 | `results/reports/statistical_validation.md` |
-| 策略对比报告 | `results/reports/strategy_comparison.md` |
-| 提交清单 | `config/submission_manifest.yaml` |
-| Obs10Wrapper | `scripts/evaluation/run_issue_38_67_experiments.py` |
+| 用途           | 路径                                                    |
+| ------------ | ----------------------------------------------------- |
+| 权威PPO模型（14维） | `deliverable_models/ppo_best_model_14dim.zip`         |
+| 权威DQN模型（10维） | `deliverable_models/dqn_best_model_10dim.zip`         |
+| 归档模型目录       | `deliverable_models/`（已入库，详见 MODELS.md）               |
+| 多seed评估数据    | `results/multiseed_evaluation/rewards_multiseed.json` |
+| 统计显著性报告      | `results/reports/statistical_validation.md`           |
+| 策略对比报告       | `results/reports/strategy_comparison.md`              |
+| 提交清单         | `config/submission_manifest.yaml`                     |
+| Obs10Wrapper | `scripts/evaluation/run_issue_38_67_experiments.py`   |
+
