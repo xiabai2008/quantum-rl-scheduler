@@ -1,21 +1,21 @@
 # 观测维度口径管理标准
 
-> **Issue #129** | 生成时间: 2026-07-24
+> **Issue #129 / #404** | 最后更新: 2026-07-28
 > **适用范围**: 全项目脚本、文档、报告、答辩材料
 
 ---
 
 ## 一、观测维度定义
 
-### 1.1 两种观测维度
+### 1.1 当前标准维度
 
-| 维度 | 定义 | 实现方式 | 观测空间形状 |
-|:--|:--|:--|:--|
-| **16维（原生）** | 完整状态空间，包含物理噪声、拓扑特征、串扰风险及LSTM时序流量 | `QuantumSchedulingEnv`（`src/scheduler/env.py`） | `Box(0, 1, (16,))` |
-| **14维（截断）** | 基础状态空间，截断16维前14个维度 | （旧版本兼容） | `Box(0, 1, (14,))` |
-| **10维（截断）** | 基础状态空间，截断16维前10个维度 | `Obs10Wrapper` | `Box(0, 1, (10,))` |
+| 维度 | 定义 | 实现方式 | 观测空间形状 | 状态 |
+|:--|:--|:--|:--|:--|
+| **16维（原生·当前标准）** | 完整状态空间，含物理噪声、拓扑特征、串扰风险、到达率MA | `QuantumSchedulingEnv`（`src/scheduler/env.py`） | `Box(0, 1, (16,))` | ✅ **交付标准** |
+| **14维（截断·历史）** | 前14个维度，不含串扰风险和到达率MA | 旧版本兼容 | `Box(0, 1, (14,))` | ⚠️ 编译Agent使用；调度层已废弃 |
+| **10维（截断·历史）** | 前10个维度，不含物理噪声和拓扑特征 | `Obs10Wrapper` | `Box(0, 1, (10,))` | ⚠️ 历史基线对比 |
 
-### 1.2 16维观测空间详细定义
+### 1.2 16维观测空间详细定义（调度层当前标准）
 
 **定义文件**：`src/scheduler/env_types.py`（`OBS_DIM = 16`）
 
@@ -35,32 +35,24 @@
 | 11 | OBS_TWO_GATE_FIDELITY | 双比特门保真度 | 物理噪声 |
 | 12 | OBS_COUPLING_DENSITY | 耦合密度 | 拓扑特征 |
 | 13 | OBS_AVG_CONNECTIVITY | 平均连接度 | 拓扑特征 |
-| 14 | OBS_CROSSTALK_RISK | 串扰风险（基于空间并发） | 并发特征 |
-| 15 | OBS_ARRIVAL_RATE_MA | 任务到达率滑动平均 | 时序特征 |
+| 14 | OBS_CROSSTALK_RISK | 串扰风险（基于空间并发） | 并发特征（v9新增） |
+| 15 | OBS_ARRIVAL_RATE_MA | 任务到达率滑动平均 | 时序特征（v9新增） |
 
-### 1.3 10维观测空间映射
+### 1.3 14维观测空间（编译层专用）
 
-10维为14维的前10个维度截断，不含物理噪声和拓扑特征（索引 10-13）。
+编译层PPO Agent（`ppo_compilation_agent.zip`）使用独立的14维观测空间，定义在`src/quantum/compilation_env.py`：
+- 包含：电路特征（深度、两比特门比例）、当前映射状态、耦合图拓扑特征、SWAP候选动作评估
+- 这与调度层的14/16维观测空间完全不同，是量子比特映射任务专用
 
-### 1.4 Obs10Wrapper 实现
+### 1.4 耦合图拓扑（v9更新）
 
-**定义文件**：`scripts/evaluation/run_issue_38_67_experiments.py`（第 65-78 行）
+**定义文件**：`src/quantum/compilation_env.py`
 
-```python
-class Obs10Wrapper(gym.Wrapper):
-    """将 14 维环境观测截断为 10 维，保持与旧模型兼容。"""
-    def __init__(self, env: QuantumSchedulingEnv):
-        super().__init__(env)
-        self.observation_space = spaces.Box(low=0.0, high=1.0, shape=(10,), dtype=np.float32)
-
-    def reset(self, **kwargs):
-        obs, info = self.env.reset(**kwargs)
-        return obs[:10].astype(np.float32), info
-
-    def step(self, action):
-        obs, reward, terminated, truncated, info = self.env.step(action)
-        return obs[:10].astype(np.float32), reward, terminated, truncated, info
-```
+- v8及以前：线性链耦合图（qubit 0-1-2-...-15），SWAP距离=线性abs差值
+- v9起：**4×4 2D网格耦合图**（匹配天衍-287真机nearest-neighbor拓扑）
+  - SWAP距离=BFS图最短路径
+  - 2D网格直径=6（vs 线性链直径=15）
+  - 拓扑消融：SABRE在2D网格上SWAP比线性链少~62%
 
 ---
 
@@ -68,191 +60,87 @@ class Obs10Wrapper(gym.Wrapper):
 
 ### 2.1 口径使用规则
 
-| 场景 | 使用维度 | 理由 |
-|:--|:--|:--|
-| **权威对比实验（50seed）** | 16维（原生） | 权威对比框架，PPO 模型为 ppo_lstm_agent |
-| **PPO 训练与评估** | 16维（原生） | 使用完整状态信息，最大化策略性能 |
-| **DQN 训练（14维重训）** | 14维（原生） | 解决10维模型在14维环境退化问题 |
-| **真机实验** | 16维（原生） | 真实环境使用完整观测 |
-| **多机器演示** | 16维（原生） | 展示完整调度能力 |
-| **压力测试** | 16维（原生） | 测试策略鲁棒性 |
-| **消融实验 D2** | 10维→16维对比 | 专门测试维度扩展效果 |
-| **答辩/PPT/白皮书** | 以16维为主口径 | 16维为最终提交版本 |
+| 场景 | 使用维度 | 模型类型 | 理由 |
+|:--|:--|:--|:--|
+| **官方仿真评估（交付）** | 16维（原生） | PPO-MLP | `run_simulation.py` 默认加载 ppo_best_model_16dim.zip |
+| **PPO 训练与评估** | 16维（原生） | PPO-MLP/LSTM | 使用完整状态信息，最大化策略性能 |
+| **真机实验** | 16维（原生） | PPO-MLP | 真实环境使用完整观测 |
+| **消融实验 D2** | 10维→16维对比 | PPO-MLP | 测试维度扩展效果 |
+| **答辩/PPT/白皮书** | 16维为主口径 | PPO-MLP | 16维PPO-MLP为最终提交版本 |
+| **电路编译评估** | 编译层14维 | PPO编译Agent | `compilation_fair_v2.py`独立环境 |
+| **历史基线对比** | 10维/14维（调度层） | 旧模型（已归档） | 仅用于消融实验参考 |
 
 ### 2.2 模型与维度对应关系
 
-| 模型 | 文件 | 观测维度 | 用途 |
-|:--|:--|:--|:--|
-| PPO-LSTM 权威模型 | `advanced_ppo_lstm_agent.zip` | 16维 | 答辩/提交/真机实验 |
-| PPO 14维（旧） | `ppo_best_model_14dim.zip` | 14维 | 归档对比 |
-| DQN 10维（旧） | `dqn_model_10dim.zip`（已归档） | 10维 | 基线对比（Obs10Wrapper） |
-| DQN 14维（重训） | `dqn_best_model_14dim.zip` | 14维 | 14维环境独立评估 |
+| 模型 | 文件 | 观测维度 | 架构 | 用途 |
+|:--|:--|:--|:--|:--|
+| **PPO 权威交付模型** | `deliverable_models/ppo_best_model_16dim.zip` | 16维（调度层） | MLP (use_lstm=False) | ✅ 答辩/提交/官方评估 |
+| PPO编译优化Agent | `deliverable_models/ppo_compilation_agent.zip` | 14维（编译层专用） | MLP | 量子比特映射（公平对比v2） |
+| PPO-LSTM（消融用） | `models/` 目录（不入库） | 16维 | LSTM | 消融实验参考，非交付 |
+| DQN 10维（旧·已删除） | — | 10维 | MLP | 历史归档，已清理 |
 
 ### 2.3 口径切换不可比性声明
 
-**核心原则**：不同维度的环境实验结果**不可直接比较**。
+**核心原则**：不同维度/不同环境的实验结果**不可直接比较**。
 
 | 声明项 | 要求 |
 |:--|:--|
-| 报告标题 | 必须标注观测维度（如"16维 PPO-LSTM vs FCFS"或"10维公平对比"） |
+| 报告标题 | 必须标注观测维度（如"16维 PPO-MLP vs FCFS"） |
 | 数据表格 | 必须在表头或脚注标注维度 |
-| 跨维度引用 | 必须注明"10维/14维结果与16维结果不可直接比较" |
-| 答辩口径 | PPO-LSTM 为16维原生环境权威对比结果，10/14维为历史迭代 |
+| 跨维度引用 | 必须注明"不同维度结果不可直接比较" |
+| 调度vs编译 | 调度层和编译层是独立任务，指标不可跨任务比较 |
+| 答辩口径 | +88.3%基于14维调度模型N=250实验（config/statistics.yaml）；16维为交付兼容模型 |
 
 ---
 
-## 三、全项目口径一致性审计
+## 三、模型架构说明
 
-### 3.1 审计方法
+### 3.1 为什么交付模型使用MLP而非LSTM
 
-扫描 `scripts/`、`docs/`、`results/reports/`、`tests/` 目录中所有涉及观测维度的表述。
+消融实验验证：在本调度任务上，**MLP与LSTM收敛到相同策略**，MLP训练效率更高且兼容性更好。
 
-### 3.2 审计结果
-
-#### 3.2.1 已一致项（无需修改）
-
-| 文件 | 口径 | 状态 |
-|:--|:--|:--|
-| `src/scheduler/env_types.py` | 14维（OBS_DIM=14） | ✅ |
-| `src/scheduler/env_observation.py` | 14维 | ✅ |
-| `src/scheduler/env.py` | 14维 | ✅ |
-| `scripts/evaluation/run_multiseed_evaluation.py` | 默认14维，支持10维 | ✅ |
-| `scripts/evaluation/run_issue_38_67_experiments.py` | 10维公平对比 | ✅ |
-| `scripts/training/train_dqn_14dim.py` | 14维 | ✅ |
-| `results/reports/strategy_comparison.md` | 14维 PPO + 10维 DQN | ✅ |
-| `results/reports/statistical_validation.md` | 14维 | ✅ |
-| `MODELS.md` | 14维 PPO + 14维 DQN + 10维 DQN（归档） | ✅ |
-| `AGENTS.md` | 10维公平对比 + 14维训练 | ✅ |
-
-#### 3.2.2 发现的不一致项
-
-| 编号 | 文件 | 问题描述 | 严重程度 | 修复建议 |
-|:--|:--|:--|:--|:--|
-| AUDIT-01 | `results/reports/real_machine_preregistration.md` 第69行 | 引用不存在的 `Obs14Wrapper`，14维为原生环境无需包装器 | 中 | 改为"14维原生环境 `QuantumSchedulingEnv`" |
-| AUDIT-02 | `scripts/evaluation/run_issue_38_67_experiments.py` 第739行 | "兼容现有 DQN/PPO 模型"表述不精确，Obs10Wrapper 仅兼容10维 DQN 模型，PPO 为14维 | 低 | 改为"兼容10维 DQN 模型" |
-| AUDIT-03 | `MODELS.md` 第17-18行 | DQN 10维模型奖励值 -897.08（旧10维退化结果，已被14维公平重训(DQN=1510)替代），14维 DQN 重训后为 1510 | 低 | 添加注释说明"10维模型在10维环境评估（旧退化结果），14维公平重训 DQN=1510" |
-| AUDIT-04 | `docs/defense_qa_handbook.md` Q2 第46-62行 | DQN 失败归因为"值函数方法不适用"，未提及观测空间不匹配 | 中 | 补充"10维 DQN 模型在14维环境观测空间不匹配，退化为随机策略" |
-
-#### 3.2.3 审计覆盖范围
-
-| 目录 | 扫描文件数 | 涉及维度表述文件数 | 不一致项数 |
-|:--|:--|:--|:--|
-| `scripts/` | ~30 | 12 | 1 |
-| `docs/` | ~20 | 8 | 1 |
-| `results/reports/` | ~25 | 10 | 1 |
-| `tests/` | ~45 | 5 | 0 |
-| 根目录 | ~5 | 2 | 1 |
-| **合计** | ~125 | 37 | 4 |
-
-### 3.3 修复优先级
-
-| 优先级 | 编号 | 修复内容 | 工作量 |
-|:--|:--|:--|:--|
-| P0 | AUDIT-01 | 修正 `real_machine_preregistration.md` 中不存在的 `Obs14Wrapper` 引用 | 5 分钟 |
-| P1 | AUDIT-04 | 补充 `defense_qa_handbook.md` 中 DQN 失败的观测维度归因 | 10 分钟 |
-| P2 | AUDIT-02 | 修正 `run_issue_38_67_experiments.py` 中兼容性表述 | 5 分钟 |
-| P2 | AUDIT-03 | 在 `MODELS.md` 添加维度评估环境注释 | 5 分钟 |
+选择MLP的理由：
+1. **兼容性**：标准`PPO.load()`可直接加载，无需RecurrentPPO依赖
+2. **效率**：训练更快，推理无需维护LSTM隐状态
+3. **性能等价**：MLP与LSTM收敛到同一最优策略
 
 ---
 
-## 四、各脚本/文档口径一览表
+## 四、数据完整性声明
 
-### 4.1 训练脚本
+### 权威数字一致性（v9）
 
-| 脚本 | 默认维度 | 支持切换 | 说明 |
+| 指标 | 值 | 维度/环境 | 来源 |
 |:--|:--|:--|:--|
-| `scripts/training/train_agent.py` | 14维 | 否 | PPO 标准训练 |
-| `scripts/training/train_dqn_14dim.py` | 14维 | 否 | DQN 14维重训 |
-| `scripts/training/quick_train.py` | 14维 | 否 | 快速训练验证 |
+| 仿真 PPO 均值 | 2746.94 ± 1160.72 | 14维调度（旧奖励参数） | 50 seeds × 5 episodes = N=250 |
+| 仿真 FCFS 均值 | 1458.77 ± 60.47 | 14维调度（旧奖励参数） | 同上 |
+| 仿真 PPO 提升 | +88.3% | 14维调度（旧奖励参数） | 同上（Mann-Whitney U, p=1.032e-42） |
+| 编译PPO vs SABRE | 深电路SWAP减少~33% | 编译层14维, 4×4 2D网格 | 公平对比v2, 60电路同池配对, p=0.86不显著 |
+| 2D网格拓扑优势 | SWAP减少~62% vs 线性链 | 编译环境 | 拓扑消融（BFS验证） |
+| 交付模型 | `ppo_best_model_16dim.zip` | 16维调度 | PPO-MLP, 100K steps |
 
-### 4.2 评估脚本
-
-| 脚本 | 默认维度 | 支持切换 | 说明 |
-|:--|:--|:--|:--|
-| `scripts/evaluation/run_multiseed_evaluation.py` | 14维 | `--obs-dim 10` | 权威多seed评估 |
-| `scripts/evaluation/run_issue_38_67_experiments.py` | 10维 | `obs_dim=14` | Issue#38/67 公平对比 |
-| `scripts/evaluation/run_simulation.py` | 14维 | 否 | 仿真运行 |
-| `scripts/evaluation/run_quantum_sensitivity.py` | 14维 | 否 | 量子占比敏感性 |
-| `scripts/evaluation/run_holdout_evaluation.py` | 14维 | 否 | 留出集评估 |
-| `scripts/evaluation/run_dqn_ppo_fcfs_comparison.py` | 14维 | 否 | 三策略对比（Issue#96） |
-| `scripts/evaluation/ablation_d3_training.py` | 10维 | 导入 Obs10Wrapper | D3 奖励消融 |
-| `scripts/evaluation/machine_scalability_test.py` | 14维 | `obs_dim=10` | 机器扩展性 |
-| `scripts/evaluation/workload_pattern_stats.py` | 14维 | 否 | 负载模式统计 |
-
-### 4.3 真机脚本
-
-| 脚本 | 默认维度 | 说明 |
-|:--|:--|:--|
-| `scripts/real_machine/tianyan287_experiment.py` | 14维 | 天衍-287 实验（兼容10维旧模型） |
-| `scripts/real_machine/tianyan287_multiseed.py` | 14维 | 多seed真机实验 |
-| `scripts/real_machine/strategy_comparison.py` | 14维 | 策略对比（兼容10维旧模型） |
-
-### 4.4 文档口径
-
-| 文档 | 口径 | 说明 |
-|:--|:--|:--|
-| `AGENTS.md` | 10维+14维 | 项目记忆文档 |
-| `README.md` | 14维 | 项目介绍 |
-| `MODELS.md` | 14维+10维 | 模型登记 |
-| `docs/defense_qa_handbook.md` | 14维 | 答辩手册 |
-| `docs/real_machine_verification_boundary.md` | 10维+14维 | 真机边界文档 |
+> **重要声明**：+88.3%权威数字基于14维调度模型+旧奖励参数的50seed实验（N=250, config/statistics.yaml）。
+> 16维交付模型（`ppo_best_model_16dim.zip`）修复了观测维度不匹配的P0问题，确保评估脚本可一键运行。
+> 16维模型需以相同protocol（50seeds×5episodes=N=250）跑多seed评估以更新权威统计口径。
+> 编译层PPO使用独立的14维观测空间，与调度层观测维度不可混淆。
 
 ---
 
-## 五、AGENTS.md 口径管理规范（待添加段落）
-
-在 AGENTS.md 适当章节添加以下内容：
-
-```markdown
-### 观测维度口径管理规范（Issue #129）
-
-项目中存在两种观测维度，严格按以下规范使用：
-
-| 维度 | 适用场景 | 包装器 |
-|:--|:--|:--|
-| 14维（原生） | PPO训练/评估、真机实验、答辩提交 | 无（QuantumSchedulingEnv 原生） |
-| 14维（原生环境） | DQN基线对比（与旧版10维 DQN 公平对比） | Obs10Wrapper（截断前10维） |
-
-**口径切换声明要求**：
-- 10维和14维结果不可直接比较
-- 报告/表格必须标注观测维度
-- PPO +88.3% 为14维原生环境对比结果（50 seeds × 5 episodes = 250次独立运行），PPO 模型文件为 ppo_best_model_14dim.zip。10维 Obs10Wrapper 截断仅用于与旧版 10维 DQN 模型的公平对比
-
-详见 `docs/observation_dim_standard.md`
-```
-
----
-
-## 六、数据完整性声明
-
-### 权威数字一致性
-
-| 指标 | 值 | 维度 | 来源 |
-|:--|:--|:--|:--|
-| 仿真 PPO 均值 | 2746.94 ± 1160.72 | 14维（原生环境） | 50 seeds × 5 episodes |
-| 仿真 FCFS 均值 | 1458.77 ± 60.47 | 14维（原生环境） | 同上 |
-| 仿真 PPO 提升 | +88.3% | 14维（原生环境） | 同上 |
-| 仿真 p 值 | 1.032e-42 | 14维（原生环境） | Mann-Whitney U 检验 |
-| 仿真 rank-biserial | -0.71 | 14维（原生环境） | 同上 |
-| DQN 10维 reward | -897.08（旧10维退化结果，已被14维公平重训替代） | 10维 | Obs10Wrapper 环境 |
-| DQN 14维 reward | 1510（14维公平重训结果，+3.0% vs FCFS） | 14维 | 原生环境（公平重训后） |
-
-> **注**：PPO +88.3% 为14维原生环境对比结果（50 seeds × 5 episodes = 250次独立运行），PPO 模型文件为 ppo_best_model_14dim.zip。10维 Obs10Wrapper 截断仅用于与旧版 10维 DQN 模型的公平对比。
-
----
-
-## 七、关联文档
+## 五、关联文档
 
 | 文档 | 路径 | 说明 |
 |:--|:--|:--|
-| 环境类型定义 | `src/scheduler/env_types.py` | OBS_DIM=14 |
-| 观测构建 | `src/scheduler/env_observation.py` | 14维观测实现 |
-| Obs10Wrapper | `scripts/evaluation/run_issue_38_67_experiments.py` | 10维截断包装器 |
-| 权威评估脚本 | `scripts/evaluation/run_multiseed_evaluation.py` | 多seed评估 |
-| 模型登记 | `MODELS.md` | 模型维度记录 |
-| 答辩手册 | `docs/defense_qa_handbook.md` | DQN 归因说明 |
-| 真机边界 | `docs/real_machine_verification_boundary.md` | 10维vs14维对比 |
+| 环境类型定义 | `src/scheduler/env_types.py` | OBS_DIM=16（调度层） |
+| 观测构建 | `src/scheduler/env_observation.py` | 16维观测实现 |
+| 2D网格耦合图 | `src/quantum/compilation_env.py` | 4×4网格+BFS距离 |
+| 编译环境 | `src/quantum/compilation_env.py` | 编译层14维观测 |
+| 权威评估脚本 | `scripts/evaluation/run_simulation.py` | 官方仿真入口 |
+| 公平对比v2 | `scripts/evaluation/compilation_fair_v2.py` | PPO vs SABRE公平评估 |
+| 模型登记 | `MODELS.md` | 模型维度与架构记录 |
+| 训练脚本 | `scripts/training/train_16dim_ppo.py` | 16维MLP训练 |
+| 消融实验 | `scripts/evaluation/ablation_ppo_variants.py` | MLP vs LSTM对比 |
+| 新颖性声明 | `docs/novelty_statement.md` | 创新点口径 |
 
 ---
 
-*Issue #129 验收文件 | 2026-07-24*
+*Issue #129/#404 验收文件 | 2026-07-28 v9*

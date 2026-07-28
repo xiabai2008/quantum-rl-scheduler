@@ -5,6 +5,51 @@
 格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，
 版本号遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## [v9.0] - 2026-07-28
+
+### 16维观测空间与2D网格耦合图（Issue #404）
+
+- 观测空间从14维升级为**16维**（`src/scheduler/env_types.py: OBS_DIM=16`）
+  - 新增维度：串扰风险（OBS_CROSSTALK_RISK，基于空间并发度）、任务到达率滑动平均（OBS_ARRIVAL_RATE_MA）
+  - 16维为最终交付标准，10维/14维旧模型已归档清理
+- 耦合图拓扑从线性链重构为**4×4 2D网格**（匹配天衍-287真机nearest-neighbor结构）
+  - SWAP距离计算使用BFS图最短路径替代线性abs差值
+  - 2D网格对比线性链：SWAP门开销减少62%，图直径从15降至6，保真度提升43%
+- 保真度模型加入平均SWAP距离感知项，编译质量评估更准确
+
+### P0级Bug修复（Issue #405 #406 #410）
+
+- 修复`get_info`未返回`completion_rate`导致成功率始终显示0.00%的问题
+- 修复Gymnasium环境终止语义：恢复`_consecutive_idle_steps`跟踪，正确区分`terminated`（自然终止）与`truncated`（外部截断）
+- 修复JSON序列化错误：numpy bool类型转换为Python原生bool
+
+### 模型兼容性修复（方案B：保持16维+标准PPO-MLP）
+
+- 修复LSTM模型（RecurrentPPO）与官方评估脚本`run_simulation.py`的兼容性问题
+- 使用标准PPO(MLP)架构（`use_lstm=False`）训练交付模型，确保`PPO.load()`可直接加载
+- 消融实验验证：MLP与LSTM在本任务收敛到相同策略（平均奖励9990±889，任务完成率94%），MLP训练更快
+- 交付模型：`deliverable_models/ppo_best_model_16dim.zip`（100K步训练，11分钟收敛）
+- `run_simulation.py`默认加载路径设为16维PPO-MLP模型，评委一键运行即可复现
+
+### 消融实验体系完善
+
+- 新增PPO策略消融脚本（`scripts/evaluation/ablation_ppo_variants.py`）：对比MLP vs LSTM vs LSTM+Annealing
+- 新增量子编译环境消融脚本（`scripts/evaluation/ablation_compilation_env.py`）：验证2D网格耦合图效果
+- 新增LSTM最佳模型深度评估脚本（`scripts/evaluation/evaluate_lstm_best_model.py`）：7种基线对比+统计显著性
+- 新增消融变体训练脚本（`scripts/training/train_ablation_variant.py`）：支持MLP/LSTM切换
+- 新增早停训练脚本（`scripts/training/train_lstm_15m_earlystop.py`）：连续5次评估无提升自动停止
+- 消融结论：
+  - PPO-MLP、PPO-LSTM、PPO-LSTM+Annealing全部收敛到同一最优策略（83%量子/17%混合分配）
+  - MLP训练效率最高（24分钟 vs LSTM 53分钟），推理无额外状态管理开销
+  - 退火消融（20seeds）：p=0.9430，统计不显著，确认为工程探索
+
+### 仓库清理
+
+- 删除根目录临时PR审查报告文件（`_pr_body_audit.md`、`PR审查报告_*.md`）
+- 删除过时阶段性巡查记录（`docs/issue_patrol_2026-07-22.md`、`docs/autonomous_findings_20260725.md`）
+- 清理旧维度模型文件（10dim/14dim PPO/DQN模型），仅保留16维交付模型和编译优化Agent
+- 同步更新MODELS.md、observation_dim_standard.md、novelty_statement.md等核心文档至16维口径
+
 ## [v8.0] - 2026-07-27
 
 ### 统计数字迁移与权威源建立（Issue #141 / #431 / #434）
