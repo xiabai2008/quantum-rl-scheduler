@@ -79,7 +79,7 @@
 
 | 任务 | 状态 | 截止 | 负责人 |
 |:--|:--|:--|:--|
-| 代码冻结（v8.0-submission 标签） | 待执行 | 08/15 | 瑞哥 |
+| 代码冻结（v9.0-submission 标签） | 待执行 | 08/15 | 瑞哥 |
 | CI 全绿（lint/test/typecheck/security） | 待验证 | 08/15 | 全员 |
 | `validate_submission.py --check` 通过 | 待验证 | 08/15 | 全员 |
 | PPT/白皮书数字与权威数字一致 | 待验证 | 08/15 | 瑞哥 |
@@ -87,9 +87,9 @@
 | 提交清单打包 `validate_submission.py --pack` | 待执行 | 08/15 | 全员 |
 
 **交付物清单**：
-- 源代码（v8.0-submission 标签）
+- 源代码（v9.0-submission 标签）
 - 答辩PPT（制作中）+）
-- 技术白皮书（v5+）
+- 技术白皮书（v9.0，docs/technical_whitepaper.pdf）
 - 演示视频
 - 实验数据（results/ 全目录）
 - 模型文件（deliverable_models/）

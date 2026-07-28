@@ -197,7 +197,7 @@ quantum-rl-scheduler/
 ├── config/
 │   ├── .env.example
 │   ├── config.yaml
-│   └── submission_manifest.yaml  # 提交清单（v8.0）
+│   └── submission_manifest.yaml  # 提交清单（v9.0）
 
 └── .github/
     └── workflows/
@@ -319,7 +319,7 @@ quantum-rl-scheduler/
 | 材料                | 路径                                                  | 状态                                                |
 | ----------------- | --------------------------------------------------- | ------------------------------------------------- |
 | 答辩PPT（制作中）.pptx\` | ✅ 制作中（+88.3%，p=1.032e-42，N=250，284真机调用，新增2页应用价值）    | <br />                                            |
-| 技术白皮书（11章）        | `../技术白皮书_量子RL调度系统_v5.docx`                         | ✅ 制作中（+88.3%，284真机调用，100%成功率，新增第10章落地与价值量化）       |
+| 技术白皮书（7章）         | `docs/technical_whitepaper.pdf`                     | ✅ 已完成（+88.3%，315真机调用，100%成功率，2026-07-27 v9.0 口径） |
 | 价值量化报告            | `docs/value_quantification.md`                      | ✅ 已完成（6节，10项指标，ROI分析，VQE场景案例）                     |
 | 技术瓶颈分析            | `docs/technical_bottlenecks.md`                     | ✅ 已完成（7项瓶颈+缓解策略，2026-07-24）                       |
 | 公平调度实验报告          | `results/reports/fair_scheduling_report.md`         | ✅ 已完成（5租户Jain's指数=0.9875，PPO总奖励+57.6%，2026-07-24） |
@@ -365,13 +365,13 @@ Issues全面清理  ████████████████████
 - ~~P2：Day4-7 可视化增强与实验补充~~ ✅ 已完成（2026-07-25，决策放大镜+对战面板+5个API端点+高负载公平调度+MARL热力图+PPT分离可视化）
 - **P2**：演示视频录制（4-5分钟，1080p）— 需瑞哥人工录制
 - **P2**：PPT/白皮书 .pptx/.docx 源文件数字更新 — 需瑞哥手动更新
-- **P3**：8/15代码冻结，9/15前打v8.0-submission标签
+- **P3**：8/15代码冻结，9/15前打v9.0-submission标签
   - 冻结前检查清单:
     1. 所有 CI 检查全绿（lint/test/typecheck/security）
     2. `python scripts/ci/validate_submission.py --check` 通过
-    3. PPT/白皮书数字与代码权威数字一致（+88.3%）
+    3. PPT/白皮书数字与代码权威数字一致（+88.3%，14维权威实验N=250，16维需重新验证）
     4. 演示视频已就位
-    5. 打标签: `git tag -a v8.0-submission -m "v8.0 提交版本" && git push origin v8.0-submission`
+    5. 打标签: `git tag -a v9.0-submission -m "v9.0 提交版本" && git push origin v9.0-submission`
     6. 打包: `python scripts/ci/validate_submission.py --pack`
 
 详见 workspace 根目录 `项目状态审查与下一步工作建议_2026-07-09.md`。
