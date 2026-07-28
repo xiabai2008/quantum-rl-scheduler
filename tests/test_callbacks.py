@@ -235,10 +235,7 @@ class TestAnnealingCallbackOnStep(unittest.TestCase):
         opt = MagicMock()
         optimized_agent = MagicMock()
         opt.optimize_policy.return_value = optimized_agent
-        policy_net = MagicMock()
-        opt._get_policy_net.return_value = policy_net
-        # loss=0.1 -> quality=-0.1，大于初始 -inf
-        opt._evaluate_network_quality.return_value = 0.1
+        opt.evaluate_quality.return_value = 0.1  # loss=0.1 -> quality=-0.1
         cb = _bind_callback(
             AnnealingCallback(optimizer=opt, interval=1000, verbose=1),
             n_calls=1000,
@@ -251,8 +248,7 @@ class TestAnnealingCallbackOnStep(unittest.TestCase):
         """quality <= best_reward 时不应更新 optimized_count。"""
         opt = MagicMock()
         opt.optimize_policy.return_value = MagicMock()
-        opt._get_policy_net.return_value = MagicMock()
-        opt._evaluate_network_quality.return_value = 0.5  # loss=0.5 -> quality=-0.5
+        opt.evaluate_quality.return_value = 0.5  # loss=0.5 -> quality=-0.5
         cb = _bind_callback(
             AnnealingCallback(optimizer=opt, interval=1000),
             n_calls=1000,
@@ -264,21 +260,18 @@ class TestAnnealingCallbackOnStep(unittest.TestCase):
         self.assertEqual(cb.best_reward, 10.0)
 
     def test_on_step_no_quality_eval_when_policy_net_none(self):
-        """_get_policy_net 返回 None 时 quality 保持 0.0。"""
+        """evaluate_quality 返回 inf 时 quality=-inf，不更新计数（Issue #410）。"""
         opt = MagicMock()
         opt.optimize_policy.return_value = MagicMock()
-        opt._get_policy_net.return_value = None
-        # _evaluate_network_quality 不应被调用
-        opt._evaluate_network_quality.return_value = 0.5
+        opt.evaluate_quality.return_value = float("inf")  # 无法提取网络
         cb = _bind_callback(
             AnnealingCallback(optimizer=opt, interval=1000),
             n_calls=1000,
         )
         cb._on_step()
-        opt._evaluate_network_quality.assert_not_called()
-        # quality=0.0 > -inf，应更新计数
-        self.assertEqual(cb.optimized_count, 1)
-        self.assertEqual(cb.best_reward, 0.0)
+        # quality=-inf < -inf? 初始 best_reward=-inf，-inf 不大于 -inf，不更新
+        self.assertEqual(cb.optimized_count, 0)
+        self.assertEqual(cb.best_reward, -float("inf"))
 
     def test_on_step_exception_handled(self):
         """optimize_policy 抛异常时应被捕获，不中断训练。"""
@@ -303,8 +296,7 @@ class TestAnnealingCallbackOnStep(unittest.TestCase):
         """quality 应为 -loss（loss 越小 quality 越大）。"""
         opt = MagicMock()
         opt.optimize_policy.return_value = MagicMock()
-        opt._get_policy_net.return_value = MagicMock()
-        opt._evaluate_network_quality.return_value = 2.5  # loss=2.5 -> quality=-2.5
+        opt.evaluate_quality.return_value = 2.5  # loss=2.5 -> quality=-2.5
         cb = _bind_callback(
             AnnealingCallback(optimizer=opt, interval=100),
             n_calls=100,

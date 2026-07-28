@@ -261,63 +261,174 @@ def parse_measurement_result(
 
 
 def compute_theoretical_distribution(qcis: str) -> dict[str, float]:
-    """根据 QCIS 电路计算理论概率分布（用于保真度对比）。
+    """根据 QCIS 电路计算理论概率分布（用于保真度对比，Issue #405 修复）。
 
-    当前版本仅支持 H 门和 X 门的精确理论分布：
-    - 仅 H 门：均匀分布 {"0": 0.5, "1": 0.5}
-    - 含 X 门：确定态 {"1": 1.0}
-    - 其他/复杂电路（含 RX/RY/RZ/CNOT/CZ 等）：使用均匀分布近似
-
-    .. warning::
-        当前版本对 RX/RY/RZ 旋转门和 CNOT/CZ 两比特纠缠门**不做精确计算**，
-        一律返回均匀分布作为保守近似。因此基于此函数计算的保真度数值
-        **仅供参考**，不适用于包含旋转门/纠缠门的复杂电路。
-        1-2 比特电路的精确状态向量模拟是后续改进方向。
+    使用 numpy 状态向量模拟精确计算 1-3 比特电路的理论概率分布，
+    支持 H/X/Y/Z/RX/RY/RZ/S/T/CNOT/CZ 等常见门。4 比特及以上电路
+    回退到均匀分布近似（保守估计）。
 
     Args:
         qcis: QCIS 格式电路字符串
 
     Returns:
-        理论概率分布字典
+        理论概率分布字典（键为测量比特串，值为概率）
     """
+
     lines = [line.strip() for line in qcis.strip().split("\n") if line.strip()]
-    gates = [line for line in lines if not line.startswith("M")]
-
-    has_h = any(g.startswith("H ") for g in gates)
-    has_x = any(g.startswith("X ") for g in gates)
-
-    # 统计测量的量子比特数
+    gate_lines = [line for line in lines if not line.startswith("M")]
     measure_lines = [line for line in lines if line.startswith("M")]
+
     if not measure_lines:
         return {"0": 1.0}
 
-    # 提取测量的比特数
-    measure_qubits: list[str] = []
+    measure_qubits: list[int] = []
     for line in measure_lines:
         parts = line.replace("M", "").strip().split()
-        measure_qubits.extend(parts)
-    n_qubits = max(1, len(measure_qubits))
+        for p in parts:
+            p = p.strip().rstrip(",")
+            if p.startswith("Q"):
+                try:
+                    measure_qubits.append(int(p[1:]))
+                except ValueError:
+                    continue
+    n_qubits = max(1, len(set(measure_qubits)))
 
-    normalized_gates = [" ".join(gate.split()) for gate in gates]
-    if normalized_gates == ["H Q0", "CNOT Q0 Q1"] and n_qubits == 2:
-        return {"00": 0.5, "11": 0.5}
-    if normalized_gates == ["H Q0", "CNOT Q0 Q1", "CNOT Q1 Q2"] and n_qubits == 3:
-        return {"000": 0.5, "111": 0.5}
+    all_qubit_refs: set[int] = set()
+    for line in gate_lines:
+        tokens = line.replace(",", " ").split()
+        for tok in tokens[1:]:
+            tok = tok.strip()
+            if tok.startswith("Q"):
+                try:
+                    all_qubit_refs.add(int(tok[1:]))
+                except ValueError:
+                    continue
+    total_qubits = max(n_qubits, max(all_qubit_refs) + 1 if all_qubit_refs else n_qubits)
 
-    if has_h and not has_x:
-        # H 门产生均匀分布
-        n_outcomes = 2**n_qubits
-        prob = 1.0 / n_outcomes
-        return {format(k, f"0{n_qubits}b"): prob for k in range(n_outcomes)}
-    elif has_x and not has_h:
-        # X 门翻转，全 1 态
-        all_ones = "1" * n_qubits
-        return {all_ones: 1.0}
-    else:
-        # 混合或复杂电路，使用均匀分布作为保守估计
-        n_outcomes = 2**n_qubits
-        prob = 1.0 / n_outcomes
-        return {format(k, f"0{n_qubits}b"): prob for k in range(n_outcomes)}
+    if total_qubits > 3:
+        n_states = 2**n_qubits
+        return {format(i, f"0{n_qubits}b"): 1.0 / n_states for i in range(n_states)}
+
+    try:
+        raw_dist = _simulate_qcis_statevector(qcis, total_qubits, measure_qubits)
+        return {k: round(v, 12) for k, v in raw_dist.items()}
+    except Exception as e:
+        logger.warning(f"状态向量模拟失败({e})，回退均匀分布")
+        n_states = 2**n_qubits
+        return {format(i, f"0{n_qubits}b"): 1.0 / n_states for i in range(n_states)}
+
+
+def _simulate_qcis_statevector(
+    qcis: str,
+    n_qubits: int,
+    measure_qubits: list[int],
+) -> dict[str, float]:
+    """使用 numpy 精确模拟 1-2 比特 QCIS 电路，返回测量概率分布。"""
+    import numpy as np
+
+    I2 = np.eye(2, dtype=np.complex128)  # noqa: N806
+    X = np.array([[0, 1], [1, 0]], dtype=np.complex128)  # noqa: N806
+    Y = np.array([[0, -1j], [1j, 0]], dtype=np.complex128)  # noqa: N806
+    Z = np.array([[1, 0], [0, -1]], dtype=np.complex128)  # noqa: N806
+    H = np.array([[1, 1], [1, -1]], dtype=np.complex128) / np.sqrt(2)  # noqa: N806
+    S = np.array([[1, 0], [0, 1j]], dtype=np.complex128)  # noqa: N806
+    SDG = np.array([[1, 0], [0, -1j]], dtype=np.complex128)  # noqa: N806
+    T = np.array([[1, 0], [0, np.exp(1j * np.pi / 4)]], dtype=np.complex128)  # noqa: N806
+
+    def _kron_n(ops: list[np.ndarray]) -> np.ndarray:
+        result = ops[0]
+        for op in ops[1:]:
+            result = np.kron(result, op)
+        return result
+
+    def _single_qubit_gate(op: np.ndarray, target: int) -> np.ndarray:
+        ops = [I2] * n_qubits
+        ops[target] = op
+        return _kron_n(ops)
+
+    def _cnot(control: int, target: int) -> np.ndarray:
+        dim = 2**n_qubits
+        mat = np.zeros((dim, dim), dtype=np.complex128)
+        for i in range(dim):
+            bits = [(i >> (n_qubits - 1 - q)) & 1 for q in range(n_qubits)]
+            c_bit = bits[control]
+            out_bits = bits[:]
+            if c_bit == 1:
+                out_bits[target] = 1 - out_bits[target]
+            j = 0
+            for q in range(n_qubits):
+                j = (j << 1) | out_bits[q]
+            mat[j, i] = 1.0
+        return mat
+
+    def _cz(control: int, target: int) -> np.ndarray:
+        dim = 2**n_qubits
+        mat = np.eye(dim, dtype=np.complex128)
+        for i in range(dim):
+            bits = [(i >> (n_qubits - 1 - q)) & 1 for q in range(n_qubits)]
+            if bits[control] == 1 and bits[target] == 1:
+                mat[i, i] = -1.0
+        return mat
+
+    dim = 2**n_qubits
+    state = np.zeros(dim, dtype=np.complex128)
+    state[0] = 1.0
+
+    lines = [ln.strip() for ln in qcis.strip().split("\n") if ln.strip()]
+    for line in lines:
+        if line.startswith("M"):
+            continue
+        parts = line.replace(",", " ").split()
+        if not parts:
+            continue
+        gate = parts[0]
+        qubits: list[int] = []
+        param: float | None = None
+        for tok in parts[1:]:
+            tok = tok.strip()
+            if tok.startswith("Q"):
+                try:
+                    qubits.append(int(tok[1:]))
+                except ValueError:
+                    continue
+            else:
+                try:
+                    param = float(tok)
+                except ValueError:
+                    continue
+
+        if gate in ("H", "X", "Y", "Z") and len(qubits) == 1:
+            op_map = {"H": H, "X": X, "Y": Y, "Z": Z}
+            state = _single_qubit_gate(op_map[gate], qubits[0]) @ state
+        elif gate == "S" and len(qubits) == 1:
+            state = _single_qubit_gate(S, qubits[0]) @ state
+        elif gate in ("SDG", "SDAG") and len(qubits) == 1:
+            state = _single_qubit_gate(SDG, qubits[0]) @ state
+        elif gate == "T" and len(qubits) == 1:
+            state = _single_qubit_gate(T, qubits[0]) @ state
+        elif gate in ("RX", "RY", "RZ") and len(qubits) == 1 and param is not None:
+            theta = param
+            if gate == "RX":
+                op = np.cos(theta / 2) * I2 - 1j * np.sin(theta / 2) * X
+            elif gate == "RY":
+                op = np.cos(theta / 2) * I2 - 1j * np.sin(theta / 2) * Y
+            else:
+                op = np.cos(theta / 2) * I2 - 1j * np.sin(theta / 2) * Z
+            state = _single_qubit_gate(op, qubits[0]) @ state
+        elif gate == "CNOT" and len(qubits) == 2:
+            state = _cnot(qubits[0], qubits[1]) @ state
+        elif gate == "CZ" and len(qubits) == 2:
+            state = _cz(qubits[0], qubits[1]) @ state
+
+    probs = np.abs(state) ** 2
+    measured_set = sorted(set(measure_qubits))
+    result: dict[str, float] = {}
+    for i in range(dim):
+        bits = [(i >> (n_qubits - 1 - q)) & 1 for q in range(n_qubits)]
+        key = "".join(str(bits[q]) for q in measured_set)
+        result[key] = result.get(key, 0.0) + float(probs[i])
+
+    return {k: v for k, v in result.items() if v > 1e-10}
 
 
 def compute_result_fidelity(

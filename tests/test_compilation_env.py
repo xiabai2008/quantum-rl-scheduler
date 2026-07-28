@@ -297,16 +297,23 @@ class TestBoundaryCases:
         assert env._n_gates == 3
         assert env._two_q_ratio == pytest.approx(2 / 3)
 
-    def test_coupling_graph_is_linear_chain(self) -> None:
-        """耦合图应为 16 比特线性链。"""
+    def test_coupling_graph_is_2d_grid(self) -> None:
+        """耦合图应为 4x4 2D网格拓扑（Issue #404 修复）。"""
         assert PHYSICAL_QUBITS == 16
-        # 线性链：0-1, 1-2, ..., 14-15
-        for i in range(PHYSICAL_QUBITS - 1):
-            assert (i + 1) in COUPLING_GRAPH[i]
-            assert i in COUPLING_GRAPH[i + 1]
-        # 端点只有 1 个邻居
-        assert len(COUPLING_GRAPH[0]) == 1
-        assert len(COUPLING_GRAPH[PHYSICAL_QUBITS - 1]) == 1
+        rows, cols = 4, 4
+        for r in range(rows):
+            for c in range(cols):
+                q = r * cols + c
+                neighbors = COUPLING_GRAPH[q]
+                if c + 1 < cols:
+                    assert (q + 1) in neighbors
+                    assert q in COUPLING_GRAPH[q + 1]
+                if r + 1 < rows:
+                    assert (q + cols) in neighbors
+                    assert q in COUPLING_GRAPH[q + cols]
+        corners = [0, cols - 1, (rows - 1) * cols, rows * cols - 1]
+        for corner in corners:
+            assert len(COUPLING_GRAPH[corner]) == 2
 
 
 # ---------------------------------------------------------------------------

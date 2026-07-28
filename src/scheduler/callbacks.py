@@ -124,11 +124,26 @@ class AnnealingCallback(BaseCallback):
                 )
 
                 quality = 0.0
-                if hasattr(self.optimizer, "_evaluate_network_quality"):
+                if hasattr(self.optimizer, "evaluate_quality"):
+                    loss = self.optimizer.evaluate_quality(
+                        optimized_agent,
+                        use_full_policy=self.head_only,
+                    )
+                    quality = -loss
+                elif hasattr(self.optimizer, "_evaluate_network_quality"):
                     policy_net = self.optimizer._get_policy_net(optimized_agent)
                     if policy_net is not None:
                         loss = self.optimizer._evaluate_network_quality(policy_net)
                         quality = -loss
+                    else:
+                        logger.warning(
+                            f"[退火] 步数{self.n_calls}: _get_policy_net 返回 None，"
+                            "质量评估跳过"
+                        )
+                        return True
+                else:
+                    logger.warning("[退火] 优化器未实现 evaluate_quality 接口，质量评估禁用")
+                    return True
 
                 if quality > self.best_reward:
                     self.best_reward = quality

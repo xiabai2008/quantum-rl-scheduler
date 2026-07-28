@@ -1153,11 +1153,10 @@ class TestComputeTheoreticalDistributionEdgeCases:
     """compute_theoretical_distribution 边界条件补充测试。"""
 
     def test_only_measurement_no_gates(self):
-        """仅有测量行无任何门时回退到均匀分布。"""
+        """仅有测量行无任何门时，量子比特处于|0⟩态。"""
         qcis = "M Q0"
         dist = compute_theoretical_distribution(qcis)
-        # 无 H 也无 X → 均匀分布
-        assert dist == {"0": 0.5, "1": 0.5}
+        assert dist == {"0": 1.0}
 
     def test_empty_circuit_returns_default(self):
         """空电路字符串返回默认分布。"""
@@ -1170,11 +1169,11 @@ class TestComputeTheoreticalDistributionEdgeCases:
         dist = compute_theoretical_distribution(qcis)
         assert dist == {"11": 1.0}
 
-    def test_z_gate_falls_back_to_uniform(self):
-        """Z 门（非 H 非 X）回退到均匀分布。"""
+    def test_z_gate_on_zero_state(self):
+        """Z 门作用在|0⟩上得到|0⟩（确定态，Issue #405 精确模拟）。"""
         qcis = "Z Q0\nM Q0"
         dist = compute_theoretical_distribution(qcis)
-        assert dist == {"0": 0.5, "1": 0.5}
+        assert dist == {"0": 1.0}
 
 
 # =============================================================================

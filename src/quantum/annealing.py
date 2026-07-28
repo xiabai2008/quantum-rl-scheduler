@@ -1616,6 +1616,29 @@ class QuantumAnnealingOptimizer:
         avg_l2 = math.sqrt(total_norm) / max(num_params, 1)
         return avg_l2
 
+    def evaluate_quality(self, agent: Any, use_full_policy: bool = True) -> float:
+        """公共接口：评估退火后智能体的策略网络质量（供回调使用，Issue #410）。
+
+        与直接调用 ``_evaluate_network_quality`` 的区别：
+            - 自动从 agent 提取策略网络（优先使用 get_full_policy 以匹配
+              head_only=True 优化模式下实际被修改的网络部分）
+            - 网络为 None 时返回 inf（最差质量），避免静默失败
+
+        Args:
+            agent: RL 智能体（PPO/DQN/SchedulingAgent）
+            use_full_policy: 是否使用完整策略网络（含输出头），默认 True
+
+        Returns:
+            loss: 质量分数（越小越好），无法提取网络时返回 float('inf')
+        """
+        policy_net = (
+            self.get_full_policy(agent) if use_full_policy else self._get_policy_net(agent)
+        )
+        if policy_net is None:
+            logger.warning("[退火] evaluate_quality: 无法提取策略网络，返回 inf")
+            return float("inf")
+        return self._evaluate_network_quality(policy_net)
+
     @staticmethod
     def _apply_weights(
         network: nn.Module,
