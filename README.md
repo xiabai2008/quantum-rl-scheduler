@@ -31,8 +31,8 @@
 
 | 指标 | 数值 |
 |------|------|
-| 核心代码量 | 约 1.2 万行 Python（src/ 67 文件） |
-| 测试文件 | 83 个文件，2824+ 测试用例 |
+| 核心代码量 | 约 1.2 万行 Python（src/ 68 文件） |
+| 测试文件 | 94 个文件，3100+ 测试用例（实测 3106，pytest --collect-only 2026-07-28） |
 | CI 强制覆盖率 | 80%（实际 93.58%，pyproject.toml `fail_under=80`） |
 | 观测空间维度 | **16维**（新增串扰风险、任务到达率MA） |
 | 动作空间 | **4维**（新增 QUANTUM_QEM 误差缓释动作） |
@@ -69,20 +69,20 @@ graph TB
 
 ```
 quantum-rl-scheduler/
-├── src/                      # 源代码（67 文件）
+├── src/                      # 源代码（68 文件）
 │   ├── exceptions.py         # 统一异常体系（8 类）
 │   ├── scheduler/            # RL调度引擎（env + agent + parser + marl + multi_objective_env）
 │   ├── api/                  # 天衍云API封装（Mock/真实/cqlib 三模式 + 熔断器）
 │   ├── quantum/              # 量子启发式退火加速模块（QUBO + 异步闭环）
 │   ├── visualization/        # FastAPI + Vue3 + Echarts 监控面板
 │   └── utils/                # 工具函数 + Prometheus 指标
-├── tests/                    # 82 个测试文件，2824+ 用例
+├── tests/                    # 94 个测试文件，3100+ 用例
 │   └── benchmarks/           # 性能基准测试
 ├── scripts/                  # 按功能分区（training/evaluation/demo/testing/benchmarking/reporting）
 │   └── cli.py                # Click 统一命令行入口
 ├── docs/                     # 团队文档（上手指南、Git规范、分工、协同开发）
 ├── config/                   # 系统配置（config.yaml + .env.example）
-├── results/reports/          # 实验数据固化报告（63份）
+├── results/reports/          # 实验数据固化报告（61份）
 ├── .github/workflows/        # CI/CD 4 Job 流水线 + PR 自动化
 ├── .devcontainer/            # VS Code 开发容器
 ├── pyproject.toml            # 统一配置（ruff/mypy/bandit/pytest/coverage）

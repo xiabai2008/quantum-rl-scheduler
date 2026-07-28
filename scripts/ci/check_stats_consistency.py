@@ -87,6 +87,8 @@ HONEST_DISCLOSURE_KEYWORDS = [
     "诚实披露",
     "10seeds",
     "10 seeds",
+    "20seeds",
+    "20 seeds",
     "5seeds",
     "5 seeds",
     "旧实验",
@@ -95,6 +97,7 @@ HONEST_DISCLOSURE_KEYWORDS = [
     "边界",
     "cherry-pick",
     "已降级",
+    "已废弃",
 ]
 
 
@@ -136,6 +139,61 @@ def load_statistics_yaml() -> dict[str, Any]:
     """加载权威统计源 YAML 文件。"""
     with open(STATS_YAML, encoding="utf-8") as f:
         return yaml.safe_load(f)
+
+
+def check_authoritative_coverage(stats: dict[str, Any]) -> list[str]:
+    """检查权威源是否遗漏已发布的关键实验（Issue #536）。
+
+    确保已发布报告中的关键实验都被 statistics.yaml 收录，
+    避免单一权威源机制自身失守。
+    """
+    warnings = []
+    # 已发布的关键实验及其应有的 p 值记录
+    required_experiments = [
+        (
+            "annealing_ablation_head_only",
+            "with_vs_without_annealing",
+            0.9430,
+            "退火消融 20seeds 权威验证（p=0.9430）",
+        ),
+        (
+            "real_machine_10seed_v2",
+            "ppo_vs_fcfs",
+            0.001,
+            "真机 10seeds v2 实验（p<0.001）",
+        ),
+        (
+            "simulation_8strategy_50seed",
+            "ppo_vs_fcfs",
+            1.032e-42,
+            "8 策略 50seed 仿真（p=1.032e-42）",
+        ),
+    ]
+    for exp_key, comp_key, expected_p, desc in required_experiments:
+        exp = stats.get(exp_key)
+        if not exp:
+            warnings.append(
+                f"权威源遗漏实验: {exp_key}（{desc}）未在 statistics.yaml 中收录"
+            )
+            continue
+        comp = exp.get(comp_key, {})
+        actual_p = comp.get("p_value")
+        if actual_p is None:
+            warnings.append(
+                f"权威源遗漏 p 值: {exp_key}.{comp_key}（{desc}）未记录 p_value"
+            )
+            continue
+        # 数值比较（允许格式差异）
+        try:
+            if abs(float(actual_p) - float(expected_p)) > 1e-6:
+                warnings.append(
+                    f"权威源 p 值不一致: {exp_key}.{comp_key} 期望 p={expected_p}, 实际 p={actual_p}"
+                )
+        except (TypeError, ValueError):
+            warnings.append(
+                f"权威源 p 值格式异常: {exp_key}.{comp_key} p_value={actual_p}"
+            )
+    return warnings
 
 
 def build_authoritative_p_values(stats: dict[str, Any]) -> dict[str, str]:
@@ -363,6 +421,17 @@ def main() -> int:
     print(f"  权威p值数: {len(authoritative_p)}")
     print(f"  废弃p值数: {len(deprecated_p)}")
     print("=" * 70)
+
+    # Issue #536: 权威源覆盖度检查（确保已发布实验不遗漏）
+    coverage_warnings = check_authoritative_coverage(stats)
+    if coverage_warnings:
+        print("\n[Issue #536] 权威源覆盖度检查:")
+        for w in coverage_warnings:
+            print(f"  [ERROR] {w}")
+        print()
+    else:
+        print("[Issue #536] 权威源覆盖度检查: ✅ 关键实验均已收录")
+        print()
 
     # 收集所有Markdown文件（使用 os.walk 跳过 node_modules 等目录）
     md_files = set()
