@@ -66,6 +66,7 @@ from src.scheduler.env_types import (
     REAL_MACHINE_DEGRADE_FAIL_THRESHOLD,
     REAL_MACHINE_FAIL_PENALTY,
     REAL_MACHINE_MAX_POLL_STEPS,
+    REAL_MACHINE_MAX_SUBMISSIONS_DEFAULT,
     REAL_MACHINE_SUBMIT_INTERVAL,
     REAL_MACHINE_SUCCESS_BONUS,
     REAL_SUBMIT_PROBABILITY_DEFAULT,
@@ -79,6 +80,7 @@ from src.scheduler.env_types import (
     ClassicalResource,
     QuantumMachine,
     QuantumResource,
+    RealMachineConfig,
     Task,
 )
 
@@ -125,6 +127,7 @@ __all__ = [
     "QuantumMachine",
     "QuantumResource",
     "QuantumSchedulingEnv",
+    "RealMachineConfig",
     "Task",
     "register_env",
 ]
@@ -150,7 +153,7 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
         real_submit_interval: int = REAL_MACHINE_SUBMIT_INTERVAL,
         use_real_machine: bool = False,
         real_machine_feedback_weight: float = 1.0,
-        max_real_submissions: int | None = None,
+        max_real_submissions: int | None = REAL_MACHINE_MAX_SUBMISSIONS_DEFAULT,
         real_machine_shots: int = 512,
         real_feedback_mode: str = "status_only",
         tenant_manager: Any | None = None,

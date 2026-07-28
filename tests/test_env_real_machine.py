@@ -36,11 +36,14 @@ from src.scheduler.env_types import (
     REAL_MACHINE_DEGRADE_FAIL_THRESHOLD,
     REAL_MACHINE_FAIL_PENALTY,
     REAL_MACHINE_MAX_POLL_STEPS,
+    REAL_MACHINE_MAX_SUBMISSIONS_DEFAULT,
     REAL_MACHINE_SUBMIT_INTERVAL,
     REAL_MACHINE_SUCCESS_BONUS,
     REAL_RESULT_REWARD_MAX,
     REAL_RESULT_REWARD_MIN,
+    REAL_SUBMIT_PROBABILITY_DEFAULT,
     QuantumMachine,
+    RealMachineConfig,
     Task,
 )
 
@@ -1492,6 +1495,117 @@ class TestExportRealFeedbackLog:
         # step 后至少有 0 条记录（取决于是否触发了真机提交）
         assert n >= 0
         assert out.exists()
+
+
+# =============================================================================
+# RealMachineConfig 统一配置（Issue #576）
+# =============================================================================
+
+
+class TestRealMachineConfig:
+    """RealMachineConfig dataclass 测试。"""
+
+    def test_default_values(self):
+        """默认值应符合 Issue #576 验收标准。"""
+        config = RealMachineConfig()
+        assert config.submit_probability == 0.15
+        assert config.max_submissions == 30
+        assert config.degrade_fail_threshold == 3
+        assert config.success_bonus == 5.0
+
+    def test_default_probability_matches_constant(self):
+        """RealMachineConfig 默认概率应与 REAL_SUBMIT_PROBABILITY_DEFAULT 一致。"""
+        config = RealMachineConfig()
+        assert config.submit_probability == REAL_SUBMIT_PROBABILITY_DEFAULT
+
+    def test_default_max_submissions_matches_constant(self):
+        """RealMachineConfig 默认上限应与 REAL_MACHINE_MAX_SUBMISSIONS_DEFAULT 一致。"""
+        config = RealMachineConfig()
+        assert config.max_submissions == REAL_MACHINE_MAX_SUBMISSIONS_DEFAULT
+
+    def test_custom_values(self):
+        """自定义参数应正确设置。"""
+        config = RealMachineConfig(
+            submit_probability=0.3,
+            max_submissions=50,
+            degrade_fail_threshold=5,
+            success_bonus=10.0,
+        )
+        assert config.submit_probability == 0.3
+        assert config.max_submissions == 50
+        assert config.degrade_fail_threshold == 5
+        assert config.success_bonus == 10.0
+
+    def test_invalid_probability_raises(self):
+        """submit_probability 超出 [0, 1] 应抛出 ValueError。"""
+        with pytest.raises(ValueError, match="submit_probability"):
+            RealMachineConfig(submit_probability=-0.1)
+        with pytest.raises(ValueError, match="submit_probability"):
+            RealMachineConfig(submit_probability=1.5)
+
+    def test_invalid_interval_raises(self):
+        """submit_interval < 1 应抛出 ValueError。"""
+        with pytest.raises(ValueError, match="submit_interval"):
+            RealMachineConfig(submit_interval=0)
+
+    def test_invalid_max_submissions_raises(self):
+        """max_submissions < 0 应抛出 ValueError。"""
+        with pytest.raises(ValueError, match="max_submissions"):
+            RealMachineConfig(max_submissions=-1)
+
+    def test_invalid_degrade_threshold_raises(self):
+        """degrade_fail_threshold < 1 应抛出 ValueError。"""
+        with pytest.raises(ValueError, match="degrade_fail_threshold"):
+            RealMachineConfig(degrade_fail_threshold=0)
+
+    def test_invalid_poll_steps_raises(self):
+        """max_poll_steps < 1 应抛出 ValueError。"""
+        with pytest.raises(ValueError, match="max_poll_steps"):
+            RealMachineConfig(max_poll_steps=0)
+
+    def test_zero_probability_allowed(self):
+        """submit_probability=0 应被允许（禁用真机提交）。"""
+        config = RealMachineConfig(submit_probability=0.0)
+        assert config.submit_probability == 0.0
+
+    def test_max_submissions_zero_allowed(self):
+        """max_submissions=0 应被允许（完全禁止提交）。"""
+        config = RealMachineConfig(max_submissions=0)
+        assert config.max_submissions == 0
+
+    def test_config_used_to_create_env(self):
+        """RealMachineConfig 参数应能直接传入 QuantumSchedulingEnv。"""
+        config = RealMachineConfig(
+            submit_probability=0.2,
+            max_submissions=50,
+        )
+        env = QuantumSchedulingEnv(
+            real_submit_probability=config.submit_probability,
+            max_real_submissions=config.max_submissions,
+            real_submit_interval=config.submit_interval,
+        )
+        assert env.real_submit_probability == 0.2
+        assert env.max_real_submissions == 50
+        assert env.real_submit_interval == config.submit_interval
+
+
+class TestDefaultMaxRealSubmissions:
+    """max_real_submissions 默认值变更测试（Issue #576）。"""
+
+    def test_env_default_max_real_submissions_is_30(self):
+        """env 默认 max_real_submissions 应为 30。"""
+        env = QuantumSchedulingEnv()
+        assert env.max_real_submissions == 30
+
+    def test_env_explicit_none_still_allowed(self):
+        """显式传入 None 仍应表示无限制（向后兼容）。"""
+        env = QuantumSchedulingEnv(max_real_submissions=None)
+        assert env.max_real_submissions is None
+
+    def test_env_explicit_custom_value(self):
+        """显式传入自定义值应生效。"""
+        env = QuantumSchedulingEnv(max_real_submissions=100)
+        assert env.max_real_submissions == 100
 
 
 if __name__ == "__main__":

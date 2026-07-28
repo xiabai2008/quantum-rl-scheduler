@@ -327,7 +327,7 @@ class TestRealMachineCallbackInit(unittest.TestCase):
         cb = RealMachineCallback(env=env)
         self.assertIs(cb.env, env)
         self.assertEqual(cb.interval, 1000)
-        self.assertAlmostEqual(cb.prob, 0.05)
+        self.assertAlmostEqual(cb.prob, 0.15)
         self.assertIsNone(cb.client)
         self.assertEqual(cb.save_path, "results/real_times.json")
         self.assertEqual(cb.shots, 512)
