@@ -109,14 +109,8 @@ jobs:
           # Dev/test dependencies (not in requirements.txt to keep prod image lean)
           pip install -r requirements-dev.txt
 
-      - name: Install ffmpeg (Linux)
-        if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y ffmpeg
-
-      - name: Install ffmpeg (macOS)
-        if: runner.os == 'macOS'
-        run: brew install ffmpeg
-
+      # Issue #548: CI 仅在 Windows runner 运行（团队开发环境统一为 Windows）
+      # Linux/macOS 平台代码已清理，如需跨平台支持请参考 .github/workflows/ci.yml 历史
       - name: Install ffmpeg (Windows)
         if: runner.os == 'Windows'
         run: choco install ffmpeg -y
@@ -233,7 +227,7 @@ jobs:
   # Job 4: 依赖安全审计（pip-audit）
   # 自动扫描 requirements.txt 中的依赖项，检测已知漏洞（CVE/GHSA）
   # Issue #184: 移除 continue-on-error，使安全审计成为阻断性门禁
-  # 注：项目中暂无 requirements-dev.txt，开发依赖安全审计待后续补充
+  # Issue #566: 扫描主依赖和开发依赖的安全漏洞
   # ---------------------------------------------------------------------------
   security-audit:
     name: "Dependency Security Audit (pip-audit)"
@@ -258,6 +252,10 @@ jobs:
           # 扫描全部依赖；如需跳过已确认的误报，添加 --ignore-vuln <GHSA-ID>
           # Issue #184: 移除占位 --ignore-vuln GHSA-xxxx，避免无效参数
           pip-audit -r requirements.txt --desc
+
+      # Issue #566: 扫描开发依赖安全漏洞
+      - name: Audit dev dependencies
+        run: pip-audit -r requirements-dev.txt
 
   # ---------------------------------------------------------------------------
   # Job 5: Mutation Testing（mutmut）— 评估测试质量

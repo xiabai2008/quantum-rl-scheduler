@@ -18,6 +18,7 @@ import unittest
 from unittest.mock import MagicMock, patch
 
 import numpy as np
+import pytest
 import torch
 from torch import nn
 
@@ -1008,7 +1009,7 @@ class TestOptimizePolicyAndHelpers(unittest.TestCase):
         ):
             self.assertTrue(torch.equal(p1, p2))
 
-    @unittest.skip("v5 ??? head_only ?????,???????")
+    @pytest.mark.slow
     def test_optimize_policy_head_only_raises_attribute_error(self):
         pass
 

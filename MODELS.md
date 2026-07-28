@@ -14,7 +14,7 @@
 | 策略 | 提交路径（可复现） | 训练说明 | 体积 | 复现指标 |
 |------|-------------------|----------|------|----------|
 | **PPO（16维MLP）** | `deliverable_models/ppo_best_model_16dim.zip` | 16维原生环境，100K steps，标准PPO(MLP)，seed=42，use_lstm=False | ~282 KB | 调度层PPO（权威实验见statistics.yaml） |
-| **PPO编译优化Agent** | `deliverable_models/ppo_compilation_agent.zip` | 量子比特映射任务专用PPO Agent，4×4 2D网格训练200k steps | ~160 KB | 公平对比v2：深电路(14-16q)SWAP减少~33%（Issue #451） |
+| **PPO编译优化Agent** | `deliverable_models/ppo_compilation_agent.zip` | 量子比特映射任务专用PPO Agent，4×4 2D网格训练200k steps | ~160 KB | 公平对比v2：深电路(14-16q)SWAP减少~33%（n=20, p=0.29不显著）（Issue #451） |
 
 ## 训练配置（复现前提）
 
@@ -58,7 +58,7 @@ python scripts/evaluation/ablation_ppo_variants.py
 | 指标 | 数值 | 统计检验 |
 |:--|:--|:--|
 | PPO vs FCFS 提升 | **+88.3%** | Mann-Whitney U, p=1.032e-42, rank-biserial=-0.7081（14维权威实验, N=250, config/statistics.yaml） |
-| 编译层PPO vs SABRE | 公平对比v2（4×4 2D网格, 60电路同池配对, Issue #451） | 深电路SWAP减少~33%；整体p=0.86不显著 |
+| 编译层PPO vs SABRE | 公平对比v2（4×4 2D网格, 60电路同池配对, Issue #451） | 深电路SWAP减少~33%（n=20, p=0.29不显著）；整体p=0.86不显著 |
 | 2D网格拓扑优势 | SABRE在2D网格上SWAP比线性链少~62% | 拓扑消融实验（ablation_compilation_env.py） |
 | 真机验证 | 315次SDK调用100%成功率 | 可用性验证 |
 

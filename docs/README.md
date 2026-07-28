@@ -16,7 +16,7 @@
 | 🤖 AI 助手 | [项目记忆_给AI.md](./项目记忆_给AI.md) | 项目根目录 `AGENTS.md` |
 | 📋 项目经理 | [开发计划](./开发计划.md) + [团队分工](./团队分工.md) | [项目记忆_给AI.md](./项目记忆_给AI.md) |
 | 🐳 部署运维 | [deployment](./deployment.md) | [开发计划](./开发计划.md) |
-| 🎬 Demo演示 | [demo_script.md（演示脚本）](./demo_script.md) | 一键启动 `python scripts/demo_one_click.py` |
+| 🎬 Demo演示 | [demo_video_final_script.md（演示视频综合脚本）](./demo_video_final_script.md) | 一键启动 `python scripts/demo_one_click.py` |
 
 ---
 
@@ -38,8 +38,7 @@
 | **核心交付** ||||
 | 1 | [technical_whitepaper.pdf](./technical_whitepaper.pdf) | 408 KB | 技术白皮书PDF（评审交付物） | ✅ |
 | 2 | [technical_whitepaper.md](./technical_whitepaper.md) | 16 KB | 技术白皮书源文件（7章） | ✅ |
-| 3 | [demo_script.md](./demo_script.md) | 5 KB | 3分钟Demo演示脚本+旁白 | ✅ |
-| 4 | [demo_video_script.md](./demo_video_script.md) | 4 KB | 视频录制脚本 | ✅ |
+| 3 | [demo_video_final_script.md](./demo_video_final_script.md) | - | 演示视频综合脚本（大纲+分镜+旁白，Issue #545 合并） | ✅ |
 | **答辩准备** ||||
 | 5 | [defense_qa_handbook.md](./defense_qa_handbook.md) | 25 KB | 30+预设问题及标准答案 | ✅ |
 | 6 | [annealing_significance-defense.md](./annealing_significance-defense.md) | 8 KB | 退火p=0.19阴性结果答辩话术 | ✅ |
@@ -96,7 +95,7 @@
 - [requirements_traceability.md](./requirements_traceability.md) — 27条需求追溯矩阵
 
 ### 🎬 Demo演示
-- [demo_script.md](./demo_script.md) — 3分钟演示脚本
+- [demo_video_final_script.md](./demo_video_final_script.md) — 演示视频综合脚本（大纲+分镜+旁白）
 - 一键启动：`python scripts/demo_one_click.py`
 - Dashboard地址：http://localhost:8000
 

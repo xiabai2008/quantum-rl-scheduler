@@ -20,12 +20,27 @@ if TYPE_CHECKING:
 _FIXTURES_DIR = Path(__file__).parent / "fixtures" / "cqlib_responses"
 
 
+def pytest_addoption(parser: Any) -> None:
+    """注册 --runslow 命令行选项，用于显式运行慢测试。"""
+    parser.addoption(
+        "--runslow",
+        action="store_true",
+        default=False,
+        help="run slow tests",
+    )
+
+
 def pytest_configure(config: Any) -> None:
     """注册自定义标记，避免 --strict-markers 报错。"""
     config.addinivalue_line("markers", "benchmark: marks performance benchmark tests")
     config.addinivalue_line(
         "markers",
         "cqlib_replay: marks cqlib replay tests (run from fixtures, no SDK needed)",
+    )
+    # Issue #567：注册 slow 标记（与 pyproject.toml 中一致），使 --runslow 机制生效
+    config.addinivalue_line(
+        "markers",
+        'slow: marks tests as slow (deselect with \'-m "not slow"\')',
     )
 
 
@@ -44,14 +59,25 @@ def _has_replay_fixtures() -> bool:
 
 
 def pytest_collection_modifyitems(config: Any, items: list[Any]) -> None:
-    """cqlib 测试跳过逻辑：有 fixtures 则运行回放测试，无则 skip 并告警。
+    """测试收集后处理：慢测试默认跳过 + cqlib 测试跳过逻辑。
 
-    跳过策略：
+    慢测试策略（Issue #567）：
+        - 默认跳过所有标记为 slow 的测试，保证 CI 不会被慢测试拖慢
+        - 仅当传入 --runslow 选项时才运行慢测试
+
+    cqlib 跳过策略：
         1. cqlib SDK 可用 → 运行所有 cqlib 测试（含回放与真机测试）
         2. cqlib SDK 不可用 + 有 fixtures → 运行 cqlib_replay 标记的回放测试，
            跳过依赖真机 SDK 的测试
         3. cqlib SDK 不可用 + 无 fixtures → 跳过所有 cqlib 测试并发出告警
     """
+    # Issue #567：慢测试默认跳过，仅当传入 --runslow 时运行
+    if not config.getoption("--runslow"):
+        skip_slow = pytest.mark.skip(reason="需要 --runslow 选项才会运行慢测试")
+        for item in items:
+            if item.get_closest_marker("slow") is not None:
+                item.add_marker(skip_slow)
+
     has_cqlib = _has_cqlib_sdk()
     has_fixtures = _has_replay_fixtures()
 
