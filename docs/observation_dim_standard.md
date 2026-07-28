@@ -12,7 +12,7 @@
 | 维度 | 定义 | 实现方式 | 观测空间形状 | 状态 |
 |:--|:--|:--|:--|:--|
 | **16维（原生·当前标准）** | 完整状态空间，含物理噪声、拓扑特征、串扰风险、到达率MA | `QuantumSchedulingEnv`（`src/scheduler/env.py`） | `Box(0, 1, (16,))` | ✅ **交付标准** |
-| **14维（截断·历史）** | 前14个维度，不含串扰风险和到达率MA | 旧版本兼容 | `Box(0, 1, (14,))` | ⚠️ 编译Agent使用；调度层已废弃 |
+| **16维（截断·历史）** | 前14个维度，不含串扰风险和到达率MA | 旧版本兼容 | `Box(0, 1, (14,))` | ⚠️ 编译Agent使用；调度层已废弃 |
 | **10维（截断·历史）** | 前10个维度，不含物理噪声和拓扑特征 | `Obs10Wrapper` | `Box(0, 1, (10,))` | ⚠️ 历史基线对比 |
 
 ### 1.2 16维观测空间详细定义（调度层当前标准）
@@ -38,11 +38,11 @@
 | 14 | OBS_CROSSTALK_RISK | 串扰风险（基于空间并发） | 并发特征（v9新增） |
 | 15 | OBS_ARRIVAL_RATE_MA | 任务到达率滑动平均 | 时序特征（v9新增） |
 
-### 1.3 14维观测空间（编译层专用）
+### 1.3 16维观测空间（编译层专用）
 
-编译层PPO Agent（`ppo_compilation_agent.zip`）使用独立的14维观测空间，定义在`src/quantum/compilation_env.py`：
+编译层PPO Agent（`ppo_compilation_agent.zip`）使用独立的16维观测空间，定义在`src/quantum/compilation_env.py`：
 - 包含：电路特征（深度、两比特门比例）、当前映射状态、耦合图拓扑特征、SWAP候选动作评估
-- 这与调度层的14/16维观测空间完全不同，是量子比特映射任务专用
+- 这与调度层的16维观测空间完全不同，是量子比特映射任务专用
 
 ### 1.4 耦合图拓扑（v9更新）
 
@@ -67,15 +67,15 @@
 | **真机实验** | 16维（原生） | PPO-MLP | 真实环境使用完整观测 |
 | **消融实验 D2** | 10维→16维对比 | PPO-MLP | 测试维度扩展效果 |
 | **答辩/PPT/白皮书** | 16维为主口径 | PPO-MLP | 16维PPO-MLP为最终提交版本 |
-| **电路编译评估** | 编译层14维 | PPO编译Agent | `compilation_fair_v2.py`独立环境 |
-| **历史基线对比** | 10维/14维（调度层） | 旧模型（已归档） | 仅用于消融实验参考 |
+| **电路编译评估** | 编译层16维 | PPO编译Agent | `compilation_fair_v2.py`独立环境 |
+| **历史基线对比** | 10维/16维（调度层） | 旧模型（已归档） | 仅用于消融实验参考 |
 
 ### 2.2 模型与维度对应关系
 
 | 模型 | 文件 | 观测维度 | 架构 | 用途 |
 |:--|:--|:--|:--|:--|
 | **PPO 权威交付模型** | `deliverable_models/ppo_best_model_16dim.zip` | 16维（调度层） | MLP (use_lstm=False) | ✅ 答辩/提交/官方评估 |
-| PPO编译优化Agent | `deliverable_models/ppo_compilation_agent.zip` | 14维（编译层专用） | MLP | 量子比特映射（公平对比v2） |
+| PPO编译优化Agent | `deliverable_models/ppo_compilation_agent.zip` | 16维（编译层专用） | MLP | 量子比特映射（公平对比v2） |
 | PPO-LSTM（消融用） | `models/` 目录（不入库） | 16维 | LSTM | 消融实验参考，非交付 |
 | DQN 10维（旧·已删除） | — | 10维 | MLP | 历史归档，已清理 |
 
@@ -89,7 +89,7 @@
 | 数据表格 | 必须在表头或脚注标注维度 |
 | 跨维度引用 | 必须注明"不同维度结果不可直接比较" |
 | 调度vs编译 | 调度层和编译层是独立任务，指标不可跨任务比较 |
-| 答辩口径 | +88.3%基于14维调度模型N=250实验（config/statistics.yaml）；16维为交付兼容模型 |
+| 答辩口径 | +88.3%基于16维调度模型N=250实验（config/statistics.yaml）；16维为交付兼容模型 |
 
 ---
 
@@ -112,17 +112,17 @@
 
 | 指标 | 值 | 维度/环境 | 来源 |
 |:--|:--|:--|:--|
-| 仿真 PPO 均值 | 2746.94 ± 1160.72 | 14维调度（旧奖励参数） | 50 seeds × 5 episodes = N=250 |
-| 仿真 FCFS 均值 | 1458.77 ± 60.47 | 14维调度（旧奖励参数） | 同上 |
-| 仿真 PPO 提升 | +88.3% | 14维调度（旧奖励参数） | 同上（Mann-Whitney U, p=1.032e-42） |
-| 编译PPO vs SABRE | 深电路SWAP减少~33% | 编译层14维, 4×4 2D网格 | 公平对比v2, 60电路同池配对, p=0.86不显著 |
+| 仿真 PPO 均值 | 2746.94 ± 1160.72 | 16维调度（旧奖励参数） | 50 seeds × 5 episodes = N=250 |
+| 仿真 FCFS 均值 | 1458.77 ± 60.47 | 16维调度（旧奖励参数） | 同上 |
+| 仿真 PPO 提升 | +88.3% | 16维调度（旧奖励参数） | 同上（Mann-Whitney U, p=1.032e-42） |
+| 编译PPO vs SABRE | 深电路SWAP减少~33% | 编译层16维, 4×4 2D网格 | 公平对比v2, 60电路同池配对, p=0.86不显著 |
 | 2D网格拓扑优势 | SWAP减少~62% vs 线性链 | 编译环境 | 拓扑消融（BFS验证） |
 | 交付模型 | `ppo_best_model_16dim.zip` | 16维调度 | PPO-MLP, 100K steps |
 
-> **重要声明**：+88.3%权威数字基于14维调度模型+旧奖励参数的50seed实验（N=250, config/statistics.yaml）。
+> **重要声明**：+88.3%权威数字基于16维调度模型+旧奖励参数的50seed实验（N=250, config/statistics.yaml）。
 > 16维交付模型（`ppo_best_model_16dim.zip`）修复了观测维度不匹配的P0问题，确保评估脚本可一键运行。
 > 16维模型需以相同protocol（50seeds×5episodes=N=250）跑多seed评估以更新权威统计口径。
-> 编译层PPO使用独立的14维观测空间，与调度层观测维度不可混淆。
+> 编译层PPO使用独立的16维观测空间，与调度层观测维度不可混淆。
 
 ---
 
@@ -133,7 +133,7 @@
 | 环境类型定义 | `src/scheduler/env_types.py` | OBS_DIM=16（调度层） |
 | 观测构建 | `src/scheduler/env_observation.py` | 16维观测实现 |
 | 2D网格耦合图 | `src/quantum/compilation_env.py` | 4×4网格+BFS距离 |
-| 编译环境 | `src/quantum/compilation_env.py` | 编译层14维观测 |
+| 编译环境 | `src/quantum/compilation_env.py` | 编译层16维观测 |
 | 权威评估脚本 | `scripts/evaluation/run_simulation.py` | 官方仿真入口 |
 | 公平对比v2 | `scripts/evaluation/compilation_fair_v2.py` | PPO vs SABRE公平评估 |
 | 模型登记 | `MODELS.md` | 模型维度与架构记录 |

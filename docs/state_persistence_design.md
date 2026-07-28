@@ -175,7 +175,7 @@ CREATE TABLE IF NOT EXISTS persistence_meta (
 | 标量（int/float/str） | 原生 SQLite 类型 | 直接存取，无开销 |
 | `real_machines` / `real_submissions` | `json.dumps()` → TEXT | 列表内元素为简单 dict |
 | `resource_history` / `decision_log` 的 payload | `json.dumps()` → TEXT | 完整数据点 JSON |
-| `obs_vector`（numpy ndarray） | `json.dumps(vec.tolist())` → TEXT | 14 维观测向量 |
+| `obs_vector`（numpy ndarray） | `json.dumps(vec.tolist())` → TEXT | 16 维观测向量 |
 | `env_state`（环境状态） | 自定义 `to_dict()` / `from_dict()` | 仅序列化可恢复字段（队列、计数器、rng 状态） |
 
 **不可序列化对象的处理**：

@@ -12,10 +12,10 @@
 ## 零、权威实验数字（多 Seed 验证）
 
 > **实验配置**: 50 seeds × 5 episodes = 250 次独立运行
-> **环境**: 14 维观测空间（原生 14 维环境）
+> **环境**: 16 维观测空间（原生 16 维环境）
 > **任务规模**: 每 episode 200 步，泊松到达 λ=0.5，量子任务占比 70%
-> **PPO 模型**: `deliverable_models/ppo_best_model_14dim.zip`（14维，Actor-Critic）
-> **DQN 模型**: `deliverable_models/dqn_best_model_14dim.zip`（14维，Double DQN + reward clip）
+> **PPO 模型**: `deliverable_models/ppo_best_model_16dim.zip`（16维，Actor-Critic）
+> **DQN 模型**: `deliverable_models/dqn_best_model_16dim.zip`（16维，Double DQN + reward clip）
 > **显著性水平**: α = 0.05（Bonferroni 校正）
 
 | 排名 | 策略 | 平均奖励 | 标准差 | 标准误 | 提升 vs FCFS | 提升% 95% CI |
@@ -42,7 +42,7 @@
 
 | 参数 | 值 | 说明 |
 |:--|:--|:--|
-| 环境类 | `QuantumSchedulingEnv` | 14维观测空间的原生 Gymnasium 环境 |
+| 环境类 | `QuantumSchedulingEnv` | 16维观测空间的原生 Gymnasium 环境 |
 | 奖励函数 | `env_reward.py: compute_execution_reward()` | 基于量子保真度、加速比、队列波动的动态奖励 |
 | 观测维度 | 14 | 包含物理噪声和拓扑特征 |
 | 任务规模 | 200 步/episode | 泊松到达 λ=0.5，量子任务占比 70% |
@@ -289,7 +289,7 @@ python scripts/evaluation/run_experiments.py --use-env --episodes 50 --tasks 200
 #### 链1：Seed=42
 - **种子设定**：随机种子 42
 - **任务生成**：泊松到达 λ=0.5，32个任务，量子任务占比70%
-- **PPO决策**：智能体根据14维观测空间做出调度决策
+- **PPO决策**：智能体根据16维观测空间做出调度决策
 - **结果**：总奖励 1560.86，相比 FCFS 提升 +280.5%
 
 #### 链2：Seed=123

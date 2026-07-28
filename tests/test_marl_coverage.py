@@ -405,7 +405,8 @@ class TestTensorHelpers:
         arr = np.array([1.0, 2.0, 3.0], dtype=np.float64)
         tensor = agent._to_tensor(arr)
         assert tensor.dtype == torch.float32
-        assert tensor.device == agent.device
+        # cuda:0 与 cuda 在 PyTorch 中表示同一设备但 __eq__ 不相等，比较 type 即可
+        assert tensor.device.type == agent.device.type
         assert tensor.shape == (3,)
 
     def test_global_state_tensor_adds_batch_dim(self) -> None:

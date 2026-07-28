@@ -12,6 +12,7 @@ Integration Tests for End-to-End Pipelines
 """
 
 import copy
+import os
 import sys
 import unittest
 from pathlib import Path
@@ -120,7 +121,8 @@ class TestMockFullPipeline(unittest.TestCase):
 
         # 4. 验证奖励和状态
         self.assertGreater(steps_taken, 0)
-        self.assertIsInstance(total_reward, float)
+        # total_reward 可能是 numpy 标量，用 float() 转换后比较
+        self.assertIsInstance(float(total_reward), float)
         self.assertEqual(obs.shape, (OBS_DIM,))
         self.assertTrue(np.all(obs >= 0.0))
         self.assertTrue(np.all(obs <= 1.0))
@@ -335,6 +337,11 @@ class TestWebAPIIntegration(unittest.TestCase):
         self._patcher = patch.object(app_module, "simulate_scheduler", self._noop_simulate)
         self._patcher.start()
 
+        # 设置 VIZ_API_KEY 以通过 verify_api_key 认证（Issue #517 安全修复）
+        self._saved_viz_key = os.environ.get("VIZ_API_KEY")
+        os.environ["VIZ_API_KEY"] = "test-integration-key"
+        self._auth_headers = {"X-API-Key": "test-integration-key"}
+
         # 使用 TestClient 的 context manager 触发 lifespan（已补丁为 noop）
         self._client_ctx = TestClient(app)
         self.client = self._client_ctx.__enter__()
@@ -345,6 +352,11 @@ class TestWebAPIIntegration(unittest.TestCase):
             self._client_ctx.__exit__(None, None, None)
         finally:
             self._patcher.stop()
+            # 还原 VIZ_API_KEY 环境变量
+            if self._saved_viz_key is None:
+                os.environ.pop("VIZ_API_KEY", None)
+            else:
+                os.environ["VIZ_API_KEY"] = self._saved_viz_key
             # 还原全局状态
             app_module.system_status.clear()
             app_module.system_status.update(copy.deepcopy(self._saved_status))
@@ -355,7 +367,7 @@ class TestWebAPIIntegration(unittest.TestCase):
     def test_full_web_workflow(self):
         """GET /api/status→POST /api/tasks→GET /api/tasks→POST /api/strategy→GET /metrics"""
         # 1. GET /api/status — 获取初始系统状态
-        resp = self.client.get("/api/status")
+        resp = self.client.get("/api/status", headers=self._auth_headers)
         self.assertEqual(resp.status_code, 200)
         status = resp.json()
         self.assertIn("qubit_utilization", status)
@@ -372,14 +384,14 @@ class TestWebAPIIntegration(unittest.TestCase):
             "circuit_depth": 100,
             "estimated_time": 30.0,
         }
-        resp = self.client.post("/api/tasks", json=task_payload)
+        resp = self.client.post("/api/tasks", json=task_payload, headers=self._auth_headers)
         self.assertEqual(resp.status_code, 200)
         task_data = resp.json()
         self.assertIn("task_id", task_data)
         self.assertTrue(task_data["task_id"].startswith("QTASK-"))
 
         # 3. GET /api/tasks — 查询任务列表
-        resp = self.client.get("/api/tasks")
+        resp = self.client.get("/api/tasks", headers=self._auth_headers)
         self.assertEqual(resp.status_code, 200)
         tasks = resp.json()
         self.assertIsInstance(tasks, list)
@@ -389,7 +401,9 @@ class TestWebAPIIntegration(unittest.TestCase):
         self.assertTrue(submitted)
 
         # 4. POST /api/strategy — 切换调度策略
-        resp = self.client.post("/api/strategy", params={"strategy": "FCFS"})
+        resp = self.client.post(
+            "/api/strategy", params={"strategy": "FCFS"}, headers=self._auth_headers
+        )
         self.assertEqual(resp.status_code, 200)
         strat_data = resp.json()
         self.assertTrue(strat_data["success"])
@@ -411,13 +425,13 @@ class TestWebAPIIntegration(unittest.TestCase):
         }
 
         # POST /api/update — 更新系统状态
-        resp = self.client.post("/api/update", json=update_payload)
+        resp = self.client.post("/api/update", json=update_payload, headers=self._auth_headers)
         self.assertEqual(resp.status_code, 200)
         update_data = resp.json()
         self.assertIn("status", update_data)
 
         # GET /api/status — 验证状态已更新
-        resp = self.client.get("/api/status")
+        resp = self.client.get("/api/status", headers=self._auth_headers)
         self.assertEqual(resp.status_code, 200)
         status = resp.json()
         self.assertAlmostEqual(status["qubit_utilization"], 0.85)
@@ -428,7 +442,7 @@ class TestWebAPIIntegration(unittest.TestCase):
     def test_web_task_lifecycle(self):
         """提交任务→查询任务列表→验证队列长度变化"""
         # 获取初始任务列表长度
-        resp = self.client.get("/api/tasks")
+        resp = self.client.get("/api/tasks", headers=self._auth_headers)
         self.assertEqual(resp.status_code, 200)
         initial_task_count = len(resp.json())
 
@@ -441,18 +455,20 @@ class TestWebAPIIntegration(unittest.TestCase):
             "circuit_depth": 50,
             "estimated_time": 20.0,
         }
-        resp = self.client.post("/api/tasks", json=task_payload)
+        resp = self.client.post("/api/tasks", json=task_payload, headers=self._auth_headers)
         self.assertEqual(resp.status_code, 200)
         new_task_id = resp.json()["task_id"]
 
         # 验证任务列表长度增加
-        resp = self.client.get("/api/tasks")
+        resp = self.client.get("/api/tasks", headers=self._auth_headers)
         self.assertEqual(resp.status_code, 200)
         updated_task_count = len(resp.json())
         self.assertGreater(updated_task_count, initial_task_count)
 
         # 验证新任务在 pending 列表中
-        resp = self.client.get("/api/tasks", params={"status": "pending"})
+        resp = self.client.get(
+            "/api/tasks", params={"status": "pending"}, headers=self._auth_headers
+        )
         self.assertEqual(resp.status_code, 200)
         pending_tasks = resp.json()
         found = any(t["task_id"] == new_task_id for t in pending_tasks)

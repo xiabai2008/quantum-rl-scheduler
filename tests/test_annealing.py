@@ -1895,7 +1895,7 @@ class TestTargetNetGradient(unittest.TestCase):
         from stable_baselines3 import DQN
 
         env = gym.make("CartPole-v1")
-        model = DQN("MlpPolicy", env, verbose=0)
+        model = DQN("MlpPolicy", env, verbose=0, device="cpu")
         # SB3 ????? target ??
         self.assertIsNot(model.policy.q_net, model.policy.q_net_target)
         self.assertIsInstance(model.policy.q_net_target, nn.Module)

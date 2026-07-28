@@ -84,14 +84,15 @@ def test_init_keeps_hyperparameters_and_builds_simulated_annealer(
     assert agent.batch_size == 8
     assert agent.annealing_optimizer is optimizer
     assert agent.anneal_interval == 17
-    optimizer_cls.assert_called_once_with(
-        num_qubits=12,
-        annealing_time=20.0,
-        shots=5,
-        simulation_mode=True,
-        cqlib_client=None,
-        n_bits_per_weight=4,
-    )
+    # PPOAgent 现在通过 config 字典传递退火参数（Issue #246 config 驱动）
+    call_kwargs = optimizer_cls.call_args.kwargs
+    assert call_kwargs.get("cqlib_client") is None
+    cfg = call_kwargs.get("config", {})
+    assert cfg.get("num_qubits") == 12
+    assert cfg.get("annealing_time") == 20.0
+    assert cfg.get("shots") == 5
+    assert cfg.get("simulation_mode") is True
+    assert cfg.get("n_bits_per_weight") == 4
 
 
 @pytest.mark.parametrize(
@@ -356,7 +357,9 @@ def test_init_annealing_real_machine_mode(monkeypatch, tiny_env: TinyEnv) -> Non
 
     assert agent.annealing_optimizer is optimizer
     optimizer_cls.assert_called_once()
-    assert optimizer_cls.call_args.kwargs["simulation_mode"] is False
+    # PPOAgent 现在通过 config 字典传递退火参数（Issue #246 config 驱动）
+    cfg = optimizer_cls.call_args.kwargs.get("config", {})
+    assert cfg.get("simulation_mode") is False
 
 
 # ============================================================================

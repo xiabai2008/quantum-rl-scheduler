@@ -1,11 +1,12 @@
 """
 状态空间扩展测试
-Unit Tests for Extended State Space (14 dimensions)
+Unit Tests for Extended State Space (16 dimensions)
 
 测试覆盖：
 - 阶段1：物理噪声特征（12维）
 - 阶段2：拓扑特征（14维）
 - 阶段3：LSTM策略训练收敛性
+- 阶段4：串扰风险+到达率滑动平均（16维）
 - 向后兼容性（旧10维模型在新环境上可加载）
 """
 
@@ -31,7 +32,7 @@ from src.scheduler.env import (
 
 
 class TestExtendedStateSpace(unittest.TestCase):
-    """测试扩展状态空间（14维）"""
+    """测试扩展状态空间（16维）"""
 
     def setUp(self):
         """测试初始化"""
@@ -41,15 +42,15 @@ class TestExtendedStateSpace(unittest.TestCase):
             seed=42,
         )
 
-    def test_obs_dim_is_14(self):
-        """测试观测空间维度为14"""
-        self.assertEqual(OBS_DIM, 14, "OBS_DIM 应为 14")
-        self.assertEqual(self.env.observation_space.shape[0], 14, "环境观测空间维度应为 14")
+    def test_obs_dim_is_16(self):
+        """测试观测空间维度为16（含串扰风险+到达率滑动平均）"""
+        self.assertEqual(OBS_DIM, 16, "OBS_DIM 应为 16")
+        self.assertEqual(self.env.observation_space.shape[0], 16, "环境观测空间维度应为 16")
 
     def test_observation_shape(self):
         """测试观测向量形状"""
         obs, _info = self.env.reset(seed=42)
-        self.assertEqual(obs.shape, (14,), "观测向量形状应为 (14,)")
+        self.assertEqual(obs.shape, (16,), "观测向量形状应为 (16,)")
         self.assertEqual(obs.dtype, np.float32, "观测向量类型应为 float32")
 
     def test_observation_range(self):
@@ -167,13 +168,13 @@ class TestMultiMachineExtendedState(unittest.TestCase):
 
     def test_multi_machine_obs_dim(self):
         """测试多机器模式下观测维度"""
-        self.assertEqual(self.env.observation_space.shape[0], 14, "多机器模式观测维度应为 14")
+        self.assertEqual(self.env.observation_space.shape[0], 16, "多机器模式观测维度应为 16")
 
     def test_multi_machine_observation(self):
         """测试多机器模式下观测向量"""
         obs, _ = self.env.reset(seed=42)
 
-        self.assertEqual(obs.shape, (14,), "观测向量形状应为 (14,)")
+        self.assertEqual(obs.shape, (16,), "观测向量形状应为 (16,)")
         self.assertTrue(np.all(obs >= 0.0), "所有观测值应 >= 0")
         self.assertTrue(np.all(obs <= 1.0), "所有观测值应 <= 1")
 
@@ -298,10 +299,12 @@ class TestObservationIndices(unittest.TestCase):
     def test_obs_indices(self):
         """测试所有 OBS_* 索引常量"""
         from src.scheduler.env import (
+            OBS_ARRIVAL_RATE_MA,
             OBS_AVG_CONNECTIVITY,
             OBS_AVG_WAIT_TIME,
             OBS_CLASSICAL_LOAD,
             OBS_COUPLING_DENSITY,
+            OBS_CROSSTALK_RISK,
             OBS_FIDELITY,
             OBS_QUANTUM_QUEUE_RATIO,
             OBS_QUBIT_AVAILABILITY,
@@ -328,6 +331,8 @@ class TestObservationIndices(unittest.TestCase):
         self.assertEqual(OBS_TWO_GATE_FIDELITY, 11)
         self.assertEqual(OBS_COUPLING_DENSITY, 12)
         self.assertEqual(OBS_AVG_CONNECTIVITY, 13)
+        self.assertEqual(OBS_CROSSTALK_RISK, 14)
+        self.assertEqual(OBS_ARRIVAL_RATE_MA, 15)
 
 
 if __name__ == "__main__":

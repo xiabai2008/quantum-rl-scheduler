@@ -31,8 +31,8 @@ seed 级别均值的不足。分析基于 8 策略 50 seed 仿真实验（50 see
 | 参数 | 值 | 说明 |
 |:--|:--|:--|
 | 实验名称 | 8策略50seed仿真对比 | 权威实验 |
-| 观测维度 | 14（原生 14 维环境） | `QuantumSchedulingEnv` |
-| PPO 模型 | `deliverable_models/ppo_best_model_14dim.zip` | 14 维 Actor-Critic |
+| 观测维度 | 14（原生 16 维环境） | `QuantumSchedulingEnv` |
+| PPO 模型 | `deliverable_models/ppo_best_model_16dim.zip` | 16 维 Actor-Critic |
 | Seed 列表 | 50 seeds（42, 179, ..., 6755） | 步长 137 |
 | Episodes per seed | 5 | 每种子重复 5 次 |
 | **总样本量** | **250 episodes / 策略** | 独立运行 |
