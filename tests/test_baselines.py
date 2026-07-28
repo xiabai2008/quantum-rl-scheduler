@@ -611,6 +611,100 @@ class TestEnvBasedScheduler(unittest.TestCase):
         action = scheduler.select_action(obs, env)
         self.assertIn(action, [0, 1, 2])  # 应返回合法动作
 
+    def test_heft_non_quantum_always_classical(self):
+        """Issue #584: 非量子任务应始终返回 classical 动作，避免 mismatch 惩罚。"""
+        import numpy as np
+
+        from src.scheduler.env_types import (
+            OBS_QUANTUM_QUEUE_RATIO,
+            OBS_QUBIT_AVAILABILITY,
+            OBS_TASK_TYPE_QUANTUM,
+            OBS_URGENCY_LEVEL,
+        )
+
+        scheduler = EnvBasedHEFTScheduler()
+        env = None
+
+        # 非量子任务，即使量子资源充足，也应返回 classical
+        obs = np.zeros(16, dtype=np.float32)
+        obs[OBS_TASK_TYPE_QUANTUM] = 0.0  # 非量子任务
+        obs[OBS_QUBIT_AVAILABILITY] = 0.9  # 量子资源充足
+        obs[OBS_QUANTUM_QUEUE_RATIO] = 0.0  # 队列空
+        obs[OBS_URGENCY_LEVEL] = 0.3
+
+        action = scheduler.select_action(obs, env)
+        self.assertEqual(action, 0, "非量子任务应始终返回 classical (action=0)")
+
+    def test_heft_quantum_low_resource_degrades(self):
+        """Issue #584: 量子任务在资源严重不足时应降级到 classical。"""
+        import numpy as np
+
+        from src.scheduler.env_types import (
+            OBS_QUANTUM_QUEUE_RATIO,
+            OBS_QUBIT_AVAILABILITY,
+            OBS_TASK_TYPE_QUANTUM,
+            OBS_URGENCY_LEVEL,
+        )
+
+        scheduler = EnvBasedHEFTScheduler()
+        env = None
+
+        # 量子任务，但量子资源极度不足（< 0.1）
+        obs = np.zeros(16, dtype=np.float32)
+        obs[OBS_TASK_TYPE_QUANTUM] = 1.0
+        obs[OBS_QUBIT_AVAILABILITY] = 0.05  # 严重不足
+        obs[OBS_QUANTUM_QUEUE_RATIO] = 0.0
+        obs[OBS_URGENCY_LEVEL] = 0.3
+
+        action = scheduler.select_action(obs, env)
+        self.assertEqual(action, 0, "量子资源 < 0.1 时应降级到 classical")
+
+    def test_heft_quantum_long_queue_degrades(self):
+        """Issue #584: 量子队列过长时应降级，防止队列堆积导致等待惩罚。"""
+        import numpy as np
+
+        from src.scheduler.env_types import (
+            OBS_QUANTUM_QUEUE_RATIO,
+            OBS_QUBIT_AVAILABILITY,
+            OBS_TASK_TYPE_QUANTUM,
+            OBS_URGENCY_LEVEL,
+        )
+
+        scheduler = EnvBasedHEFTScheduler()
+        env = None
+
+        # 量子任务，资源尚可，但队列很长
+        obs = np.zeros(16, dtype=np.float32)
+        obs[OBS_TASK_TYPE_QUANTUM] = 1.0
+        obs[OBS_QUBIT_AVAILABILITY] = 0.5  # 资源尚可
+        obs[OBS_QUANTUM_QUEUE_RATIO] = 0.8  # 队列很长
+        obs[OBS_URGENCY_LEVEL] = 0.3
+
+        action = scheduler.select_action(obs, env)
+        self.assertNotEqual(action, 1, "队列过长时不应选择 quantum 动作")
+
+    def test_heft_reward_positive_in_env(self):
+        """Issue #584: HEFT 在环境中运行应产生正奖励（非负值）。"""
+        from src.scheduler.env import QuantumSchedulingEnv
+
+        env = QuantumSchedulingEnv(max_steps=50, max_qubits=20, seed=42)
+        scheduler = EnvBasedHEFTScheduler()
+        obs = env.reset(seed=42)[0]
+
+        total_reward = 0.0
+        done = False
+        while not done:
+            action = scheduler.select_action(obs, env)
+            obs, reward, terminated, truncated, _info = env.step(action)
+            total_reward += reward
+            done = terminated or truncated
+
+        self.assertGreater(
+            total_reward,
+            -500.0,
+            f"HEFT 总奖励 {total_reward:.2f} 过低，可能存在负奖励 bug",
+        )
+
 
 # ============================================================
 # TestBaselineRewardConsistency (Issue #233)

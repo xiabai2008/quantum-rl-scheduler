@@ -764,13 +764,12 @@ class EnvBasedHEFTScheduler(EnvBasedScheduler):
         return estimated_time
 
     def select_action(self, observation: np.ndarray, env: Any) -> int:
-        """根据 HEFT 策略选择最早完成时间的动作。
+        """根据 HEFT 策略选择最早完成时间的动作（Issue #584 修复负奖励 bug）。
 
-        步骤：
-        1. 从观测中解析任务类型和资源状态
-        2. 估算量子加速比
-        3. 计算每种动作的估算完成时间
-        4. 选择最早完成时间对应的动作
+        修复要点：
+        1. 非量子任务只考虑 classical 动作，避免 mismatch 惩罚
+        2. 量子任务在资源不足时降级到 hybrid/classical，避免重新入队惩罚
+        3. 量子队列过长时增加惩罚系数，防止队列堆积
 
         Args:
             observation: 16维观测向量
@@ -781,7 +780,11 @@ class EnvBasedHEFTScheduler(EnvBasedScheduler):
         """
         info = self._parse_obs(observation)
 
-        # 估算量子加速比（从观测范围推算）
+        # 非量子任务：只考虑 classical，避免 mismatch 惩罚（Issue #584）
+        if not info.is_quantum:
+            return _ACTION_CLASSICAL
+
+        # 量子任务：估算量子加速比
         speedup = self._QUANTUM_SPEEDUP_MIN + info.qubit_avail * (
             self._QUANTUM_SPEEDUP_MAX - self._QUANTUM_SPEEDUP_MIN
         )
@@ -789,26 +792,31 @@ class EnvBasedHEFTScheduler(EnvBasedScheduler):
         # 估算执行时间（从 urgency 推算，高 urgency = 短时间）
         estimated_time = max(1.0, 10.0 * (1.0 - info.urgency))
 
+        # 量子资源严重不足时直接降级到 classical（Issue #584）
+        if info.qubit_avail < 0.1:
+            return _ACTION_CLASSICAL
+
         # 计算每种动作的完成时间
         finish_times: dict[int, float] = {}
         for action in (_ACTION_CLASSICAL, _ACTION_QUANTUM, _ACTION_HYBRID):
             ft = self._estimate_finish_time(action, estimated_time, speedup)
-            # 量子动作需要考虑队列等待
+            # 量子动作需要考虑队列等待（增大惩罚系数，Issue #584）
             if action == _ACTION_QUANTUM:
-                ft += info.quantum_queue * 5.0  # 队列惩罚
+                ft += info.quantum_queue * 10.0  # 队列惩罚（从5.0增至10.0）
             elif action == _ACTION_HYBRID:
-                ft += info.quantum_queue * 2.5
+                ft += info.quantum_queue * 5.0  # 从2.5增至5.0
             finish_times[action] = ft
 
         # 选择最早完成时间的动作
         best_action = min(finish_times, key=lambda a: finish_times[a])
 
-        # 量子任务但量子资源不可用时，降级到混合或经典
+        # 量子资源不足时降级到混合或经典
         if best_action == _ACTION_QUANTUM and info.qubit_avail < 0.2:
             best_action = _ACTION_HYBRID if info.qubit_avail > 0.05 else _ACTION_CLASSICAL
 
-        if not info.is_quantum and best_action == _ACTION_QUANTUM:
-            best_action = _ACTION_CLASSICAL
+        # 量子队列过长时降级（防止队列堆积导致等待惩罚，Issue #584）
+        if best_action == _ACTION_QUANTUM and info.quantum_queue > 0.5:
+            best_action = _ACTION_HYBRID if info.qubit_avail > 0.1 else _ACTION_CLASSICAL
 
         return best_action
 
