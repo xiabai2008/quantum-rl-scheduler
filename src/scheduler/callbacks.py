@@ -191,7 +191,7 @@ class RealMachineCallback(BaseCallback):
     Attributes:
         env        : 训练环境（需已 attach_real_clients）
         interval   : 抽样间隔（步数）
-        prob       : 每次触发的提交概率（控制机时消耗，建议 0.01-0.05）
+        prob       : 每次触发的提交概率（控制机时消耗，建议 0.05-0.15）
         client     : 显式指定的真机客户端；None 时自动取 env._real_clients 第一项
         save_path  : 真机提交记录 JSON 保存路径
         real_times : 真机提交记录列表 [{step, task_id, machine, latency_s, status, real_task_id}]
@@ -201,7 +201,7 @@ class RealMachineCallback(BaseCallback):
         self,
         env: Any,
         interval: int = 1000,
-        prob: float = 0.05,
+        prob: float = 0.15,
         client: Any = None,
         save_path: str = "results/real_times.json",
         shots: int = 512,
@@ -213,7 +213,7 @@ class RealMachineCallback(BaseCallback):
         Args:
             env: 训练环境（需已 attach_real_clients）
             interval: 抽样间隔（步数），默认 1000
-            prob: 每次触发的提交概率，默认 0.05
+            prob: 每次触发的提交概率，默认 0.15
             client: 显式指定的真机客户端；None 时自动取 env._real_clients 第一项
             save_path: 真机提交记录 JSON 保存路径，默认 "results/real_times.json"
             shots: 真机任务 shots，默认 512

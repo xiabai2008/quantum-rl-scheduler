@@ -75,7 +75,8 @@ INITIAL_QUEUE_RANGE = (5, 20)  # reset 时初始任务队列大小范围
 # 真机闭环参数（Issue #64）
 # ---------------------------------------------------------------------------
 # 真机提交抽样概率（控制真机机时消耗：每个量子任务以此概率真正上真机）
-REAL_SUBMIT_PROBABILITY_DEFAULT = 0.0
+# Issue #576: 从 0.0 提升至 0.15，确保真机在训练中有足够参与率（>=15%）
+REAL_SUBMIT_PROBABILITY_DEFAULT = 0.15
 # 真机提交间隔步数（Issue #243：间隔触发保底，每N步强制提交一次）
 # 确保 probability-only 触发不会因路由机会少而完全错过真机参与
 REAL_MACHINE_SUBMIT_INTERVAL = 20
@@ -108,10 +109,74 @@ REAL_RESULT_REWARD_MAX = 5.0
 # result_aware 模式下的最小奖励下限（即使质量为 0 也给少量完成奖励）
 REAL_RESULT_REWARD_MIN = 0.0  # 测量解析失败时给 0 奖励（不鼓励失败）
 
+# Issue #576: 真机提交训练级硬上限默认值（配合 200 步训练约 4-5 次真机提交）
+REAL_MACHINE_MAX_SUBMISSIONS_DEFAULT = 30
+
 
 # ---------------------------------------------------------------------------
 # 辅助数据结构
 # ---------------------------------------------------------------------------
+
+
+@dataclass
+class RealMachineConfig:
+    """真机闭环参数统一配置（Issue #576）。
+
+    集中管理真机提交、轮询、降级与奖励相关的全部参数，
+    替代分散在模块级常量和环境构造函数中的零散配置。
+
+    使用方式::
+
+        config = RealMachineConfig(submit_probability=0.2)
+        env = QuantumSchedulingEnv(
+            real_submit_probability=config.submit_probability,
+            max_real_submissions=config.max_submissions,
+        )
+
+    Attributes:
+        submit_probability     : 真机提交抽样概率（0-1），控制机时消耗
+        submit_interval        : 间隔触发步数（保底机制，每N步强制提交一次）
+        max_submissions        : 训练级真机提交硬上限（跨 episode 累积）
+        degrade_fail_threshold : 连续失败次数阈值，达到后自动降级到 Mock
+        success_bonus          : 真机任务成功完成时的奖励加成
+        fail_penalty           : 真机任务失败时的惩罚
+        max_poll_steps         : 单任务结果轮询最大次数（超时视为失败）
+        result_reward_max      : result_aware 模式最大奖励上限
+        result_reward_min      : result_aware 模式最小奖励下限
+    """
+
+    submit_probability: float = REAL_SUBMIT_PROBABILITY_DEFAULT
+    submit_interval: int = REAL_MACHINE_SUBMIT_INTERVAL
+    max_submissions: int = REAL_MACHINE_MAX_SUBMISSIONS_DEFAULT
+    degrade_fail_threshold: int = REAL_MACHINE_DEGRADE_FAIL_THRESHOLD
+    success_bonus: float = 5.0
+    fail_penalty: float = REAL_MACHINE_FAIL_PENALTY
+    max_poll_steps: int = REAL_MACHINE_MAX_POLL_STEPS
+    result_reward_max: float = REAL_RESULT_REWARD_MAX
+    result_reward_min: float = REAL_RESULT_REWARD_MIN
+
+    def __post_init__(self) -> None:
+        """参数校验。"""
+        if not 0.0 <= self.submit_probability <= 1.0:
+            raise ValueError(
+                f"submit_probability must be in [0, 1], got {self.submit_probability}"
+            )
+        if self.submit_interval < 1:
+            raise ValueError(
+                f"submit_interval must be >= 1, got {self.submit_interval}"
+            )
+        if self.max_submissions < 0:
+            raise ValueError(
+                f"max_submissions must be non-negative, got {self.max_submissions}"
+            )
+        if self.degrade_fail_threshold < 1:
+            raise ValueError(
+                f"degrade_fail_threshold must be >= 1, got {self.degrade_fail_threshold}"
+            )
+        if self.max_poll_steps < 1:
+            raise ValueError(
+                f"max_poll_steps must be >= 1, got {self.max_poll_steps}"
+            )
 
 
 @dataclass

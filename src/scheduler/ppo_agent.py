@@ -251,7 +251,7 @@ class PPOAgent:
             log_dir: 日志目录
             **kwargs: 额外参数，支持以下真机抽样回调参数：
                 - real_callback_interval: 真机抽样间隔（步数），>0 时启用，默认 0（禁用）
-                - real_callback_prob    : 每次触发的提交概率，默认 0.05
+                - real_callback_prob    : 每次触发的提交概率，默认 0.15
                 - real_callback_client  : 显式指定的真机客户端，None 时取 env._real_clients
                 - real_callback_save_path: 真机提交记录 JSON 保存路径，默认 results/real_times.json
                 - real_callback_shots   : 真机任务 shots，默认 512
@@ -272,7 +272,7 @@ class PPOAgent:
 
         # 弹出真机抽样回调参数（不传给 learn）
         real_cb_interval = int(kwargs.pop("real_callback_interval", 0))
-        real_cb_prob = float(kwargs.pop("real_callback_prob", 0.05))
+        real_cb_prob = float(kwargs.pop("real_callback_prob", 0.15))
         real_cb_client = kwargs.pop("real_callback_client", None)
         real_cb_save_path = kwargs.pop("real_callback_save_path", "results/real_times.json")
         real_cb_shots = int(kwargs.pop("real_callback_shots", 512))
