@@ -570,7 +570,7 @@ class EnvBasedScheduler:
         """根据观测和环境状态选择动作。
 
         Args:
-            observation: Gymnasium 环境的观测向量（14维）
+            observation: Gymnasium 环境的观测向量（16维）
             env        : QuantumSchedulingEnv 实例
 
         Returns:
@@ -773,7 +773,7 @@ class EnvBasedHEFTScheduler(EnvBasedScheduler):
         4. 选择最早完成时间对应的动作
 
         Args:
-            observation: 14维观测向量
+            observation: 16维观测向量
             env        : QuantumSchedulingEnv 实例
 
         Returns:
@@ -843,7 +843,7 @@ class EnvBasedMinMinScheduler(EnvBasedScheduler):
         更强调"最小"而非"最早"——即优先短任务和快速处理器。
 
         Args:
-            observation: 14维观测向量
+            observation: 16维观测向量
             env        : QuantumSchedulingEnv 实例
 
         Returns:
