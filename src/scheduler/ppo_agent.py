@@ -99,6 +99,8 @@ class PPOAgent:
         self.annealing_optimizer = None
         self.anneal_interval = kwargs.get("anneal_interval", 1000)
         if self.use_annealing:
+            # Issue #589: 退火为探索性功能（p=0.9430不显著），启用时记录警告日志
+            logger.warning("退火优化已启用（探索性功能，p=0.9430不显著）")
             # simulation_mode=False 且提供 cqlib_client 时尝试真机退火；
             # cqlib 为门控量子 SDK 无退火接口，会在 anneal() 中自动降级为仿真
             # Issue #246: 退火参数默认从 config.yaml 的 annealing: 节读取，

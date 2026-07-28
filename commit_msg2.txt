@@ -1,0 +1,27 @@
+fix: 批量完成P0/P1/P2 issues (第二批 #514-#523, #582-#584, #589-#592)
+
+P0基线算法修复:
+#582: HEFT标准upward rank实现(DAG后继递推, 非等效LPT)
+#583: Min-Min标准迭代贪心实现(每轮选最小MCT, 非等效SPTF)
+#584: HEFT负奖励bug修复(量子任务mismatch惩罚根因)
+
+安全修复:
+#514: WebSocket添加Origin检查+消息大小限制+连接数限制
+#515: QCIS/QASM电路格式验证(深度/比特数/字符)
+#516: API错误信息净化(不泄露内部路径/异常详情)
+#517: POST端点速率限制(60req/min, token bucket)
+
+性能优化:
+#522: env.step()三重_get_observation()降为单次(66%开销减少)
+#523: MAPPO训练热路径三重观测计算降为单次
+
+测试覆盖:
+#518: PPO episode终止与自动重置路径测试(5个)
+#519: 异步退火降级失败路径测试(5个)
+
+快速修复:
+#589: 退火模块FutureWarning(非DeprecationWarning不被pytest过滤)
+#590: dag_scheduler退火开关显式检查(关闭时回退经典调度)
+#592: Python 3.10 tomllib兼容(tomli fallback)
+
+验证: ruff lint全部通过, 194+212+80+10测试通过

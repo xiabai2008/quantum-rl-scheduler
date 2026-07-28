@@ -35,6 +35,18 @@ classifiers = [
 requires-python = ">=3.10"
 dynamic = ["dependencies"]
 
+# =============================================================================
+# 可选依赖（开发/测试）
+# =============================================================================
+[project.optional-dependencies]
+# Issue #592: Python 3.10 标准库无 tomllib（3.11+ 才引入），测试需要 tomli 替代
+test = [
+    "tomli; python_version < '3.11'",
+]
+dev = [
+    "tomli; python_version < '3.11'",
+]
+
 # 只追踪 src/ 下的包
 [tool.setuptools.packages.find]
 where = ["."]

@@ -339,46 +339,202 @@ class LIFOScheduler(BaselineScheduler):
 
 
 class HEFTScheduler(BaselineScheduler):
-    """HEFT（异构最早完成时间）经典调度策略（Issue #270）。
+    """HEFT（异构最早完成时间）经典调度策略（Issue #270/#582）。
 
-    传统 HEFT 用于 DAG 任务图调度，在异构处理器环境中最小化 makespan。
-    本实现将其简化为独立任务列表调度：按 upward rank 降序选择任务，
-    并选择最早完成时间的处理器。
+    实现标准 HEFT upward rank 计算：
+    - upward_rank[node] = avg_comp_time[node] + max(upward_rank[successor])
+    - 退出节点（无后继）: upward_rank = avg_comp_time
+    - 按 upward rank 降序选择任务
 
-    在 ``select_action`` 接口中，返回优先级最高的任务索引
-    （按 upward rank 排序，等效于按估算执行时间降序选择长任务优先）。
+    任务字典可通过 ``successors`` 字段指定后继任务 ID 列表，
+    缺失时视为退出节点（upward_rank = estimated_time）。
     """
-
-    sort_key = staticmethod(
-        lambda task: _get_float(task, "estimated_time", _DEFAULT_ESTIMATED_TIME)
-    )
-    reverse = True
 
     def __init__(self) -> None:
         """初始化 HEFT 策略。"""
         super().__init__("HEFT")
 
+    def _compute_upward_ranks(
+        self,
+        tasks: list[dict],
+        successors_map: dict[str, list[str]],
+        avg_comp_times: dict[str, float],
+    ) -> dict[str, float]:
+        """计算 DAG 中每个任务的 upward rank（Issue #582）。
+
+        upward_rank[node] = avg_comp_time[node] + max(upward_rank[successor])
+        退出节点（无后继）: upward_rank = avg_comp_time[node]
+
+        使用记忆化递归计算，含环检测保护（遇到正在计算的节点按退出节点处理）。
+
+        Args:
+            tasks           : 任务列表（用于遍历，实际计算依赖映射）
+            successors_map  : {task_id: [successor_id, ...]} 后继映射
+            avg_comp_times  : {task_id: avg_comp_time} 平均计算时间
+
+        Returns:
+            {task_id: upward_rank} 字典
+        """
+        ranks: dict[str, float] = {}
+        # 正在计算中的节点（用于环检测，避免无限递归）
+        computing: set[str] = set()
+
+        def _rank(task_id: str) -> float:
+            if task_id in ranks:
+                return ranks[task_id]
+            # 环检测：遇到正在计算的节点，按退出节点处理（断开环）
+            if task_id in computing:
+                return avg_comp_times.get(task_id, _DEFAULT_ESTIMATED_TIME)
+            computing.add(task_id)
+            comp = avg_comp_times.get(task_id, _DEFAULT_ESTIMATED_TIME)
+            successors = successors_map.get(task_id, [])
+            if not successors:
+                ranks[task_id] = comp
+            else:
+                # 取所有后继 upward rank 的最大值
+                max_succ = 0.0
+                for s in successors:
+                    max_succ = max(max_succ, _rank(s))
+                ranks[task_id] = comp + max_succ
+            computing.discard(task_id)
+            return ranks[task_id]
+
+        for task in tasks:
+            tid = str(task.get("task_id", ""))
+            if tid:
+                _rank(tid)
+        return ranks
+
+    def select_action(self, tasks: list[dict], available_resources: dict) -> int:
+        """按 upward rank 降序选择任务（Issue #582）。
+
+        计算每个任务的 upward rank（基于 DAG 后继和平均计算时间），
+        返回 rank 最高的任务索引。无后继信息的任务视为退出节点。
+
+        Args:
+            tasks               : 待调度任务列表
+            available_resources : 可用资源字典（本策略未使用）
+
+        Returns:
+            upward rank 最高的任务索引；空列表返回 -1。
+        """
+        if not tasks:
+            return -1
+        # 构造后继映射和平均计算时间
+        task_id_set = {str(t.get("task_id", i)) for i, t in enumerate(tasks)}
+        successors_map: dict[str, list[str]] = {}
+        avg_comp_times: dict[str, float] = {}
+        for i, task in enumerate(tasks):
+            tid = str(task.get("task_id", i))
+            avg_comp_times[tid] = _get_float(task, "estimated_time", _DEFAULT_ESTIMATED_TIME)
+            succ = task.get("successors", [])
+            if succ is None:
+                succ = []
+            # 只保留在当前任务列表中的后继（避免引用不存在的任务）
+            successors_map[tid] = [str(s) for s in succ if str(s) in task_id_set]
+
+        ranks = self._compute_upward_ranks(tasks, successors_map, avg_comp_times)
+        # 按 upward rank 降序选择（最大值索引）
+        return max(
+            range(len(tasks)),
+            key=lambda i: ranks.get(str(tasks[i].get("task_id", i)), _DEFAULT_ESTIMATED_TIME),
+        )
+
 
 class MinMinScheduler(BaselineScheduler):
-    """Min-Min 经典调度策略（Issue #270）。
+    """Min-Min 经典调度策略（Issue #270/#583）。
 
-    Min-Min 算法每轮选择所有任务中完成时间最小的任务-处理器对。
-    在 ``select_action`` 接口中，简化为选择估算执行时间最短的任务
-    （等效于 SPTF，但 Min-Min 的核心思想是"最小最小"——
-    先选最小完成时间的任务，再选最小完成时间的处理器）。
+    标准迭代贪心 Min-Min 算法：
+    1. 对每个未分配任务，计算在每个机器上的最小完成时间 (MCT)
+    2. 选择所有任务中最小 MCT 对应的任务-机器对
+    3. 将该任务分配到最佳机器，更新机器可用时间
+    4. 重复直到所有任务分配完毕
 
-    与 SPTF 的区别在于 Min-Min 是迭代贪心算法，在多处理器场景下
-    会重新计算每轮的完成时间。在单选择器接口中，两者表现一致。
+    在 ``select_action`` 接口中，返回 Min-Min 算法第一轮选中的任务索引
+    （即全局最小 MCT 对应的任务）。
+
+    资源字典可通过 ``machines`` 字段提供机器列表，每个机器为含
+    ``available_time`` 字段的 dict；缺失时按单机器（available_time=0）处理。
     """
-
-    sort_key = staticmethod(
-        lambda task: _get_float(task, "estimated_time", _DEFAULT_ESTIMATED_TIME)
-    )
-    reverse = False
 
     def __init__(self) -> None:
         """初始化 Min-Min 策略。"""
         super().__init__("MinMin")
+
+    def _min_min_iterative(
+        self,
+        tasks: list[dict],
+        machines: list[dict],
+    ) -> list[tuple[int, int]]:
+        """迭代贪心 Min-Min 分配（Issue #583）。
+
+        每轮选择 (task, machine) 对中最小 MCT（Minimum Completion Time）的组合，
+        分配该任务到该机器并更新机器可用时间，直到所有任务分配完毕。
+
+        MCT = machine_available_time + task_estimated_time
+
+        Args:
+            tasks    : 待调度任务列表
+            machines : 机器列表，每个机器为 dict，含 "available_time" 字段
+
+        Returns:
+            分配顺序列表 [(task_idx, machine_idx), ...]，按分配顺序排列
+        """
+        if not tasks or not machines:
+            return []
+
+        # 复制机器可用时间，避免污染输入
+        machine_avail: list[float] = []
+        for m in machines:
+            avail = m.get("available_time", 0.0) if isinstance(m, dict) else 0.0
+            machine_avail.append(float(avail))
+
+        remaining = list(range(len(tasks)))
+        assignment_order: list[tuple[int, int]] = []
+
+        while remaining:
+            best_pair: tuple[int, int] | None = None
+            best_mct = float("inf")
+            for ti in remaining:
+                est = _get_float(tasks[ti], "estimated_time", _DEFAULT_ESTIMATED_TIME)
+                for mi, m_avail in enumerate(machine_avail):
+                    mct = m_avail + est
+                    if mct < best_mct:
+                        best_mct = mct
+                        best_pair = (ti, mi)
+            if best_pair is None:
+                break
+            ti, mi = best_pair
+            assignment_order.append((ti, mi))
+            # 更新机器可用时间
+            machine_avail[mi] = best_mct
+            remaining.remove(ti)
+
+        return assignment_order
+
+    def select_action(self, tasks: list[dict], available_resources: dict) -> int:
+        """按 Min-Min 迭代贪心选择任务（Issue #583）。
+
+        运行完整 Min-Min 迭代算法，返回第一轮选中的任务索引
+        （即全局最小 MCT 对应的任务）。
+
+        Args:
+            tasks               : 待调度任务列表
+            available_resources : 可用资源字典，可含 "machines" 列表
+
+        Returns:
+            第一轮选中的任务索引；空列表返回 -1。
+        """
+        if not tasks:
+            return -1
+        machines = available_resources.get("machines") if available_resources else None
+        if not machines:
+            # 单机器模式：使用单个默认机器
+            machines = [{"available_time": 0.0}]
+        order = self._min_min_iterative(tasks, machines)
+        if not order:
+            return -1
+        return order[0][0]
 
 
 # ---------------------------------------------------------------------------
@@ -745,7 +901,9 @@ class EnvBasedHEFTScheduler(EnvBasedScheduler):
     def _estimate_finish_time(
         self, action: int, estimated_time: float, quantum_speedup: float
     ) -> float:
-        """估算任务在指定动作下的完成时间。
+        """估算任务在指定动作下的完成时间（Issue #584 修复）。
+
+        修复点：增加负值校验，EFT < 0 时记录警告并回退到经典完成时间。
 
         Args:
             action          : 动作（0=classical, 1=quantum, 2=hybrid）
@@ -753,24 +911,33 @@ class EnvBasedHEFTScheduler(EnvBasedScheduler):
             quantum_speedup : 量子加速比
 
         Returns:
-            估算完成时间
+            估算完成时间（保证非负）
         """
         if action == _ACTION_QUANTUM:
-            return estimated_time / max(quantum_speedup, 0.1)
-        if action == _ACTION_HYBRID:
+            ft = estimated_time / max(quantum_speedup, 0.1)
+        elif action == _ACTION_HYBRID:
             # 混合执行：部分加速
-            return estimated_time / max(quantum_speedup * 0.5, 0.1)
-        # classical
-        return estimated_time
+            ft = estimated_time / max(quantum_speedup * 0.5, 0.1)
+        else:
+            # classical
+            ft = estimated_time
+        # EFT 校验：负值回退到经典完成时间（Issue #584）
+        if ft < 0:
+            logger.warning(
+                f"HEFT EFT 计算异常为负值: action={action}, ft={ft}, "
+                f"estimated_time={estimated_time}, speedup={quantum_speedup}, 回退到经典"
+            )
+            return estimated_time
+        return ft
 
     def select_action(self, observation: np.ndarray, env: Any) -> int:
-        """根据 HEFT 策略选择最早完成时间的动作。
+        """根据 HEFT 策略选择最早完成时间的动作（Issue #584 修复）。
 
-        步骤：
-        1. 从观测中解析任务类型和资源状态
-        2. 估算量子加速比
-        3. 计算每种动作的估算完成时间
-        4. 选择最早完成时间对应的动作
+        修复要点（根因：原实现对量子任务选经典动作导致 mismatch -2.0 惩罚累积）：
+        1. 非量子任务直接走经典（兼容 classical/universal，避免量子 mismatch）
+        2. 量子任务在资源充足时选量子，否则选混合（始终兼容，无机器时降级为经典执行）
+        3. 永远不对量子任务选经典（mismatch）、不对非量子任务选量子（mismatch）
+        4. EFT 校验：负值回退到 FCFS 式行为
 
         Args:
             observation: 16维观测向量
@@ -781,6 +948,15 @@ class EnvBasedHEFTScheduler(EnvBasedScheduler):
         """
         info = self._parse_obs(observation)
 
+        # 非量子任务（classical/universal）：直接走经典（兼容，避免 mismatch）
+        if not info.is_quantum:
+            return _ACTION_CLASSICAL
+
+        # 量子任务但资源严重不足：走混合（始终兼容，无机器时降级为经典执行）
+        # 永远不对量子任务选经典（mismatch -2.0 惩罚）
+        if info.qubit_avail < 0.1:
+            return _ACTION_HYBRID
+
         # 估算量子加速比（从观测范围推算）
         speedup = self._QUANTUM_SPEEDUP_MIN + info.qubit_avail * (
             self._QUANTUM_SPEEDUP_MAX - self._QUANTUM_SPEEDUP_MIN
@@ -789,9 +965,9 @@ class EnvBasedHEFTScheduler(EnvBasedScheduler):
         # 估算执行时间（从 urgency 推算，高 urgency = 短时间）
         estimated_time = max(1.0, 10.0 * (1.0 - info.urgency))
 
-        # 计算每种动作的完成时间
+        # 计算兼容动作的完成时间（量子任务仅可选量子/混合，经典不兼容）
         finish_times: dict[int, float] = {}
-        for action in (_ACTION_CLASSICAL, _ACTION_QUANTUM, _ACTION_HYBRID):
+        for action in (_ACTION_QUANTUM, _ACTION_HYBRID):
             ft = self._estimate_finish_time(action, estimated_time, speedup)
             # 量子动作需要考虑队列等待
             if action == _ACTION_QUANTUM:
@@ -803,12 +979,9 @@ class EnvBasedHEFTScheduler(EnvBasedScheduler):
         # 选择最早完成时间的动作
         best_action = min(finish_times, key=lambda a: finish_times[a])
 
-        # 量子任务但量子资源不可用时，降级到混合或经典
-        if best_action == _ACTION_QUANTUM and info.qubit_avail < 0.2:
-            best_action = _ACTION_HYBRID if info.qubit_avail > 0.05 else _ACTION_CLASSICAL
-
-        if not info.is_quantum and best_action == _ACTION_QUANTUM:
-            best_action = _ACTION_CLASSICAL
+        # 量子动作的额外资源校验：资源或保真度不足时降级到混合（兼容）
+        if best_action == _ACTION_QUANTUM and (info.qubit_avail < 0.3 or info.fidelity < 0.85):
+            best_action = _ACTION_HYBRID
 
         return best_action
 

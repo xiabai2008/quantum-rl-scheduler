@@ -51,8 +51,8 @@ class TestMetricsExport(unittest.TestCase):
             )
 
     def test_all_exports_count(self):
-        """__all__ 应包含 14 个导出符号（6 调度/API/退火指标 + 2 helper + 5 状态指标 + 1 旧版兼容）。"""
-        self.assertEqual(len(metrics.__all__), 14)
+        """__all__ 应包含 19 个导出符号（含安全/速率限制指标）。"""
+        self.assertEqual(len(metrics.__all__), 19)
 
 
 class TestMetricTypes(unittest.TestCase):

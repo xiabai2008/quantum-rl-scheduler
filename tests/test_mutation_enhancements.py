@@ -131,14 +131,19 @@ class TestComputeExecutionRewardMutation(unittest.TestCase):
         """初始化固定种子的随机数生成器，确保可复现。"""
         self.rng = np.random.default_rng(42)
         self.task = _make_task()
+        # Issue #401: compute_execution_reward 应用 urgency/priority 加权
+        # urgency=0.5 → urgency_factor = 0.5 + 0.5*0.5 = 0.75
+        # priority=3 → priority_factor = 0.6 + 0.1*3 = 0.9
+        # task_weight = 0.75 * 0.9 = 0.675
+        self.task_weight = 0.675
 
     def test_classical_reward_exact_value(self) -> None:
-        """经典执行奖励应精确等于 REWARD_CLASSICAL + REWARD_SUCCESS_BONUS。
+        """经典执行奖励应精确等于 (REWARD_CLASSICAL + REWARD_SUCCESS_BONUS) * task_weight。
 
         杀死变异：REWARD_CLASSICAL 常量替换、+ → -。
         """
         reward = compute_execution_reward(self.task, ACTION_CLASSICAL, self.rng, 0.99, 1.0)
-        expected = REWARD_CLASSICAL + REWARD_SUCCESS_BONUS
+        expected = (REWARD_CLASSICAL + REWARD_SUCCESS_BONUS) * self.task_weight
         self.assertAlmostEqual(reward, expected, places=6)
 
     def test_classical_reward_independent_of_quantum_state(self) -> None:
@@ -151,7 +156,7 @@ class TestComputeExecutionRewardMutation(unittest.TestCase):
         self.assertEqual(r1, r2)
 
     def test_quantum_reward_within_expected_range(self) -> None:
-        """量子执行奖励应在 [base*min_speedup*1.0 + bonus, base*max_speedup*1.0 + bonus] 内。
+        """量子执行奖励应在 [base*min_speedup*1.0*weight + bonus, base*max_speedup*1.0*weight + bonus] 内。
 
         杀死变异：QUANTUM_SPEEDUP_RANGE 常量替换、speedup 采样变异。
         """
@@ -161,10 +166,12 @@ class TestComputeExecutionRewardMutation(unittest.TestCase):
         min_speedup = QUANTUM_SPEEDUP_RANGE[0] * (fidelity / 0.99)
         max_speedup = QUANTUM_SPEEDUP_RANGE[1] * (fidelity / 0.99)
         self.assertGreaterEqual(
-            reward, REWARD_QUANTUM_BASE * min_speedup + REWARD_SUCCESS_BONUS - 0.001
+            reward,
+            REWARD_QUANTUM_BASE * min_speedup * self.task_weight + REWARD_SUCCESS_BONUS - 0.001,
         )
         self.assertLessEqual(
-            reward, REWARD_QUANTUM_BASE * max_speedup + REWARD_SUCCESS_BONUS + 0.001
+            reward,
+            REWARD_QUANTUM_BASE * max_speedup * self.task_weight + REWARD_SUCCESS_BONUS + 0.001,
         )
 
     def test_quantum_low_fidelity_discount_boundary(self) -> None:
@@ -205,7 +212,7 @@ class TestComputeExecutionRewardMutation(unittest.TestCase):
         杀死变异：hybrid_factor = 0.5 + 0.5*0 = 0.5（+ → -, * → /）。
         """
         reward = compute_execution_reward(self.task, ACTION_HYBRID, self.rng, 0.99, 0.0)
-        expected = REWARD_HYBRID * 0.5 + REWARD_SUCCESS_BONUS
+        expected = REWARD_HYBRID * 0.5 * self.task_weight + REWARD_SUCCESS_BONUS
         self.assertAlmostEqual(reward, expected, places=6)
 
     def test_hybrid_reward_at_full_availability(self) -> None:
@@ -214,7 +221,7 @@ class TestComputeExecutionRewardMutation(unittest.TestCase):
         杀死变异：hybrid_factor = 0.5 + 0.5*1.0 = 1.0（+ → -）。
         """
         reward = compute_execution_reward(self.task, ACTION_HYBRID, self.rng, 0.99, 1.0)
-        expected = REWARD_HYBRID * 1.0 + REWARD_SUCCESS_BONUS
+        expected = REWARD_HYBRID * 1.0 * self.task_weight + REWARD_SUCCESS_BONUS
         self.assertAlmostEqual(reward, expected, places=6)
 
     def test_hybrid_reward_monotonic_with_availability(self) -> None:
@@ -608,6 +615,9 @@ class TestAdvanceTimeMutation(unittest.TestCase):
         env._quantum = QuantumResource()
         env._classical = ClassicalResource()
         env._total_scheduled = 0
+        # Issue #522: advance_time 访问 arrival_history 和 max_arrival_history_length
+        env.arrival_history = []
+        env.max_arrival_history_length = 10
 
         # _get_arrival_lambda 返回固定值
         env._get_arrival_lambda.return_value = arrival_lambda

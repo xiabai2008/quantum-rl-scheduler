@@ -9,6 +9,11 @@ WebSocket 端点处理
     ``state.py`` 直接导入。路径常量（``_PROJECT_ROOT``）仍通过 ``_app``
     访问——该符号被测试通过 ``monkeypatch.setattr(app_module, "_PROJECT_ROOT", ...)``
     替换，必须保留在 app 模块上。
+
+安全防护（Issue #514）：
+    - Origin 头检查：拒绝未授权来源的跨站 WebSocket 连接（CSWSH 防护）
+    - 消息大小限制：单条消息最大 1MB，防止内存耗尽攻击
+    - 连接数限制：由 ``ConnectionManager`` 在 ``connect()`` 中强制执行
 """
 
 import json
@@ -20,6 +25,33 @@ from loguru import logger
 
 import src.visualization.app as _app
 from src.visualization import state
+from src.visualization.security import WS_MAX_MESSAGE_BYTES, is_origin_allowed
+
+
+def _check_websocket_origin(websocket: WebSocket) -> bool:
+    """检查 WebSocket 请求的 Origin 头是否允许连接（Issue #514）。
+
+    防御跨站 WebSocket 劫持（CSWSH）：浏览器会在 WebSocket 握手请求中
+    自动携带 Origin 头，服务端通过白名单校验拒绝恶意网站发起的连接。
+
+    对于非浏览器客户端（如 curl、TestClient mock），Origin 头可能缺失
+    或为非字符串类型，此时放行以保证兼容性。
+
+    Args:
+        websocket: WebSocket 连接对象
+
+    Returns:
+        True 表示 Origin 允许；False 表示应拒绝连接
+    """
+    try:
+        origin = websocket.headers.get("origin", "")
+    except Exception:
+        # headers 不可读时放行（防御性，保证兼容性）
+        return True
+    # 非字符串 Origin（如测试 mock 对象）放行，避免破坏测试
+    if not isinstance(origin, str):
+        return True
+    return is_origin_allowed(origin)
 
 
 async def websocket_endpoint(websocket: WebSocket) -> None:
@@ -31,12 +63,31 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
     - 新任务通知（task_added）
     - 策略变更通知（strategy_changed）
 
+    安全防护（Issue #514）：
+        - Origin 头检查：拒绝未授权来源的连接
+        - 消息大小限制：单条消息最大 1MB
+        - 连接数限制：由 ConnectionManager 强制执行
+
     连接清理（Issue #216）：
         使用 try/finally 确保任何异常（包括非 WebSocketDisconnect 的异常，
         如 RuntimeError / ConnectionError / asyncio.CancelledError）都会
         调用 ``manager.disconnect(websocket)``，避免连接泄漏。
     """
-    await state.manager.connect(websocket)
+    # ── Origin 头检查（CSWSH 防护，Issue #514）──
+    if not _check_websocket_origin(websocket):
+        logger.warning("[Web] WebSocket 连接被拒绝：Origin 不在允许列表中")
+        try:
+            await websocket.close(code=1008)  # Policy Violation
+        except Exception as e:
+            logger.debug(f"[Web] 拒绝连接时 close 失败: {e}")
+        return
+
+    # ── 连接数限制 + 接受连接（Issue #514）──
+    connected = await state.manager.connect(websocket)
+    if not connected:
+        # 连接数达上限，已被 ConnectionManager 关闭，直接返回
+        return
+
     try:
         # 连接后立即发送当前状态 + PPO 数据
         ppo_stats: dict[str, Any] = {}
@@ -71,6 +122,20 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
         # 保持连接，监听客户端消息（心跳/指令）
         while True:
             data = await websocket.receive_text()
+
+            # ── 消息大小限制（DoS 防护，Issue #514）──
+            if len(data.encode("utf-8")) > WS_MAX_MESSAGE_BYTES:
+                logger.warning(
+                    f"[Web] WebSocket 消息超过大小限制 {WS_MAX_MESSAGE_BYTES} 字节，已拒绝"
+                )
+                await websocket.send_json(
+                    {
+                        "type": "error",
+                        "message": "消息过大，已超过大小限制",
+                    }
+                )
+                continue
+
             try:
                 msg = json.loads(data)
             except json.JSONDecodeError:

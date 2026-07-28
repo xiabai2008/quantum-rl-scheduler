@@ -41,6 +41,7 @@ from src.visualization.app import (
     start_web_server,
     verify_api_key,
 )
+from src.visualization.security import rate_limiter
 
 # 注意：src/visualization/__init__.py 执行了 `from src.visualization.app import app`，
 # 这会覆盖 src.visualization 包的 app 属性为 FastAPI 实例，从而遮蔽 app 子模块。
@@ -61,11 +62,17 @@ TEST_VIZ_KEY = "test-viz-key"
 
 @pytest.fixture(autouse=True)
 def reset_state():
-    """快照并恢复全局 system_status / task_queue / 连接管理器，保证测试间隔离。"""
+    """快照并恢复全局 system_status / task_queue / 连接管理器，保证测试间隔离。
+
+    同时重置速率限制器状态（Issue #517），避免 POST 端点测试因共享 IP
+    （testserver/127.0.0.1）累积请求而触发 429 限流，影响后续测试。
+    """
     saved_status = copy.deepcopy(app_module.system_status)
     saved_queue = copy.deepcopy(app_module.task_queue)
     saved_connections = list(app_module.manager.active_connections)
     saved_strategy = app_module.system_status.get("current_strategy")
+    # 重置速率限制器，确保每个测试从干净状态开始（Issue #517）
+    rate_limiter.reset()
     yield
     app_module.system_status.clear()
     app_module.system_status.update(copy.deepcopy(saved_status))
@@ -74,6 +81,8 @@ def reset_state():
     app_module.manager.active_connections = list(saved_connections)
     # current_strategy 可能被 POST /api/strategy 修改，强制还原
     app_module.system_status["current_strategy"] = saved_strategy
+    # 测试结束后再次重置速率限制器，避免失败用例残留状态影响后续测试
+    rate_limiter.reset()
 
 
 @pytest.fixture(autouse=True)
@@ -2717,3 +2726,312 @@ class TestFallbackTemplateXSS:
         assert "&quot;" in template
         assert "&#39;" in template
         assert "&#x2F;" in template
+
+
+# ============================================================
+# 安全功能测试（Issue #514 / #515 / #516 / #517）
+# ============================================================
+
+
+class TestRateLimiter:
+    """速率限制器单元测试（Issue #517）。"""
+
+    def test_check_allows_under_limit(self):
+        """未超限时 check 应返回 (True, limit, remaining)。"""
+        from src.visualization.security import RateLimiter
+
+        limiter = RateLimiter(max_requests=5, window_seconds=60)
+        allowed, limit, remaining = limiter.check("192.168.1.1")
+        assert allowed is True
+        assert limit == 5
+        assert remaining == 4
+
+    def test_check_blocks_over_limit(self):
+        """超出限制后 check 应返回 (False, limit, 0)。"""
+        from src.visualization.security import RateLimiter
+
+        limiter = RateLimiter(max_requests=2, window_seconds=60)
+        limiter.check("10.0.0.1")
+        limiter.check("10.0.0.1")
+        allowed, limit, remaining = limiter.check("10.0.0.1")
+        assert allowed is False
+        assert limit == 2
+        assert remaining == 0
+
+    def test_check_isolates_different_keys(self):
+        """不同 key 的请求计数应独立。"""
+        from src.visualization.security import RateLimiter
+
+        limiter = RateLimiter(max_requests=1, window_seconds=60)
+        limiter.check("ip-a")
+        # 不同 IP 不受影响
+        allowed, _, _ = limiter.check("ip-b")
+        assert allowed is True
+
+    def test_reset_clears_all_state(self):
+        """reset 应清空所有速率限制状态。"""
+        from src.visualization.security import RateLimiter
+
+        limiter = RateLimiter(max_requests=1, window_seconds=60)
+        limiter.check("ip-x")
+        # 超限
+        assert limiter.check("ip-x")[0] is False
+        # 重置后应重新允许
+        limiter.reset()
+        assert limiter.check("ip-x")[0] is True
+
+    @pytest.mark.asyncio
+    async def test_rate_limit_headers_present(self, async_client):
+        """POST 请求响应应包含速率限制头。"""
+        resp = await async_client.post("/api/strategy", params={"strategy": "PPO"})
+        assert "x-ratelimit-limit" in {k.lower() for k in resp.headers}
+        assert "x-ratelimit-remaining" in {k.lower() for k in resp.headers}
+
+    @pytest.mark.asyncio
+    async def test_rate_limit_returns_429_when_exceeded(self, async_client, monkeypatch):
+        """超出速率限制后应返回 429。"""
+        # 使用低限流阈值的小型限流器替换全局实例
+        from src.visualization.security import RateLimiter
+
+        small_limiter = RateLimiter(max_requests=1, window_seconds=60)
+        monkeypatch.setattr("src.visualization.routes.rate_limiter", small_limiter)
+        # 第一次请求成功
+        resp1 = await async_client.post("/api/strategy", params={"strategy": "PPO"})
+        assert resp1.status_code == 200
+        # 第二次请求应被限流
+        resp2 = await async_client.post("/api/strategy", params={"strategy": "FCFS"})
+        assert resp2.status_code == 429
+        assert resp2.headers.get("retry-after") == "60"
+
+
+class TestCircuitValidation:
+    """量子电路校验测试（Issue #515）。"""
+
+    def test_valid_qcis_circuit_passes(self):
+        """合法 QCIS 电路应通过校验。"""
+        from src.visualization.security import validate_quantum_circuit
+
+        circuit = "Q0 Q1\nQ2 Q3\n"
+        result = validate_quantum_circuit(circuit, "qcis")
+        assert result["gate_count"] == 2
+        assert result["qubit_count"] == 4
+
+    def test_valid_openqasm_circuit_passes(self):
+        """合法 OpenQASM 电路应通过校验。"""
+        from src.visualization.security import validate_quantum_circuit
+
+        circuit = "OPENQASM 2.0;\nqreg q[4];\nH q[0];\nCX q[0], q[1];\n"
+        result = validate_quantum_circuit(circuit, "openqasm")
+        assert result["qubit_count"] == 4
+        assert result["gate_count"] >= 3
+
+    def test_empty_circuit_rejected(self):
+        """空电路应抛出 400。"""
+        from src.visualization.security import validate_quantum_circuit
+
+        with pytest.raises(HTTPException) as exc_info:
+            validate_quantum_circuit("", "qcis")
+        assert exc_info.value.status_code == 400
+
+    def test_whitespace_only_circuit_rejected(self):
+        """仅空白字符的电路应抛出 400。"""
+        from src.visualization.security import validate_quantum_circuit
+
+        with pytest.raises(HTTPException) as exc_info:
+            validate_quantum_circuit("   \n  \t  ", "qcis")
+        assert exc_info.value.status_code == 400
+
+    def test_invalid_chars_rejected(self):
+        """包含非 ASCII 可打印字符的电路应抛出 400。"""
+        from src.visualization.security import validate_quantum_circuit
+
+        with pytest.raises(HTTPException) as exc_info:
+            validate_quantum_circuit("Q0 Q1\n中文\n", "qcis")
+        assert exc_info.value.status_code == 400
+        assert "非法字符" in exc_info.value.detail
+
+    def test_unsupported_format_rejected(self):
+        """不支持的格式应抛出 400。"""
+        from src.visualization.security import validate_quantum_circuit
+
+        with pytest.raises(HTTPException) as exc_info:
+            validate_quantum_circuit("Q0", "json")
+        assert exc_info.value.status_code == 400
+        assert "不支持" in exc_info.value.detail
+
+    def test_too_many_qubits_rejected(self):
+        """量子比特数超过上限应抛出 400。"""
+        from src.visualization import security
+
+        # 构造超过 105 比特的 QCIS 电路
+        circuit = "\n".join(f"Q{i} Q{i + 1}" for i in range(0, 106, 2))
+        with pytest.raises(HTTPException) as exc_info:
+            security.validate_quantum_circuit(circuit, "qcis")
+        assert exc_info.value.status_code == 400
+        assert "量子比特数" in exc_info.value.detail
+
+    @pytest.mark.asyncio
+    async def test_circuit_submit_endpoint_valid(self, async_client):
+        """POST /api/circuit/submit 合法电路应返回 task_id。"""
+        payload = {
+            "circuit": "Q0 Q1\nQ1 Q2\n",
+            "format": "qcis",
+            "shots": 1024,
+            "task_name": "test_circuit",
+        }
+        resp = await async_client.post("/api/circuit/submit", json=payload)
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["task_id"].startswith("QCIR-")
+        assert data["gate_count"] == 2
+        assert data["qubit_count"] == 3
+
+    @pytest.mark.asyncio
+    async def test_circuit_submit_endpoint_empty_rejected(self, async_client):
+        """POST /api/circuit/submit 仅空白字符的电路应返回 400。
+
+        注意：空字符串会被 Pydantic 的 min_length=1 拦截（422），
+        因此使用仅空白字符的内容来测试路由层 validate_quantum_circuit 的非空校验。
+        """
+        payload = {
+            "circuit": "   \n  \t  ",
+            "format": "qcis",
+        }
+        resp = await async_client.post("/api/circuit/submit", json=payload)
+        assert resp.status_code == 400
+
+
+class TestErrorSanitization:
+    """错误消息净化测试（Issue #516）。"""
+
+    def test_sanitize_removes_file_paths(self):
+        """sanitize_error_message 应移除文件路径。"""
+        from src.visualization.security import sanitize_error_message
+
+        msg = "Error in /home/user/project/src/main.py at line 42"
+        sanitized = sanitize_error_message(msg)
+        assert "/home/user/project/src/main.py" not in sanitized
+        assert "main.py" not in sanitized
+
+    def test_sanitize_removes_windows_paths(self):
+        """sanitize_error_message 应移除 Windows 文件路径。"""
+        from src.visualization.security import sanitize_error_message
+
+        msg = "Error in C:\\Users\\admin\\app\\src\\config.py"
+        sanitized = sanitize_error_message(msg)
+        assert "C:\\Users" not in sanitized
+
+    def test_sanitize_removes_variable_names(self):
+        """sanitize_error_message 应移除单引号包裹的变量名。"""
+        from src.visualization.security import sanitize_error_message
+
+        msg = "KeyError: 'some_internal_variable'"
+        sanitized = sanitize_error_message(msg)
+        assert "some_internal_variable" not in sanitized
+
+    def test_sanitize_removes_exception_types(self):
+        """sanitize_error_message 应移除异常类型名。"""
+        from src.visualization.security import sanitize_error_message
+
+        msg = "RuntimeError: something went wrong"
+        sanitized = sanitize_error_message(msg)
+        assert "RuntimeError" not in sanitized
+
+    @pytest.mark.asyncio
+    async def test_global_exception_handler_returns_generic_message(self):
+        """全局异常处理器应返回通用错误消息和 correlation_id，不泄露内部信息。
+
+        直接调用处理器函数进行测试，避免 ASGITransport 在
+        raise_app_exceptions=True 下重新抛出异常影响断言。
+        """
+        from starlette.requests import Request
+
+        from src.visualization.app import global_exception_handler
+
+        # 构造一个模拟 Request 对象
+        scope = {
+            "type": "http",
+            "method": "GET",
+            "path": "/api/status",
+            "headers": [],
+            "query_string": b"",
+            "client": ("127.0.0.1", 8000),
+            "scheme": "http",
+            "server": ("localhost", 8000),
+        }
+        request = Request(scope)
+        exc = RuntimeError("secret internal path /src/foo.py leaked")
+
+        response = await global_exception_handler(request, exc)
+        assert response.status_code == 500
+        # 解析 JSONResponse 的 body
+        import json as _json
+
+        data = _json.loads(response.body)
+        assert data["detail"] == "Internal server error"
+        assert "correlation_id" in data
+        # 不应泄露内部路径或异常信息
+        body_text = response.body.decode("utf-8")
+        assert "secret" not in body_text
+        assert "foo.py" not in body_text
+
+
+class TestWebSocketOriginCheck:
+    """WebSocket Origin 校验测试（Issue #514）。"""
+
+    def test_is_origin_allowed_localhost(self):
+        """localhost Origin 应允许。"""
+        from src.visualization.security import is_origin_allowed
+
+        assert is_origin_allowed("http://localhost:8000") is True
+        assert is_origin_allowed("http://127.0.0.1") is True
+
+    def test_is_origin_allowed_disallowed(self):
+        """非白名单 Origin 应拒绝。"""
+        from src.visualization.security import is_origin_allowed
+
+        assert is_origin_allowed("http://evil.example.com") is False
+        assert is_origin_allowed("https://attacker.net") is False
+
+    def test_is_origin_allowed_empty_allows(self):
+        """空 Origin（非浏览器客户端）应允许。"""
+        from src.visualization.security import is_origin_allowed
+
+        assert is_origin_allowed("") is True
+
+    def test_get_allowed_ws_origins_from_env(self, monkeypatch):
+        """VIZ_WS_ALLOWED_ORIGINS 环境变量应覆盖默认列表。"""
+        from src.visualization.security import get_allowed_ws_origins
+
+        monkeypatch.setenv(
+            "VIZ_WS_ALLOWED_ORIGINS",
+            "https://prod.example.com,https://staging.example.com",
+        )
+        origins = get_allowed_ws_origins()
+        assert "https://prod.example.com" in origins
+        assert "https://staging.example.com" in origins
+        assert "http://localhost" not in origins
+
+    def test_connection_manager_rejects_over_limit(self):
+        """连接数超限时 connect 应拒绝新连接。"""
+        from src.visualization.connection import ConnectionManager
+
+        manager = ConnectionManager(max_connections=1)
+        ws1 = MagicMock()
+        ws1.accept = AsyncMock()
+        ws1.close = AsyncMock()
+        ws2 = MagicMock()
+        ws2.accept = AsyncMock()
+        ws2.close = AsyncMock()
+
+        import asyncio
+
+        loop = asyncio.new_event_loop()
+        try:
+            # 第一个连接成功
+            assert loop.run_until_complete(manager.connect(ws1)) is True
+            # 第二个连接应被拒绝
+            assert loop.run_until_complete(manager.connect(ws2)) is False
+            ws2.close.assert_awaited()
+        finally:
+            loop.close()

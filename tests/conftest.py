@@ -40,7 +40,7 @@ def pytest_configure(config: Any) -> None:
     # Issue #567：注册 slow 标记（与 pyproject.toml 中一致），使 --runslow 机制生效
     config.addinivalue_line(
         "markers",
-        'slow: marks tests as slow (deselect with \'-m "not slow"\')',
+        "slow: marks tests as slow (deselect with '-m \"not slow\"')",
     )
 
 

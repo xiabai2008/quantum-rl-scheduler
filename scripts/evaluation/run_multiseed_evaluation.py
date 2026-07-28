@@ -876,7 +876,11 @@ def main():
         "--dqn-model", type=str, default=None, help="DQN模型路径（默认None，DQN已不在交付目录中）"
     )
     parser.add_argument(
-        "--obs-dim", type=int, default=16, choices=[10, 14, 16], help="观测空间维度：10/14/16（默认16，与交付模型一致）"
+        "--obs-dim",
+        type=int,
+        default=16,
+        choices=[10, 14, 16],
+        help="观测空间维度：10/14/16（默认16，与交付模型一致）",
     )
     parser.add_argument("--alpha", type=float, default=0.05, help="显著性水平")
     parser.add_argument(

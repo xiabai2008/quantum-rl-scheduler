@@ -30,9 +30,56 @@ from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 
 import src.visualization.app as _app
 from src.visualization import state
-from src.visualization.models import SystemStatusUpdate, TaskSubmit
+from src.visualization.models import CircuitSubmit, SystemStatusUpdate, TaskSubmit
+from src.visualization.security import (
+    rate_limiter,
+    validate_quantum_circuit,
+)
 
 router = APIRouter()
+
+
+# ============================================================
+# 速率限制依赖（Issue #517）
+# ============================================================
+
+
+async def rate_limit_dependency(
+    request: Request,
+    response: Response,
+) -> None:
+    """POST 端点速率限制依赖（Issue #517）。
+
+    基于客户端 IP 的滑动窗口限流：每分钟最多 60 次请求（可通过
+    ``VIZ_RATE_LIMIT`` 环境变量配置）。超出限制时返回 429 Too Many Requests。
+
+    响应头：
+        - ``X-RateLimit-Limit``: 时间窗口内最大请求数
+        - ``X-RateLimit-Remaining``: 剩余可用请求数
+
+    Args:
+        request: FastAPI Request 对象（用于获取客户端 IP）
+        response: FastAPI Response 对象（用于设置响应头）
+
+    Raises:
+        HTTPException: 超出速率限制时抛出 429 错误
+    """
+    client_ip = request.client.host if request.client else "unknown"
+    allowed, limit, remaining = rate_limiter.check(client_ip)
+    # 对成功响应设置速率限制头
+    response.headers["X-RateLimit-Limit"] = str(limit)
+    response.headers["X-RateLimit-Remaining"] = str(remaining)
+    if not allowed:
+        # 超出限制：429 响应也需携带速率限制头
+        raise HTTPException(
+            status_code=429,
+            detail="请求过于频繁，请稍后再试",
+            headers={
+                "X-RateLimit-Limit": str(limit),
+                "X-RateLimit-Remaining": "0",
+                "Retry-After": "60",
+            },
+        )
 
 
 # ============================================================
@@ -127,7 +174,11 @@ async def get_tasks(status: str | None = None, _auth: None = Depends(verify_api_
 
 
 @router.post("/api/tasks")
-async def submit_task(task: TaskSubmit, _auth: None = Depends(verify_api_key)) -> dict[str, Any]:
+async def submit_task(
+    task: TaskSubmit,
+    _rate: None = Depends(rate_limit_dependency),
+    _auth: None = Depends(verify_api_key),
+) -> dict[str, Any]:
     """提交新任务"""
     new_task = {
         "task_id": "QTASK-" + uuid.uuid4().hex[:8],
@@ -228,21 +279,27 @@ async def ready() -> dict[str, Any]:
         metrics_body = generate_latest().decode("utf-8", errors="replace")
         checks["metrics"] = {"ok": len(metrics_body) > 0}
     except Exception as e:
-        checks["metrics"] = {"ok": False, "error": str(e)}
+        # Issue #516: 不泄露内部异常详情
+        logger.debug(f"[Web] /ready metrics 检查失败: {e}")
+        checks["metrics"] = {"ok": False, "error": "指标采集失败"}
 
     # 3. PPO 模型（可选依赖，未加载不算不可用）
     try:
         model = _app._get_ppo_model()
         checks["ppo_model"] = {"ok": model is not None, "required": False}
     except Exception as e:
-        checks["ppo_model"] = {"ok": False, "required": False, "error": str(e)}
+        # Issue #516: 不泄露内部异常详情
+        logger.debug(f"[Web] /ready ppo_model 检查失败: {e}")
+        checks["ppo_model"] = {"ok": False, "required": False, "error": "模型检查失败"}
 
     # 4. 配额追踪器（可选）
     try:
         tracker = _app._get_quota_tracker()
         checks["quota_tracker"] = {"ok": tracker is not None, "required": False}
     except Exception as e:
-        checks["quota_tracker"] = {"ok": False, "required": False, "error": str(e)}
+        # Issue #516: 不泄露内部异常详情
+        logger.debug(f"[Web] /ready quota_tracker 检查失败: {e}")
+        checks["quota_tracker"] = {"ok": False, "required": False, "error": "配额检查失败"}
 
     # 总体就绪：所有 required=True 的检查必须通过
     required_ok = all(c["ok"] for c in checks.values() if c.get("required", True))
@@ -256,7 +313,11 @@ async def ready() -> dict[str, Any]:
 
 
 @router.post("/api/strategy")
-async def switch_strategy(strategy: str, _auth: None = Depends(verify_api_key)) -> dict[str, Any]:
+async def switch_strategy(
+    strategy: str,
+    _rate: None = Depends(rate_limit_dependency),
+    _auth: None = Depends(verify_api_key),
+) -> dict[str, Any]:
     """切换调度策略"""
     current_status = state.get_system_status()
     if strategy not in current_status["strategy_options"]:
@@ -276,7 +337,9 @@ async def switch_strategy(strategy: str, _auth: None = Depends(verify_api_key)) 
 
 @router.post("/api/update")
 async def update_status(
-    update: SystemStatusUpdate, _auth: None = Depends(verify_api_key)
+    update: SystemStatusUpdate,
+    _rate: None = Depends(rate_limit_dependency),
+    _auth: None = Depends(verify_api_key),
 ) -> dict[str, Any]:
     """更新系统状态（供调度引擎调用）"""
     state.update_system_status(
@@ -323,7 +386,8 @@ async def get_ppo_comparison(_auth: None = Depends(verify_api_key)) -> dict:
     except (json.JSONDecodeError, OSError) as e:
         # JSON 解析错误 / 文件 I/O 错误
         logger.error(f"[Web] 读取仿真结果文件失败: {e}")
-        return {"error": f"无法读取: {latest_file}", "strategies": [], "ppo_rank": None}
+        # Issue #516: 不泄露内部文件路径，返回通用错误消息
+        return {"error": "无法读取仿真结果文件", "strategies": [], "ppo_rank": None}
 
     sorted_items = sorted(data.items(), key=lambda x: x[1].get("avg_reward", -9999), reverse=True)
     ppo_rank = next((i + 1 for i, (k, _) in enumerate(sorted_items) if "PPO" in k.upper()), None)
@@ -373,7 +437,8 @@ async def ppo_predict(_auth: None = Depends(verify_api_key)) -> dict:
     except (ValueError, RuntimeError, KeyError, OSError) as e:
         # 路由级错误边界：模型推理可能抛出值错误/运行时错误/键错误/IO错误
         logger.error(f"[Web] PPO 推理失败: {e}")
-        return {"error": str(e), "action": None}
+        # Issue #516: 不泄露内部异常详情，返回通用错误消息
+        return {"error": "PPO 推理失败", "action": None}
 
 
 @router.get("/api/ppo/stats")
@@ -451,7 +516,8 @@ async def get_quota(_auth: None = Depends(verify_api_key)) -> dict:
         return {"available": True, **tracker.status()}
     except Exception as e:
         logger.warning(f"[Web] 获取配额状态失败: {e}")
-        return {"available": False, "message": str(e)}
+        # Issue #516: 不泄露内部异常详情
+        return {"available": False, "message": "配额查询失败"}
 
 
 @router.get("/api/resource-history")
@@ -618,7 +684,10 @@ async def get_explainability_latest(_auth: None = Depends(verify_api_key)) -> di
 
 
 @router.post("/api/battle/start")
-async def battle_start(_auth: None = Depends(verify_api_key)) -> dict[str, Any]:
+async def battle_start(
+    _rate: None = Depends(rate_limit_dependency),
+    _auth: None = Depends(verify_api_key),
+) -> dict[str, Any]:
     """启动 PPO vs FCFS 对战（Day4-7-11）。
 
     初始化两个独立的调度环境实例，分别使用 PPO 和 FCFS 策略。
@@ -655,11 +724,15 @@ async def battle_start(_auth: None = Depends(verify_api_key)) -> dict[str, Any]:
         }
     except Exception as e:
         logger.error(f"[Web] 对战启动失败: {e}")
-        return {"success": False, "error": str(e)}
+        # Issue #516: 不泄露内部异常详情
+        return {"success": False, "error": "对战启动失败"}
 
 
 @router.post("/api/battle/step")
-async def battle_step(_auth: None = Depends(verify_api_key)) -> dict[str, Any]:
+async def battle_step(
+    _rate: None = Depends(rate_limit_dependency),
+    _auth: None = Depends(verify_api_key),
+) -> dict[str, Any]:
     """推进对战一步（Day4-7-11）。
 
     PPO 使用模型预测动作，FCFS 使用固定策略（始终选择动作 0=经典资源）。
@@ -743,7 +816,8 @@ async def battle_step(_auth: None = Depends(verify_api_key)) -> dict[str, Any]:
             }
         except Exception as e:
             logger.error(f"[Web] 对战步进失败: {e}")
-            return {"error": str(e)}
+            # Issue #516: 不泄露内部异常详情
+            return {"error": "对战步进失败"}
 
 
 @router.get("/api/battle/status")
@@ -768,7 +842,60 @@ async def battle_status(_auth: None = Depends(verify_api_key)) -> dict:
 
 
 @router.post("/api/battle/reset")
-async def battle_reset(_auth: None = Depends(verify_api_key)) -> dict[str, Any]:
+async def battle_reset(
+    _rate: None = Depends(rate_limit_dependency),
+    _auth: None = Depends(verify_api_key),
+) -> dict[str, Any]:
     """重置对战状态（Day4-7-11）。"""
     state.reset_battle_state()
     return {"success": True, "message": "对战已重置"}
+
+
+# ============================================================
+# 量子电路提交端点（Issue #515）
+# ============================================================
+
+
+@router.post("/api/circuit/submit")
+async def submit_circuit(
+    payload: CircuitSubmit,
+    _rate: None = Depends(rate_limit_dependency),
+    _auth: None = Depends(verify_api_key),
+) -> dict[str, Any]:
+    """提交量子电路内容进行校验与调度（Issue #515）。
+
+    接收 QCIS/QASM 格式的量子电路字符串，执行安全校验：
+        1. 电路内容非空
+        2. 仅包含合法可打印 ASCII 字符
+        3. 门数不超过 10000（电路深度上限）
+        4. 量子比特数不超过 105（天衍-287 可用比特上限）
+
+    校验通过后返回校验摘要；校验失败返回 400 错误。
+
+    Args:
+        payload: 电路提交请求体（含 circuit / format / shots / task_name）
+
+    Returns:
+        包含 task_id、gate_count、qubit_count 的字典
+
+    Raises:
+        HTTPException: 电路无效时返回 400；速率超限返回 429；认证失败返回 401
+    """
+    # 电路内容校验（Issue #515）：无效时抛出 400 HTTPException
+    validation = validate_quantum_circuit(payload.circuit, payload.format)
+
+    task_id = "QCIR-" + uuid.uuid4().hex[:8]
+    logger.info(
+        f"[Web] 电路提交成功 task_id={task_id} "
+        f"gates={validation['gate_count']} qubits={validation['qubit_count']} "
+        f"format={payload.format} shots={payload.shots}"
+    )
+
+    return {
+        "task_id": task_id,
+        "message": "电路校验通过，已接受提交",
+        "format": payload.format,
+        "shots": payload.shots,
+        "gate_count": validation["gate_count"],
+        "qubit_count": validation["qubit_count"],
+    }
