@@ -134,7 +134,9 @@ class QuantumCompilationEnv(gym.Env):
                 dist = min(_DISTANCE_CACHE.get((action, fq), self.n_physical) for fq in free)
                 self._swap_count += dist
                 reward -= dist * 2
-                actual = min(free, key=lambda fq: _DISTANCE_CACHE.get((action, fq), self.n_physical))
+                actual = min(
+                    free, key=lambda fq: _DISTANCE_CACHE.get((action, fq), self.n_physical)
+                )
             else:
                 reward -= 50
                 terminated = True
@@ -168,15 +170,11 @@ class QuantumCompilationEnv(gym.Env):
             conn = matched / max(1, total_pairs)
         alloc = len(self._mapping) / self.n_physical
         occupied = set(self._reverse_map.keys())
-        free_n = (
-            sum(
-                1
-                for q in range(self.n_physical)
-                if q not in occupied
-                and any(n in occupied for n in COUPLING_GRAPH.get(q, set()))
-            )
-            / max(1, self.n_physical)
-        )
+        free_n = sum(
+            1
+            for q in range(self.n_physical)
+            if q not in occupied and any(n in occupied for n in COUPLING_GRAPH.get(q, set()))
+        ) / max(1, self.n_physical)
         boundary_count = 0
         total_edges = 0
         for q in range(self.n_physical):

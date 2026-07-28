@@ -89,12 +89,16 @@ diffs = [s - p for s, p in zip(sabre_swaps, ppo_swaps, strict=False) if s != p]
 rank_biserial = wilcox_stat / (len(diffs) * (len(diffs) + 1) / 2) if diffs else 0.0
 rank_biserial = 1 - 2 * rank_biserial  # 转换方向：正值表示 PPO 更优
 # 95% CI for per-circuit improvement
-improvements_per_circuit = [(s - p) / max(1, s) * 100 for s, p in zip(sabre_swaps, ppo_swaps, strict=False)]
+improvements_per_circuit = [
+    (s - p) / max(1, s) * 100 for s, p in zip(sabre_swaps, ppo_swaps, strict=False)
+]
 ci_low = np.percentile(improvements_per_circuit, 2.5)
 ci_high = np.percentile(improvements_per_circuit, 97.5)
 print(f"Wilcoxon signed-rank: W={wilcox_stat:.0f}, p={p_value:.2e}")
 print(f"Rank-biserial (effect size): {rank_biserial:.3f}")
-print(f"Per-circuit improvement: mean={np.mean(improvements_per_circuit):.1f}%, 95% CI=[{ci_low:.1f}%, {ci_high:.1f}%]")
+print(
+    f"Per-circuit improvement: mean={np.mean(improvements_per_circuit):.1f}%, 95% CI=[{ci_low:.1f}%, {ci_high:.1f}%]"
+)
 
 # 加载原始实验数据（-76.4% 来源）
 original_data = None
@@ -102,15 +106,17 @@ orig_json_path = "results/compilation/full_eval_20260727_102903.json"
 if os.path.exists(orig_json_path):
     with open(orig_json_path, encoding="utf-8") as f:
         original_data = json.load(f)
-    print(f"Original data: -{original_data['improvement_pct']}% (ppo={original_data['ppo_avg_swap']}, sabre={original_data['sabre_avg_swap']}")
+    print(
+        f"Original data: -{original_data['improvement_pct']}% (ppo={original_data['ppo_avg_swap']}, sabre={original_data['sabre_avg_swap']}"
+    )
 
 # ── 4. Category breakdown ──
 categories = {"sh": (5, 8, 5, 10), "md": (9, 14, 10, 20), "dp": (14, 16, 20, 30)}
 cat_results = {}
 idx = 0
 for cat_name, _cfg in categories.items():
-    cat_sabre = sabre_swaps[idx:idx + 20]
-    cat_ppo = ppo_swaps[idx:idx + 20]
+    cat_sabre = sabre_swaps[idx : idx + 20]
+    cat_ppo = ppo_swaps[idx : idx + 20]
     cat_results[cat_name] = {
         "sabre_avg": np.mean(cat_sabre),
         "ppo_avg": np.mean(cat_ppo),
@@ -160,9 +166,9 @@ report = f"""# 编译层 PPO SWAP 优化实验报告
 
 | 类别 | SABRE avg SWAP | PPO avg SWAP | 改进率 |
 |:--|:--|:--|:--|
-| 浅电路 (5-8 qubits) | {cat_results['sh']['sabre_avg']:.1f} | {cat_results['sh']['ppo_avg']:.1f} | -{cat_results['sh']['improvement']:.1f}% |
-| 中电路 (9-14 qubits) | {cat_results['md']['sabre_avg']:.1f} | {cat_results['md']['ppo_avg']:.1f} | -{cat_results['md']['improvement']:.1f}% |
-| 深电路 (14-16 qubits) | {cat_results['dp']['sabre_avg']:.1f} | {cat_results['dp']['ppo_avg']:.1f} | -{cat_results['dp']['improvement']:.1f}% |
+| 浅电路 (5-8 qubits) | {cat_results["sh"]["sabre_avg"]:.1f} | {cat_results["sh"]["ppo_avg"]:.1f} | -{cat_results["sh"]["improvement"]:.1f}% |
+| 中电路 (9-14 qubits) | {cat_results["md"]["sabre_avg"]:.1f} | {cat_results["md"]["ppo_avg"]:.1f} | -{cat_results["md"]["improvement"]:.1f}% |
+| 深电路 (14-16 qubits) | {cat_results["dp"]["sabre_avg"]:.1f} | {cat_results["dp"]["ppo_avg"]:.1f} | -{cat_results["dp"]["improvement"]:.1f}% |
 
 ---
 
@@ -178,7 +184,7 @@ report = f"""# 编译层 PPO SWAP 优化实验报告
 | 配对数 | {n_pairs} |
 | 检验方向 | 单侧 (PPO < SABRE) |
 
-**结论**: p = {p_value:.2e}{' << 0.05，PPO 的 SWAP 数显著低于 SABRE，差异具有统计显著性。' if p_value < 0.05 else '，未达到 0.05 显著性水平，但平均改进率仍显著。'}
+**结论**: p = {p_value:.2e}{" << 0.05，PPO 的 SWAP 数显著低于 SABRE，差异具有统计显著性。" if p_value < 0.05 else "，未达到 0.05 显著性水平，但平均改进率仍显著。"}
 
 ### 逐电路改进率
 
@@ -204,8 +210,8 @@ OR-Tools 在 20/50/100 任务规模下提供了调度层 makespan 的理论下�
 1. **PPO 驱动的比特映射在 60 个随机电路上平均减少 SWAP 门 {improvement:.1f}%**（{sabre_avg:.1f} → {ppo_avg:.1f}）
 2. 统计显著性：Wilcoxon signed-rank 检验 p = {p_value:.2e}，效应量 rank-biserial = {rank_biserial:.3f}
 3. 改进在所有三个电路类别（浅/中/深）中均一致
-4. **原始实验数据**（`results/compilation/full_eval_20260727_102903.json`）：PPO avg SWAP = {original_data['ppo_avg_swap'] if original_data else 'N/A'}, SABRE avg SWAP = {original_data['sabre_avg_swap'] if original_data else 'N/A'}, 改进率 = -{original_data['improvement_pct'] if original_data else 'N/A'}%
-5. 两次独立运行结果（-{original_data['improvement_pct'] if original_data else '76.4'}% 和 -{improvement:.1f}%）均证实 PPO 显著优于 SABRE，数字差异来自随机电路生成的自然波动
+4. **原始实验数据**（`results/compilation/full_eval_20260727_102903.json`）：PPO avg SWAP = {original_data["ppo_avg_swap"] if original_data else "N/A"}, SABRE avg SWAP = {original_data["sabre_avg_swap"] if original_data else "N/A"}, 改进率 = -{original_data["improvement_pct"] if original_data else "N/A"}%
+5. 两次独立运行结果（-{original_data["improvement_pct"] if original_data else "76.4"}% 和 -{improvement:.1f}%）均证实 PPO 显著优于 SABRE，数字差异来自随机电路生成的自然波动
 6. README/AGENTS 中引用的 `-76.4%` 数字来源为原始实验，本报告复现确认其量级正确
 
 ---

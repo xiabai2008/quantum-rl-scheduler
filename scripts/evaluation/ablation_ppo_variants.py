@@ -3,6 +3,7 @@
 对比所有PPO变体：PPO-LSTM / PPO-MLP / PPO-LSTM+Annealing
 多seed × 多episode统计显著性检验
 """
+
 import json
 import sys
 from datetime import datetime
@@ -45,13 +46,20 @@ MODEL_VARIANTS = [
 ]
 
 
-def evaluate_model(model_path: Path, use_lstm: bool, use_annealing: bool,
-                   num_seeds: int = NUM_SEEDS, episodes_per_seed: int = EPISODES_PER_SEED) -> dict:
+def evaluate_model(
+    model_path: Path,
+    use_lstm: bool,
+    use_annealing: bool,
+    num_seeds: int = NUM_SEEDS,
+    episodes_per_seed: int = EPISODES_PER_SEED,
+) -> dict:
     """Evaluate a trained PPO model across seeds (using agent.predict consistently)."""
     if not model_path.exists():
         return {"name": str(model_path), "exists": False}
 
-    env0 = QuantumSchedulingEnv(max_steps=MAX_STEPS, machine_configs=DEFAULT_MACHINE_CONFIGS, seed=42)
+    env0 = QuantumSchedulingEnv(
+        max_steps=MAX_STEPS, machine_configs=DEFAULT_MACHINE_CONFIGS, seed=42
+    )
     agent = PPOAgent(env=env0, use_lstm=use_lstm, use_annealing=use_annealing)
     agent.load(str(model_path))
 
@@ -61,8 +69,9 @@ def evaluate_model(model_path: Path, use_lstm: bool, use_annealing: bool,
     all_action_counts = []
 
     for seed in range(num_seeds):
-        env = QuantumSchedulingEnv(max_steps=MAX_STEPS, machine_configs=DEFAULT_MACHINE_CONFIGS,
-                                   seed=10000 + seed)
+        env = QuantumSchedulingEnv(
+            max_steps=MAX_STEPS, machine_configs=DEFAULT_MACHINE_CONFIGS, seed=10000 + seed
+        )
         for ep in range(episodes_per_seed):
             obs, info = env.reset(seed=20000 + seed * 100 + ep)
             done = False
@@ -115,7 +124,7 @@ def compare_models(baseline: dict, variant: dict) -> dict:
     u_stat, p_mwu = stats.mannwhitneyu(bl_r, var_r, alternative="two-sided")
     t_stat, p_t = stats.ttest_ind(bl_r, var_r, equal_var=False)
     n1, n2 = len(bl_r), len(var_r)
-    pooled_std = np.sqrt(((n1 - 1) * bl_r.std()**2 + (n2 - 1) * var_r.std()**2) / (n1 + n2 - 2))
+    pooled_std = np.sqrt(((n1 - 1) * bl_r.std() ** 2 + (n2 - 1) * var_r.std() ** 2) / (n1 + n2 - 2))
     cohens_d = (bl_r.mean() - var_r.mean()) / pooled_std if pooled_std > 0 else 0.0
 
     return {
@@ -124,7 +133,9 @@ def compare_models(baseline: dict, variant: dict) -> dict:
         "baseline_mean": baseline["mean_reward"],
         "variant_mean": variant["mean_reward"],
         "delta": variant["mean_reward"] - baseline["mean_reward"],
-        "delta_pct": (variant["mean_reward"] - baseline["mean_reward"]) / abs(baseline["mean_reward"]) * 100,
+        "delta_pct": (variant["mean_reward"] - baseline["mean_reward"])
+        / abs(baseline["mean_reward"])
+        * 100,
         "mann_whitney_u": float(u_stat),
         "p_value_mwu": float(p_mwu),
         "p_value_t": float(p_t),
@@ -137,7 +148,9 @@ def compare_models(baseline: dict, variant: dict) -> dict:
 def main():
     print("=" * 70)
     print("消融实验: PPO策略网络组件对比评估")
-    print(f"  {NUM_SEEDS} seeds × {EPISODES_PER_SEED} episodes = {NUM_SEEDS*EPISODES_PER_SEED} episodes/model")
+    print(
+        f"  {NUM_SEEDS} seeds × {EPISODES_PER_SEED} episodes = {NUM_SEEDS * EPISODES_PER_SEED} episodes/model"
+    )
     print("=" * 70)
 
     results = {}
@@ -151,11 +164,13 @@ def main():
         results[name] = r
         if r["exists"]:
             print(f"  Reward: {r['mean_reward']:.1f} +/- {r['std_reward']:.1f}")
-            print(f"  Completion: {r['mean_completion_rate']*100:.1f}%")
+            print(f"  Completion: {r['mean_completion_rate'] * 100:.1f}%")
             ad = r["action_distribution"]
             total_a = ad["classical"] + ad["quantum"] + ad["hybrid"] + ad["qem"]
-            print(f"  Actions: Q={ad['quantum']/total_a*100:.0f}% H={ad['hybrid']/total_a*100:.0f}% "
-                  f"C={ad['classical']/total_a*100:.0f}% QEM={ad['qem']/total_a*100:.0f}%")
+            print(
+                f"  Actions: Q={ad['quantum'] / total_a * 100:.0f}% H={ad['hybrid'] / total_a * 100:.0f}% "
+                f"C={ad['classical'] / total_a * 100:.0f}% QEM={ad['qem'] / total_a * 100:.0f}%"
+            )
         else:
             print(f"  [跳过] 模型不存在: {variant['path']}")
 
@@ -164,10 +179,12 @@ def main():
     comparisons = []
 
     if baseline and baseline.get("exists"):
-        print(f"\n{'='*70}")
+        print(f"\n{'=' * 70}")
         print(f"统计显著性检验 (vs {baseline_name}, Mann-Whitney U)")
-        print(f"{'='*70}")
-        print(f"{'对比模型':<30} {'ΔReward':>10} {'Δ%':>8} {'p-value':>12} {'效应量d':>8} {'显著性':>8}")
+        print(f"{'=' * 70}")
+        print(
+            f"{'对比模型':<30} {'ΔReward':>10} {'Δ%':>8} {'p-value':>12} {'效应量d':>8} {'显著性':>8}"
+        )
         print("-" * 82)
 
         for name, r in results.items():
@@ -176,20 +193,24 @@ def main():
             cmp = compare_models(baseline, r)
             comparisons.append(cmp)
             sig = "***" if cmp["significant_001"] else "**" if cmp["significant_005"] else "n.s."
-            print(f"{name:<30} {cmp['delta']:>+10.1f} {cmp['delta_pct']:>+7.2f}% "
-                  f"{cmp['p_value_mwu']:>12.8f} {cmp['cohens_d']:>+8.3f} {sig:>8}")
+            print(
+                f"{name:<30} {cmp['delta']:>+10.1f} {cmp['delta_pct']:>+7.2f}% "
+                f"{cmp['p_value_mwu']:>12.8f} {cmp['cohens_d']:>+8.3f} {sig:>8}"
+            )
 
-    print(f"\n{'='*70}")
+    print(f"\n{'=' * 70}")
     print("消融实验结果汇总")
-    print(f"{'='*70}")
+    print(f"{'=' * 70}")
     print(f"{'模型':<30} {'平均奖励':>12} {'成功率':>10} {'Quantum%':>9} {'Hybrid%':>9}")
     print("-" * 72)
     for name, r in results.items():
         if r.get("exists"):
             ad = r["action_distribution"]
             total_a = ad["classical"] + ad["quantum"] + ad["hybrid"] + ad["qem"]
-            print(f"{name:<30} {r['mean_reward']:>12.1f} {r['mean_completion_rate']*100:>9.1f}% "
-                  f"{ad['quantum']/total_a*100:>8.1f}% {ad['hybrid']/total_a*100:>8.1f}%")
+            print(
+                f"{name:<30} {r['mean_reward']:>12.1f} {r['mean_completion_rate'] * 100:>9.1f}% "
+                f"{ad['quantum'] / total_a * 100:>8.1f}% {ad['hybrid'] / total_a * 100:>8.1f}%"
+            )
 
     output = {
         "experiment": "ppo_ablation_study",

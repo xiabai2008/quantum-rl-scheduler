@@ -2,6 +2,7 @@
 PPO-LSTM 训练脚本（150万步 + 早停）
 Early stopping: 连续5次评估（25万步）平均奖励无提升则停止训练
 """
+
 import argparse
 import os
 import sys
@@ -55,11 +56,15 @@ class EarlyStoppingCallback(BaseCallback):
                 else:
                     self.no_improve_count += 1
                     if self.verbose:
-                        print(f"\n[早停] step={t}: 奖励={mean_r:.2f}（最佳={self.best_mean_reward:.2f}），"
-                              f"连续{self.no_improve_count}/{self.patience}次无提升")
+                        print(
+                            f"\n[早停] step={t}: 奖励={mean_r:.2f}（最佳={self.best_mean_reward:.2f}），"
+                            f"连续{self.no_improve_count}/{self.patience}次无提升"
+                        )
                     if self.no_improve_count >= self.patience:
-                        print(f"\n[早停] 连续{self.patience}次评估无提升，停止训练。"
-                              f"最佳奖励={self.best_mean_reward:.2f}")
+                        print(
+                            f"\n[早停] 连续{self.patience}次评估无提升，停止训练。"
+                            f"最佳奖励={self.best_mean_reward:.2f}"
+                        )
                         return False
             self._last_eval_count = len(timesteps)
         except Exception:
@@ -146,7 +151,9 @@ def main():
     end_time = datetime.now()
     training_duration = (end_time - start_time).total_seconds()
 
-    print(f"\n[训练] 训练完成！耗时: {training_duration:.2f} 秒 ({training_duration/3600:.2f}小时)")
+    print(
+        f"\n[训练] 训练完成！耗时: {training_duration:.2f} 秒 ({training_duration / 3600:.2f}小时)"
+    )
 
     agent.save(save_path)
     print(f"[保存] 模型已保存至: {save_path}.zip")
@@ -159,11 +166,12 @@ def main():
     print("=" * 70)
     print(f"平均奖励: {eval_results['mean_reward']:.2f} ± {eval_results['std_reward']:.2f}")
     print(f"成功率: {eval_results['success_rate']:.2%}")
-    print(f"训练时长: {training_duration:.2f} 秒 ({training_duration/3600:.2f}小时)")
+    print(f"训练时长: {training_duration:.2f} 秒 ({training_duration / 3600:.2f}小时)")
     print(f"模型路径: {save_path}.zip")
     print("=" * 70)
 
     import json
+
     results = {
         "algorithm": "PPO-LSTM",
         "timesteps": total_timesteps,

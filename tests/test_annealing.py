@@ -1760,7 +1760,9 @@ class TestTargetNetGradient(unittest.TestCase):
         # ?? target_net ????? TD ??
         with torch.no_grad():
             nv = self.target_net(torch.from_numpy(next_obs).float()).max(1)[0]
-            tq = torch.from_numpy(rewards).float() + 0.99 * nv * (1 - torch.from_numpy(dones).float())
+            tq = torch.from_numpy(rewards).float() + 0.99 * nv * (
+                1 - torch.from_numpy(dones).float()
+            )
             qv = (
                 self.policy_net(torch.from_numpy(obs).float())
                 .gather(1, torch.from_numpy(actions).long())
@@ -1772,7 +1774,9 @@ class TestTargetNetGradient(unittest.TestCase):
         # ????:?? bug ??（? policy_net ? next-Q），? target_net ???? exp_td ?????
         with torch.no_grad():
             nv_p = self.policy_net(torch.from_numpy(next_obs).float()).max(1)[0]
-            tq_p = torch.from_numpy(rewards).float() + 0.99 * nv_p * (1 - torch.from_numpy(dones).float())
+            tq_p = torch.from_numpy(rewards).float() + 0.99 * nv_p * (
+                1 - torch.from_numpy(dones).float()
+            )
             exp_td_p = (qv - tq_p).detach().numpy()
         self.assertFalse(np.allclose(td_errors, exp_td_p, atol=1e-6))
 
@@ -1808,16 +1812,21 @@ class TestTargetNetGradient(unittest.TestCase):
         ????(#357 ????):????? target_net ??????????? policy_net ???"""
         obs, actions, rewards, next_obs, dones = self.batch_tensors
         # _compute_gradients ? target_net ? td_errors ?? gradients
-        gradients, td_errors, loss0 = self.opt._compute_gradients(self.policy_net, self.buffer, self.agent)
+        gradients, td_errors, loss0 = self.opt._compute_gradients(
+            self.policy_net, self.buffer, self.agent
+        )
 
         # ? td_errors == q_value - target_q
         with torch.no_grad():
             nv = self.target_net(torch.from_numpy(next_obs).float()).max(1)[0]
             tq = (
-                torch.from_numpy(rewards).float() + 0.99 * nv * (1 - torch.from_numpy(dones).float())
+                torch.from_numpy(rewards).float()
+                + 0.99 * nv * (1 - torch.from_numpy(dones).float())
             ).unsqueeze(1)
         self.policy_net.train()
-        qv = self.policy_net(torch.from_numpy(obs).float()).gather(1, torch.from_numpy(actions).long())
+        qv = self.policy_net(torch.from_numpy(obs).float()).gather(
+            1, torch.from_numpy(actions).long()
+        )
         self.assertTrue(
             np.allclose(td_errors, (qv.detach() - tq.detach()).squeeze(1).numpy(), atol=1e-6)
         )
@@ -1826,7 +1835,9 @@ class TestTargetNetGradient(unittest.TestCase):
             """?????????????? mse(q_value, target_q(target_net)) ?????"""
             self.policy_net.zero_grad()
             self.policy_net.train()
-            q = self.policy_net(torch.from_numpy(obs).float()).gather(1, torch.from_numpy(actions).long())
+            q = self.policy_net(torch.from_numpy(obs).float()).gather(
+                1, torch.from_numpy(actions).long()
+            )
             with torch.no_grad():
                 nv_t = target_net(torch.from_numpy(next_obs).float()).max(1)[0]
                 tq_t = (
@@ -1835,7 +1846,11 @@ class TestTargetNetGradient(unittest.TestCase):
                 ).unsqueeze(1)
             loss_t = torch.nn.functional.mse_loss(q, tq_t)
             loss_t.backward()
-            return [p.grad.detach().cpu().numpy().copy() for p in self.policy_net.parameters() if p.grad is not None]
+            return [
+                p.grad.detach().cpu().numpy().copy()
+                for p in self.policy_net.parameters()
+                if p.grad is not None
+            ]
 
         grad_target = grad_of(self.target_net)
         grad_policy = grad_of(self.policy_net)
@@ -1858,10 +1873,15 @@ class TestTargetNetGradient(unittest.TestCase):
         with torch.no_grad():
             for p, g in zip(self.policy_net.parameters(), gradients, strict=False):
                 p.sub_(lr * torch.from_numpy(g))
-        qv2 = self.policy_net(torch.from_numpy(obs).float()).gather(1, torch.from_numpy(actions).long())
+        qv2 = self.policy_net(torch.from_numpy(obs).float()).gather(
+            1, torch.from_numpy(actions).long()
+        )
         with torch.no_grad():
             nv2 = self.target_net(torch.from_numpy(next_obs).float()).max(1)[0]
-            tq2 = (torch.from_numpy(rewards).float() + 0.99 * nv2 * (1 - torch.from_numpy(dones).float())).unsqueeze(1)
+            tq2 = (
+                torch.from_numpy(rewards).float()
+                + 0.99 * nv2 * (1 - torch.from_numpy(dones).float())
+            ).unsqueeze(1)
         loss1 = torch.nn.functional.mse_loss(qv2, tq2)
         self.assertLess(loss1.item(), loss0)
 
@@ -1909,9 +1929,15 @@ class TestTargetNetGradient(unittest.TestCase):
         self.assertTrue(np.isfinite(loss))
         # ????????? q_net/q_net_target ????? td_errors????? #357 ?????
         with torch.no_grad():
-            qv = model.policy.q_net(torch.from_numpy(obs).float()).gather(1, torch.from_numpy(actions).long()).squeeze(1)
+            qv = (
+                model.policy.q_net(torch.from_numpy(obs).float())
+                .gather(1, torch.from_numpy(actions).long())
+                .squeeze(1)
+            )
             nv = model.policy.q_net_target(torch.from_numpy(next_obs).float()).max(1)[0]
-            tq = torch.from_numpy(rewards).float() + 0.99 * nv * (1 - torch.from_numpy(dones).float())
+            tq = torch.from_numpy(rewards).float() + 0.99 * nv * (
+                1 - torch.from_numpy(dones).float()
+            )
             exp_td = (qv - tq).detach().numpy()
         self.assertTrue(np.allclose(td_errors, exp_td, atol=1e-6))
 

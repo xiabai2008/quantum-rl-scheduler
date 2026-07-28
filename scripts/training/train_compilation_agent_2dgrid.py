@@ -2,6 +2,7 @@
 在 4×4 2D网格拓扑上重新训练 PPO 编译智能体
 使用全电路分布（浅/中/深），每个 episode 采样新电路
 """
+
 from __future__ import annotations
 
 import sys
@@ -45,9 +46,7 @@ class MultiCircuitCompilationEnv(QuantumCompilationEnv):
         q_lo, q_hi, g_lo, g_hi = self.categories[cat_idx]
         n_q = int(self.rng.integers(q_lo, q_hi + 1))
         n_g = int(self.rng.integers(g_lo, g_hi + 1))
-        return random_circuit(
-            n_q, n_g, measure=False, seed=int(self.rng.integers(0, 2**31 - 1))
-        )
+        return random_circuit(n_q, n_g, measure=False, seed=int(self.rng.integers(0, 2**31 - 1)))
 
     def reset(
         self,
@@ -88,7 +87,7 @@ def main() -> None:
     t0 = time.time()
     model.learn(total_timesteps=N_TIMESTEPS)
     elapsed = time.time() - t0
-    print(f"\n训练完成: {elapsed:.0f}s ({N_TIMESTEPS/elapsed:.0f} FPS)")
+    print(f"\n训练完成: {elapsed:.0f}s ({N_TIMESTEPS / elapsed:.0f} FPS)")
 
     model.save(MODEL_SAVE_PATH)
     print(f"模型已保存: {MODEL_SAVE_PATH}")

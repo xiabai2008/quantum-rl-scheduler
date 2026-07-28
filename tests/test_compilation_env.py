@@ -189,17 +189,13 @@ class TestTermination:
 class TestReward:
     """奖励函数数值正确性验证。"""
 
-    def test_reward_mapping_success_positive(
-        self, env_no_circuit: QuantumCompilationEnv
-    ) -> None:
+    def test_reward_mapping_success_positive(self, env_no_circuit: QuantumCompilationEnv) -> None:
         """成功映射应给出正奖励（+1）。"""
         env_no_circuit.reset(seed=42)
         _, reward, _, _, _ = env_no_circuit.step(0)
         assert reward == pytest.approx(1.0)
 
-    def test_reward_conflict_swap_negative(
-        self, env_no_circuit: QuantumCompilationEnv
-    ) -> None:
+    def test_reward_conflict_swap_negative(self, env_no_circuit: QuantumCompilationEnv) -> None:
         """冲突 SWAP 应给出负奖励（-2 基础 + 距离惩罚 + 1 映射奖励）。"""
         env_no_circuit.reset(seed=42)
         env_no_circuit.step(0)  # 首次映射 reward=+1
@@ -324,7 +320,9 @@ class TestBoundaryCases:
 class TestObservation:
     """观测向量各维度含义验证。"""
 
-    def test_observation_has_redundant_dimensions(self, env_no_circuit: QuantumCompilationEnv) -> None:
+    def test_observation_has_redundant_dimensions(
+        self, env_no_circuit: QuantumCompilationEnv
+    ) -> None:
         """14 维中有 3 个冗余反义维度（1-mapped_r, 1-alloc, 1-conn）。"""
         obs, _ = env_no_circuit.reset(seed=42)
         # 维度 11 = 1.0 - mapped_r, 维度 12 = 1.0 - alloc, 维度 13 = 1.0 - conn

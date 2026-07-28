@@ -281,18 +281,14 @@ class TestMAPPOLrSchedule:
         expected_lr = 3e-4 * 0.5
         for opt in agent.actor_optimizers:
             assert opt.param_groups[0]["lr"] == pytest.approx(expected_lr, rel=1e-6)
-        assert agent.critic_optimizer.param_groups[0]["lr"] == pytest.approx(
-            expected_lr, rel=1e-6
-        )
+        assert agent.critic_optimizer.param_groups[0]["lr"] == pytest.approx(expected_lr, rel=1e-6)
 
     def test_update_learning_rate_zero_timesteps_noop(self) -> None:
         """total_timesteps=0 时 _update_learning_rate 应为空操作。"""
         agent = self._make_agent("linear")
         original_lr = agent.actor_optimizers[0].param_groups[0]["lr"]
         agent._update_learning_rate(0)
-        assert agent.actor_optimizers[0].param_groups[0]["lr"] == pytest.approx(
-            original_lr
-        )
+        assert agent.actor_optimizers[0].param_groups[0]["lr"] == pytest.approx(original_lr)
 
     def test_constant_schedule_lr_unchanged_after_update(self) -> None:
         """constant 模式下 _update_learning_rate 不应改变 lr。"""

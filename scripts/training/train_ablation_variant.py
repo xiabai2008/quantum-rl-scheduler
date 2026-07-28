@@ -1,6 +1,7 @@
 """
 PPO-MLP 训练脚本（150万步 + 早停，用于LSTM消融对比）
 """
+
 import argparse
 import os
 import sys
@@ -48,10 +49,14 @@ class EarlyStoppingCallback(BaseCallback):
                 else:
                     self.no_improve_count += 1
                     if self.verbose:
-                        print(f"\n[早停] step={t}: 奖励={mean_r:.2f}（最佳={self.best_mean_reward:.2f}），"
-                              f"连续{self.no_improve_count}/{self.patience}次无提升")
+                        print(
+                            f"\n[早停] step={t}: 奖励={mean_r:.2f}（最佳={self.best_mean_reward:.2f}），"
+                            f"连续{self.no_improve_count}/{self.patience}次无提升"
+                        )
                     if self.no_improve_count >= self.patience:
-                        print(f"\n[早停] 连续{self.patience}次评估无提升，停止训练。最佳={self.best_mean_reward:.2f}")
+                        print(
+                            f"\n[早停] 连续{self.patience}次评估无提升，停止训练。最佳={self.best_mean_reward:.2f}"
+                        )
                         return False
             self._last_eval_count = len(timesteps)
         except Exception:
@@ -134,15 +139,18 @@ def main():
     )
     elapsed = (datetime.now() - t0).total_seconds()
 
-    print(f"\n[训练] 完成! 耗时: {elapsed:.0f}s ({elapsed/3600:.2f}h)")
+    print(f"\n[训练] 完成! 耗时: {elapsed:.0f}s ({elapsed / 3600:.2f}h)")
     agent.save(save_path)
     print(f"[保存] {save_path}.zip")
 
     results = agent.evaluate(num_episodes=10, deterministic=True)
-    print(f"\n最终评估: reward={results['mean_reward']:.2f}±{results['std_reward']:.2f}, "
-          f"success={results['success_rate']:.2%}")
+    print(
+        f"\n最终评估: reward={results['mean_reward']:.2f}±{results['std_reward']:.2f}, "
+        f"success={results['success_rate']:.2%}"
+    )
 
     import json
+
     summary = {
         "label": args.label,
         "seed": args.seed,
@@ -157,6 +165,7 @@ def main():
         "success_rate": results["success_rate"],
     }
     import pathlib
+
     rdir = pathlib.Path("results")
     rdir.mkdir(exist_ok=True)
     with open(rdir / f"ablation_{args.label}_seed{args.seed}.json", "w") as f:

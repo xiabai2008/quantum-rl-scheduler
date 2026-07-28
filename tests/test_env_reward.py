@@ -71,9 +71,7 @@ class TestComputeTaskSpeedup:
             rng_base = np.random.default_rng(7)
             base = float(rng_base.uniform(*QUANTUM_SPEEDUP_RANGE))
 
-            assert speedup == pytest.approx(base), (
-                f"qubit_count={qubit_count} 时加速比应等于基础值"
-            )
+            assert speedup == pytest.approx(base), f"qubit_count={qubit_count} 时加速比应等于基础值"
 
     def test_large_qubit_count_higher_speedup(self) -> None:
         """比特数=100 时 qubit_factor>1，加速比高于基础采样值。"""

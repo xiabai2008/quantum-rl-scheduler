@@ -7,6 +7,7 @@
 3. 保真度模型：均匀/无感知 (旧) vs 距离感知 (新)
 4. SABRE baseline在两种拓扑上的SWAP开销对比
 """
+
 import json
 import sys
 import time
@@ -87,7 +88,11 @@ def estimate_swap_count_greedy(circuit, coupling_graph, dist_fn, qubits: int = 1
             qargs = [circuit.find_bit(q).index for q in node.qargs]
             phys_q0 = mapping[qargs[0]]
             phys_q1 = mapping[qargs[1]]
-            d = dist_fn(coupling_graph, phys_q0, phys_q1) if dist_fn else linear_distance(qubits, phys_q0, phys_q1)
+            d = (
+                dist_fn(coupling_graph, phys_q0, phys_q1)
+                if dist_fn
+                else linear_distance(qubits, phys_q0, phys_q1)
+            )
             total_swaps += max(0, d - 1)
     return total_swaps
 
@@ -130,10 +135,12 @@ def run_sabre(circuits, coupling_map, label: str) -> dict:
     t0 = time.time()
     for qc in circuits:
         try:
-            pm = PassManager([
-                SabreLayout(coupling_map, swap_trials=8, layout_trials=8),
-                SabreSwap(coupling_map, trials=8),
-            ])
+            pm = PassManager(
+                [
+                    SabreLayout(coupling_map, swap_trials=8, layout_trials=8),
+                    SabreSwap(coupling_map, trials=8),
+                ]
+            )
             compiled = pm.run(qc)
             swaps.append(compiled.count_ops().get("swap", 0))
         except Exception:
@@ -198,10 +205,12 @@ def main():
     print(f"\n{'拓扑':<30} {'平均SWAP':>10} {'中位SWAP':>10} {'最大SWAP':>10} {'时间':>8}")
     print("-" * 70)
     for r in [sabre_linear, sabre_grid]:
-        print(f"{r['label']:<30} {r['avg_swap']:>10.1f} {r['median_swap']:>10.1f} "
-              f"{r['max_swap']:>10d} {r['time_s']:>7.1f}s")
+        print(
+            f"{r['label']:<30} {r['avg_swap']:>10.1f} {r['median_swap']:>10.1f} "
+            f"{r['max_swap']:>10d} {r['time_s']:>7.1f}s"
+        )
 
-    swap_improvement = (1 - sabre_grid['avg_swap'] / sabre_linear['avg_swap']) * 100
+    swap_improvement = (1 - sabre_grid["avg_swap"] / sabre_linear["avg_swap"]) * 100
     print(f"\n2D网格 vs 线性链 SWAP减少: {swap_improvement:.1f}%")
 
     # ── 2. Distance function comparison ──
@@ -213,19 +222,23 @@ def main():
     grid_graph = build_2d_grid_coupling(4, 4)
 
     # 在2D网格上用线性距离（错误）vs BFS距离（正确）
-    greedy_linear_dist = run_greedy_analysis(circuits, grid_graph,
-                                             lambda g, s, d: linear_distance(16, s, d),
-                                             "Grid+LinearDist(旧错误)")
-    greedy_bfs_dist = run_greedy_analysis(circuits, grid_graph,
-                                          bfs_distance,
-                                          "Grid+BFSDist(新#406)")
+    greedy_linear_dist = run_greedy_analysis(
+        circuits, grid_graph, lambda g, s, d: linear_distance(16, s, d), "Grid+LinearDist(旧错误)"
+    )
+    greedy_bfs_dist = run_greedy_analysis(
+        circuits, grid_graph, bfs_distance, "Grid+BFSDist(新#406)"
+    )
 
     print(f"\n{'配置':<30} {'SWAP下界':>12} {'估计保真度':>12}")
     print("-" * 60)
     for r in [greedy_linear_dist, greedy_bfs_dist]:
-        print(f"{r['label']:<30} {r['avg_swap_lower_bound']:>12.1f} {r['avg_estimated_fidelity']:>12.4f}")
+        print(
+            f"{r['label']:<30} {r['avg_swap_lower_bound']:>12.1f} {r['avg_estimated_fidelity']:>12.4f}"
+        )
 
-    dist_error = (greedy_bfs_dist['avg_swap_lower_bound'] - greedy_linear_dist['avg_swap_lower_bound'])
+    dist_error = (
+        greedy_bfs_dist["avg_swap_lower_bound"] - greedy_linear_dist["avg_swap_lower_bound"]
+    )
     print(f"\n线性距离在2D网格上低估SWAP数: {abs(dist_error):.1f} (距离函数错误导致路由决策偏差)")
 
     # ── 3. Graph diameter (最长最短路径) ──
@@ -245,7 +258,7 @@ def main():
     grid_diam = graph_diameter(grid_graph)
     print(f"线性链直径: {linear_diam} (qubit 0→15 需 {linear_diam} 个SWAP)")
     print(f"4×4网格直径: {grid_diam} (最远对角需 {grid_diam} 个SWAP)")
-    print(f"直径减少: {(1 - grid_diam/linear_diam)*100:.0f}%")
+    print(f"直径减少: {(1 - grid_diam / linear_diam) * 100:.0f}%")
 
     # ── 4. Connectivity comparison ──
     print("\n" + "=" * 70)
@@ -272,6 +285,7 @@ def main():
         },
     }
     import pathlib
+
     rdir = pathlib.Path("results")
     rdir.mkdir(exist_ok=True)
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")

@@ -4,6 +4,7 @@ PPO-LSTM 最佳模型深度评估 + 基线对比实验
 - 对比: PPO-LSTM(best/final) vs Random/All-Classical/All-Quantum/Hybrid/Greedy
 - 指标: mean_reward, success_rate, avg_wait, qubit_utilization, fidelity
 """
+
 import json
 import os
 import sys
@@ -37,7 +38,9 @@ def make_env(seed: int) -> QuantumSchedulingEnv:
     )
 
 
-def evaluate_strategy(strategy_name: str, action_fn, num_seeds: int, episodes_per_seed: int) -> dict:
+def evaluate_strategy(
+    strategy_name: str, action_fn, num_seeds: int, episodes_per_seed: int
+) -> dict:
     """Evaluate a strategy across multiple seeds and episodes.
 
     action_fn: callable(obs, info) -> action
@@ -104,20 +107,26 @@ def load_ppo_agent(model_path: Path, use_lstm: bool = True) -> PPOAgent:
 
 # ─── Baseline strategies ────────────────────────────────────────────
 
+
 def random_action(obs, info, env):
     return env.action_space.sample()
+
 
 def classical_action(obs, info, env):
     return 0  # ACTION_CLASSICAL
 
+
 def quantum_action(obs, info, env):
     return 1  # ACTION_QUANTUM
+
 
 def hybrid_action(obs, info, env):
     return 2  # ACTION_HYBRID
 
+
 def qem_action(obs, info, env):
     return 3  # ACTION_QEM (QEM)
+
 
 def greedy_action(obs, info, env):
     """Greedy: use quantum if quantum machines have high availability, else hybrid."""
@@ -132,23 +141,34 @@ def greedy_action(obs, info, env):
 
 def make_ppo_action(agent: PPOAgent):
     """Create action function from loaded PPOAgent."""
+
     def action_fn(obs, info, env):
         return agent.predict(obs, deterministic=True)
+
     return action_fn
 
 
 # ─── Statistical tests ──────────────────────────────────────────────
 
-def compute_statistical_significance(baseline_rewards: list[float], treatment_rewards: list[float]) -> dict:
+
+def compute_statistical_significance(
+    baseline_rewards: list[float], treatment_rewards: list[float]
+) -> dict:
     """Compare treatment against baseline using Mann-Whitney U test + effect size."""
-    u_stat, p_value = stats.mannwhitneyu(treatment_rewards, baseline_rewards, alternative="two-sided")
+    u_stat, p_value = stats.mannwhitneyu(
+        treatment_rewards, baseline_rewards, alternative="two-sided"
+    )
     # Cohen's d effect size
     n1, n2 = len(treatment_rewards), len(baseline_rewards)
     pooled_std = np.sqrt(
         ((n1 - 1) * np.var(treatment_rewards, ddof=1) + (n2 - 1) * np.var(baseline_rewards, ddof=1))
         / (n1 + n2 - 2)
     )
-    cohens_d = (np.mean(treatment_rewards) - np.mean(baseline_rewards)) / pooled_std if pooled_std > 0 else 0.0
+    cohens_d = (
+        (np.mean(treatment_rewards) - np.mean(baseline_rewards)) / pooled_std
+        if pooled_std > 0
+        else 0.0
+    )
     return {
         "mann_whitney_u": float(u_stat),
         "p_value": float(p_value),
@@ -162,7 +182,9 @@ def main():
     print("=" * 70)
     print("PPO-LSTM 最佳模型深度评估 + 基线对比实验")
     print("=" * 70)
-    print(f"配置: {NUM_SEEDS} seeds × {EPISODES_PER_SEED} episodes = {NUM_SEEDS * EPISODES_PER_SEED} episodes/策略")
+    print(
+        f"配置: {NUM_SEEDS} seeds × {EPISODES_PER_SEED} episodes = {NUM_SEEDS * EPISODES_PER_SEED} episodes/策略"
+    )
     print(f"环境: 多机器模式, max_steps={MAX_STEPS}")
     print("=" * 70)
 
@@ -206,9 +228,11 @@ def main():
         elapsed = (datetime.now() - t0).total_seconds()
         r["eval_time_s"] = elapsed
         results.append(r)
-        print(f"    mean_reward={r['mean_reward']:.2f} ± {r['std_reward']:.2f}, "
-              f"completion={r['mean_completion_rate']:.2%}, "
-              f"time={elapsed:.1f}s")
+        print(
+            f"    mean_reward={r['mean_reward']:.2f} ± {r['std_reward']:.2f}, "
+            f"completion={r['mean_completion_rate']:.2%}, "
+            f"time={elapsed:.1f}s"
+        )
 
     # ─── Statistical comparison vs best model ──────────────────────
     best_result = next(r for r in results if "best@250K" in r["strategy"])
@@ -240,8 +264,10 @@ def main():
             cohens = f"{sig['cohens_d']:+.2f}"
         else:
             stars = " (best)"
-        print(f"{name:<25} {r['mean_reward']:>12.2f} {r['std_reward']:>10.2f} "
-              f"{r['mean_completion_rate']:>7.2%} {stars:>10} {cohens:>8}")
+        print(
+            f"{name:<25} {r['mean_reward']:>12.2f} {r['std_reward']:>10.2f} "
+            f"{r['mean_completion_rate']:>7.2%} {stars:>10} {cohens:>8}"
+        )
 
     print(f"\n显著性标注: *** p<0.01, ** p<0.05 (vs PPO-LSTM best@250K)")
     print(f"效应量: |d|<0.2 可忽略, 0.2-0.5 小, 0.5-0.8 中, >0.8 大")
@@ -270,15 +296,23 @@ def main():
     # Print improvement over random
     random_r = next(r for r in results if r["strategy"] == "Random")
     best_r = best_result
-    improvement = (best_r["mean_reward"] - random_r["mean_reward"]) / abs(random_r["mean_reward"]) * 100
+    improvement = (
+        (best_r["mean_reward"] - random_r["mean_reward"]) / abs(random_r["mean_reward"]) * 100
+    )
     print(f"\nPPO-LSTM 相对于 Random 策略提升: {improvement:+.1f}%")
     if "All-Classical" in [r["strategy"] for r in results]:
         classical_r = next(r for r in results if r["strategy"] == "All-Classical")
-        imp_c = (best_r["mean_reward"] - classical_r["mean_reward"]) / abs(classical_r["mean_reward"]) * 100
+        imp_c = (
+            (best_r["mean_reward"] - classical_r["mean_reward"])
+            / abs(classical_r["mean_reward"])
+            * 100
+        )
         print(f"PPO-LSTM 相对于 All-Classical 策略提升: {imp_c:+.1f}%")
     if "Greedy-Qubit" in [r["strategy"] for r in results]:
         greedy_r = next(r for r in results if r["strategy"] == "Greedy-Qubit")
-        imp_g = (best_r["mean_reward"] - greedy_r["mean_reward"]) / abs(greedy_r["mean_reward"]) * 100
+        imp_g = (
+            (best_r["mean_reward"] - greedy_r["mean_reward"]) / abs(greedy_r["mean_reward"]) * 100
+        )
         print(f"PPO-LSTM 相对于 Greedy-Qubit 策略提升: {imp_g:+.1f}%")
 
 
