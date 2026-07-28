@@ -339,14 +339,14 @@ class LIFOScheduler(BaselineScheduler):
 
 
 class HEFTScheduler(BaselineScheduler):
-    """HEFT（异构最早完成时间）经典调度策略（Issue #270）。
+    """HEFT（异构最早完成时间）经典调度策略（Issue #270/#582）。
 
     传统 HEFT 用于 DAG 任务图调度，在异构处理器环境中最小化 makespan。
-    本实现将其简化为独立任务列表调度：按 upward rank 降序选择任务，
-    并选择最早完成时间的处理器。
+    实现标准 upward rank 递推（Topcuoglu 2002）：
+    rank_u(node) = avg_comp_time(node) + max(rank_u(s) for s in successors(node))
 
-    在 ``select_action`` 接口中，返回优先级最高的任务索引
-    （按 upward rank 排序，等效于按估算执行时间降序选择长任务优先）。
+    当任务包含 ``successors`` 字段（task_id 列表）时，计算完整 DAG upward rank；
+    否则回退为按估算执行时间降序选择（向后兼容，等效于 LPT）。
     """
 
     sort_key = staticmethod(
@@ -357,6 +357,92 @@ class HEFTScheduler(BaselineScheduler):
     def __init__(self) -> None:
         """初始化 HEFT 策略。"""
         super().__init__("HEFT")
+
+    def _compute_upward_ranks(
+        self,
+        tasks: list[dict],
+        successors_map: dict[str, list[str]],
+        avg_comp_times: dict[str, float],
+    ) -> dict[str, float]:
+        """计算任务的 upward rank（Topcuoglu 2002 标准 DAG 递推）。
+
+        rank_u(node) = avg_comp_time(node) + max(rank_u(s) for s in successors)
+        无后继时 rank_u(node) = avg_comp_time(node)。
+
+        Args:
+            tasks           : 任务列表
+            successors_map  : {task_id: [successor_task_id, ...]} DAG 后继映射
+            avg_comp_times  : {task_id: 平均计算时间} 每个任务的平均执行时间
+
+        Returns:
+            {task_id: upward_rank} 每个任务的 upward rank 值
+        """
+        ranks: dict[str, float] = {}
+
+        def compute(node_id: str) -> float:
+            """递归计算单个节点的 upward rank（带记忆化）。
+
+            Args:
+                node_id: 任务 ID
+
+            Returns:
+                该任务的 upward rank 值
+            """
+            if node_id in ranks:
+                return ranks[node_id]
+            sucs = successors_map.get(node_id, [])
+            comp_time = avg_comp_times.get(node_id, _DEFAULT_ESTIMATED_TIME)
+            if not sucs:
+                ranks[node_id] = comp_time
+            else:
+                ranks[node_id] = comp_time + max(compute(s) for s in sucs)
+            return ranks[node_id]
+
+        for task in tasks:
+            task_id = str(task.get("task_id", ""))
+            compute(task_id)
+        return ranks
+
+    def select_action(self, tasks: list[dict], available_resources: dict) -> int:
+        """按 upward rank 降序选择任务（Issue #582）。
+
+        当任务包含 ``successors`` 字段时，计算完整 DAG upward rank；
+        否则回退为按估算执行时间降序选择（向后兼容）。
+
+        Args:
+            tasks              : 任务列表
+            available_resources: 可用资源（本策略未使用）
+
+        Returns:
+            选中的任务索引，空列表返回 -1
+        """
+        if not tasks:
+            return -1
+
+        # 检查是否有任务提供 successors 字段
+        has_successors = any("successors" in t for t in tasks)
+        if not has_successors:
+            # 向后兼容：无 DAG 信息时按 estimated_time 降序
+            return self._select_by_sort_key(tasks, self.sort_key, self.reverse)
+
+        # 构建 DAG 结构
+        successors_map: dict[str, list[str]] = {}
+        avg_comp_times: dict[str, float] = {}
+        for task in tasks:
+            tid = str(task.get("task_id", ""))
+            sucs = task.get("successors", [])
+            if sucs is None:
+                sucs = []
+            successors_map[tid] = [str(s) for s in sucs]
+            avg_comp_times[tid] = _get_float(task, "estimated_time", _DEFAULT_ESTIMATED_TIME)
+
+        ranks = self._compute_upward_ranks(tasks, successors_map, avg_comp_times)
+
+        # 按 upward rank 降序选择（rank 最高 = 关键路径上的任务优先）
+        return max(
+            range(len(tasks)),
+            key=lambda i: ranks.get(str(tasks[i].get("task_id", "")), 0.0),
+        )
 
 
 class MinMinScheduler(BaselineScheduler):

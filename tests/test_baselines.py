@@ -324,6 +324,102 @@ class TestHEFTScheduler(unittest.TestCase):
         self.assertEqual(s.name, "HEFT")
         self.assertIn("HEFT", repr(s))
 
+    def test_upward_rank_no_successors(self):
+        """无后继任务的 upward rank 应等于自身执行时间（Issue #582）。"""
+        scheduler = HEFTScheduler()
+        tasks = [
+            _make_task("A", estimated_time=5.0),
+            _make_task("B", estimated_time=10.0),
+        ]
+        successors_map: dict[str, list[str]] = {"A": [], "B": []}
+        avg_comp_times: dict[str, float] = {"A": 5.0, "B": 10.0}
+        ranks = scheduler._compute_upward_ranks(tasks, successors_map, avg_comp_times)
+        self.assertAlmostEqual(ranks["A"], 5.0)
+        self.assertAlmostEqual(ranks["B"], 10.0)
+
+    def test_upward_rank_diamond_dag(self):
+        """菱形 DAG 的 upward rank 应正确递推（Issue #582）。
+
+        结构: A -> B -> D, A -> C -> D
+        comp_times: A=3, B=5, C=2, D=4
+        rank_u(D) = 4
+        rank_u(B) = 5 + 4 = 9
+        rank_u(C) = 2 + 4 = 6
+        rank_u(A) = 3 + max(9, 6) = 12
+        """
+        scheduler = HEFTScheduler()
+        tasks = [
+            _make_task("A", estimated_time=3.0),
+            _make_task("B", estimated_time=5.0),
+            _make_task("C", estimated_time=2.0),
+            _make_task("D", estimated_time=4.0),
+        ]
+        successors_map: dict[str, list[str]] = {
+            "A": ["B", "C"],
+            "B": ["D"],
+            "C": ["D"],
+            "D": [],
+        }
+        avg_comp_times: dict[str, float] = {"A": 3.0, "B": 5.0, "C": 2.0, "D": 4.0}
+        ranks = scheduler._compute_upward_ranks(tasks, successors_map, avg_comp_times)
+        self.assertAlmostEqual(ranks["D"], 4.0)
+        self.assertAlmostEqual(ranks["B"], 9.0)
+        self.assertAlmostEqual(ranks["C"], 6.0)
+        self.assertAlmostEqual(ranks["A"], 12.0)
+
+    def test_select_action_with_successors_uses_rank(self):
+        """带 successors 字段时应按 upward rank 选择，而非纯执行时间（Issue #582）。
+
+        A 执行时间(3) < B 执行时间(10)，但 A 在关键路径上（A->C），
+        rank_u(A) = 3 + 8 = 11 > rank_u(B) = 10，
+        因此应选择 A 而非 B，体现 DAG 后继分析的价值。
+        """
+        tasks = [
+            {"task_id": "A", "estimated_time": 3.0, "successors": ["C"]},
+            {"task_id": "B", "estimated_time": 10.0, "successors": []},
+            {"task_id": "C", "estimated_time": 8.0, "successors": []},
+        ]
+        scheduler = HEFTScheduler()
+        idx = scheduler.select_action(tasks, _EMPTY_RESOURCES)
+        self.assertEqual(idx, 0)  # A 的 rank=11 > B 的 rank=10
+        self.assertEqual(tasks[idx]["task_id"], "A")
+
+    def test_select_action_backward_compatible_no_successors(self):
+        """无 successors 字段时应回退为按 estimated_time 降序（Issue #582）。"""
+        tasks = [
+            _make_task("A", estimated_time=5.0),
+            _make_task("B", estimated_time=30.0),
+            _make_task("C", estimated_time=15.0),
+        ]
+        scheduler = HEFTScheduler()
+        idx = scheduler.select_action(tasks, _EMPTY_RESOURCES)
+        self.assertEqual(idx, 1)  # B 最长，向后兼容行为
+
+    def test_upward_rank_chain_dag(self):
+        """链式 DAG A->B->C 的 upward rank 应逐级累加（Issue #582）。
+
+        comp: A=1, B=2, C=3
+        rank_u(C) = 3
+        rank_u(B) = 2 + 3 = 5
+        rank_u(A) = 1 + 5 = 6
+        """
+        scheduler = HEFTScheduler()
+        tasks = [
+            _make_task("A", estimated_time=1.0),
+            _make_task("B", estimated_time=2.0),
+            _make_task("C", estimated_time=3.0),
+        ]
+        successors_map: dict[str, list[str]] = {
+            "A": ["B"],
+            "B": ["C"],
+            "C": [],
+        }
+        avg_comp_times: dict[str, float] = {"A": 1.0, "B": 2.0, "C": 3.0}
+        ranks = scheduler._compute_upward_ranks(tasks, successors_map, avg_comp_times)
+        self.assertAlmostEqual(ranks["C"], 3.0)
+        self.assertAlmostEqual(ranks["B"], 5.0)
+        self.assertAlmostEqual(ranks["A"], 6.0)
+
 
 # ============================================================
 # TestMinMinScheduler (Issue #270)
