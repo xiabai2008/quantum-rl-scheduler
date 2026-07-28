@@ -196,7 +196,7 @@ class QuantumCompilationEnv(gym.Env):
                     default=0,
                 )
                 dists.append(min_d)
-            avg_swap_dist = np.mean(dists) if dists else 0.0
+            avg_swap_dist = float(np.mean(dists)) if dists else 0.0
         fid = max(1.0 - 0.01 * self._swap_count - 0.005 * avg_swap_dist, 0.0)
         return np.array(
             [
