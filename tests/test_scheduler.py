@@ -73,7 +73,8 @@ class TestQuantumSchedulingEnv(unittest.TestCase):
         next_obs, reward, terminated, truncated, info = self.env.step(action)
 
         self.assertEqual(next_obs.shape, (OBS_DIM,))
-        self.assertIsInstance(reward, float)
+        # reward 可能是 numpy 标量（float32/float64），用 float() 转换后比较
+        self.assertIsInstance(float(reward), float)
         self.assertIsInstance(terminated, bool)
         self.assertIsInstance(truncated, bool)
         self.assertIsInstance(info, dict)
@@ -93,10 +94,10 @@ class TestQuantumSchedulingEnv(unittest.TestCase):
                 break
 
     def test_action_space(self):
-        """测试动作空间（3个动作）"""
-        self.assertEqual(self.env.action_space.n, 3)
+        """测试动作空间（4个动作：0: classical, 1: quantum, 2: hybrid, 3: qem）"""
+        self.assertEqual(self.env.action_space.n, 4)
 
-        valid_actions = [0, 1, 2]
+        valid_actions = [0, 1, 2, 3]
         for a in valid_actions:
             self.assertTrue(0 <= a < self.env.action_space.n)
 
@@ -197,7 +198,7 @@ class TestMultiMachineScheduling(unittest.TestCase):
             machine_configs=DEFAULT_MACHINE_CONFIGS,
         )
         self.assertEqual(env.observation_space.shape, (OBS_DIM,))
-        self.assertEqual(env.action_space.n, 3)
+        self.assertEqual(env.action_space.n, 4)
 
     def test_single_machine_backward_compat(self):
         """machine_configs=None 应退化为单机模式（向后兼容）"""
@@ -637,7 +638,7 @@ class TestSchedulerAgent(unittest.TestCase):
     def test_initialization(self):
         """测试智能体初始化"""
         self.assertEqual(self.agent.observation_space.shape[0], OBS_DIM)
-        self.assertEqual(self.agent.action_space.n, 3)
+        self.assertEqual(self.agent.action_space.n, 4)
         self.assertIsNone(self.agent.model)
 
     def test_get_config(self):
@@ -686,7 +687,7 @@ class TestSchedulerAgent(unittest.TestCase):
         model = self.agent._build_model()
         self.assertIsNotNone(model)
         self.assertEqual(model.observation_space.shape[0], OBS_DIM)
-        self.assertEqual(model.action_space.n, 3)
+        self.assertEqual(model.action_space.n, 4)
 
 
 class TestLegacyTaskParser(unittest.TestCase):
@@ -1155,7 +1156,8 @@ class TestIntegration(unittest.TestCase):
             next_state, reward, terminated, truncated, _info = env.step(action)
 
             self.assertEqual(next_state.shape, (OBS_DIM,))
-            self.assertIsInstance(reward, float)
+            # reward 可能是 numpy 标量（float32/float64），用 float() 转换后比较
+            self.assertIsInstance(float(reward), float)
 
             state = next_state
 
@@ -1236,7 +1238,7 @@ class TestIntegration(unittest.TestCase):
             # 验证模型可以推理
             state = np.zeros(OBS_DIM, dtype=np.float32)
             action = agent.predict(state, deterministic=True)
-            self.assertIn(action, [0, 1, 2])
+            self.assertIn(action, [0, 1, 2, 3])
 
 
 def run_tests():

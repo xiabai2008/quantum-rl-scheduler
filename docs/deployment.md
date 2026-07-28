@@ -241,7 +241,7 @@ scrape_configs:
 | Docker | ✅ 完成 | docker-compose一键部署 |
 
 **关键交付物**：
-- PPO模型：`deliverable_models/ppo_best_model_14dim.zip`（77KB）
+- PPO模型：`deliverable_models/ppo_best_model_16dim.zip`（77KB）
 - CLI工具：`python scripts/cli.py train/simulate/serve/demo`
 - Web监控：`uvicorn src.visualization.app:app --port 8000`
 
@@ -313,7 +313,7 @@ scrape_configs:
 ```python
 # 当前（PyTorch eager）
 from stable_baselines3 import PPO
-model = PPO.load("ppo_best_model_14dim.zip")
+model = PPO.load("ppo_best_model_16dim.zip")
 action, _ = model.predict(obs, deterministic=True)
 
 # 生产（ONNX Runtime）
@@ -375,7 +375,7 @@ spec:
 
 ### 3.1 当前延迟分析
 
-PPO模型结构：64-64 隐藏层，~19k 参数，输入14维，输出3动作。
+PPO模型结构：64-64 隐藏层，~19k 参数，输入16维，输出3动作。
 
 | 推理方式 | 延迟(P50) | 延迟(P99) | 吞吐 | 适用场景 |
 |---------|----------|----------|------|---------|
@@ -474,7 +474,7 @@ PPO模型结构：64-64 隐藏层，~19k 参数，输入14维，输出3动作。
 
 | 版本 | 模型文件 | 训练数据 | 验证结果 | 状态 |
 |------|---------|---------|---------|------|
-| v1.0 | ppo_best_model_14dim.zip | N=250仿真 | +88.3%, p<0.001 | 当前生产 |
+| v1.0 | ppo_best_model_16dim.zip | N=250仿真 | +88.3%, p<0.001 | 当前生产 |
 | v1.1 | ppo_v1.1.zip | +真实调度日志 | 待验证 | 待发布 |
 | v1.2 | ppo_v1.2.zip | +退火优化 | +6.4%额外 | 实验中 |
 

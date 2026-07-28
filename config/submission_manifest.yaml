@@ -3,7 +3,7 @@
 
 submission:
   deadline: "2026-09-15"
-  version: "8.0.0"
+  version: "9.0.0"
 
 items:
   # 代码部分
@@ -12,14 +12,14 @@ items:
     type: git_tag
     path: "."
     requirements:
-      tag: "v8.0-submission"
+      tag: "v9.0-submission"
       must_pass_ci: true
       must_have_readme: true
 
   - id: CODE_ARCHIVE
     name: 代码压缩包
     type: zip
-    path: "dist/quantum-rl-scheduler-v8.0.zip"
+    path: "dist/quantum-rl-scheduler-v9.0.zip"
     requirements:
       max_size_mb: 100
       exclude:
@@ -39,7 +39,7 @@ items:
   - id: WHITEPAPER
     name: 技术白皮书
     type: pdf
-    path: "技术白皮书_量子RL调度系统_v5.pdf"
+    path: "docs/technical_whitepaper.pdf"
     requirements:
       min_pages: 20
       max_pages: 50
@@ -51,7 +51,7 @@ items:
   - id: PRESENTATION
     name: 答辩 PPT
     type: pptx
-    path: "答辩PPT_量子RL调度系统_v5.pptx"
+    path: "docs/defense_ppt.pptx"  # 制作中
     requirements:
       min_slides: 15
       max_slides: 20
@@ -105,17 +105,9 @@ items:
 
   # 训练好的权威模型检查点（换机复现所必需）
   - id: MODEL_PPO
-    name: PPO 权威模型（14维观测）
+    name: PPO 权威模型（16维观测）
     type: zip
-    path: "deliverable_models/ppo_best_model_14dim.zip"
-    requirements:
-      max_size_mb: 50
-      must_exist: true
-
-  - id: MODEL_DQN
-    name: DQN 权威模型（14维观测）
-    type: zip
-    path: "deliverable_models/dqn_best_model_14dim.zip"
+    path: "deliverable_models/ppo_best_model_16dim.zip"
     requirements:
       max_size_mb: 50
       must_exist: true

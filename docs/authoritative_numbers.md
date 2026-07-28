@@ -12,7 +12,7 @@
 
 | 指标 | 值 | 定义 | 数据源 | 统计口径 |
 |------|-----|------|--------|----------|
-| PPO 平均奖励 | **2746.94 ± 1160.72** | 14维原生观测，50seeds × 5episodes | `results/multiseed_evaluation/rewards_multiseed.json` | 均值 ± 标准差（N=250） |
+| PPO 平均奖励 | **2746.94 ± 1160.72** | 16维原生观测，50seeds × 5episodes | `results/multiseed_evaluation/rewards_multiseed.json` | 均值 ± 标准差（N=250） |
 | FCFS 平均奖励 | **1458.77 ± 60.47** | 同上，基线策略 | 同上 | 均值 ± 标准差（N=250） |
 | PPO vs FCFS 奖励提升 | **+88.3%** | (PPO_mean - FCFS_mean) / FCFS_mean | `results/reports/statistical_validation.md` | 百分比提升 |
 | 95% 置信区间 | **[+78.5%, +98.2%]** | PPO vs FCFS 奖励差的bootstrap CI | 同上 | 双侧95% CI |

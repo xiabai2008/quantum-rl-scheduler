@@ -122,7 +122,7 @@ BLACKLIST_PATTERNS: list[tuple[str, str]] = [
         "BLACKLIST: N=250权威数据利用率仅+7.9%（未达30%目标），需改为部分达成口径",
     ),
     (
-        r"等待时间\s*-5\.7%",
+        r"等待时间.*-5\.7%",
         "BLACKLIST: -5.7%为单seed乐观结果，10seeds严谨实验显示等待时间+6.1%，需诚实呈现",
     ),
     (

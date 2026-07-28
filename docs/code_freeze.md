@@ -338,7 +338,7 @@ bash scripts/ci/pre_freeze_check.sh
 # 创建 annotated tag（推荐，可包含详细说明）
 git tag -a v8.0-submission -m "v8.0 提交版本 (2026-08-15)
 
-八策略对比权威数字: PPO (14维) vs FCFS +88.3%
+八策略对比权威数字: PPO (16维) vs FCFS +88.3%
 量子占比敏感性: 50% 时 PPO 提升最高 +94.1%
 50 seed 统计显著 p<0.001
 
@@ -639,9 +639,9 @@ git push origin v8.0-submission
 
 ### 6.3 权威模型已入库
 
-- [ ] **权威模型文件已入库**（deliverable_models/ppo_best_model_14dim.zip 和 dqn_best_model_10dim.zip 存在）
+- [ ] **权威模型文件已入库**（deliverable_models/ppo_best_model_16dim.zip 和 dqn_best_model_10dim.zip 存在）
   - 负责人：算法组
-  - 验证命令：`ls -la deliverable_models/ppo_best_model_14dim.zip deliverable_models/dqn_best_model_10dim.zip`
+  - 验证命令：`ls -la deliverable_models/ppo_best_model_16dim.zip deliverable_models/dqn_best_model_10dim.zip`
 
 ### 6.4 版本标签已打
 

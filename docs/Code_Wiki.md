@@ -3,7 +3,7 @@
 > **作品名称**：量子RL驱动的天衍云平台智能调度系统
 > **核心创新**：AI 赋能量子计算（RL 智能调度） + 量子赋能 AI（量子启发式退火优化RL，探索性方向）
 > **目标平台**：天衍云真机"天衍-287"（tianyan176，66 qubit，可用性验证）
-> **文档版本**：v8（PPO主力+MAPPO多智能体+退火异步闭环+14维状态空间+多目标奖励+真机闭环+统计显著性验证）
+> **文档版本**：v8（PPO主力+MAPPO多智能体+退火异步闭环+16维状态空间+多目标奖励+真机闭环+统计显著性验证）
 > **最后更新**：2026-07-24
 
 ---
@@ -46,7 +46,7 @@
 | v1-v3 | 初始代码 + 训练脚本 + 10维状态 + reward 归一化 | DQN reward 从 -843 提升至 -145 |
 | v4 | 环境异质化 + PPO 主力算法 | PPO 单机平均奖励 +2,804，超越所有基线 92.5% |
 | v5 | 多机器调度 + 真机验证 | 多机器 PPO 奖励 +4,294（+86.3%），17 个任务成功提交天衍云真机 |
-| v6 | MAPPO 多智能体 + 异步退火闭环 + 14维状态 + 多目标奖励 | 新增 ~3,600 行代码 + 71 测试用例 |
+| v6 | MAPPO 多智能体 + 异步退火闭环 + 16维状态 + 多目标奖励 | 新增 ~3,600 行代码 + 71 测试用例 |
 | v7 | ruff 142→0 + mypy 26→0 + CI全严格阻断 + 覆盖率门槛提升至80%（实际91%） | 49个测试文件1663+用例，CI lint/typecheck从baseline升级为strict |
 | v8 | 50seed N=250验证 + 多seed真机实验 | PPO=2746.94±1160.72, +88.3%, p=1.032e-42, rank-biserial=-0.71；多seed真机PPO=1736.32±355.78 vs FCFS=383.00±49.13, d=5.33（效应量异常大，小样本探索性结果，需进一步验证）| | FCFS: 1458.77±60.47
 | v9 | **Dynamic QEM + Crosstalk-Aware + Sequence-Aware (LSTM)** | 状态空间扩充至 **16维**（新增串扰风险、任务到达率MA），动作空间扩充至 **4维**（新增量子误差缓释动作）。实现空间并发与 LSTM 时序流量感知。 |
@@ -1002,7 +1002,7 @@ from src.scheduler.parser import TaskParser, Task, TaskBuilder
 parser = TaskParser()
 task = parser.parse({"task_id": "T1", "task_type": "quantum", "qubits_required": 5, ...})
 
-# 调度环境（14维状态，3类动作）
+# 调度环境（16维状态，3类动作）
 from src.scheduler.env import QuantumSchedulingEnv
 env = QuantumSchedulingEnv(max_qubits=20)
 obs, _ = env.reset()

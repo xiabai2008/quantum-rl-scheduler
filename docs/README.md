@@ -69,7 +69,7 @@
 | 27 | [references.md](./references.md) | - | 参考文献 | ✅ |
 | 28 | [真机训练接入指南.md](./真机训练接入指南.md) | - | 天衍云真机接入指南 | ✅ |
 | 29 | [state_persistence_design.md](./state_persistence_design.md) | - | 状态持久化设计 | ✅ |
-| 30 | [observation_dim_standard.md](./observation_dim_standard.md) | - | 14维观测空间标准 | ✅ |
+| 30 | [observation_dim_standard.md](./observation_dim_standard.md) | - | 16维观测空间标准 | ✅ |
 | 31 | [requirements_traceability.md](./requirements_traceability.md) | 18 KB | 27条需求追溯矩阵 | ✅ |
 | **项目管理** ||||
 | 32 | [award_roadmap.md](./award_roadmap.md) | - | 冲奖路线图 | ✅ |
@@ -79,7 +79,7 @@
 | 35 | [autonomous_findings_20260725.md](./autonomous_findings_20260725.md) | - | 7月25日自主巡查发现（历史快照） | 📦 历史 |
 | **ADR（架构决策记录）** ||||
 | 36 | [adr/ADR-001-use-ppo-as-primary-rl-algorithm.md](./adr/ADR-001-use-ppo-as-primary-rl-algorithm.md) | - | PPO选型决策 | ✅ |
-| 37 | [adr/ADR-002-14-dimensional-observation-space.md](./adr/ADR-002-14-dimensional-observation-space.md) | - | 14维观测空间决策 | ✅ |
+| 37 | [adr/ADR-002-14-dimensional-observation-space.md](./adr/ADR-002-14-dimensional-observation-space.md) | - | 16维观测空间决策 | ✅ |
 | 38 | [adr/ADR-003-cqlib-sdk-for-real-machine-integration.md](./adr/ADR-003-cqlib-sdk-for-real-machine-integration.md) | - | cqlib SDK选型决策 | ✅ |
 
 ---

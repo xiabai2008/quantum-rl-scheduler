@@ -83,15 +83,16 @@ class TestEnvProperty(unittest.TestCase):
     @given(seed=st.integers(min_value=0, max_value=1000))
     @settings(max_examples=20, deadline=None)
     def test_env_episode_always_terminates(self, seed):
-        """Property: 任意种子下，episode 在 max_steps 内必然终止"""
+        """Property: 任意种子下，episode 在 max_steps 内必然终止（terminated 或 truncated）"""
         env = QuantumSchedulingEnv(max_steps=50, seed=seed)
         env.reset(seed=seed)
-        terminated = False
+        done = False
         for _ in range(60):
-            _obs, _reward, terminated, _truncated, _info = env.step(0)
-            if terminated:
+            _obs, _reward, terminated, truncated, _info = env.step(0)
+            if terminated or truncated:
+                done = True
                 break
-        assert terminated
+        assert done
 
 
 class TestParserProperty(unittest.TestCase):

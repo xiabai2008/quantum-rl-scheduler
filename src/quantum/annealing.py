@@ -164,6 +164,11 @@ class QuantumAnnealingOptimizer:
         self.random_state: int | None = (
             int(_cfg_random_state) if _cfg_random_state is not None else None
         )
+        # Issue #391: 当 random_state 提供时，同步全局随机源（Python/numpy/torch）
+        if self.random_state is not None:
+            from src.utils.seeds import set_seed
+
+            set_seed(self.random_state)
 
         # 检查比特编码精度，过低则发出警告
         if self.n_bits_per_weight < 4:
@@ -1766,6 +1771,13 @@ class QuantumAnnealingOptimizer:
         从经验回放缓冲区采样一批数据，前向传播计算 TD 误差，
         反向传播得到梯度。
 
+        Issue #358（算法守卫）: 调用前先用 ``_is_dqn_agent`` 判定 agent 类型，
+        对非 DQN agent（如 PPO/SAC）显式抛出 ``ValueError``，避免静默产出无效梯度。
+
+        Issue #357（target_net 用于 next-Q）: 计算 TD 目标时，``next_q_values``
+        必须取自 ``target_net``（经由 ``_get_target_net`` 获取），而非在线
+        ``policy_net``，以避免"移动目标"问题。
+
         Args:
             policy_net   : 策略网络
             replay_buffer: 经验回放缓冲区
@@ -1776,7 +1788,17 @@ class QuantumAnnealingOptimizer:
             gradients: 梯度列表（与网络参数一一对应）
             td_errors: TD 误差数组
             loss     : 标量损失值
+
+        Raises:
+            ValueError: agent 非 DQN 类型（Issue #358），或 replay buffer 采样失败。
         """
+        # Issue #358: DQN 类型守卫——非 DQN agent 抛 ValueError，不静默产出无效梯度
+        if not self._is_dqn_agent(agent):
+            raise ValueError(
+                "_compute_gradients 仅支持 DQN 类型 agent（需具备 policy_net+target_net "
+                "或 SB3 DQN policy.q_net）。当前 agent 非 DQN，拒绝计算梯度以避免无效输出。"
+            )
+
         # 尝试从 replay buffer 采样
         if hasattr(replay_buffer, "sample"):
             try:
@@ -1808,14 +1830,18 @@ class QuantumAnnealingOptimizer:
         # 获取 gamma
         gamma = getattr(agent, "gamma", 0.99)
 
+        # Issue #357: 获取 target_net 用于 TD 目标的 next-Q 计算
+        # 避免移动目标问题：next_q_values 必须取自 target_net，而非在线 policy_net
+        target_net = self._get_target_net(agent, policy_net)
+
         # 前向传播
         policy_net.train()
         q_values = policy_net(observations)
         q_value = q_values.gather(1, actions).squeeze(1)
 
-        # 计算目标 Q 值
+        # 计算目标 Q 值（Issue #357: next_q_values 取自 target_net）
         with torch.no_grad():
-            next_q_values = policy_net(next_observations)
+            next_q_values = target_net(next_observations)
             next_q_value = next_q_values.max(1)[0]
             target_q = rewards + gamma * next_q_value * (1 - dones)
 
@@ -1838,6 +1864,96 @@ class QuantumAnnealingOptimizer:
         policy_net.eval()
 
         return gradients, td_errors.detach().cpu().numpy(), float(loss.item())
+
+    @staticmethod
+    def _is_dqn_agent(agent: Any) -> bool:
+        """
+        判断 agent 是否为 DQN 类型（Issue #358 算法守卫的前置判定）。
+
+        DQN agent 的判定标准（满足任一即可）：
+            1. agent 同时具备 ``policy_net`` 和 ``target_net``（均为 nn.Module）
+               —— 项目内 SchedulingAgent 风格
+            2. agent 具备 ``policy`` 属性，且 ``policy`` 具备 ``q_net``
+               —— SB3 DQN 风格
+            3. agent 具备 ``model`` 属性，且 ``model.policy`` 具备 ``q_net``
+               —— SchedulerAgent 包装 SB3 DQN 的生产路径
+            4. agent 本身就是 SB3 DQN model（具备 ``policy.q_net``）
+
+        Args:
+            agent: 待判定的 RL 智能体
+
+        Returns:
+            True 表示 agent 为 DQN 类型；False 表示非 DQN（如 PPO/SAC）。
+        """
+        # 方式 1：项目内 SchedulingAgent 风格（policy_net + target_net）
+        if (
+            hasattr(agent, "policy_net")
+            and isinstance(agent.policy_net, nn.Module)
+            and hasattr(agent, "target_net")
+            and isinstance(agent.target_net, nn.Module)
+        ):
+            return True
+
+        # 方式 2：SB3 DQN agent（agent.policy.q_net）
+        if hasattr(agent, "policy") and hasattr(agent.policy, "q_net"):
+            return True
+
+        # 方式 3：SchedulerAgent 包装路径（agent.model.policy.q_net）
+        if (
+            hasattr(agent, "model")
+            and hasattr(agent.model, "policy")
+            and hasattr(agent.model.policy, "q_net")
+        ):
+            return True
+
+        # 方式 4：agent 本身就是 SB3 DQN model（agent.policy.q_net_target）
+        return hasattr(agent, "policy") and hasattr(agent.policy, "q_net_target")
+
+    @staticmethod
+    def _get_target_net(agent: Any, policy_net: nn.Module | None = None) -> nn.Module:
+        """
+        从 agent 中获取 target 网络（Issue #357：TD 目标使用 target_net）。
+
+        获取顺序（优先级从高到低）：
+            1. ``agent.target_net``（项目内 SchedulingAgent 风格）
+            2. ``agent.policy.q_net_target``（SB3 DQN 风格）
+            3. ``agent.model.policy.q_net_target``（SchedulerAgent 包装 SB3 DQN 的生产路径）
+            4. 回退到 ``policy_net``（无 target_net 时，如 SB3 DQN 仅含 policy.q_net 的旧版本）
+
+        Args:
+            agent      : RL 智能体
+            policy_net : 在线策略网络（回退时使用，可选）
+
+        Returns:
+            target 网络（nn.Module）。无 target_net 时回退到 policy_net。
+
+        Raises:
+            ValueError: 当无法获取 target_net 且未提供 policy_net 时。
+        """
+        # 方式 1：项目内 SchedulingAgent 风格
+        if hasattr(agent, "target_net") and isinstance(agent.target_net, nn.Module):
+            return agent.target_net
+
+        # 方式 2：SB3 DQN 风格（agent.policy.q_net_target）
+        if hasattr(agent, "policy") and hasattr(agent.policy, "q_net_target"):
+            return agent.policy.q_net_target
+
+        # 方式 3：SchedulerAgent 包装路径（agent.model.policy.q_net_target）
+        if (
+            hasattr(agent, "model")
+            and hasattr(agent.model, "policy")
+            and hasattr(agent.model.policy, "q_net_target")
+        ):
+            return agent.model.policy.q_net_target
+
+        # 方式 4：回退到 policy_net（无 target_net 时）
+        if policy_net is not None:
+            logger.debug("[退火] agent 无 target_net，回退到 policy_net 计算 next-Q")
+            return policy_net
+        raise ValueError(
+            "无法从 agent 获取 target_net，且未提供 policy_net 作为回退。"
+            "请确保 agent 为 DQN 类型（具备 target_net 或 policy.q_net_target）。"
+        )
 
     @staticmethod
     def _matrix_to_qubo_dict(qubo_matrix: np.ndarray) -> dict:
