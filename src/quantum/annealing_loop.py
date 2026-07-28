@@ -62,6 +62,7 @@ class AsyncAnnealingLoop:
         retry_delays: list[float] | None = None,
         log_path: str = "results/annealing_loop_log.json",
         queue_maxsize: int = 1,
+        annealing_config: Any = None,
     ):
         """
         初始化异步退火闭环
@@ -78,6 +79,9 @@ class AsyncAnnealingLoop:
             retry_delays        : 真机失败重试等待时间列表，默认 [5.0, 15.0]
             log_path            : 效果日志保存路径
             queue_maxsize       : 任务队列最大长度，默认 1（避免堆积）
+            annealing_config    : AnnealingConfig 实例（可选）。若提供，
+                                  启动前会同步到 optimizer，让 config.yaml 的
+                                  annealing 节真正驱动求解器参数。
         """
         self.optimizer = optimizer
         self.validation_env = validation_env
@@ -88,6 +92,7 @@ class AsyncAnnealingLoop:
         self.improvement_threshold = float(improvement_threshold)
         self.retry_delays = retry_delays if retry_delays is not None else [5.0, 15.0]
         self.log_path = str(log_path)
+        self.annealing_config = annealing_config
 
         self._current_interval = int(initial_interval)
         self._consecutive_good = 0
@@ -105,10 +110,64 @@ class AsyncAnnealingLoop:
         if self._thread is not None and self._thread.is_alive():
             logger.warning("异步退火工作线程已启动，跳过重复启动")
             return
+        self._sync_config_to_optimizer()
         self._stop_event.clear()
         self._thread = threading.Thread(target=self._worker_loop, daemon=True)
         self._thread.start()
         logger.info("异步退火工作线程已启动")
+
+    def _sync_config_to_optimizer(self) -> None:
+        """将 annealing_config 中的字段同步到 optimizer。
+
+        仅在 annealing_config 非空时生效；否则保持 optimizer 原有参数。
+        """
+        cfg = self.annealing_config
+        if cfg is None:
+            return
+
+        opt = self.optimizer
+        try:
+            if hasattr(cfg, "sim_initial_temp"):
+                opt._sim_initial_temp = float(cfg.sim_initial_temp)
+            if hasattr(cfg, "sim_cooling_rate"):
+                opt._sim_cooling_rate = float(cfg.sim_cooling_rate)
+            if hasattr(cfg, "sim_num_sweeps"):
+                opt._sim_num_sweeps = int(cfg.sim_num_sweeps)
+            if hasattr(cfg, "reg_lambda"):
+                opt._reg_lambda = float(cfg.reg_lambda)
+            if hasattr(cfg, "max_delta_ratio"):
+                opt._max_delta_ratio = float(cfg.max_delta_ratio)
+            if hasattr(cfg, "accept_threshold_ratio"):
+                opt._accept_threshold_ratio = float(cfg.accept_threshold_ratio)
+            if hasattr(cfg, "head_only"):
+                opt._head_only_default = bool(cfg.head_only)
+            if hasattr(cfg, "max_params_per_block"):
+                opt._max_params_per_block_default = int(cfg.max_params_per_block)
+            if hasattr(cfg, "block_strategy"):
+                opt._block_strategy_default = str(cfg.block_strategy)
+            if hasattr(cfg, "shots"):
+                opt.shots = int(cfg.shots)
+            if hasattr(cfg, "annealing_time"):
+                opt.annealing_time = float(cfg.annealing_time)
+            if hasattr(cfg, "simulation_mode"):
+                opt.simulation_mode = bool(cfg.simulation_mode)
+            if hasattr(cfg, "num_qubits"):
+                opt.num_qubits = int(cfg.num_qubits)
+            opt.config = cfg
+            logger.info(
+                "[退火闭环] 已将 AnnealingConfig 同步到 optimizer: "
+                f"sim_initial_temp={opt._sim_initial_temp}, "
+                f"sim_cooling_rate={opt._sim_cooling_rate}, "
+                f"sim_num_sweeps={opt._sim_num_sweeps}, "
+                f"reg_lambda={opt._reg_lambda}, "
+                f"max_delta_ratio={opt._max_delta_ratio}, "
+                f"accept_threshold_ratio={opt._accept_threshold_ratio}"
+            )
+        except Exception as e:
+            logger.warning(
+                f"[退火闭环] 同步 AnnealingConfig 到 optimizer 失败 "
+                f"({type(e).__name__}: {e})，沿用 optimizer 默认参数"
+            )
 
     def shutdown(self, wait: bool = True, timeout: float | None = 300.0) -> None:
         """

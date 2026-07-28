@@ -77,6 +77,17 @@ class AnnealingConfig(BaseModel):
     num_reads: int = Field(default=100, ge=1, description="退火读取次数")
     simulation_mode: bool = Field(default=True, description="仿真模式")
 
+    shots: int = Field(default=1000, ge=1, description="每次退火的采样次数")
+    sim_initial_temp: float = Field(default=2.0, gt=0, description="内置模拟退火初始温度")
+    sim_cooling_rate: float = Field(default=0.995, gt=0, lt=1, description="内置模拟退火降温系数")
+    sim_num_sweeps: int = Field(default=200, ge=1, description="内置模拟退火扫描次数")
+    reg_lambda: float = Field(default=0.1, ge=0, description="L2 正则化系数")
+    max_delta_ratio: float = Field(default=0.1, gt=0, description="单次权重更新最大相对比例")
+    accept_threshold_ratio: float = Field(default=0.01, gt=0, description="接受准则 loss 上升阈值比例")
+    head_only: bool = Field(default=True, description="优化模式：仅优化输出头")
+    max_params_per_block: int = Field(default=200, ge=1, description="分层退火每块最大参数数")
+    block_strategy: str = Field(default="tensor_wise", description="分层退火分块策略: tensor_wise/size_limited")
+
 
 class CacheConfig(BaseModel):
     """缓存配置。"""

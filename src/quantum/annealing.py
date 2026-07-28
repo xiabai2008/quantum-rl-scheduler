@@ -84,6 +84,7 @@ class QuantumAnnealingOptimizer:
         shots: int = 1000,
         simulation_mode: bool = True,
         cqlib_client: Any = None,
+        config: Any = None,
     ):
         """
         初始化量子退火策略优化器
@@ -99,12 +100,45 @@ class QuantumAnnealingOptimizer:
                             否则降级为仿真并打印日志。默认 True。
             cqlib_client  : 天衍云 cqlib 客户端实例（可选）。simulation_mode=False
                             且客户端具备 submit_annealing_task 方法时尝试真机退火。
+            config        : AnnealingConfig 配置实例（可选）。若提供则覆盖
+                            sim_initial_temp / sim_cooling_rate / sim_num_sweeps /
+                            reg_lambda / max_delta_ratio / accept_threshold_ratio 等默认值。
         """
         self.num_qubits = num_qubits
         self.annealing_time = annealing_time
         self.shots = shots
         self.simulation_mode = bool(simulation_mode)
         self.cqlib_client = cqlib_client
+
+        # 从 AnnealingConfig 读取可选退火超参数（config=None 时使用原有默认值）
+        self.config = config
+        self._sim_initial_temp = float(
+            getattr(config, "sim_initial_temp", 2.0) if config is not None else 2.0
+        )
+        self._sim_cooling_rate = float(
+            getattr(config, "sim_cooling_rate", 0.995) if config is not None else 0.995
+        )
+        self._sim_num_sweeps = int(
+            getattr(config, "sim_num_sweeps", 200) if config is not None else 200
+        )
+        self._reg_lambda = float(
+            getattr(config, "reg_lambda", 0.1) if config is not None else 0.1
+        )
+        self._max_delta_ratio = float(
+            getattr(config, "max_delta_ratio", 0.1) if config is not None else 0.1
+        )
+        self._accept_threshold_ratio = float(
+            getattr(config, "accept_threshold_ratio", 0.01) if config is not None else 0.01
+        )
+        self._head_only_default = bool(
+            getattr(config, "head_only", True) if config is not None else True
+        )
+        self._max_params_per_block_default = int(
+            getattr(config, "max_params_per_block", 200) if config is not None else 200
+        )
+        self._block_strategy_default = str(
+            getattr(config, "block_strategy", "tensor_wise") if config is not None else "tensor_wise"
+        )
 
         # 检查比特编码精度，过低则发出警告
         n_bits_per_weight = max(1, num_qubits // 4)
@@ -124,11 +158,6 @@ class QuantumAnnealingOptimizer:
             logger.info("使用 D-Wave neal 模拟退火求解器 (SimulatedAnnealingSampler)")
         else:
             logger.info("使用内置 numpy 模拟退火求解器")
-
-        # 内置模拟退火超参数
-        self._sim_initial_temp = 2.0  # 初始温度
-        self._sim_cooling_rate = 0.995  # 降温系数
-        self._sim_num_sweeps = 200  # 扫描次数（减少以适应 QUBO 规模）
 
     # ------------------------------------------------------------------
     # 方法 2: network_to_qubo
@@ -171,7 +200,7 @@ class QuantumAnnealingOptimizer:
         """
         # ---------- 步骤 1：参数配置 ----------
         n_bits_per_weight = max(1, self.num_qubits // 4)  # 增加比特数提高精度
-        reg_lambda = 0.1  # L2 正则化系数，防止更新过大
+        reg_lambda = self._reg_lambda  # L2 正则化系数，防止更新过大
 
         # ---------- 步骤 2：展平所有权重和梯度为一维向量 ----------
         flat_weights = np.concatenate([w.flatten() for w in weights])
@@ -212,8 +241,8 @@ class QuantumAnnealingOptimizer:
 
         # 计算权重的全局统计量，用于归一化更新幅度
         weight_std = np.std(flat_weights) + 1e-8
-        # 最大更新幅度限制为权重标准差的 10%（防止更新过大）
-        max_delta = weight_std * 0.1
+        # 最大更新幅度限制为权重标准差的 max_delta_ratio 倍（防止更新过大）
+        max_delta = weight_std * self._max_delta_ratio
 
         for i in range(num_weights):
             w = flat_weights[i]
@@ -449,9 +478,9 @@ class QuantumAnnealingOptimizer:
         if current_weights is not None:
             flat_current = np.concatenate([w.flatten() for w in current_weights])
             weight_std = np.std(flat_current) + 1e-8
-            max_delta = weight_std * 0.1
+            max_delta = weight_std * self._max_delta_ratio
         else:
-            max_delta = 0.1  # 默认值
+            max_delta = self._max_delta_ratio  # 默认值
 
         # 解码每个权重的比特编码为连续更新量
         delta_values = np.zeros(total_params, dtype=np.float64)
@@ -512,11 +541,11 @@ class QuantumAnnealingOptimizer:
         learning_rate: float = 0.01,
         callback: Any | None = None,
         replay_buffer: Any | None = None,
-        head_only: bool = True,
+        head_only: bool | None = None,
         max_head_tensors: int = 4,
-        mode: str = "head_only",
-        max_params_per_block: int = 200,
-        block_strategy: str = "tensor_wise",
+        mode: str | None = None,
+        max_params_per_block: int | None = None,
+        block_strategy: str | None = None,
     ) -> Any:
         """
         主优化循环：用量子退火加速策略更新（v2 - 梯度引导）
@@ -551,6 +580,16 @@ class QuantumAnnealingOptimizer:
         Returns:
             agent: 优化后的智能体（原地修改并返回）
         """
+        # 从 config 解析默认值，未显式传参时回退到 AnnealingConfig
+        if head_only is None:
+            head_only = self._head_only_default
+        if max_params_per_block is None:
+            max_params_per_block = self._max_params_per_block_default
+        if block_strategy is None:
+            block_strategy = self._block_strategy_default
+        if mode is None:
+            mode = "head_only" if head_only else "hierarchical"
+
         # 模式路由：hierarchical 模式委托给独立方法
         if mode == "hierarchical":
             return self.optimize_policy_hierarchical(
@@ -708,7 +747,7 @@ class QuantumAnnealingOptimizer:
             loss_improvement = current_loss - new_loss
 
             # 接受准则：loss 下降，或上升幅度不超过阈值（早期探索）
-            accept_threshold = 0.01 * current_loss  # 允许 1% 的暂时上升
+            accept_threshold = self._accept_threshold_ratio * current_loss
             if new_loss <= best_loss or loss_improvement > -accept_threshold:
                 # 接受更新
                 accepted = True
@@ -787,8 +826,8 @@ class QuantumAnnealingOptimizer:
         learning_rate: float = 0.01,
         callback: Any | None = None,
         replay_buffer: Any | None = None,
-        max_params_per_block: int = 200,
-        block_strategy: str = "tensor_wise",
+        max_params_per_block: int | None = None,
+        block_strategy: str | None = None,
     ) -> Any:
         """
         分层/分块量子退火策略优化（突破 head_only 限制，全量网络退火）
@@ -828,6 +867,11 @@ class QuantumAnnealingOptimizer:
         Returns:
             agent: 优化后的智能体
         """
+        if max_params_per_block is None:
+            max_params_per_block = self._max_params_per_block_default
+        if block_strategy is None:
+            block_strategy = self._block_strategy_default
+
         if not QUANTUM_ACCELERATION_ENABLED:
             logger.warning("量子加速功能已禁用，跳过分层退火。")
             return agent
@@ -942,7 +986,7 @@ class QuantumAnnealingOptimizer:
             loss_improvement = best_loss - new_loss
 
             # 接受准则
-            accept_threshold = 0.01 * best_loss
+            accept_threshold = self._accept_threshold_ratio * best_loss
             if new_loss <= best_loss or loss_improvement > -accept_threshold:
                 accepted = True
                 if new_loss < best_loss:
