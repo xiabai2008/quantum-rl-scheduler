@@ -15,8 +15,8 @@
 
 | 方向 | 层级 | 核心成果 |
 |:--|:--|:--|
-| **AI赋能调度层** | PPO Agent 实时最优分流 | +88.3% vs FCFS（p=1.032e-42） |
-| **量子赋能AI** | 真机噪声反馈优化鲁棒性 | **+6.1%** 延迟代价换取真实噪声下的高保真度与稳定性 |
+| **AI赋能调度层** | PPO Agent 实时最优分流 | +88.3% vs FCFS（p=1.032e-42，14维权威实验N=250；16维交付模型需重新验证，见下表脚注） |
+| **量子赋能AI** | 真机噪声反馈优化鲁棒性 | 探索性研究：单seed -5.7%，10seeds +6.1%（方向相反，未做统计检验，不构成统计成立证据链，Issue #532） |
 
 **最新硬核突破（v9.0）：**
 - **16维观测空间**：新增串扰风险和任务到达率滑动平均，覆盖从基础资源到物理噪声到并发时序的完整特征集
@@ -321,7 +321,7 @@ python scripts/ci/validate_submission.py --check
 # 生成缺失项清单报告
 python scripts/ci/validate_submission.py --check --report results/reports/submission_validation_report.md
 
-# 打包（校验通过后生成 dist/submission_v8.0_YYYYMMDD.zip）
+# 打包（校验通过后生成 dist/submission_v9.0_YYYYMMDD.zip）
 python scripts/ci/validate_submission.py --pack
 ```
 
@@ -348,7 +348,7 @@ python scripts/ci/validate_submission.py --pack
 1. 确认所有 CI 检查全绿
 2. 运行 `python scripts/ci/pre_freeze_check.sh` 执行冻结前检查
 3. 运行 `python scripts/ci/validate_submission.py --check` 确认通过
-4. 创建标签：`git tag -a v8.0-submission -m "v8.0 提交版本" && git push origin v8.0-submission`
+4. 创建标签：`git tag -a v9.0-submission -m "v9.0 提交版本" && git push origin v9.0-submission`
 5. 打包：`python scripts/ci/validate_submission.py --pack`
 6. 提交压缩包至比赛平台
 

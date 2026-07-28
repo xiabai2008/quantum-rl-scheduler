@@ -2,7 +2,7 @@
 # 量子RL调度系统 — 自动发布流水线
 # Quantum RL Scheduler — Release Pipeline
 #
-# 触发条件：推送 v* 标签 (如 v8.0-submission)
+# 触发条件：推送 v* 标签 (如 v9.0-submission)
 # 执行内容：全量测试 → 提交物校验打包 → GitHub Release
 # =============================================================================
 
