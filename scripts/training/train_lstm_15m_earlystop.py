@@ -44,7 +44,6 @@ class EarlyStoppingCallback(BaseCallback):
             results = data["results"]
             if len(timesteps) <= self._last_eval_count:
                 return True
-            new_evals = len(timesteps) - self._last_eval_count
             for i in range(self._last_eval_count, len(timesteps)):
                 mean_r = float(results[i].mean())
                 t = int(timesteps[i])
@@ -94,9 +93,9 @@ def main():
     print("=" * 70)
     print(f"训练步数: {total_timesteps:,}")
     print(f"随机种子: {args.seed}")
-    print(f"LSTM: 1层, 隐藏层64")
-    print(f"学习率: 0.0003, n_steps=2048, batch_size=64")
-    print(f"多机器模式: 是（3台真机）")
+    print("LSTM: 1层, 隐藏层64")
+    print("学习率: 0.0003, n_steps=2048, batch_size=64")
+    print("多机器模式: 是（3台真机）")
     print(f"早停: 连续{patience}次评估（每{eval_freq:,}步1次）奖励提升<{min_delta}则停止")
     print("=" * 70)
 

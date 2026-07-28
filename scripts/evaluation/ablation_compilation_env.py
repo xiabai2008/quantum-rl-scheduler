@@ -80,7 +80,6 @@ def estimate_swap_count_greedy(circuit, coupling_graph, dist_fn, qubits: int = 1
 
     dag = circuit_to_dag(circuit)
     mapping = {i: i for i in range(qubits)}
-    reverse_map = {i: i for i in range(qubits)}
     total_swaps = 0
 
     for node in dag.topological_op_nodes():

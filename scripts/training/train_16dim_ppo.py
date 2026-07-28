@@ -6,8 +6,8 @@ PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(_
 if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
+from src.scheduler.env import DEFAULT_MACHINE_CONFIGS, QuantumSchedulingEnv
 from src.scheduler.ppo_agent import PPOAgent
-from src.scheduler.env import QuantumSchedulingEnv, DEFAULT_MACHINE_CONFIGS
 
 
 def main():

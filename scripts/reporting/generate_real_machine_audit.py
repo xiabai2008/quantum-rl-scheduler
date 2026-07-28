@@ -8,6 +8,7 @@
 
 import json
 from pathlib import Path
+
 import click
 
 
@@ -33,7 +34,7 @@ def main(input_dir, output_file):
 
     records = []
     for json_file in sorted(input_path.glob("*.json")):
-        with open(json_file, "r", encoding="utf-8") as f:
+        with open(json_file, encoding="utf-8") as f:
             try:
                 data = json.load(f)
                 # Heuristic to find the actual log records

@@ -13,7 +13,6 @@ import numpy as np
 
 from src.scheduler.env_types import (
     ACTION_CLASSICAL,
-    ACTION_HYBRID,
     ACTION_QUANTUM,
     ACTION_QUANTUM_QEM,
     MAX_WAIT_STEPS,

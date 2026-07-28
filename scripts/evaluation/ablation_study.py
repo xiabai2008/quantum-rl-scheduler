@@ -1,5 +1,6 @@
 import os
 import sys
+
 import gymnasium as gym
 import numpy as np
 from stable_baselines3 import PPO
@@ -8,7 +9,7 @@ PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(_
 if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
-from src.scheduler.env import QuantumSchedulingEnv, DEFAULT_MACHINE_CONFIGS
+from src.scheduler.env import DEFAULT_MACHINE_CONFIGS, QuantumSchedulingEnv
 
 
 class ObsTruncateWrapper(gym.Wrapper):

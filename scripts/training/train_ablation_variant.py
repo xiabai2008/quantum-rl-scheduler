@@ -99,21 +99,21 @@ def main():
     os.makedirs(log_dir, exist_ok=True)
     os.makedirs(os.path.dirname(save_path) or ".", exist_ok=True)
 
-    agent_kwargs = dict(
-        env=env,
-        learning_rate=3e-4,
-        n_steps=2048,
-        batch_size=64,
-        use_lstm=use_lstm,
-        n_lstm_layers=1,
-        lstm_hidden_size=64,
-        gamma=0.99,
-        gae_lambda=0.95,
-        ent_coef=0.01,
-        verbose=1,
-        seed=args.seed,
-        log_dir=log_dir,
-    )
+    agent_kwargs = {
+        "env": env,
+        "learning_rate": 3e-4,
+        "n_steps": 2048,
+        "batch_size": 64,
+        "use_lstm": use_lstm,
+        "n_lstm_layers": 1,
+        "lstm_hidden_size": 64,
+        "gamma": 0.99,
+        "gae_lambda": 0.95,
+        "ent_coef": 0.01,
+        "verbose": 1,
+        "seed": args.seed,
+        "log_dir": log_dir,
+    }
     if args.use_annealing:
         agent_kwargs["use_annealing"] = True
         agent_kwargs["anneal_interval"] = eval_freq

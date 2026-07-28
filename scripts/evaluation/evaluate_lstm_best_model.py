@@ -6,7 +6,6 @@ PPO-LSTM 最佳模型深度评估 + 基线对比实验
 """
 
 import json
-import os
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -236,7 +235,6 @@ def main():
 
     # ─── Statistical comparison vs best model ──────────────────────
     best_result = next(r for r in results if "best@250K" in r["strategy"])
-    baseline_for_stats = next(r for r in results if r["strategy"] == "Random")
     comparisons = {}
     for r in results:
         if r["strategy"] != best_result["strategy"]:
@@ -269,8 +267,8 @@ def main():
             f"{r['mean_completion_rate']:>7.2%} {stars:>10} {cohens:>8}"
         )
 
-    print(f"\n显著性标注: *** p<0.01, ** p<0.05 (vs PPO-LSTM best@250K)")
-    print(f"效应量: |d|<0.2 可忽略, 0.2-0.5 小, 0.5-0.8 中, >0.8 大")
+    print("\n显著性标注: *** p<0.01, ** p<0.05 (vs PPO-LSTM best@250K)")
+    print("效应量: |d|<0.2 可忽略, 0.2-0.5 小, 0.5-0.8 中, >0.8 大")
 
     # ─── Save results ──────────────────────────────────────────────
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")

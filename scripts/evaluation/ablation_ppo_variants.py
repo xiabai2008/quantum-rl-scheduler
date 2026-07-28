@@ -15,8 +15,8 @@ from scipy import stats
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from src.scheduler.ppo_agent import PPOAgent
 from src.scheduler.env import DEFAULT_MACHINE_CONFIGS, QuantumSchedulingEnv
+from src.scheduler.ppo_agent import PPOAgent
 
 NUM_SEEDS = 10
 EPISODES_PER_SEED = 15
@@ -122,7 +122,7 @@ def compare_models(baseline: dict, variant: dict) -> dict:
     var_r = np.array(variant["rewards"])
 
     u_stat, p_mwu = stats.mannwhitneyu(bl_r, var_r, alternative="two-sided")
-    t_stat, p_t = stats.ttest_ind(bl_r, var_r, equal_var=False)
+    _t_stat, p_t = stats.ttest_ind(bl_r, var_r, equal_var=False)
     n1, n2 = len(bl_r), len(var_r)
     pooled_std = np.sqrt(((n1 - 1) * bl_r.std() ** 2 + (n2 - 1) * var_r.std() ** 2) / (n1 + n2 - 2))
     cohens_d = (bl_r.mean() - var_r.mean()) / pooled_std if pooled_std > 0 else 0.0
