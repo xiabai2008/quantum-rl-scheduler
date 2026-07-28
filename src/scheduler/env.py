@@ -5,6 +5,7 @@
 观测构建→env_observation.py。本文件保留核心类与薄包装，重新导出全部符号以保持向后兼容。
 """
 
+import copy
 from collections.abc import Callable
 from typing import Any
 
@@ -215,6 +216,8 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
                     "is_real": False,
                 }
             ]
+        # 保存原始机器配置，供 _create_eval_env 创建独立副本（Issue #399）
+        self._machine_configs: list[dict[str, Any]] = copy.deepcopy(machine_configs)
         self._machines: list[QuantumMachine] = [
             QuantumMachine(
                 name=cfg.get("name", "tianyan_s"),
@@ -270,6 +273,9 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
         self._hybrid_success: int = 0
         self._mismatch_count: int = 0
         self._episode_reward: float = 0.0
+
+        # 连续无任务步数（Issue #400）：用于提前终止，减少无效空转步
+        self._consecutive_idle_steps: int = 0
 
         # 用于 ANSI 渲染的日志缓冲区
         self._render_log: list[str] = []
@@ -329,6 +335,50 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
             "consecutive_failures": self._real_consecutive_failures,
         }
 
+    def export_real_feedback_log(self, path: str) -> int:
+        """导出真机反馈因果记录为 JSON 文件，返回记录条数（Issue #236）。
+
+        将 ``_real_feedback_log``（"RL动作→真机任务→结果→reward" 完整因果链）
+        序列化为 JSON，包含元数据（实验时间、环境参数、seed）和记录列表。
+
+        Args:
+            path: 输出 JSON 文件路径。父目录会自动创建。
+
+        Returns:
+            导出的因果记录条数（0 表示无真机反馈记录）。
+        """
+        import json
+        from datetime import datetime
+        from pathlib import Path
+
+        out_path = Path(path)
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+
+        records = list(self._real_feedback_log)
+        payload = {
+            "type": "real_feedback_log",
+            "exported_at": datetime.now().astimezone().isoformat(),
+            "metadata": {
+                "max_steps": self.max_steps,
+                "max_qubits": self.max_qubits,
+                "real_submit_probability": self.real_submit_probability,
+                "use_real_machine": self.use_real_machine,
+                "real_machine_feedback_weight": self.real_machine_feedback_weight,
+                "real_machine_shots": self.real_machine_shots,
+                "real_feedback_mode": self.real_feedback_mode,
+                "arrival_lambda": self.arrival_lambda,
+                "quantum_task_ratio": self.quantum_task_ratio,
+                "num_machines": len(self._machines),
+                "machine_names": [m.name for m in self._machines],
+            },
+            "stats": self.get_real_machine_stats(),
+            "record_count": len(records),
+            "records": records,
+        }
+        with open(out_path, "w", encoding="utf-8") as f:
+            json.dump(payload, f, indent=2, ensure_ascii=False, default=str)
+        return len(records)
+
     def get_tenant_stats(self) -> list[dict[str, Any]]:
         """返回所有租户的配额使用状态；未启用租户管理时返回空列表。"""
         if self._tenant_manager is None:
@@ -355,6 +405,9 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
         self._mismatch_count = 0
         self._episode_reward = 0.0
         self._render_log = []
+
+        # 重置连续无任务步数（Issue #400）
+        self._consecutive_idle_steps = 0
 
         # 重置多机器调度记录
         self._last_selected_machine = None
@@ -498,9 +551,14 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
 
             self._render_log.append(log_msg)
 
+            # 有任务可调度，重置连续空转计数器（Issue #400）
+            self._consecutive_idle_steps = 0
+
         else:
             # 无任务可调度，轻微惩罚
             reward -= 1.0
+            # 追踪连续无任务步数（Issue #400）
+            self._consecutive_idle_steps += 1
 
         # 等待超时惩罚（全局队列惩罚）
         reward += self._compute_wait_penalty()
@@ -525,9 +583,12 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
         # 累计奖励
         self._episode_reward += reward
 
-        # 判断终止
-        terminated = self._current_step >= self.max_steps
-        truncated = False
+        # 判断终止（Issue #400: 修复 Gymnasium 语义）
+        # terminated=True → 自然终止（连续无任务，环境无意义继续），不 Bootstrap
+        # truncated=True → 因 max_steps 外部限制截断（任务可能未完成），需要 Bootstrap
+        idle_termination_threshold = 10
+        truncated = self._current_step >= self.max_steps
+        terminated = (not truncated) and (self._consecutive_idle_steps >= idle_termination_threshold)
 
         return self._get_observation(), reward, terminated, truncated, self._get_info()
 
