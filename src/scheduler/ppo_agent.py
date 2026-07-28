@@ -116,6 +116,8 @@ class PPOAgent:
                 _override["simulation_mode"] = kwargs["anneal_simulation_mode"]
             if "anneal_n_bits_per_weight" in kwargs:
                 _override["n_bits_per_weight"] = kwargs["anneal_n_bits_per_weight"]
+            if "anneal_reg_lambda" in kwargs:
+                _override["reg_lambda"] = kwargs["anneal_reg_lambda"]
             _merged_cfg = {**_anneal_cfg, **_override}
             self.annealing_optimizer = QuantumAnnealingOptimizer(
                 config=_merged_cfg,
@@ -159,7 +161,8 @@ class PPOAgent:
             arrival_lambda=env.arrival_lambda,
             quantum_task_ratio=env.quantum_task_ratio,
             real_submit_probability=env.real_submit_probability,
-            use_real_machine=False,  # 评估环境不使用真机
+            use_real_machine=False,
+            noise_profile=env.noise_profile,
         )
         return Monitor(eval_env)
 

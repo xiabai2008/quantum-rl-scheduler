@@ -1584,22 +1584,35 @@ class QuantumAnnealingOptimizer:
         return weights, shapes
 
     @staticmethod
-    def _evaluate_network_quality(network: nn.Module) -> float:
+    def _evaluate_network_quality(
+        network: nn.Module,
+        quality_fn: Callable[[nn.Module], float] | None = None,
+    ) -> float:
         """
-        评估网络质量（用作 QUBO 构造的辅助信息）
+        评估网络质量（用作退火接受门控的判据）。
 
-        使用权重 L2 正则化作为简单的质量度量。
-        在实际应用中可替换为经验回放缓冲区的平均 TD 误差。
+        重要说明（Issue #353 科研诚信声明）：
+            默认实现使用权重 L2 范数作为质量代理指标，这**不**等价于 RL 目标
+            （策略梯度损失/TD误差/episode reward）。L2 范数较小仅意味着权重幅值
+            较小（类似权重衰减/L2正则化效应），不能直接证明策略性能提升。
+            消融实验（scripts/evaluation/annealing_l2_decomposition.py）已分解
+            L2 正则效应与退火真实优化效应。
+
+        Args:
+            network: 待评估的神经网络。
+            quality_fn: 可选的自定义质量评估函数（输入网络，返回标量loss，越小越好）。
+                        若提供则优先使用（例如基于rollout buffer的TD误差或环境episode reward）。
 
         Returns:
-            loss: 质量分数（越小越好）
+            loss: 质量分数（越小越好）。默认返回每参数平均 L2 范数。
         """
+        if quality_fn is not None:
+            return quality_fn(network)
         total_norm = 0.0
         num_params = 0
         for param in network.parameters():
             total_norm += param.detach().cpu().norm(2).item() ** 2
             num_params += param.numel()
-        # 归一化：每参数的平均 L2 范数
         avg_l2 = math.sqrt(total_norm) / max(num_params, 1)
         return avg_l2
 

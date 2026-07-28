@@ -49,6 +49,7 @@ from src.scheduler.env_types import (
     OBS_AVG_WAIT_TIME,
     OBS_CLASSICAL_LOAD,
     OBS_COUPLING_DENSITY,
+    OBS_CROSSTALK_RISK,
     OBS_DIM,
     OBS_FIDELITY,
     OBS_QUANTUM_QUEUE_RATIO,
@@ -141,8 +142,6 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
     def __init__(
         self,
         max_steps: int = MAX_STEPS_DEFAULT,
-        # Issue #457: 287 为天衍-287 含耦合比特的命名规模（105 数据比特+182 耦合比特）。
-        # 仿真验证时应在调用方显式传 max_qubits=105 以对齐真实数据比特规模。
         max_qubits: int = 287,
         render_mode: str | None = None,
         seed: int | None = None,
@@ -158,6 +157,7 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
         arrival_lambda: float | Callable[[int, int], float] | None = None,
         quantum_task_ratio: float | None = None,
         real_machine_max_qubits: int = FREE_TIER_MAX_QUBITS,
+        noise_profile: str | dict[str, Any] | None = None,
     ):
         """初始化量子任务调度环境（参数详见子模块文档）。"""
         super().__init__()
@@ -200,10 +200,11 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
         self.quantum_task_ratio = (
             float(quantum_task_ratio) if quantum_task_ratio is not None else None
         )
+        self.noise_profile = self._resolve_noise_profile(noise_profile)
 
         # Gymnasium 标准空间定义（保持 14 维 obs + Discrete(3) 不变，确保 PPO 模型可复用）
         self.observation_space = spaces.Box(low=0.0, high=1.0, shape=(OBS_DIM,), dtype=np.float32)
-        self.action_space = spaces.Discrete(3)
+        self.action_space = spaces.Discrete(4)  # 0: classical, 1: quantum, 2: hybrid, 3: qem
 
         # ---- 多机器调度扩展 ----
         # machine_configs=None → 单机模式（与旧版完全等价）
@@ -282,6 +283,11 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
 
         # 多租户配额管理器（Issue #97）
         self._tenant_manager: Any | None = tenant_manager
+
+        # LSTM 时序流量感知 (Superpower)
+        self.max_arrival_history_length = 10
+        self.arrival_history: list[int] = []
+        self.current_time_window_arrivals = 0
 
     def attach_real_clients(self, clients: dict[str, Any]) -> None:
         """绑定真机客户端，启用选择性真机验证。
@@ -406,6 +412,10 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
         self._episode_reward = 0.0
         self._render_log = []
 
+        # 重置 LSTM 时序流量感知状态
+        self.arrival_history = []
+        self.current_time_window_arrivals = 0
+
         # 重置连续无任务步数（Issue #400）
         self._consecutive_idle_steps = 0
 
@@ -430,7 +440,7 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
         # 随机初始化每台量子机器状态（多机器调度扩展）
         for m in self._machines:
             m.available_ratio = rng.uniform(0.3, 1.0)
-            m.fidelity = rng.uniform(0.85, 0.99)
+            m.fidelity = self._sample_initial_fidelity(rng)
             m.quantum_queue = 0
             m.available = True
             m.update_noise_features(rng)
@@ -507,7 +517,11 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
                         )
                 else:
                     # 兼容分配：计算执行奖励
-                    reward += self._compute_execution_reward(task, action, rng)
+                    obs = self._get_observation()
+                    crosstalk_risk = obs[OBS_CROSSTALK_RISK]
+                    crosstalk_penalty = crosstalk_risk * 2.0
+
+                    reward += self._compute_execution_reward(task, action, rng) - crosstalk_penalty
                     self._total_scheduled += 1
 
                     # 构建观测快照（Issue #234）：记录关键状态字段用于因果追溯
@@ -600,6 +614,43 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
     def close(self) -> None:
         close_env(self)
 
+    @staticmethod
+    def _resolve_noise_profile(
+        profile: str | dict[str, Any] | None,
+    ) -> dict[str, Any]:
+        """解析保真度噪声模型配置（Issue #456 噪声反馈 v2）。
+
+        Args:
+            profile: 噪声模型名称或自定义参数字典。
+                - None/"uniform": 默认均匀分布 U(0.85, 0.99)
+                - "real_machine": 真机噪声分布 Beta(μ=0.886, σ=0.087) 截断到 [0.671, 0.994]
+                - dict: 自定义参数 {distribution, mean, std, low, high}
+
+        Returns:
+            标准化的噪声配置字典。
+        """
+        if profile is None or profile == "uniform":
+            return {"distribution": "uniform", "low": 0.85, "high": 0.99}
+        if profile == "real_machine":
+            return _beta_params_from_mean_std(0.8863, 0.0874, 0.671, 0.994)
+        if isinstance(profile, dict):
+            return dict(profile)
+        raise ValueError(f"Unknown noise_profile: {profile!r}")
+
+    def _sample_initial_fidelity(self, rng: np.random.Generator) -> float:
+        """根据 noise_profile 采样初始保真度。"""
+        p = self.noise_profile
+        if p["distribution"] == "uniform":
+            return float(rng.uniform(p["low"], p["high"]))
+        if p["distribution"] == "beta":
+            for _ in range(100):
+                val = rng.beta(p["a"], p["b"])
+                val = val * (p["high"] - p["low"]) + p["low"]
+                if p["low"] <= val <= p["high"]:
+                    return float(val)
+            return float(p["mean"])
+        return float(rng.uniform(0.85, 0.99))
+
     def _generate_random_task(self, rng: np.random.Generator, task_id: int) -> Task:
         return generate_random_task(rng, task_id, self.quantum_task_ratio)
 
@@ -654,12 +705,16 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
         recompute_aggregate(self)
 
     def _compute_execution_reward(self, task: Task, action: int, rng: np.random.Generator) -> float:
+        crosstalk_risk = self._get_observation()[OBS_CROSSTALK_RISK]
+        crosstalk_penalty = crosstalk_risk * 2.0  # 惩罚因子可调
+
         return compute_execution_reward(
             task=task,
             action=action,
             rng=rng,
             quantum_fidelity=self._quantum.fidelity,
             quantum_available_ratio=self._quantum.available_ratio,
+            crosstalk_penalty=crosstalk_penalty,
         )
 
     def _compute_wait_penalty(self) -> float:
@@ -680,6 +735,35 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
     @property
     def _max_steps(self) -> int:
         return self.max_steps
+
+
+def _beta_params_from_mean_std(
+    mean: float, std: float, low: float, high: float
+) -> dict[str, Any]:
+    """将均值/标准差映射到 Beta 分布参数 a, b（已线性缩放到 [low, high]）。
+
+    方法矩估计：μ = a/(a+b), σ² = ab/((a+b)²(a+b+1))
+    """
+    range_ = high - low
+    if range_ <= 0:
+        return {"distribution": "beta", "a": 1.0, "b": 1.0, "low": low, "high": high, "mean": mean}
+    m = (mean - low) / range_
+    v = (std / range_) ** 2
+    if v >= m * (1 - m):
+        v = m * (1 - m) * 0.9
+    a = m * (m * (1 - m) / v - 1)
+    b = (1 - m) * (m * (1 - m) / v - 1)
+    a = max(a, 0.5)
+    b = max(b, 0.5)
+    return {
+        "distribution": "beta",
+        "a": float(a),
+        "b": float(b),
+        "low": float(low),
+        "high": float(high),
+        "mean": float(mean),
+        "std": float(std),
+    }
 
 
 def register_env() -> None:
