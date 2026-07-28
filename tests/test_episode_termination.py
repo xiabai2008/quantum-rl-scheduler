@@ -161,8 +161,7 @@ def test_consecutive_idle_steps_trigger_termination():
         assert not terminated, f"第 {i + 1} 步不应触发 terminated（未达阈值）"
         assert not truncated, "未达 max_steps，不应触发 truncated"
         assert env._consecutive_idle_steps == i + 1, (
-            f"_consecutive_idle_steps 应为 {i + 1}，"
-            f"实际: {env._consecutive_idle_steps}"
+            f"_consecutive_idle_steps 应为 {i + 1}，实际: {env._consecutive_idle_steps}"
         )
 
     # 第 10 步：达到阈值，应触发 terminated=True

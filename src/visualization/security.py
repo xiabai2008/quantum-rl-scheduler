@@ -307,9 +307,7 @@ def sanitize_error_message(message: str) -> str:
     # 移除内部变量名（单引号包裹的标识符）
     sanitized = _INTERNAL_NAME_PATTERN.sub("[internal]", sanitized)
     # 移除异常类型名模式（如 "RuntimeError: ..."）
-    sanitized = re.sub(
-        r"\b[A-Z]\w*(?:Error|Exception|Warning)\b", "[Error]", sanitized
-    )
+    sanitized = re.sub(r"\b[A-Z]\w*(?:Error|Exception|Warning)\b", "[Error]", sanitized)
     return sanitized
 
 

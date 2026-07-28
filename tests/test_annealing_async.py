@@ -165,7 +165,9 @@ def test_solver_type_none_before_any_anneal():
         simulation_mode=False,
         cqlib_client=MagicMock(),
     )
-    assert opt2.solver_type == "none", "即使配置了 cqlib_client，未调用 anneal 前 solver_type 仍为 'none'"
+    assert opt2.solver_type == "none", (
+        "即使配置了 cqlib_client，未调用 anneal 前 solver_type 仍为 'none'"
+    )
 
 
 if __name__ == "__main__":

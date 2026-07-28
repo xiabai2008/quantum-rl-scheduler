@@ -804,9 +804,7 @@ class MultiAgentPPO:
         Returns:
             拼接后的全局状态向量（float32），等价于 ``wrapper.get_global_state()``。
         """
-        return np.concatenate(
-            [local_obs[name] for name in self.machine_names]
-        ).astype(np.float32)
+        return np.concatenate([local_obs[name] for name in self.machine_names]).astype(np.float32)
 
     # ------------------------------------------------------------------
     # 动作采样

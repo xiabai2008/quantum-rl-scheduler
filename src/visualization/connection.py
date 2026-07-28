@@ -45,9 +45,7 @@ class ConnectionManager:
         # 连接数限制检查（Issue #514）：在 accept 之前检查，拒绝时关闭连接
         with self._lock:
             if len(self.active_connections) >= self.max_connections:
-                logger.warning(
-                    f"[Web] WebSocket 连接数已达上限 {self.max_connections}，拒绝新连接"
-                )
+                logger.warning(f"[Web] WebSocket 连接数已达上限 {self.max_connections}，拒绝新连接")
                 try:
                     await websocket.close(code=1008)  # Policy Violation
                 except Exception as e:

@@ -172,16 +172,12 @@ def check_authoritative_coverage(stats: dict[str, Any]) -> list[str]:
     for exp_key, comp_key, expected_p, desc in required_experiments:
         exp = stats.get(exp_key)
         if not exp:
-            warnings.append(
-                f"权威源遗漏实验: {exp_key}（{desc}）未在 statistics.yaml 中收录"
-            )
+            warnings.append(f"权威源遗漏实验: {exp_key}（{desc}）未在 statistics.yaml 中收录")
             continue
         comp = exp.get(comp_key, {})
         actual_p = comp.get("p_value")
         if actual_p is None:
-            warnings.append(
-                f"权威源遗漏 p 值: {exp_key}.{comp_key}（{desc}）未记录 p_value"
-            )
+            warnings.append(f"权威源遗漏 p 值: {exp_key}.{comp_key}（{desc}）未记录 p_value")
             continue
         # 数值比较（允许格式差异）
         try:
@@ -190,9 +186,7 @@ def check_authoritative_coverage(stats: dict[str, Any]) -> list[str]:
                     f"权威源 p 值不一致: {exp_key}.{comp_key} 期望 p={expected_p}, 实际 p={actual_p}"
                 )
         except (TypeError, ValueError):
-            warnings.append(
-                f"权威源 p 值格式异常: {exp_key}.{comp_key} p_value={actual_p}"
-            )
+            warnings.append(f"权威源 p 值格式异常: {exp_key}.{comp_key} p_value={actual_p}")
     return warnings
 
 

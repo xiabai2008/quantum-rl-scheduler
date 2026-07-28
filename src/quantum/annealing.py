@@ -53,8 +53,7 @@ if QUANTUM_ACCELERATION_ENABLED:
     import warnings
 
     warnings.warn(
-        "量子退火模块已降级为探索性功能（p=0.9430不显著）。"
-        "量子→AI主方向已转向真机噪声反馈。",
+        "量子退火模块已降级为探索性功能（p=0.9430不显著）。量子→AI主方向已转向真机噪声反馈。",
         FutureWarning,
         stacklevel=2,
     )

@@ -2783,9 +2783,7 @@ class TestRateLimiter:
     @pytest.mark.asyncio
     async def test_rate_limit_headers_present(self, async_client):
         """POST 请求响应应包含速率限制头。"""
-        resp = await async_client.post(
-            "/api/strategy", params={"strategy": "PPO"}
-        )
+        resp = await async_client.post("/api/strategy", params={"strategy": "PPO"})
         assert "x-ratelimit-limit" in {k.lower() for k in resp.headers}
         assert "x-ratelimit-remaining" in {k.lower() for k in resp.headers}
 
@@ -2822,7 +2820,7 @@ class TestCircuitValidation:
         """合法 OpenQASM 电路应通过校验。"""
         from src.visualization.security import validate_quantum_circuit
 
-        circuit = 'OPENQASM 2.0;\nqreg q[4];\nH q[0];\nCX q[0], q[1];\n'
+        circuit = "OPENQASM 2.0;\nqreg q[4];\nH q[0];\nCX q[0], q[1];\n"
         result = validate_quantum_circuit(circuit, "openqasm")
         assert result["qubit_count"] == 4
         assert result["gate_count"] >= 3
@@ -2866,7 +2864,7 @@ class TestCircuitValidation:
         from src.visualization import security
 
         # 构造超过 105 比特的 QCIS 电路
-        circuit = "\n".join(f"Q{i} Q{i+1}" for i in range(0, 106, 2))
+        circuit = "\n".join(f"Q{i} Q{i + 1}" for i in range(0, 106, 2))
         with pytest.raises(HTTPException) as exc_info:
             security.validate_quantum_circuit(circuit, "qcis")
         assert exc_info.value.status_code == 400

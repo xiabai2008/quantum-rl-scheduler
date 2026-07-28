@@ -529,7 +529,9 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
                     crosstalk_risk = obs[OBS_CROSSTALK_RISK]
                     crosstalk_penalty = crosstalk_risk * 2.0
 
-                    reward += self._compute_execution_reward(task, action, rng, obs) - crosstalk_penalty
+                    reward += (
+                        self._compute_execution_reward(task, action, rng, obs) - crosstalk_penalty
+                    )
                     self._total_scheduled += 1
 
                     # 构建观测快照（Issue #234）：记录关键状态字段用于因果追溯

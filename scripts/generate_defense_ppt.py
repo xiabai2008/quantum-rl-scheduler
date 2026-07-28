@@ -12,13 +12,13 @@ from pptx.util import Inches, Pt
 # ============================================================
 # 配色方案（参考大纲附录）
 # ============================================================
-COLOR_PRIMARY = RGBColor(0x00, 0x66, 0xFF)      # 天衍云蓝
-COLOR_SECONDARY = RGBColor(0x8B, 0x5C, 0xF6)    # 量子紫
-COLOR_SUCCESS = RGBColor(0x10, 0xB9, 0x81)      # 成功绿
-COLOR_WARNING = RGBColor(0xF5, 0x9E, 0x0B)      # 警告橙
-COLOR_DARK = RGBColor(0x1E, 0x29, 0x3B)          # 深色文字
-COLOR_GRAY = RGBColor(0x64, 0x74, 0x8B)          # 灰色文字
-COLOR_LIGHT_BG = RGBColor(0xF8, 0xFA, 0xFC)      # 浅灰背景
+COLOR_PRIMARY = RGBColor(0x00, 0x66, 0xFF)  # 天衍云蓝
+COLOR_SECONDARY = RGBColor(0x8B, 0x5C, 0xF6)  # 量子紫
+COLOR_SUCCESS = RGBColor(0x10, 0xB9, 0x81)  # 成功绿
+COLOR_WARNING = RGBColor(0xF5, 0x9E, 0x0B)  # 警告橙
+COLOR_DARK = RGBColor(0x1E, 0x29, 0x3B)  # 深色文字
+COLOR_GRAY = RGBColor(0x64, 0x74, 0x8B)  # 灰色文字
+COLOR_LIGHT_BG = RGBColor(0xF8, 0xFA, 0xFC)  # 浅灰背景
 COLOR_WHITE = RGBColor(0xFF, 0xFF, 0xFF)
 
 
@@ -56,7 +56,11 @@ def add_content_slide(
     slide = prs.slides.add_slide(prs.slide_layouts[6])  # 空白布局
     # 标题栏背景
     shape = slide.shapes.add_shape(
-        1, Inches(0), Inches(0), Inches(10), Inches(1.1)  # MSO_SHAPE.RECTANGLE
+        1,
+        Inches(0),
+        Inches(0),
+        Inches(10),
+        Inches(1.1),  # MSO_SHAPE.RECTANGLE
     )
     shape.fill.solid()
     shape.fill.fore_color.rgb = COLOR_PRIMARY
@@ -177,7 +181,7 @@ def generate_ppt(output_path: str) -> None:
     add_title_slide(
         prs,
         "量子RL驱动的天衍云平台智能调度系统",
-        "中国电信集团有限公司 2026年度\"揭榜挂帅\"擂台赛\n选题编号：XA-202609\nAI赋能量子计算，量子反馈优化AI —— 三层架构的双向赋能智能调度系统",
+        '中国电信集团有限公司 2026年度"揭榜挂帅"擂台赛\n选题编号：XA-202609\nAI赋能量子计算，量子反馈优化AI —— 三层架构的双向赋能智能调度系统',
     )
 
     # === 第2页：问题定义 ===

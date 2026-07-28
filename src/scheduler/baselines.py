@@ -437,9 +437,7 @@ class HEFTScheduler(BaselineScheduler):
         # 按 upward rank 降序选择（最大值索引）
         return max(
             range(len(tasks)),
-            key=lambda i: ranks.get(
-                str(tasks[i].get("task_id", i)), _DEFAULT_ESTIMATED_TIME
-            ),
+            key=lambda i: ranks.get(str(tasks[i].get("task_id", i)), _DEFAULT_ESTIMATED_TIME),
         )
 
 
