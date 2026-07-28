@@ -17,14 +17,14 @@
         - hit_rate=0.9：10% miss 触发慢路径扫描，mean 略升
         - hit_rate=0.5：半数 miss，mean 显著上升
         - hit_rate=0.0：全部 miss，每次 get 都扫描全量 N 条目，mean 最高
-        - dim=128 相比 dim=14：miss 路径延迟随维度 d 上升（O(N·d)）
+        - dim=128 相比 dim=16：miss 路径延迟随维度 d 上升（O(N·d)）
 
     结论：缓存收益与命中率强相关；命中率低时慢路径开销可能抵消甚至超过
     缓存带来的收益，此时应缩小 max_size 或直接关闭缓存。
 
 覆盖维度：
     - hit_rate ∈ {0.0, 0.5, 0.9, 1.0}：控制精确命中占比
-    - dim ∈ {14, 128}：14 为原生观测维度（OBS_DIM），128 为高维场景
+    - dim ∈ {16, 128}：16 为原生观测维度（OBS_DIM=16），128 为高维场景
     - max_size=500：典型缓存容量，miss 时扫描 500 条目
 """
 
@@ -54,7 +54,7 @@ def _build_populated_cache(
     Returns:
         (SchedulerCache, base_states)
     """
-    # similarity_threshold 设为 0.999：随机 miss 查询（独立高斯向量）在 dim>=14
+    # similarity_threshold 设为 0.999：随机 miss 查询（独立高斯向量）在 dim>=16
     # 下余弦相似度集中于 0，几乎不可能 >= 0.999，确保 miss 不被误判为相似命中
     cache = SchedulerCache(max_size=n_entries, similarity_threshold=0.999, ttl_seconds=1e9)
     rng = np.random.default_rng(seed)
@@ -71,7 +71,7 @@ class TestSchedulerCacheBenchmark:
     """SchedulerCache.get() 命中率-延迟曲线基准。"""
 
     @pytest.mark.parametrize("hit_rate", [0.0, 0.5, 0.9, 1.0])
-    @pytest.mark.parametrize("dim", [14, 128])
+    @pytest.mark.parametrize("dim", [16, 128])
     def test_get_latency_vs_hit_rate(self, benchmark, hit_rate: float, dim: int) -> None:
         """测量不同命中率下的单次 get() 延迟，构成命中率-延迟曲线。
 
