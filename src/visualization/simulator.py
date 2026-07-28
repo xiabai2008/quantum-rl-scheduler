@@ -90,7 +90,7 @@ async def simulate_scheduler() -> None:
                 _ppo_episode_reward += step_reward
                 _ppo_episode_step += 1
 
-                # 从真实环境观测值更新系统状态（OBS_DIM=14）
+                # 从真实环境观测值更新系统状态（OBS_DIM=16）
                 # obs[0] = 量子比特可用率, obs[1] = 队列长度(归一化), obs[2] = 平均等待时间(归一化)
                 _app.system_status["qubit_utilization"] = round(
                     float(new_obs[0]), 4

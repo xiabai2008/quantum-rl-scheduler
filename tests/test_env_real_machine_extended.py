@@ -36,6 +36,8 @@ from src.scheduler.env_types import (
     Task,
 )
 
+pytestmark = pytest.mark.real_machine
+
 
 # ============================================================
 # 辅助：构造轻量 mock 环境（避免实例化完整 QuantumSchedulingEnv）

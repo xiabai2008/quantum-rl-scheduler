@@ -136,7 +136,7 @@ __all__ = [
 class QuantumSchedulingEnv(gym.Env[Any, Any]):
     """量子-经典混合计算调度环境（Gymnasium 接口）。
 
-    状态空间 14 维 Box(float32)，动作空间 Discrete(3)。
+    状态空间 16 维 Box(float32)，动作空间 Discrete(4)。
     详见模块文档与各子模块实现。
     """
 
@@ -205,7 +205,7 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
         )
         self.noise_profile = self._resolve_noise_profile(noise_profile)
 
-        # Gymnasium 标准空间定义（保持 14 维 obs + Discrete(3) 不变，确保 PPO 模型可复用）
+        # Gymnasium 标准空间定义（16 维 obs + Discrete(4)，确保 PPO 模型可复用）
         self.observation_space = spaces.Box(low=0.0, high=1.0, shape=(OBS_DIM,), dtype=np.float32)
         self.action_space = spaces.Discrete(4)  # 0: classical, 1: quantum, 2: hybrid, 3: qem
 

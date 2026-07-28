@@ -16,6 +16,7 @@ Unit Tests for src/visualization/app.py
 import asyncio
 import copy
 import json
+import os
 import sys
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -196,7 +197,7 @@ async def test_get_metrics(async_client):
 def test_metrics_endpoint():
     """GET /metrics 应返回 Prometheus 文本格式指标，content-type 含 text/plain。
 
-    使用 FastAPI TestClient 测试标准 Prometheus 采集端点。
+    Issue #513: /metrics 需要严格认证，测试时配置 VIZ_API_KEY 并提供 X-API-Key。
     """
 
     async def _noop_simulate():
@@ -205,9 +206,10 @@ def test_metrics_endpoint():
 
     with (
         patch.object(app_module, "simulate_scheduler", _noop_simulate),
+        patch.dict(os.environ, {"VIZ_API_KEY": "test-metrics-key"}),
         TestClient(app) as client,
     ):
-        resp = client.get("/metrics")
+        resp = client.get("/metrics", headers={"X-API-Key": "test-metrics-key"})
         assert resp.status_code == 200
         content_type = resp.headers.get("content-type", "")
         assert "text/plain" in content_type
@@ -431,14 +433,21 @@ async def test_api_key_auth_protects_all_post_endpoints(async_client, monkeypatc
 
 @pytest.mark.asyncio
 async def test_api_key_auth_does_not_affect_get(async_client, monkeypatch):
-    """配置密钥后，GET 端点（status/tasks/metrics）不应受认证影响。"""
+    """配置密钥后，GET 端点（status/tasks/api/metrics）不受认证影响，但 /metrics 需认证。"""
     monkeypatch.setenv("VIZ_API_KEY", "secret-key-123")
     # GET /api/status 无头应 200
     assert (await async_client.get("/api/status")).status_code == 200
     # GET /api/tasks 无头应 200
     assert (await async_client.get("/api/tasks")).status_code == 200
-    # GET /api/metrics 无头应 200
+    # GET /api/metrics 无头应 200（verify_api_key 豁免 GET）
     assert (await async_client.get("/api/metrics")).status_code == 200
+    # Issue #513: GET /metrics 无头应 401（require_api_key 不豁免 GET）
+    assert (await async_client.get("/metrics")).status_code == 401
+    # GET /metrics 带正确密钥应 200
+    resp = await async_client.get(
+        "/metrics", headers={"X-API-Key": "secret-key-123"}
+    )
+    assert resp.status_code == 200
 
 
 @pytest.mark.asyncio
@@ -1351,9 +1360,10 @@ class TestMetricsEndpoints:
         """GET /metrics 应返回 text/plain; version=... 格式。"""
         with (
             patch.object(app_module, "simulate_scheduler", _noop_simulate_scheduler),
+            patch.dict(os.environ, {"VIZ_API_KEY": "test-key"}),
             TestClient(app) as client,
         ):
-            resp = client.get("/metrics")
+            resp = client.get("/metrics", headers={"X-API-Key": "test-key"})
             assert resp.status_code == 200
             content_type = resp.headers.get("content-type", "")
             assert "text/plain" in content_type
@@ -1363,9 +1373,12 @@ class TestMetricsEndpoints:
         """GET /metrics body 应包含 prometheus_client 默认进程指标。"""
         with (
             patch.object(app_module, "simulate_scheduler", _noop_simulate_scheduler),
+            patch.dict(os.environ, {"VIZ_API_KEY": "test-key"}),
             TestClient(app) as client,
         ):
-            body = client.get("/metrics").text
+            body = client.get(
+                "/metrics", headers={"X-API-Key": "test-key"}
+            ).text
             # prometheus_client 默认暴露 python_ 或 process_ 指标
             assert "python_info" in body or "process_" in body or "scheduler_" in body
 

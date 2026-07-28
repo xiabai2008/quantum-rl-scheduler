@@ -44,6 +44,8 @@ from src.scheduler.env_types import (
     Task,
 )
 
+pytestmark = pytest.mark.real_machine
+
 
 class TestGenerateQcisCircuit:
     """QCIS 电路生成测试"""

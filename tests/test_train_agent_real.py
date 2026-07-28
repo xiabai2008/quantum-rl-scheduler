@@ -2,6 +2,8 @@
 
 from pathlib import Path
 
+import pytest
+
 from scripts.training.train_agent_real import (
     AuditedRealClient,
     completion_rate_from_info,
@@ -9,6 +11,8 @@ from scripts.training.train_agent_real import (
     run_preflight,
     save_plot,
 )
+
+pytestmark = pytest.mark.real_machine
 
 
 class _CompletedDelegate:

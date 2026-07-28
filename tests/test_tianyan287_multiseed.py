@@ -48,6 +48,8 @@ from tianyan287_multiseed import (
     run_smoke_test,
 )
 
+pytestmark = pytest.mark.real_machine
+
 # ── 常量测试 ──
 
 
