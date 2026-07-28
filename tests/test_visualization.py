@@ -255,14 +255,17 @@ async def test_api_key_not_configured_blocks_write(async_client, monkeypatch):
     """未配置 VIZ_API_KEY 时，写操作（POST）必须返回 401；GET 监控端点仍放行。"""
     monkeypatch.delenv("VIZ_API_KEY", raising=False)
     # 写操作应被拒绝（零认证放行的安全漏洞已修复）
-    resp_post = await async_client.post("/api/tasks", json={
-        "user_id": "u",
-        "task_type": "quantum",
-        "priority": 3,
-        "qubit_count": 4,
-        "circuit_depth": 10,
-        "estimated_time": 5.0,
-    })
+    resp_post = await async_client.post(
+        "/api/tasks",
+        json={
+            "user_id": "u",
+            "task_type": "quantum",
+            "priority": 3,
+            "qubit_count": 4,
+            "circuit_depth": 10,
+            "estimated_time": 5.0,
+        },
+    )
     assert resp_post.status_code == 401
     # GET 监控端点不受影响，仍返回 200
     resp_get = await async_client.get("/api/status")
@@ -273,14 +276,17 @@ async def test_api_key_not_configured_blocks_write(async_client, monkeypatch):
 async def test_write_request_401_without_key(async_client, monkeypatch):
     """未配置 VIZ_API_KEY 时，POST /api/tasks 必须返回 401（写操作零认证已修复）。"""
     monkeypatch.delenv("VIZ_API_KEY", raising=False)
-    resp = await async_client.post("/api/tasks", json={
-        "user_id": "u",
-        "task_type": "quantum",
-        "priority": 3,
-        "qubit_count": 4,
-        "circuit_depth": 10,
-        "estimated_time": 5.0,
-    })
+    resp = await async_client.post(
+        "/api/tasks",
+        json={
+            "user_id": "u",
+            "task_type": "quantum",
+            "priority": 3,
+            "qubit_count": 4,
+            "circuit_depth": 10,
+            "estimated_time": 5.0,
+        },
+    )
     assert resp.status_code == 401
 
 

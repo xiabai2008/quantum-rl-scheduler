@@ -82,9 +82,19 @@ WELCH_T_FOR_1032E42 = "ERROR: p=1.032e-42 对应 Mann-Whitney U 检验，不是 
 # Issue #446: 严禁表述黑名单（来自 docs/authoritative_numbers.md 第六节）
 # 注意：黑名单匹配后，若行内包含以下"诚实披露"关键词则豁免（避免对已修正的诚实标注误报）
 HONEST_DISCLOSURE_KEYWORDS = [
-    "单seed", "探索性", "诚实披露", "10seeds", "10 seeds",
-    "5seeds", "5 seeds", "旧实验",
-    "注：", "注:", "边界", "cherry-pick", "已降级",
+    "单seed",
+    "探索性",
+    "诚实披露",
+    "10seeds",
+    "10 seeds",
+    "5seeds",
+    "5 seeds",
+    "旧实验",
+    "注：",
+    "注:",
+    "边界",
+    "cherry-pick",
+    "已降级",
 ]
 
 
