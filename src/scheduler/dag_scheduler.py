@@ -703,7 +703,10 @@ class DAGScheduler:
         在满足依赖关系的前提下，调用量子退火求解多机任务分配 QUBO 问题，
         将任务分配到具体机器，再基于分配结果计算开始时间与预估完成时间。
 
-        退火失败或异常时回退到 :meth:`schedule_with_resources`，保证调度可用。
+        退火功能受全局开关 ``QUANTUM_ACCELERATION_ENABLED`` 控制（定义于
+        :mod:`src.quantum.annealing`，默认关闭）。开关关闭时直接回退到
+        :meth:`schedule_with_resources` 经典调度，避免无谓的退火调用。
+        退火失败或异常时同样回退到 :meth:`schedule_with_resources`，保证调度可用。
 
         Args:
             available_qubits: 每台机器可用量子比特数（容量）。
@@ -716,19 +719,22 @@ class DAGScheduler:
             格式与 :meth:`schedule_with_resources` 一致，
             按开始时间、机器 ID、任务 ID 升序排列。
         """
-        # Issue #590: 显式检查量子退火全局开关，关闭时直接走经典调度
-        # 避免退火关闭时仍构造 QUBO / 调用 solve_task_assignment 的无谓开销
-        # 注意：调用方显式传入 optimizer 时仍尝试退火（向后兼容）
-        from src.quantum.annealing import QUANTUM_ACCELERATION_ENABLED
-
-        if not QUANTUM_ACCELERATION_ENABLED and optimizer is None:
-            logger.debug("[DAG] 退火加速已关闭，使用经典调度")
-            return self.schedule_with_resources(available_qubits, available_machines)
-
         # 延迟导入，避免 dag_scheduler 模块加载时引入 annealing 的 torch 依赖
         try:
-            from src.quantum.annealing import solve_task_assignment
+            from src.quantum.annealing import (
+                QUANTUM_ACCELERATION_ENABLED,
+                solve_task_assignment,
+            )
         except ImportError:
+            return self.schedule_with_resources(available_qubits, available_machines)
+
+        # Issue #590: 退火功能开关检查——关闭时回退到经典资源约束调度，
+        # 避免在 QUANTUM_ACCELERATION_ENABLED=False（默认）时无谓地调用退火。
+        if not QUANTUM_ACCELERATION_ENABLED:
+            logger.debug(
+                "量子加速已关闭（QUANTUM_ACCELERATION_ENABLED=False），"
+                "schedule_with_quantum_assist 回退到经典资源约束调度。"
+            )
             return self.schedule_with_resources(available_qubits, available_machines)
 
         # 空图直接返回

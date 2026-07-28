@@ -952,7 +952,11 @@ class TestQuantumAssistScheduling(unittest.TestCase):
         scheduler.add_task(DAGTask(task_id="a", qubits_required=2, estimated_time=5.0))
         scheduler.add_task(DAGTask(task_id="b", qubits_required=2, estimated_time=3.0))
         # Issue #389: 验证退火异常时记录 warning 日志
-        with patch("src.scheduler.dag_scheduler.logger") as mock_logger:
+        # Issue #590: 需显式开启 QUANTUM_ACCELERATION_ENABLED 才会进入退火路径
+        with (
+            patch("src.scheduler.dag_scheduler.logger") as mock_logger,
+            patch("src.quantum.annealing.QUANTUM_ACCELERATION_ENABLED", True),
+        ):
             schedule = scheduler.schedule_with_quantum_assist(
                 available_qubits=10, available_machines=2, optimizer=FailingOptimizer()
             )
@@ -980,7 +984,11 @@ class TestQuantumAssistScheduling(unittest.TestCase):
 
         scheduler = DAGScheduler()
         scheduler.add_task(DAGTask(task_id="a", qubits_required=2, estimated_time=5.0))
-        with patch("src.scheduler.dag_scheduler.logger") as mock_logger:
+        # Issue #590: 需显式开启 QUANTUM_ACCELERATION_ENABLED 才会进入退火路径
+        with (
+            patch("src.scheduler.dag_scheduler.logger") as mock_logger,
+            patch("src.quantum.annealing.QUANTUM_ACCELERATION_ENABLED", True),
+        ):
             scheduler.schedule_with_quantum_assist(
                 available_qubits=10, available_machines=1, optimizer=FailingOptimizer()
             )
@@ -1019,6 +1027,26 @@ class TestQuantumAssistScheduling(unittest.TestCase):
             scheduler.schedule_with_quantum_assist(available_qubits=10, available_machines=2),
             [],
         )
+
+    def test_schedule_with_quantum_assist_disabled_falls_back_to_classic(self) -> None:
+        """Issue #590: 开关关闭时回退到经典调度且不调用退火。"""
+        scheduler = DAGScheduler()
+        scheduler.add_task(DAGTask(task_id="a", qubits_required=2, estimated_time=5.0))
+        scheduler.add_task(
+            DAGTask(task_id="b", qubits_required=2, estimated_time=3.0, dependencies=["a"])
+        )
+        classic = scheduler.schedule_with_resources(available_qubits=10, available_machines=2)
+        # 开关关闭（默认）时应与经典资源约束调度结果一致
+        with (
+            patch("src.quantum.annealing.QUANTUM_ACCELERATION_ENABLED", False),
+            patch("src.quantum.annealing.solve_task_assignment") as mock_solve,
+        ):
+            schedule = scheduler.schedule_with_quantum_assist(
+                available_qubits=10, available_machines=2
+            )
+            # 退火求解器不应被调用
+            mock_solve.assert_not_called()
+        self.assertEqual(schedule, classic)
 
 
 class TestTimeIndexedQuboScheduling(unittest.TestCase):
