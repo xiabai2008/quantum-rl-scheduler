@@ -1,4 +1,10 @@
-# 量子赋能AI：10seeds真机噪声分布优化PPO鲁棒性
+# 量子赋能AI：10seeds真机噪声分布优化PPO鲁棒性（探索性）
+
+> ⚠️ **统计局限性声明（Issue #528 / #529 / #532）**：本报告为**10seeds 描述性统计**，**未做 Wilcoxon 配对检验 / 效应量 / 95% CI**，无法判定 +6.1% 是否统计显著。
+> - 10seeds 分布实验显示等待时间 +6.1%（恶化，57.3→60.8）；
+> - 单seed 校准显示等待时间 -5.7%（改善，59.3→55.9），**方向相反**；
+> - 仅可作为探索性研究，不构成统计成立的证据链；
+> - 详见 `quantum_noise_calibration_20260727_141633.md` 与 `docs/technical_whitepaper.md` 4.7 节。
 
 > 数据源: tianyan-287 10seeds MBS (multiseed_real_machine_report_10seeds_v2.md)
 > 噪声模型: MBS=0.8863±0.0874, N=10
