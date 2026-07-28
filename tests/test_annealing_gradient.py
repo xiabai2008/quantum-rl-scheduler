@@ -149,12 +149,10 @@ class TestComputeGradients:
                 p.add_(1.0)
 
         gamma = 0.9
-        agent = SimpleNamespace(
-            policy_net=policy_net, target_net=target_net, gamma=gamma
-        )
+        agent = SimpleNamespace(policy_net=policy_net, target_net=target_net, gamma=gamma)
 
-        rb, (observations, actions, rewards, next_observations, dones) = (
-            _make_replay_buffer(batch_size, obs_dim, n_actions, seed=0)
+        rb, (observations, actions, rewards, next_observations, dones) = _make_replay_buffer(
+            batch_size, obs_dim, n_actions, seed=0
         )
 
         optimizer = QuantumAnnealingOptimizer()
@@ -181,9 +179,7 @@ class TestComputeGradients:
             wrong_td = (q_value - wrong_target_q).numpy()
 
         # 关键断言：实际 TD 误差 == target_net 版本
-        np.testing.assert_allclose(
-            td_errors, expected_td, rtol=1e-5, atol=1e-6
-        )
+        np.testing.assert_allclose(td_errors, expected_td, rtol=1e-5, atol=1e-6)
         # 前置有效性：target_net 与 policy_net 给出的 next-Q 确实不同，
         # 否则上述等价断言无法区分两种实现。
         assert not np.allclose(expected_td, wrong_td), (

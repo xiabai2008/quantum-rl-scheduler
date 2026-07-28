@@ -91,6 +91,7 @@ def run_independent_ppo(seed: int) -> dict:
             seed=seed + i * 100,
         )
         from stable_baselines3 import PPO
+
         model = PPO(
             "MlpPolicy",
             single_env,
@@ -140,25 +141,25 @@ print("=" * 60)
 results = {"mappo": [], "fcfs": [], "independent_ppo": []}
 
 for i, seed in enumerate(SEEDS):
-    print(f"\n--- Seed {seed} ({i+1}/{len(SEEDS)}) ---")
+    print(f"\n--- Seed {seed} ({i + 1}/{len(SEEDS)}) ---")
 
     print("  [1/3] MAPPO...", end=" ", flush=True)
     t0 = time.time()
     r = run_mappo(seed)
     results["mappo"].append(r)
-    print(f"reward={r['mean_reward']:.1f} ({time.time()-t0:.0f}s)")
+    print(f"reward={r['mean_reward']:.1f} ({time.time() - t0:.0f}s)")
 
     print("  [2/3] FCFS...", end=" ", flush=True)
     t0 = time.time()
     r = run_fcfs(seed)
     results["fcfs"].append(r)
-    print(f"reward={r['mean_reward']:.1f} ({time.time()-t0:.0f}s)")
+    print(f"reward={r['mean_reward']:.1f} ({time.time() - t0:.0f}s)")
 
     print("  [3/3] Independent PPO...", end=" ", flush=True)
     t0 = time.time()
     r = run_independent_ppo(seed)
     results["independent_ppo"].append(r)
-    print(f"reward={r['mean_reward']:.1f} ({time.time()-t0:.0f}s)")
+    print(f"reward={r['mean_reward']:.1f} ({time.time() - t0:.0f}s)")
 
 # ── Statistical Analysis ──
 print("\n" + "=" * 60)
@@ -244,8 +245,8 @@ report = f"""# 多机 MAPPO 同资源对照实验报告
 
 | 对比 | U 统计量 | p 值 | 显著性 |
 |:--|:--|:--|:--|
-| MAPPO vs FCFS | {u1:.0f} | {p1:.4f} | {'显著 (p<0.05)' if p1 < 0.05 else '不显著'} |
-| MAPPO vs 独立PPO | {u2:.0f} | {p2:.4f} | {'显著 (p<0.05)' if p2 < 0.05 else '不显著'} |
+| MAPPO vs FCFS | {u1:.0f} | {p1:.4f} | {"显著 (p<0.05)" if p1 < 0.05 else "不显著"} |
+| MAPPO vs 独立PPO | {u2:.0f} | {p2:.4f} | {"显著 (p<0.05)" if p2 < 0.05 else "不显著"} |
 
 ---
 

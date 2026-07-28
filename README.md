@@ -19,9 +19,11 @@
 | **量子赋能AI** | 真机噪声反馈优化鲁棒性 | **+6.1%** 延迟代价换取真实噪声下的高保真度与稳定性 |
 
 **最新硬核突破（v9.0）：**
+- **16维观测空间**：新增串扰风险和任务到达率滑动平均，覆盖从基础资源到物理噪声到并发时序的完整特征集
+- **4×4 2D网格耦合图**：匹配天衍-287真机nearest-neighbor拓扑，SWAP门减少62%（vs 线性链）
 - **Dynamic QEM**：在执行时间与保真度之间智能权衡。
 - **串扰感知空间并发 (Crosstalk-Aware)**：在多任务并发时主动规避拓扑串扰。
-- **LSTM时序流量感知 (Sequence-Aware)**：通过Recurrent PPO和16维状态空间预测突发流量洪峰。
+- **标准PPO-MLP交付模型**：100K步训练收敛至最优策略，兼容`PPO.load()`一键加载，MLP=LSTM性能等价但训练快5倍
 
 **量化目标：** 综合调度收益+88.3%（核心目标，已达成）；资源利用率+7.9%（p=0.0046，多目标权衡维度，高负载场景PPO显著优于FCFS）
 
@@ -34,15 +36,15 @@
 | CI 强制覆盖率 | 80%（实际 93.58%，pyproject.toml `fail_under=80`） |
 | 观测空间维度 | **16维**（新增串扰风险、任务到达率MA） |
 | 动作空间 | **4维**（新增 QUANTUM_QEM 误差缓释动作） |
-| PPO-LSTM 训练 | 支持 `RecurrentPPO` 时序记忆与流量洪峰预测 |
+| PPO-LSTM 训练 | 支持 `RecurrentPPO` 时序记忆（消融实验用），交付模型为标准PPO-MLP |
 | 真机可用性验证 | 天衍-287 30/30任务成功（N=10 seeds×3策略，100%成功率） |
-| PPO vs FCFS（仿真） | 综合奖励提升 88.3%（16维模型，N=250，Mann-Whitney U 检验 p=1.032e-42，rank-biserial=-0.71） |
+| PPO vs FCFS（仿真） | 综合奖励提升 88.3%（14维权威实验N=250，Mann-Whitney U 检验 p=1.032e-42，rank-biserial=-0.71；16维为交付兼容模型） |
 | PPO vs FCFS（真机参与率） | +353%（N=10, PPO=1736 vs FCFS=383；注：混合评估环境，性能提升主要由仿真驱动，权威仿真结论为+88.3%） |
 | 多机器 MAPPO | 奖励 4,294（vs 单机 2,305，提升 +86.3%） |
 | 电路编译 AI | PPO替代SABRE，公平对比v2（4×4 2D网格，同池配对60电路，Issue #451）；深电路(14-16q)SWAP减少约33%；原76.4%为不公平对比已废弃 |
 | VQE 行业场景 | 10分子×100任务，PPO +97.5% vs FCFS |
 | OR-Tools 对比 | 20/50/100任务，OR-Tools静态最优，PPO动态优势 |
-| 消融实验 | 五维度全量完成（D1-D5） |
+| 消融实验 | 六维度全量完成（D1-D5+架构消融MLP/LSTM），MLP=LSTM收敛等价 |
 | 压力测试 | 4 种极限场景 PPO 综合稳定性最佳 |
 | 工程韧性 | 熔断器 + 8类异常体系 + Prometheus 可观测性 |
 | 代码质量 | ruff(10类规则) + mypy(8项收紧) + bandit 安全扫描 |
@@ -158,10 +160,10 @@ docker compose up
 # CLI 统一入口
 python scripts/cli.py --help
 
-# 快速训练（5000步）
+# 快速训练（5000步验证）
 python scripts/cli.py train --timesteps 5000
 
-# 8种策略对比仿真（200任务）
+# 8种策略对比仿真（默认加载deliverable_models/ppo_best_model_16dim.zip）
 python scripts/cli.py simulate --num-tasks 200
 
 # 启动 Web 监控界面
@@ -279,15 +281,16 @@ TIANYAN_API_KEY=你的真实API密钥
 
 | 实验 | 核心结论 |
 |------|---------|
-| 8策略对比 | PPO奖励2746.94 vs FCFS 1458.77，+88.3%（16维，N=250，Mann-Whitney U 检验 p=1.032e-42，r=-0.71） |
+| 8策略对比 | PPO奖励2746.94 vs FCFS 1458.77，+88.3%（14维权威N=250，Mann-Whitney U 检验 p=1.032e-42，r=-0.71） |
 | 真机验证 | N=10 seeds, PPO=1736 vs FCFS=383 (+353%真机参与率验证；注：混合环境，权威性能结论为仿真+88.3%)，30/30成功 |
-| 五维消融 | D1算法+88.3% > D4多机+86.3% > D5退火+6.4% > D2状态+2.1% |
-| 电路编译 | PPO替代SABRE，公平对比v2(4×4 2D网格, 60电路, Issue #451)；深电路SWAP减少约33% |
+| 六维消融 | D1算法+88.3% > D4多机+86.3% > D5退火+6.4%(不显著) > D2状态+2.1%；MLP=LSTM收敛等价 |
+| 电路编译 | 公平对比v2(4×4 2D网格, 60电路同池配对, Issue #451)：深电路(14-16q)SWAP减少约33%，整体p=0.86不显著；2D网格vs线性链拓扑消融SWAP-62% |
 | VQE行业 | 10分子×100任务, PPO +97.5% vs FCFS |
 | OR-Tools | CP-SAT静态最优, PPO动态实时优势 |
 | 压力测试 | 4场景PPO综合稳定性最强；量子波动场景PPO +91.4% |
 | 多租户公平调度 | 5租户Jain's公平指数=0.9875，PPO总奖励+57.6% vs FCFS |
 | D3奖励消融 | 7权重预设×2策略×10seeds，揭示策略-奖励耦合关系 |
+| MLP vs LSTM | PPO-MLP、PPO-LSTM、PPO-LSTM+Annealing收敛到同一策略(83%量子/17%混合)，MLP训练快5倍 |
 
 详见 `results/reports/` 目录。
 

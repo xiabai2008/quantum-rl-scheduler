@@ -34,9 +34,21 @@ from src.scheduler.baselines import EnvBasedFCFSScheduler, EnvBasedSPTFScheduler
 from src.scheduler.env import DEFAULT_MACHINE_CONFIGS, QuantumSchedulingEnv
 
 SEEDS_15 = [
-    42, 123, 456, 789, 1024,
-    2026, 314, 271, 828, 5566,
-    7788, 1234, 2345, 3456, 4567,
+    42,
+    123,
+    456,
+    789,
+    1024,
+    2026,
+    314,
+    271,
+    828,
+    5566,
+    7788,
+    1234,
+    2345,
+    3456,
+    4567,
 ]
 
 EPISODE_HORIZON = 500
@@ -140,9 +152,7 @@ def run_real_experiment(seeds: list[int]) -> dict[str, Any]:
                 ep = run_episode(env, sched, seed=seed, policy_name=policy_name)
                 all_results.append(ep)
                 real_count = ep["real_task_count"]
-                id_count = sum(
-                    1 for r in ep["real_task_ids"] if r.get("real_task_id") is not None
-                )
+                id_count = sum(1 for r in ep["real_task_ids"] if r.get("real_task_id") is not None)
                 print(
                     f"    reward={ep['total_reward']:.1f}, real_tasks={real_count}, "
                     f"task_ids留档={id_count}/{real_count}"
@@ -150,9 +160,7 @@ def run_real_experiment(seeds: list[int]) -> dict[str, Any]:
                 env.close()
             except Exception as e:
                 print(f"    FAILED: {e}")
-                all_results.append(
-                    {"seed": seed, "policy": policy_name, "error": str(e)}
-                )
+                all_results.append({"seed": seed, "policy": policy_name, "error": str(e)})
 
     return {
         "timestamp": datetime.now().isoformat(),

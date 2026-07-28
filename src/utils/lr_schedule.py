@@ -68,8 +68,7 @@ def create_lr_schedule(
         raise ValueError(f"base_lr 必须为正数，实际传入: {base_lr}")
     if schedule_type not in SUPPORTED_SCHEDULE_TYPES:
         raise ValueError(
-            f"不支持的 schedule_type={schedule_type!r}，"
-            f"可选: {SUPPORTED_SCHEDULE_TYPES}"
+            f"不支持的 schedule_type={schedule_type!r}，可选: {SUPPORTED_SCHEDULE_TYPES}"
         )
 
     if schedule_type == "constant":

@@ -812,7 +812,7 @@ def main():
     parser.add_argument(
         "--ppo-model-path",
         type=str,
-        default=None,
+        default="deliverable_models/ppo_best_model_16dim.zip",
         help="训练好的 PPO 模型路径（.zip 文件）",
     )
     parser.add_argument(

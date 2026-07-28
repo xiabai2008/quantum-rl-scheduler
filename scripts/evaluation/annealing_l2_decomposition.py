@@ -46,10 +46,26 @@ from src.scheduler.agent import PPOAgent
 from src.scheduler.env import QuantumSchedulingEnv
 
 SEEDS_FULL = [
-    42, 123, 456, 789, 1024,
-    2026, 314, 271, 828, 5566,
-    7788, 1234, 2345, 3456, 4567,
-    5678, 6789, 7890, 8901, 1122,
+    42,
+    123,
+    456,
+    789,
+    1024,
+    2026,
+    314,
+    271,
+    828,
+    5566,
+    7788,
+    1234,
+    2345,
+    3456,
+    4567,
+    5678,
+    6789,
+    7890,
+    8901,
+    1122,
 ]
 SEEDS_QUICK = [42, 123, 456, 789, 1024]
 
@@ -84,9 +100,7 @@ def train_one(seed: int, condition: str) -> dict:
         "seed": seed,
         "n_steps": 2048,
         "batch_size": 64,
-        "log_dir": os.path.join(
-            PROJECT_ROOT, "logs", f"l2decomp_{condition}_seed{seed}"
-        ),
+        "log_dir": os.path.join(PROJECT_ROOT, "logs", f"l2decomp_{condition}_seed{seed}"),
     }
     if use_annealing:
         agent_kwargs["anneal_reg_lambda"] = reg_lambda
@@ -231,7 +245,7 @@ def generate_report(data: dict) -> str:
         "",
         "- **B-A** → 退火梯度引导的真实优化效应（无正则干扰）",
         "- **C-B** → 纯 L2 正则化效应（权重衰减）",
-        "- **C-A** → 退火总效应（当前报告声称的\"退火+88.3%\"）",
+        '- **C-A** → 退火总效应（当前报告声称的"退火+88.3%"）',
         "",
         "## 描述统计",
         "",
@@ -246,17 +260,17 @@ def generate_report(data: dict) -> str:
             if r["condition"] == cond and r["mean_reward"] is not None
         ]
         if vals:
-            lines.append(
-                f"| {cond} | {len(vals)} | {np.mean(vals):.1f} | {np.std(vals):.1f} |"
-            )
+            lines.append(f"| {cond} | {len(vals)} | {np.mean(vals):.1f} | {np.std(vals):.1f} |")
 
-    lines.extend([
-        "",
-        "## 统计检验（Mann-Whitney U + Cliff's delta）",
-        "",
-        "| 对比 | U | p-value | Cliff's δ | 显著(p<0.05) | 效应量 | 解读 |",
-        "|------|---|---------|-----------|-------------|--------|------|",
-    ])
+    lines.extend(
+        [
+            "",
+            "## 统计检验（Mann-Whitney U + Cliff's delta）",
+            "",
+            "| 对比 | U | p-value | Cliff's δ | 显著(p<0.05) | 效应量 | 解读 |",
+            "|------|---|---------|-----------|-------------|--------|------|",
+        ]
+    )
 
     for _key, s in data["statistics"].items():
         effect = "negligible"
@@ -272,28 +286,28 @@ def generate_report(data: dict) -> str:
             f"{effect} | Δ={s['mean_a'] - s['mean_b']:.1f} |"
         )
 
-    lines.extend([
-        "",
-        "## 结论",
-        "",
-        "（自动实验完成后填写）",
-        "",
-        "### 诚实声明",
-        "",
-        "本实验严格分解了退火优化中的两类效应，报告中引用的\"退火对 RL 性能提升\"数据",
-        "必须基于 B-A 对比（排除 L2 正则效应）。若 B-A 不显著，则所谓\"退火加速 RL\"",
-        "实质为 L2 正则化（权重衰减）带来的训练稳定性改善，并非量子退火对 RL 目标的",
-        "直接优化。无论结果正负均如实报告，不做选择性报道。",
-    ])
+    lines.extend(
+        [
+            "",
+            "## 结论",
+            "",
+            "（自动实验完成后填写）",
+            "",
+            "### 诚实声明",
+            "",
+            '本实验严格分解了退火优化中的两类效应，报告中引用的"退火对 RL 性能提升"数据',
+            '必须基于 B-A 对比（排除 L2 正则效应）。若 B-A 不显著，则所谓"退火加速 RL"',
+            "实质为 L2 正则化（权重衰减）带来的训练稳定性改善，并非量子退火对 RL 目标的",
+            "直接优化。无论结果正负均如实报告，不做选择性报道。",
+        ]
+    )
 
     return "\n".join(lines)
 
 
 def main():
     parser = argparse.ArgumentParser(description="退火 L2 正则效应分解对照实验")
-    parser.add_argument(
-        "--quick", action="store_true", help="快速模式：仅 5 seeds 用于验证"
-    )
+    parser.add_argument("--quick", action="store_true", help="快速模式：仅 5 seeds 用于验证")
     parser.add_argument(
         "--output-dir",
         type=str,
@@ -303,10 +317,10 @@ def main():
     args = parser.parse_args()
 
     seeds = SEEDS_QUICK if args.quick else SEEDS_FULL
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
     print("退火 L2 分解对照实验 (Issue #353)")
     print(f"Seeds: {len(seeds)}, Timesteps: {TOTAL_TIMESTEPS}")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
 
     os.makedirs(args.output_dir, exist_ok=True)
 

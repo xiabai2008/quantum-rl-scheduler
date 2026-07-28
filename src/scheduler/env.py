@@ -602,7 +602,9 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
         # truncated=True → 因 max_steps 外部限制截断（任务可能未完成），需要 Bootstrap
         idle_termination_threshold = 10
         truncated = self._current_step >= self.max_steps
-        terminated = (not truncated) and (self._consecutive_idle_steps >= idle_termination_threshold)
+        terminated = (not truncated) and (
+            self._consecutive_idle_steps >= idle_termination_threshold
+        )
 
         return self._get_observation(), reward, terminated, truncated, self._get_info()
 
@@ -737,9 +739,7 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
         return self.max_steps
 
 
-def _beta_params_from_mean_std(
-    mean: float, std: float, low: float, high: float
-) -> dict[str, Any]:
+def _beta_params_from_mean_std(mean: float, std: float, low: float, high: float) -> dict[str, Any]:
     """将均值/标准差映射到 Beta 分布参数 a, b（已线性缩放到 [low, high]）。
 
     方法矩估计：μ = a/(a+b), σ² = ab/((a+b)²(a+b+1))

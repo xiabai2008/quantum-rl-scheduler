@@ -96,7 +96,11 @@ def test_crosstalk_penalty():
 
     print(f"reward_single: {reward_single}, reward_concurrent: {reward_concurrent}")
     assert reward_concurrent < reward_single
-    assert abs(reward_single - reward_concurrent - 0.2) < 1e-5
+    from src.scheduler.env_reward import _compute_task_weighting
+
+    task_weight = _compute_task_weighting(task)
+    expected_penalty = 0.2 * task_weight
+    assert abs(reward_single - reward_concurrent - expected_penalty) < 1e-5
 
     print("Crosstalk penalty verified successfully.")
 

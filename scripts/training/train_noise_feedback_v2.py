@@ -82,7 +82,9 @@ def train_model(seed: int, noise_profile: str | None, label: str) -> str:
     elapsed = time.time() - t0
 
     agent.save(str(model_path))
-    print(f"  [TRAINED] {label} seed={seed}, reward={agent.evaluate(5)['mean_reward']:.1f}, time={elapsed:.0f}s")
+    print(
+        f"  [TRAINED] {label} seed={seed}, reward={agent.evaluate(5)['mean_reward']:.1f}, time={elapsed:.0f}s"
+    )
     return str(model_path)
 
 
@@ -108,7 +110,9 @@ def evaluate_model(model_path: str, seed: int, noise_profile: str | None) -> dic
     }
 
 
-def run_full_experiment(seeds: list[int], train_only: bool = False, eval_only: bool = False) -> dict:
+def run_full_experiment(
+    seeds: list[int], train_only: bool = False, eval_only: bool = False
+) -> dict:
     """运行完整实验：训练 + 评估 + 统计检验。"""
     conditions = [
         ("standard", None, "PPO-standard (uniform noise)"),
@@ -119,14 +123,14 @@ def run_full_experiment(seeds: list[int], train_only: bool = False, eval_only: b
     all_eval_results = {}
 
     for label, noise_profile, desc in conditions:
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print(f"训练条件: {desc}")
-        print(f"{'='*60}")
+        print(f"{'=' * 60}")
 
         model_paths = {}
         if not eval_only:
             for i, seed in enumerate(seeds):
-                print(f"  [{i+1}/{len(seeds)}] Training {label} seed={seed}...", flush=True)
+                print(f"  [{i + 1}/{len(seeds)}] Training {label} seed={seed}...", flush=True)
                 mp = train_model(seed, noise_profile, label)
                 model_paths[seed] = mp
 
@@ -140,14 +144,19 @@ def run_full_experiment(seeds: list[int], train_only: bool = False, eval_only: b
             if not Path(mp).with_suffix(".zip").exists():
                 print(f"  [SKIP] 模型不存在: {mp}")
                 continue
-            print(f"  [{i+1}/{len(seeds)}] Evaluating {label} seed={seed}...", flush=True)
+            print(f"  [{i + 1}/{len(seeds)}] Evaluating {label} seed={seed}...", flush=True)
             result = evaluate_model(mp, seed, noise_profile)
             eval_results.append(result)
-            print(f"    reward={result['mean_reward']:.1f}±{result['std_reward']:.1f}, "
-                  f"success={result['success_rate']:.2%}, completion={result['completion_rate']:.2%}")
+            print(
+                f"    reward={result['mean_reward']:.1f}±{result['std_reward']:.1f}, "
+                f"success={result['success_rate']:.2%}, completion={result['completion_rate']:.2%}"
+            )
 
         all_eval_results[label] = eval_results
-        all_train_results[label] = {"n_seeds": len(eval_results), "noise_profile": str(noise_profile)}
+        all_train_results[label] = {
+            "n_seeds": len(eval_results),
+            "noise_profile": str(noise_profile),
+        }
 
     if train_only:
         return {"training_completed": True, "seeds": seeds}
@@ -164,7 +173,7 @@ def run_full_experiment(seeds: list[int], train_only: bool = False, eval_only: b
             "std": 0.0874,
             "low": 0.671,
             "high": 0.994,
-            "source": "10-seed real machine measurements (MBS fidelity)"
+            "source": "10-seed real machine measurements (MBS fidelity)",
         },
         "results": dict(all_eval_results),
         "statistics": stats,
@@ -175,8 +184,12 @@ def compute_statistics(all_results: dict) -> dict:
     """计算统计检验结果。"""
     from scipy import stats
 
-    std_rewards = [r["mean_reward"] for r in all_results.get("standard", []) if r["mean_reward"] is not None]
-    noise_rewards = [r["mean_reward"] for r in all_results.get("noise", []) if r["mean_reward"] is not None]
+    std_rewards = [
+        r["mean_reward"] for r in all_results.get("standard", []) if r["mean_reward"] is not None
+    ]
+    noise_rewards = [
+        r["mean_reward"] for r in all_results.get("noise", []) if r["mean_reward"] is not None
+    ]
 
     results = {}
 
@@ -252,42 +265,51 @@ def generate_report(data: dict) -> str:
 
     rc = data.get("statistics", {}).get("reward_comparison", {})
     if rc:
-        lines.extend([
-            "### 奖励对比",
-            "",
-            "| 指标 | PPO-standard | PPO-noise | 差值 |",
-            "|------|-------------|-----------|------|",
-            f"| Mean Reward | {rc['standard_mean']:.1f} ± {data['statistics'].get('reward_comparison', {}).get('standard_std', 0):.1f} | "
-            f"{rc['noise_mean']:.1f} ± {data['statistics'].get('reward_comparison', {}).get('noise_std', 0):.1f} | "
-            f"{rc['mean_diff']:+.1f} |",
-            "",
-            f"- Mann-Whitney U: {rc['mann_whitney_u']:.1f}, p={rc['p_value']:.4f}",
-            f"- Cliff's δ: {rc['cliffs_delta']:.3f} ({rc['effect_size']})",
-            f"- 统计显著(p<0.05): {'是 ✅' if rc['significant_005'] else '否 ❌'}",
-            "",
-        ])
+        lines.extend(
+            [
+                "### 奖励对比",
+                "",
+                "| 指标 | PPO-standard | PPO-noise | 差值 |",
+                "|------|-------------|-----------|------|",
+                f"| Mean Reward | {rc['standard_mean']:.1f} ± {data['statistics'].get('reward_comparison', {}).get('standard_std', 0):.1f} | "
+                f"{rc['noise_mean']:.1f} ± {data['statistics'].get('reward_comparison', {}).get('noise_std', 0):.1f} | "
+                f"{rc['mean_diff']:+.1f} |",
+                "",
+                f"- Mann-Whitney U: {rc['mann_whitney_u']:.1f}, p={rc['p_value']:.4f}",
+                f"- Cliff's δ: {rc['cliffs_delta']:.3f} ({rc['effect_size']})",
+                f"- 统计显著(p<0.05): {'是 ✅' if rc['significant_005'] else '否 ❌'}",
+                "",
+            ]
+        )
 
-    for metric_key, metric_name in [("success_rate_comparison", "成功率"), ("completion_rate_comparison", "完成率")]:
+    for metric_key, metric_name in [
+        ("success_rate_comparison", "成功率"),
+        ("completion_rate_comparison", "完成率"),
+    ]:
         mc = data.get("statistics", {}).get(metric_key, {})
         if mc:
-            lines.extend([
-                f"### {metric_name}",
-                "",
-                f"- PPO-standard: {mc['standard_mean']:.2%}",
-                f"- PPO-noise: {mc['noise_mean']:.2%}",
-                f"- p={mc['p_value']:.4f}, 显著: {'是' if mc['significant_005'] else '否'}",
-                "",
-            ])
+            lines.extend(
+                [
+                    f"### {metric_name}",
+                    "",
+                    f"- PPO-standard: {mc['standard_mean']:.2%}",
+                    f"- PPO-noise: {mc['noise_mean']:.2%}",
+                    f"- p={mc['p_value']:.4f}, 显著: {'是' if mc['significant_005'] else '否'}",
+                    "",
+                ]
+            )
 
-    lines.extend([
-        "## 诚信声明",
-        "",
-        "无论结果正负均如实报告：若 PPO-noise 显著优于 PPO-standard，说明真机噪声分布",
-        "参数化提升了仿真保真度和策略鲁棒性；若无显著差异或 PPO-noise 更差，则诚实",
-        "声明当前噪声模型对训练无显著增益，\"量子赋能AI\"叙事降级为平台接入验证。",
-        "",
-        "原始数据见 `results/noise_feedback_v2/noise_feedback_v2_results.json`",
-    ])
+    lines.extend(
+        [
+            "## 诚信声明",
+            "",
+            "无论结果正负均如实报告：若 PPO-noise 显著优于 PPO-standard，说明真机噪声分布",
+            "参数化提升了仿真保真度和策略鲁棒性；若无显著差异或 PPO-noise 更差，则诚实",
+            '声明当前噪声模型对训练无显著增益，"量子赋能AI"叙事降级为平台接入验证。',
+            "",
+            "原始数据见 `results/noise_feedback_v2/noise_feedback_v2_results.json`",
+        ]
+    )
 
     return "\n".join(lines)
 
@@ -300,10 +322,10 @@ def main():
     args = parser.parse_args()
 
     seeds = SEEDS_QUICK if args.quick else SEEDS_FULL
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
     print("噪声反馈 v2 实验（Issue #456）")
     print(f"Seeds: {len(seeds)}, Train steps: {TRAIN_TIMESTEPS:,}, Eval episodes: {EVAL_EPISODES}")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
 
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
     MODEL_DIR.mkdir(parents=True, exist_ok=True)

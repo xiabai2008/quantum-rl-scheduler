@@ -35,6 +35,7 @@ TARGET_FILES = [
     "docs/requirements_traceability.md",
 ]
 
+
 # 按顺序的替换规则
 def apply_replacements(content: str, filepath: str) -> tuple[str, int, list[str]]:
     changes = []
@@ -62,7 +63,11 @@ def apply_replacements(content: str, filepath: str) -> tuple[str, int, list[str]
         (r"p=0\.190,", "p=0.9430,", "退火p值5（逗号）"),
         (r"p=0\.190（", "p=0.9430（", "退火p值6（中文括号）"),
         (r"\| 0\.190 \|", "| 0.9430 |", "退火p值表格"),
-        (r"p\s*=\s*0\.190(?!\s*(在|下|对应|旧|5))", "p=0.9430", "退火p值默认替换（排除历史说明语境）"),
+        (
+            r"p\s*=\s*0\.190(?!\s*(在|下|对应|旧|5))",
+            "p=0.9430",
+            "退火p值默认替换（排除历史说明语境）",
+        ),
     ]
     for pat, rep, desc in patterns_p:
         content, n = re.subn(pat, rep, content)
@@ -85,7 +90,11 @@ def apply_replacements(content: str, filepath: str) -> tuple[str, int, list[str]
 
     # ============ 4. 利用率30%目标修正（在defense_ppt/award_roadmap等中） ============
     patterns_util = [
-        (r"资源利用率(提升)?\s*[≥>=]\s*30%.*已?达成", "资源利用率+7.9%（p=0.0046，高负载场景显著优于FCFS），30%目标部分达成", "利用率30%达成修正"),
+        (
+            r"资源利用率(提升)?\s*[≥>=]\s*30%.*已?达成",
+            "资源利用率+7.9%（p=0.0046，高负载场景显著优于FCFS），30%目标部分达成",
+            "利用率30%达成修正",
+        ),
         (r"利用率.*≥30%.*达标", "利用率+7.9%，30%目标部分达成", "利用率达标修正"),
     ]
     for pat, rep, desc in patterns_util:

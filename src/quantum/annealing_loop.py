@@ -119,21 +119,15 @@ class AsyncAnnealingLoop:
         self.optimizer = optimizer
         self.validation_env = validation_env
         self.eval_episodes = int(_cfg.get("eval_episodes", eval_episodes))
-        self.eval_deterministic = bool(
-            _cfg.get("eval_deterministic", eval_deterministic)
-        )
+        self.eval_deterministic = bool(_cfg.get("eval_deterministic", eval_deterministic))
         self.min_interval = int(_cfg.get("min_interval", min_interval))
         self.max_interval = int(_cfg.get("max_interval", max_interval))
-        self.improvement_threshold = float(
-            _cfg.get("improvement_threshold", improvement_threshold)
-        )
+        self.improvement_threshold = float(_cfg.get("improvement_threshold", improvement_threshold))
         self.min_effective_reward_delta = float(
             _cfg.get("min_effective_reward_delta", min_effective_reward_delta)
         )
         _cfg_retry_delays = _cfg.get("retry_delays", retry_delays)
-        self.retry_delays = (
-            _cfg_retry_delays if _cfg_retry_delays is not None else [5.0, 15.0]
-        )
+        self.retry_delays = _cfg_retry_delays if _cfg_retry_delays is not None else [5.0, 15.0]
         self.log_path = str(_cfg.get("log_path", log_path))
         self.annealing_mode = _annealing_mode
 

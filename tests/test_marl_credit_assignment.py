@@ -108,7 +108,8 @@ class TestComputeGaeCreditAssignment:
             next_value = 5.0
             non_terminal = 1.0 - buffer_3agents.dones[t]
             delta = (
-                buffer_3agents.rewards[t] + 0.99 * next_value * non_terminal
+                buffer_3agents.rewards[t]
+                + 0.99 * next_value * non_terminal
                 - buffer_3agents.values[t]
             )
             last_gae = delta + 0.99 * 0.95 * non_terminal * last_gae
@@ -133,13 +134,9 @@ class TestComputeGaeCreditAssignment:
         diffs_12 = np.abs(advantages_per_agent[1] - advantages_per_agent[2]).sum()
         assert diffs_01 > 1e-6 or diffs_12 > 1e-6
 
-    def test_returns_unchanged_by_credit_assignment(
-        self, buffer_2agents: RolloutBuffer
-    ) -> None:
+    def test_returns_unchanged_by_credit_assignment(self, buffer_2agents: RolloutBuffer) -> None:
         """returns 不受信用分配影响（仍为共享值）。"""
-        _, returns = buffer_2agents.compute_gae(
-            last_value=5.0, gamma=0.99, gae_lambda=0.95
-        )
+        _, returns = buffer_2agents.compute_gae(last_value=5.0, gamma=0.99, gae_lambda=0.95)
         # returns = advantages + values，与信用分配无关
         assert returns.shape == (10,)
         assert np.all(np.isfinite(returns))
@@ -156,7 +153,8 @@ class TestComputeGaeCreditAssignment:
             next_value = 5.0
             non_terminal = 1.0 - buffer_2agents.dones[t]
             delta = (
-                buffer_2agents.rewards[t] + gamma * next_value * non_terminal
+                buffer_2agents.rewards[t]
+                + gamma * next_value * non_terminal
                 - buffer_2agents.values[t]
             )
             last_gae = delta + gamma * gae_lambda * non_terminal * last_gae
@@ -174,9 +172,7 @@ class TestComputeGaeCreditAssignment:
             consistent = (sign_shared == sign_agent) | (sign_shared == 0)
             assert np.mean(consistent) > 0.9, f"Agent {i}: sign consistency too low"
 
-    def test_negative_advantage_reverses_credit(
-        self, buffer_2agents: RolloutBuffer
-    ) -> None:
+    def test_negative_advantage_reverses_credit(self, buffer_2agents: RolloutBuffer) -> None:
         """负优势时，动作更低的 Agent 承担更多责任（获得更大负优势）。"""
         # 修改 reward 为负值，使优势为负
         buf = RolloutBuffer(
@@ -196,9 +192,7 @@ class TestComputeGaeCreditAssignment:
                 value=5.0,  # value > reward → 负优势
             )
 
-        advantages_per_agent, _ = buf.compute_gae(
-            last_value=5.0, gamma=0.99, gae_lambda=0.95
-        )
+        advantages_per_agent, _ = buf.compute_gae(last_value=5.0, gamma=0.99, gae_lambda=0.95)
 
         mean_adv = float(np.mean(advantages_per_agent[0]))
         if mean_adv < 0:

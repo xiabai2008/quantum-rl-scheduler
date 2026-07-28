@@ -197,9 +197,7 @@ class QuantumAnnealingOptimizer:
         # Issue #246: QUBO 构造与接受准则参数（从 config 读取，向后兼容）
         self._reg_lambda: float = float(_cfg.get("reg_lambda", 0.1))
         self._max_delta_ratio: float = float(_cfg.get("max_delta_ratio", 0.1))
-        self._accept_threshold_ratio: float = float(
-            _cfg.get("accept_threshold_ratio", 0.01)
-        )
+        self._accept_threshold_ratio: float = float(_cfg.get("accept_threshold_ratio", 0.01))
 
         # 记录最后一次 anneal 实际使用的求解器类型（Issue #226）
         # solver_type 为公开属性，_last_solver 为向后兼容别名，两者始终同步
@@ -1137,7 +1135,9 @@ class QuantumAnnealingOptimizer:
             loss_improvement = current_loss - new_loss
 
             # 接受准则：loss 下降，或上升幅度不超过阈值（早期探索）
-            accept_threshold = self._accept_threshold_ratio * current_loss  # Issue #246: 从 config 读取
+            accept_threshold = (
+                self._accept_threshold_ratio * current_loss
+            )  # Issue #246: 从 config 读取
             if new_loss <= best_loss or loss_improvement > -accept_threshold:
                 # 接受更新
                 accepted = True
@@ -1396,7 +1396,9 @@ class QuantumAnnealingOptimizer:
             loss_improvement = best_loss - new_loss
 
             # 接受准则
-            accept_threshold = self._accept_threshold_ratio * best_loss  # Issue #246: 从 config 读取
+            accept_threshold = (
+                self._accept_threshold_ratio * best_loss
+            )  # Issue #246: 从 config 读取
             if new_loss <= best_loss or loss_improvement > -accept_threshold:
                 accepted = True
                 if new_loss < best_loss:
@@ -1631,9 +1633,7 @@ class QuantumAnnealingOptimizer:
         Returns:
             loss: 质量分数（越小越好），无法提取网络时返回 float('inf')
         """
-        policy_net = (
-            self.get_full_policy(agent) if use_full_policy else self._get_policy_net(agent)
-        )
+        policy_net = self.get_full_policy(agent) if use_full_policy else self._get_policy_net(agent)
         if policy_net is None:
             logger.warning("[退火] evaluate_quality: 无法提取策略网络，返回 inf")
             return float("inf")
@@ -1741,9 +1741,7 @@ class QuantumAnnealingOptimizer:
                 param.copy_(torch.from_numpy(w_final.astype(np.float32)))
 
     @staticmethod
-    def _set_params_from_weights(
-        params: list[nn.Parameter], weights: list[np.ndarray]
-    ) -> None:
+    def _set_params_from_weights(params: list[nn.Parameter], weights: list[np.ndarray]) -> None:
         """
         直接将权重写入参数子集（用于 head_only 模式下的回滚）
 

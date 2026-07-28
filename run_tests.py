@@ -18,10 +18,10 @@ torch 必崩。根因是 torch 的原生 DLL 需要在 pytest 改动导入系统
 
 import sys
 
-# 关键：必须在导入 pytest 之前先加载 torch，预热其原生 DLL。
-import torch  # noqa: F401,E402
+import pytest
 
-import pytest  # noqa: E402
+# 关键：必须在导入 pytest 之前先加载 torch，预热其原生 DLL。
+import torch  # noqa: F401
 
 
 def main() -> int:

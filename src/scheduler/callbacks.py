@@ -137,8 +137,7 @@ class AnnealingCallback(BaseCallback):
                         quality = -loss
                     else:
                         logger.warning(
-                            f"[退火] 步数{self.n_calls}: _get_policy_net 返回 None，"
-                            "质量评估跳过"
+                            f"[退火] 步数{self.n_calls}: _get_policy_net 返回 None，质量评估跳过"
                         )
                         return True
                 else:

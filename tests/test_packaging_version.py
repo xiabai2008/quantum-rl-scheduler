@@ -45,8 +45,7 @@ def test_pyproject_matches_manifest_version() -> None:
     manifest_version = _strip_v_prefix(_load_manifest_version())
 
     assert pyproject_version == manifest_version, (
-        f"版本号不一致: pyproject={pyproject_version!r} "
-        f"manifest={manifest_version!r}"
+        f"版本号不一致: pyproject={pyproject_version!r} manifest={manifest_version!r}"
     )
 
 
@@ -58,9 +57,5 @@ def test_versions_are_semver() -> None:
     pyproject_version = _load_pyproject_version()
     manifest_version = _strip_v_prefix(_load_manifest_version())
 
-    assert semver_re.match(pyproject_version), (
-        f"pyproject version 非 semver: {pyproject_version!r}"
-    )
-    assert semver_re.match(manifest_version), (
-        f"manifest version 非 semver: {manifest_version!r}"
-    )
+    assert semver_re.match(pyproject_version), f"pyproject version 非 semver: {pyproject_version!r}"
+    assert semver_re.match(manifest_version), f"manifest version 非 semver: {manifest_version!r}"
