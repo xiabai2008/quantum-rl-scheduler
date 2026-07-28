@@ -16,6 +16,8 @@ from collections import deque
 from dataclasses import asdict, dataclass, field
 from typing import Any
 
+import numpy as np
+
 __all__ = [
     "DAGScheduler",
     "DAGTask",
@@ -469,6 +471,108 @@ class DAGScheduler:
         """
         schedule = self.schedule_with_resources(self.max_qubits, 1)
         return [item["task_id"] for item in schedule]
+
+    # ----------------------------------------------------------
+    # QUBO 构建
+    # ----------------------------------------------------------
+
+    def build_scheduling_qubo(
+        self,
+        tasks: list[DAGTask],
+        time_slots: int,
+        max_qubits: int | None = None,
+        penalty_weight: float = 1.0,
+    ) -> np.ndarray:
+        """构建调度问题的 QUBO 矩阵（向量化实现）。
+
+        将任务调度映射为 QUBO 问题，二进制变量 ``x_{i,t}`` 表示任务 ``i``
+        是否分配在时间槽 ``t`` 执行。向量化版本利用 Kronecker 积和矩阵置换
+        消除了原 O(N²×T²) 四层嵌套循环。
+
+        约束项：
+        - **容量约束**：每个时间槽的总量子比特需求不超过 ``max_qubits``
+           penalty * Σ_t (Σ_i q_i·x_{i,t} - C)²
+        - **分配约束**：每个任务恰好分配到一个时间槽
+          penalty * Σ_i (Σ_t x_{i,t} - 1)²
+
+        Args:
+            tasks: 任务列表。
+            time_slots: 可用时间槽数量。
+            max_qubits: 单台机器最大量子比特数，默认使用 ``self.max_qubits``。
+            penalty_weight: 约束惩罚权重，默认 1.0。
+
+        Returns:
+            QUBO 矩阵 Q，形状为 ``(N, N)``，其中 ``N = len(tasks) * time_slots``。
+            变量采用 task-major 排序：``var_index = task_idx * time_slots + slot_idx``。
+
+        Raises:
+            ValueError: 当变量总数 ``N > 512`` 时抛出硬限制异常。
+        """
+        if max_qubits is None:
+            max_qubits = self.max_qubits
+
+        n_tasks = len(tasks)
+        n_vars = n_tasks * time_slots
+
+        if n_vars > 512:
+            raise ValueError(
+                f"QUBO 变量数 {n_vars} 超过硬限制 512，"
+                f"减少任务数 ({n_tasks}) 或时间槽数 ({time_slots})"
+            )
+
+        qubits = np.array(
+            [max(0, t.qubits_required) for t in tasks], dtype=np.float64
+        )
+        capacity = float(max_qubits)
+
+        Q = np.zeros((n_vars, n_vars), dtype=np.float64)
+
+        # ---- 容量约束（向量化，O(N²) + 置换开销，替代 O(N²×T²) 四层循环）----
+        # 每个时间槽对应一个 N×N 子矩阵，子矩阵结构相同：
+        #   capacity_block[i,j] = penalty * (q_i * q_j)      当 i ≠ j
+        #   capacity_block[i,i] = penalty * (q_i² - 2C*q_i)  对角项
+        # 构造方式：在 slot-major 排序下用 Kronecker 积构建块对角矩阵，
+        # 再通过置换矩阵变回 task-major 排序。
+        q_outer = np.outer(qubits, qubits)
+        capacity_block = penalty_weight * (
+            q_outer - 2.0 * capacity * np.diag(qubits)
+        )
+
+        eye_t = np.eye(time_slots)
+        Q_cap_slot_major = np.kron(eye_t, capacity_block)
+
+        # 置换：slot-major → task-major
+        #   slot-major 索引 = t * N + i
+        #   task-major 索引  = i * T + t
+        # 由 task-major 反推 slot-major：
+        #   t = task-major % T,  i = task-major // T
+        #   slot-major = t * N + i
+        task_indices = np.arange(n_vars)
+        slot_indices = (
+            (task_indices % time_slots) * n_tasks
+            + task_indices // time_slots
+        )
+        Q_cap = Q_cap_slot_major[slot_indices][:, slot_indices]
+
+        Q += Q_cap
+
+        # ---- 分配约束（向量化，O(T²) + Kronecker 积）----
+        # 每个任务对应一个 T×T 子矩阵：
+        #   assign_block[t,s] = penalty      当 t ≠ s
+        #   assign_block[t,t] = -penalty    对角项
+        assign_block = penalty_weight * (
+            np.ones((time_slots, time_slots)) - 2.0 * np.eye(time_slots)
+        )
+
+        eye_n = np.eye(n_tasks)
+        Q_assign = np.kron(eye_n, assign_block)
+
+        Q += Q_assign
+
+        # 强制对称（消除浮点误差）
+        Q = (Q + Q.T) * 0.5
+
+        return Q
 
     # ----------------------------------------------------------
     # 序列化
