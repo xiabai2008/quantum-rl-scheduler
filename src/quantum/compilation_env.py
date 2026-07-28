@@ -72,7 +72,7 @@ _DISTANCE_CACHE = _all_pairs_distances(COUPLING_GRAPH)
 
 
 class QuantumCompilationEnv(gym.Env):
-    """PPO驱动的量子比特映射环境，14维观测空间，16个离散动作。"""
+    """PPO驱动的量子比特映射环境，14维观测空间（编译层独立维度，区别于调度层OBS_DIM=16），16个离散动作。"""
 
     metadata = {"render_modes": ["human"]}  # noqa: RUF012
 
@@ -82,6 +82,7 @@ class QuantumCompilationEnv(gym.Env):
         self.circuit = circuit
         self.n_logical = circuit.num_qubits if circuit else 8
         self.n_physical = PHYSICAL_QUBITS
+        # 编译层观测空间为14维（逻辑/物理映射状态），与调度层OBS_DIM=16独立
         self.observation_space = spaces.Box(low=0, high=1, shape=(14,), dtype=np.float32)
         self.action_space = spaces.Discrete(PHYSICAL_QUBITS)
         self._gates: list[Any] = []

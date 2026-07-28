@@ -34,6 +34,8 @@ from scripts.evaluation.multiseed_real_machine_analysis import (
     generate_report,
 )
 
+pytestmark = pytest.mark.real_machine
+
 # ── 测试数据（统一协议：tianyan-287 + shots=32） ──
 
 SAMPLE_DATA_VALID = {

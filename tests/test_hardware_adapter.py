@@ -13,6 +13,8 @@ import sys
 import unittest
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from src.api.hardware_adapter import (
     CircuitFormat,
     IonTrapBackend,
@@ -20,6 +22,8 @@ from src.api.hardware_adapter import (
     QuantumHardwareBackend,
     create_hardware_backend,
 )
+
+pytestmark = pytest.mark.real_machine
 
 
 # ============================================================

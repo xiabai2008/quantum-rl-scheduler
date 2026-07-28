@@ -20,6 +20,8 @@ from scripts.training.run_real_machine_ablation import (
     write_hard_budget,
 )
 
+pytestmark = pytest.mark.real_machine
+
 
 def _run(seed: int, reward: float, attempted: int = 0) -> dict:
     return {

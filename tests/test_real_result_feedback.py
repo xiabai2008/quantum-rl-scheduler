@@ -36,6 +36,8 @@ from src.scheduler.env_types import (
     REAL_RESULT_REWARD_MIN,
 )
 
+pytestmark = pytest.mark.real_machine
+
 # ============================================================================
 # 1. parse_measurement_result 测试
 # ============================================================================
