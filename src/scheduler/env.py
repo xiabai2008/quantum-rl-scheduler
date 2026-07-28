@@ -616,8 +616,11 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
             self._consecutive_idle_steps >= idle_termination_threshold
         )
 
-        # Issue #522: 返回步首缓存的观测，保证单步内观测一致且只构建一次
-        return obs, reward, terminated, truncated, self._get_info()
+        # Issue #522: 步首缓存的 obs 用于奖励计算，步尾重新构建观测以反映
+        # advance_time 后的状态（如 arrival_rate_ma 已更新），保证返回给 Agent
+        # 的观测与原始实现语义一致（原实现返回 advance_time 后的观测）。
+        return_obs = self._get_observation()
+        return return_obs, reward, terminated, truncated, self._get_info()
 
     # -- 薄包装方法：委托给子模块，保留实例方法签名以兼容现有测试 --
 

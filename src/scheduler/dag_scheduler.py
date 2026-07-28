@@ -718,9 +718,10 @@ class DAGScheduler:
         """
         # Issue #590: 显式检查量子退火全局开关，关闭时直接走经典调度
         # 避免退火关闭时仍构造 QUBO / 调用 solve_task_assignment 的无谓开销
+        # 注意：调用方显式传入 optimizer 时仍尝试退火（向后兼容）
         from src.quantum.annealing import QUANTUM_ACCELERATION_ENABLED
 
-        if not QUANTUM_ACCELERATION_ENABLED:
+        if not QUANTUM_ACCELERATION_ENABLED and optimizer is None:
             logger.debug("[DAG] 退火加速已关闭，使用经典调度")
             return self.schedule_with_resources(available_qubits, available_machines)
 
