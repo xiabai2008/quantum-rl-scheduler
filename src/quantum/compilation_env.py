@@ -1,9 +1,10 @@
 """
-QuantumCompilationEnv — PPO驱动的量子比特映射环境 (14维/16动作)
+QuantumCompilationEnv — PPO驱动的量子比特映射环境 (14维/可配置动作)
 
-修复记录（Issue #404, #406）：
+修复记录（Issue #404, #406, #594）：
     - #404: 耦合图从线性链改为 4x4 2D网格拓扑，匹配天衍真机 nearest-neighbor 结构
     - #406: SWAP距离使用图上最短路径而非 abs(p1-p2)；保真度模型改为距离感知
+    - #594: PHYSICAL_QUBITS 从硬编码改为构造函数参数，支持自定义耦合图和天衍-287拓扑
 """
 
 from collections import deque
@@ -15,8 +16,15 @@ from gymnasium import spaces
 from numpy.typing import NDArray
 from qiskit.converters import circuit_to_dag
 
+# ---------------------------------------------------------------------------
+# 默认常量（向后兼容，Issue #594 后可通过构造函数覆盖）
+# ---------------------------------------------------------------------------
 PHYSICAL_QUBITS = 16
 GRID_ROWS, GRID_COLS = 4, 4
+
+# 天衍-287 拓扑配置（105 数据比特，10x11 网格 = 110 物理比特）
+TIANYAN_287_ROWS, TIANYAN_287_COLS = 10, 11
+TIANYAN_287_QUBITS = TIANYAN_287_ROWS * TIANYAN_287_COLS  # 110
 
 
 def _build_2d_grid_coupling(rows: int, cols: int) -> dict[int, set[int]]:
@@ -34,7 +42,13 @@ def _build_2d_grid_coupling(rows: int, cols: int) -> dict[int, set[int]]:
     return graph
 
 
+# 默认耦合图（4x4 网格，向后兼容）
 COUPLING_GRAPH: dict[int, set[int]] = _build_2d_grid_coupling(GRID_ROWS, GRID_COLS)
+
+# 天衍-287 耦合图（10x11 网格）
+TIANYAN_287_COUPLING_GRAPH: dict[int, set[int]] = _build_2d_grid_coupling(
+    TIANYAN_287_ROWS, TIANYAN_287_COLS
+)
 
 
 def _graph_distance(g: dict[int, set[int]], src: int, dst: int) -> int:
@@ -68,23 +82,71 @@ def _all_pairs_distances(g: dict[int, set[int]]) -> dict[tuple[int, int], int]:
     return dists
 
 
+# 默认距离缓存（4x4 网格，向后兼容）
 _DISTANCE_CACHE = _all_pairs_distances(COUPLING_GRAPH)
 
 
 class QuantumCompilationEnv(gym.Env):
-    """PPO驱动的量子比特映射环境，14维观测空间（编译层独立维度，区别于调度层OBS_DIM=16），16个离散动作。"""
+    """PPO驱动的量子比特映射环境，14维观测空间（编译层独立维度，区别于调度层OBS_DIM=16），可配置物理比特数和耦合图。
+
+    Issue #594: PHYSICAL_QUBITS 从硬编码改为构造函数参数，支持自定义耦合图和天衍-287拓扑。
+
+    Args:
+        circuit      : Qiskit QuantumCircuit，None 时使用默认 8 逻辑比特
+        max_steps    : 每个 episode 的最大步数
+        n_physical   : 物理比特数（默认 PHYSICAL_QUBITS=16，向后兼容）
+        coupling_graph: 自定义耦合图 {qubit: {neighbors}}，None 时根据 n_physical 推导
+                        若 n_physical == TIANYAN_287_QUBITS 则使用 10x11 网格，
+                        否则使用正方形网格（sqrt(n) x sqrt(n)）
+        grid_rows    : 网格行数，与 grid_cols 一起用于构建耦合图（优先于自动推导）
+        grid_cols    : 网格列数
+    """
 
     metadata = {"render_modes": ["human"]}  # noqa: RUF012
 
-    def __init__(self, circuit: Any | None = None, max_steps: int = 200) -> None:
+    def __init__(
+        self,
+        circuit: Any | None = None,
+        max_steps: int = 200,
+        n_physical: int | None = None,
+        coupling_graph: dict[int, set[int]] | None = None,
+        grid_rows: int | None = None,
+        grid_cols: int | None = None,
+    ) -> None:
         super().__init__()
         self.max_steps = max_steps
         self.circuit = circuit
         self.n_logical = circuit.num_qubits if circuit else 8
-        self.n_physical = PHYSICAL_QUBITS
+
+        # Issue #594: 可配置物理比特数和耦合图
+        self.n_physical = n_physical if n_physical is not None else PHYSICAL_QUBITS
         # 编译层观测空间为14维（逻辑/物理映射状态），与调度层OBS_DIM=16独立
+
+        # 确定耦合图：优先使用自定义输入，其次根据网格参数构建，最后自动推导
+        if coupling_graph is not None:
+            self.coupling_graph = coupling_graph
+            # 确保 n_physical 与耦合图一致
+            self.n_physical = len(coupling_graph)
+        elif grid_rows is not None and grid_cols is not None:
+            self.coupling_graph = _build_2d_grid_coupling(grid_rows, grid_cols)
+            self.n_physical = grid_rows * grid_cols
+        elif self.n_physical == TIANYAN_287_QUBITS:
+            # 天衍-287 预设：10x11 网格
+            self.coupling_graph = TIANYAN_287_COUPLING_GRAPH
+        else:
+            # 自动推导正方形网格（如 16→4x4, 9→3x3）
+            side = int(np.sqrt(self.n_physical))
+            if side * side == self.n_physical:
+                self.coupling_graph = _build_2d_grid_coupling(side, side)
+            else:
+                # 非完全平方数时退化为默认 4x4 网格（截断到 n_physical 个节点）
+                self.coupling_graph = _build_2d_grid_coupling(GRID_ROWS, GRID_COLS)
+                self.n_physical = PHYSICAL_QUBITS
+
+        # 预计算距离缓存（实例级别，支持自定义耦合图）
+        self._distance_cache = _all_pairs_distances(self.coupling_graph)
         self.observation_space = spaces.Box(low=0, high=1, shape=(14,), dtype=np.float32)
-        self.action_space = spaces.Discrete(PHYSICAL_QUBITS)
+        self.action_space = spaces.Discrete(self.n_physical)
         self._gates: list[Any] = []
         self._n_gates: int = 0
         self._two_q_ratio: float = 0.0
@@ -132,11 +194,11 @@ class QuantumCompilationEnv(gym.Env):
             reward -= 2
             free = [q for q in range(self.n_physical) if q not in self._reverse_map]
             if free:
-                dist = min(_DISTANCE_CACHE.get((action, fq), self.n_physical) for fq in free)
+                dist = min(self._distance_cache.get((action, fq), self.n_physical) for fq in free)
                 self._swap_count += dist
                 reward -= dist * 2
                 actual = min(
-                    free, key=lambda fq: _DISTANCE_CACHE.get((action, fq), self.n_physical)
+                    free, key=lambda fq: self._distance_cache.get((action, fq), self.n_physical)
                 )
             else:
                 reward -= 50
@@ -166,7 +228,7 @@ class QuantumCompilationEnv(gym.Env):
             for i, p1 in enumerate(mapped_physical):
                 for p2 in mapped_physical[i + 1 :]:
                     total_pairs += 1
-                    if p2 in COUPLING_GRAPH.get(p1, set()):
+                    if p2 in self.coupling_graph.get(p1, set()):
                         matched += 1
             conn = matched / max(1, total_pairs)
         alloc = len(self._mapping) / self.n_physical
@@ -174,26 +236,26 @@ class QuantumCompilationEnv(gym.Env):
         free_n = sum(
             1
             for q in range(self.n_physical)
-            if q not in occupied and any(n in occupied for n in COUPLING_GRAPH.get(q, set()))
+            if q not in occupied and any(n in occupied for n in self.coupling_graph.get(q, set()))
         ) / max(1, self.n_physical)
         boundary_count = 0
         total_edges = 0
         for q in range(self.n_physical):
-            for nb in COUPLING_GRAPH.get(q, set()):
+            for nb in self.coupling_graph.get(q, set()):
                 if q < nb:
                     total_edges += 1
                     if (q in occupied) != (nb in occupied):
                         boundary_count += 1
         frag = boundary_count / max(1, total_edges)
         depth_n = min(self._current_depth / 100.0, 1.0)
-        mapped_r = self._mapped_gates / max(1, self._n_gates)
+        mapped_r = min(self._mapped_gates / max(1, self._n_gates), 1.0)
         swap_n = min(self._swap_count / max(1, self._n_gates), 1.0)
         avg_swap_dist = 0.0
         if self._swap_count > 0 and len(self._mapping) >= 2:
             dists = []
             for q in occupied:
                 min_d = min(
-                    (_DISTANCE_CACHE.get((q, o), self.n_physical) for o in occupied if o != q),
+                    (self._distance_cache.get((q, o), self.n_physical) for o in occupied if o != q),
                     default=0,
                 )
                 dists.append(min_d)
