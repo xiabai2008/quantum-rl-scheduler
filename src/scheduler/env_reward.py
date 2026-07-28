@@ -13,7 +13,9 @@ import numpy as np
 
 from src.scheduler.env_types import (
     ACTION_CLASSICAL,
+    ACTION_HYBRID,
     ACTION_QUANTUM,
+    ACTION_QUANTUM_QEM,
     MAX_WAIT_STEPS,
     QUANTUM_SPEEDUP_RANGE,
     REWARD_CLASSICAL,
@@ -153,6 +155,28 @@ def compute_execution_reward(
         reward -= crosstalk_penalty
 
         # Issue #401: 应用 urgency/priority 加权
+        reward *= task_weight
+
+        return float(reward + REWARD_SUCCESS_BONUS)
+
+    elif action == ACTION_QUANTUM_QEM:
+        # QEM 模式：牺牲时间换取更高保真度
+        # 1. 大幅提升有效保真度（错误率减半）
+        qem_fidelity = 1.0 - (1.0 - quantum_fidelity) / 2.0
+        
+        speedup = _compute_task_speedup(task, rng)
+        fidelity_factor = qem_fidelity / 0.99
+        speedup *= fidelity_factor
+        reward = REWARD_QUANTUM_BASE * speedup
+
+        # 2. 施加时间代价（奖励打折），模拟更长的执行时间
+        time_penalty_factor = 3.0
+        reward /= time_penalty_factor
+        
+        # 应用串扰惩罚
+        reward -= crosstalk_penalty
+        
+        # 应用 urgency/priority 加权
         reward *= task_weight
 
         return float(reward + REWARD_SUCCESS_BONUS)
