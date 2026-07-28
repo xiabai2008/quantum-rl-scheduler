@@ -72,22 +72,26 @@ __all__ = [
 
 # 当前系统状态
 system_status: dict = {
-    "qubit_utilization": 0.65,  # 量子比特利用率 (0~1)
-    "queue_length": 5,  # 任务队列长度
-    "average_wait_time": 12.3,  # 平均等待时间(秒)
-    "completed_tasks": 42,  # 已完成任务数
-    "current_step": 1024,  # 当前调度步数
-    "current_strategy": "PPO-Balanced",  # 当前调度策略
-    "strategy_options": [  # 可选策略列表
+    "qubit_utilization": 0.65,
+    "queue_length": 5,
+    "average_wait_time": 12.3,
+    "completed_tasks": 42,
+    "current_step": 1024,
+    "current_strategy": "PPO-Balanced",
+    "strategy_options": [
         "DQN-Reward",
         "DQN-Latency",
         "PPO-Balanced",
         "QAOA-Hybrid",
         "FCFS",
     ],
-    "real_machines": [],  # 真机列表 [{name, status, type, id}]
-    "real_submissions": [],  # 真机提交记录 [{step, task_id, machine, latency_s, status}]
+    "real_machines": [],
+    "real_submissions": [],
     "last_update": datetime.now().isoformat(),
+    "resource_breakdown": {"quantum": 0.0, "classical": 0.0, "hybrid": 0.0},
+    "task_progress": {"total": 0, "completed": 0, "in_progress": 0, "pending": 0, "completion_rate": 0.0},
+    "decision_path": {"recent_actions": [], "action_distribution": {}, "avg_reward": 0.0, "decision_count": 0},
+    "prometheus_sync": True,
 }
 
 # 任务队列
