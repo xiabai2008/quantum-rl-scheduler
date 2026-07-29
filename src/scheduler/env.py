@@ -311,10 +311,9 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
         # 多租户配额管理器（Issue #97）
         self._tenant_manager: Any | None = tenant_manager
 
-        # Issue #588: 公平性观测跟踪器（用于观测第17维 Jain 公平性指数）
-        from src.scheduler.fairness import MultiTenantFairnessTracker
-
-        self._fairness_tracker: MultiTenantFairnessTracker = MultiTenantFairnessTracker()
+        # Issue #587: 公平性跟踪器（可选，用于计算公平性惩罚；默认 None）
+        # 通过 set_fairness_tracker() 显式设置；include_fairness_obs 时也可设置
+        self._fairness_tracker: Any | None = None
 
         # LSTM 时序流量感知 (Superpower)
         self.max_arrival_history_length = 10
@@ -335,6 +334,14 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
         # 更新 total_qubits 缓存（Issue #219）
         # attach_real_clients 不修改 _machines 列表本身，但保守起见同步缓存
         self._total_qubits_cache = sum(m.total_qubits for m in self._machines)
+
+    def set_fairness_tracker(self, tracker: Any | None) -> None:
+        """设置公平性跟踪器，启用奖励函数中的公平性惩罚（Issue #587）。
+
+        Args:
+            tracker: MultiTenantFairnessTracker 实例，或 None 清除。
+        """
+        self._fairness_tracker = tracker
 
     @property
     def machine_names(self) -> list[str]:
@@ -795,7 +802,7 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
     def _compute_fairness_penalty_for_task(self, task: Task) -> float:
         """计算单个任务的公平性惩罚（Issue #587）。
 
-        当 ``tenant_manager`` 为 None 时（单租户模式），返回 0.0。
+        当 ``_fairness_tracker`` 为 None 时（未设置跟踪器），返回 0.0。
         否则从 ``_fairness_tracker`` 提取各租户的平均等待时间字典，
         调用 ``compute_fairness_penalty`` 计算惩罚。
 
@@ -805,17 +812,15 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
         Returns:
             公平性惩罚值（非正数）
         """
-        # Issue #587: tenant_manager 为 None 时无多租户公平性考量
-        if self._tenant_manager is None:
+        # Issue #587: 未设置公平性跟踪器时无惩罚
+        if self._fairness_tracker is None:
             return 0.0
         # 从 fairness_tracker 提取各租户的平均等待时间字典
-        fairness_wait_times: dict[str, float] = {
-            stats.tenant_id: float(stats.avg_wait_steps)
-            for stats in self._fairness_tracker._stats.values()
-        }
+        wait_times = self._fairness_tracker.get_wait_times_dict()
+        tenant_id = getattr(task, "tenant_id", None)
         return compute_fairness_penalty(
-            tenant_id=task.tenant_id,
-            fairness_wait_times=fairness_wait_times,
+            tenant_id=tenant_id,
+            fairness_wait_times=wait_times,
         )
 
     def _compute_wait_penalty(self) -> float:

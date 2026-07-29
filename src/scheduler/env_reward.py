@@ -107,6 +107,8 @@ def compute_fairness_penalty(
     """
     if not fairness_wait_times or len(fairness_wait_times) < 2:
         return 0.0
+    if tenant_id is None:
+        return 0.0
     mean_wait = float(np.mean(list(fairness_wait_times.values())))
     if mean_wait < 1e-6:
         return 0.0

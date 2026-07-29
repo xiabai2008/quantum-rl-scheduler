@@ -192,6 +192,14 @@ class MultiTenantFairnessTracker:
         """获取所有租户的平均等待步数列表。"""
         return [s.avg_wait_steps for s in self._stats.values()]
 
+    def get_wait_times_dict(self) -> dict[str, float]:
+        """获取租户ID到平均等待步数的映射（Issue #587）。
+
+        Returns:
+            dict: {tenant_id: avg_wait_steps}
+        """
+        return {tid: s.avg_wait_steps for tid, s in self._stats.items()}
+
     def jain_completion_fairness(self) -> float:
         """以完成率为基础的 Jain 公平性指数。"""
         rates = self.get_completion_rates()
