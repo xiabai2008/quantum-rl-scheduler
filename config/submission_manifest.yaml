@@ -51,7 +51,7 @@ items:
   - id: PRESENTATION
     name: 答辩 PPT
     type: pptx
-    path: "docs/defense_ppt.pptx"  # 制作中
+    path: "deliverable_models/答辩PPT.pptx"
     requirements:
       min_slides: 15
       max_slides: 20
@@ -112,9 +112,41 @@ items:
       max_size_mb: 50
       must_exist: true
 
+  - id: MODEL_PPO_COMPILATION
+    name: 编译层 PPO 模型（14维观测，公平对比v2）
+    type: zip
+    path: "deliverable_models/ppo_compilation_agent.zip"
+    requirements:
+      max_size_mb: 50
+      must_exist: true
+
   # 其他
   - id: REQUIREMENTS_MATRIX
     name: 需求追溯矩阵
     type: md
     path: "docs/requirements_traceability.md"
+    must_exist: true
+
+  - id: AWARD_ALIGNMENT
+    name: 评审标准对齐表
+    type: md
+    path: "docs/award_roadmap.md"
+    must_exist: true
+
+  - id: CROSS_HARDWARE_DOC
+    name: 跨硬件兼容性文档
+    type: md
+    path: "docs/cross_hardware.md"
+    must_exist: true
+
+  - id: EXP_COMPILATION
+    name: 编译层公平对比报告
+    type: md
+    path: "results/reports/compilation_fair_v2_report.md"
+    must_exist: true
+
+  - id: EXP_REAL_AUDIT
+    name: 真机审计轨迹
+    type: md
+    path: "results/reports/real_machine_audit_trail.md"
     must_exist: true

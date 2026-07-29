@@ -45,7 +45,7 @@
 | PPO vs FCFS（真机参与率） | +353%（N=10, PPO=1736 vs FCFS=383；注：混合评估环境，性能提升主要由仿真驱动，权威仿真结论为+123.4%） |
 | 多机器 MAPPO | 奖励 4,294（vs 单机 2,305，提升 +86.3%） |
 | 公平性调度 | Jain Fairness Index观测 + 等待时间偏差惩罚（#587/#588） |
-| 电路编译 AI | PPO替代SABRE，公平对比v2（4×4 2D网格，同池配对60电路，Issue #451）；深电路(14-16q)SWAP减少约33%（n=20, p=0.29不显著）；原76.4%为不公平对比已废弃 |
+| 电路编译 AI | PPO替代SABRE，公平对比v2（4×4 2D网格，同池配对60电路，Issue #451）；深电路(14-16q)SWAP减少约33%（n=20），整体p=0.86不显著；原76.4%为不公平对比已废弃 |
 | 编译环境可配置 | 支持天衍-287(10x11网格)等多种拓扑（#594/#616） |
 | VQE 行业场景 | 10分子×100任务，PPO +97.5% vs FCFS |
 | OR-Tools 对比 | 20/50/100任务，OR-Tools静态最优，PPO动态优势 |
@@ -138,6 +138,7 @@ source .venv/Scripts/activate   # Windows
 # source .venv/bin/activate     # macOS/Linux
 
 pip install -r requirements.txt
+pip install -e .                # 将 src/ 注册为可导入包，任意目录运行脚本不报 No module named 'src'
 cp .env.example .env            # Mock 模式默认开启
 ```
 
@@ -160,6 +161,8 @@ docker compose up
 ```
 
 ### 验证环境
+
+> 所有脚本默认在**仓库根目录**运行。脚本已内置项目根 sys.path 引导；若仍遇到 `No module named 'src'`，执行 `pip install -e .` 或设置 `PYTHONPATH` 为仓库根即可。
 
 ```bash
 # CLI 统一入口
@@ -289,7 +292,7 @@ TIANYAN_API_KEY=你的真实API密钥
 | 8策略对比 | PPO奖励2348.91 vs FCFS 1051.59，+123.4%（16维权威N=250，Welch t 检验 p=1.449e-66，Cohen's d=-2.1353） |
 | 真机验证 | N=10 seeds, PPO=1736 vs FCFS=383 (+353%真机参与率验证；注：混合环境，权威性能结论为仿真+123.4%)，30/30成功 |
 | 六维消融 | D1算法+123.4% > D4多机+86.3% > D5退火+6.4%(不显著) > D2状态+2.1%；MLP=LSTM收敛等价 |
-| 电路编译 | 公平对比v2(4×4 2D网格, 60电路同池配对, Issue #451)：深电路(14-16q)SWAP减少约33%（n=20, p=0.29不显著），整体p=0.86不显著；2D网格vs线性链拓扑消融SWAP-62% |
+| 电路编译 | 公平对比v2(4×4 2D网格, 60电路同池配对, Issue #451)：深电路(14-16q)SWAP减少约33%（n=20），整体p=0.86不显著；2D网格vs线性链拓扑消融SWAP-62% |
 | VQE行业 | 10分子×100任务, PPO +97.5% vs FCFS |
 | OR-Tools | CP-SAT静态最优, PPO动态实时优势 |
 | 压力测试 | 4场景PPO综合稳定性最强；量子波动场景PPO +91.4% |
@@ -337,16 +340,18 @@ python scripts/ci/validate_submission.py --pack
 | CODE_REPO | 代码仓库（Git 标签 v9.1-submission） | git_tag | 8/15 冻结后创建 |
 | CODE_ARCHIVE | 代码压缩包 | zip | 冻结后 --pack 生成 |
 | WHITEPAPER | 技术白皮书（20-50页 PDF） | pdf | docx→PDF 转换 |
-| PRESENTATION | 答辩 PPT（15-20页） | pptx | 人工制作 |
+| PRESENTATION | 答辩 PPT（15-20页，deliverable_models/答辩PPT.pptx） | pptx | ✅ 初版已生成 |
 | DEMO_VIDEO | 演示视频（4-5分钟 1080p） | mp4 | 人工录制 |
 | EXP_STRATEGY | 策略对比报告 | md | ✅ 已完成 |
 | EXP_ABLATION | 消融实验报告 | md | ✅ 已完成 |
 | EXP_STRESS | 压力测试报告 | md | ✅ 已完成 |
 | EXP_REAL | 真机验证报告 | md | ✅ 已完成 |
 | EXP_STAT | 统计显著性报告 | md | ✅ 已完成 |
-| MODEL_PPO | PPO 权威模型 | zip | ✅ 已完成 |
-| MODEL_DQN | DQN 权威模型 | zip | ✅ 已完成 |
+| MODEL_PPO | PPO 权威模型（16维调度层） | zip | ✅ 已完成 |
+| MODEL_PPO_COMPILATION | 编译层 PPO 模型（14维） | zip | ✅ 已完成 |
 | REQUIREMENTS_MATRIX | 需求追溯矩阵 | md | ✅ 已完成 |
+
+> 注：v9 已删除 DQN 模型（不再作为提交物），清单以 `config/submission_manifest.yaml` 为准。
 
 ### 代码冻结流程（8/15）
 

@@ -7,9 +7,9 @@ Issue #355: 在 CI 中重算 PPO-vs-FCFS 核心效果量，低于阈值则阻断
 ``results/multiseed_evaluation/rewards_multiseed.json`` 中加载 PPO 与 FCFS
 的奖励数据，重算提升百分比并与阈值对比。
 
-阈值对齐 ``results/reports/statistical_validation.md`` 权威数字：
-    - PPO vs FCFS 提升 +88.3%（N=250, 50 seeds × 5 episodes）
-    - CI 门禁阈值默认 +80%（留 ~8 个百分点的安全边际，防止小样本波动导致误报）
+阈值对齐 ``config/statistics.yaml`` 权威数字（v9.1+ 16维交付模型）：
+    - PPO vs FCFS 提升 +123.4%（N=250, 50 seeds × 5 episodes, p=1.449e-66）
+    - CI 门禁阈值默认 +80%（留充足安全边际，防止小样本波动导致误报）
 
 退出码:
     - 0: 效果量 >= 阈值，门禁通过
@@ -40,11 +40,11 @@ from typing import Any
 _PROJECT_ROOT = Path(__file__).resolve().parents[2]
 _DEFAULT_DATA_PATH = _PROJECT_ROOT / "results" / "multiseed_evaluation" / "rewards_multiseed.json"
 
-# 权威阈值：PPO vs FCFS 提升 +88.3%，门禁阈值留 8 个百分点安全边际
+# 权威阈值：PPO vs FCFS 提升 +123.4%（v9.1+ 16维交付模型），门禁阈值留充足安全边际
 _DEFAULT_THRESHOLD = 0.80  # 80%（即 improvement >= +80% 视为通过）
 
-# 权威参考值（用于在报告中对照展示，不参与门禁判定）
-_AUTHORITATIVE_IMPROVEMENT = 88.3
+# 权威参考值（用于在报告中对照展示，不参与门禁判定；旧14维口径 88.3 已废弃）
+_AUTHORITATIVE_IMPROVEMENT = 123.4
 
 
 def load_rewards(data_path: Path) -> dict[str, list[float]]:

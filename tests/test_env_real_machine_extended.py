@@ -53,6 +53,7 @@ class _MockEnv:
         feedback_weight: float = 1.0,
         shots: int = 64,
         use_real_machine: bool = True,
+        max_poll_per_step: int = 100,
     ) -> None:
         self._real_clients: dict[str, Any] = clients or {}
         self._real_machine_degraded: bool = degraded
@@ -60,6 +61,7 @@ class _MockEnv:
         self.real_machine_feedback_weight: float = feedback_weight
         self.real_machine_shots: int = shots
         self.use_real_machine: bool = use_real_machine
+        self.max_poll_per_step: int = max_poll_per_step
 
         self._real_submission_attempts_total: int = 0
         self._machine_real_submits: dict[str, int] = {}

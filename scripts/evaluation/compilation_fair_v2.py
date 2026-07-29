@@ -115,12 +115,19 @@ def generate_circuit_pool(seed: int = SEED) -> list[dict[str, Any]]:
 # ---------------------------------------------------------------------------
 
 
-def evaluate_sabre(pool: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """对统一电路池执行 SABRE 编译，返回逐电路 SWAP 数。"""
+def evaluate_sabre(pool: list[dict[str, Any]], seed: int = SEED) -> list[dict[str, Any]]:
+    """对统一电路池执行 SABRE 编译，返回逐电路 SWAP 数。
+
+    SabreLayout/SabreSwap 均传入固定 seed，消除批间 p 值漂移（未播种时
+    启发式搜索随机源不固定，同 seed 多次运行 p 值会在 0.26~0.87 间漂移）。
+    """
     results: list[dict[str, Any]] = []
     for item in pool:
         pm = PassManager(
-            [SabreLayout(COUPLING, swap_trials=8, layout_trials=8), SabreSwap(COUPLING, trials=8)]
+            [
+                SabreLayout(COUPLING, swap_trials=8, layout_trials=8, seed=seed),
+                SabreSwap(COUPLING, trials=8, seed=seed),
+            ]
         )
         compiled = pm.run(item["circuit"])
         swap_count = compiled.count_ops().get("swap", 0)
@@ -155,7 +162,7 @@ def evaluate_ppo(
     results: list[dict[str, Any]] = []
     for item in pool:
         env = QuantumCompilationEnv(item["circuit"], max_steps=max_steps)
-        obs, _ = env.reset()
+        obs, _ = env.reset(seed=SEED)
         while True:
             action, _ = model.predict(obs, deterministic=True)
             obs, _, terminated, truncated, _ = env.step(int(action))

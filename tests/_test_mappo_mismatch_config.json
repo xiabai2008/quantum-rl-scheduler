@@ -4,5 +4,6 @@
   "global_state_dim": 19,
   "machine_names": [
     "tianyan_s"
-  ]
+  ],
+  "scorer_method": "static"
 }

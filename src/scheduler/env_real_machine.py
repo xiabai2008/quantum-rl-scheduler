@@ -18,7 +18,9 @@ _real_clients 等），从而避免循环导入。
 import math
 import os
 import random
+import time
 from collections.abc import Mapping
+from functools import lru_cache
 from typing import TYPE_CHECKING, Any
 
 from loguru import logger
@@ -33,6 +35,7 @@ from src.scheduler.env_types import (
     REAL_RESULT_REWARD_MAX,
     REAL_RESULT_REWARD_MIN,
     QuantumMachine,
+    RealMachineConfig,
     Task,
 )
 
@@ -180,11 +183,31 @@ def generate_qcis_circuit(
 
 # =============================================================================
 # 真机测量结果解析与 reward 计算（Issue #235）
+# 性能优化（Issue #525）：添加结果缓存避免重复解析
 # =============================================================================
+
+_MEASUREMENT_CACHE_TTL = 300.0
+_measurement_result_cache: dict[str, tuple[float, dict[str, float]]] = {}
+
+
+def _get_cached_measurement(task_id: str) -> dict[str, float] | None:
+    cache_entry = _measurement_result_cache.get(task_id)
+    if cache_entry is None:
+        return None
+    cached_time, cached_result = cache_entry
+    if time.time() - cached_time > _MEASUREMENT_CACHE_TTL:
+        del _measurement_result_cache[task_id]
+        return None
+    return cached_result
+
+
+def _set_cached_measurement(task_id: str, result: dict[str, float]) -> None:
+    _measurement_result_cache[task_id] = (time.time(), result)
 
 
 def parse_measurement_result(
     status: "TaskResult | Mapping[str, Any]",
+    task_id: str | None = None,
 ) -> dict[str, float]:
     """从统一任务结果或旧状态字典中解析测量概率分布。
 
@@ -194,12 +217,21 @@ def parse_measurement_result(
     - ``resultStatus``: 原始 shots 计数，需转换为概率
     - ``result``: 某些版本返回的嵌套结果
 
+    性能优化（Issue #525）：当提供 task_id 时，结果会被缓存（TTL=5分钟），
+    同一 task_id 重复调用直接返回缓存结果，避免重复解析。
+
     Args:
         status: get_task_status() 返回的 ``TaskResult`` 或兼容字典
+        task_id: 可选的任务 ID，用于结果缓存。提供后相同 ID 直接返回缓存。
 
     Returns:
         归一化的概率分布字典 {"bitstring": probability}，空字典表示解析失败
     """
+    if task_id is not None:
+        cached = _get_cached_measurement(task_id)
+        if cached is not None:
+            return dict(cached)
+
     probability: dict[str, float] = {}
 
     # 路径 1: 直接的 probability 字段
@@ -214,6 +246,8 @@ def parse_measurement_result(
             total = sum(probability.values())
             if total > 0:
                 probability = {k: v / total for k, v in probability.items()}
+            if task_id is not None:
+                _set_cached_measurement(task_id, probability)
             return probability
 
     # 路径 2: 统一 TaskResult / Mock 的 counts 字段
@@ -222,7 +256,12 @@ def parse_measurement_result(
         try:
             total_shots = sum(float(value) for value in raw_counts.values())
             if total_shots > 0:
-                return {str(key): float(value) / total_shots for key, value in raw_counts.items()}
+                counts_result = {
+                    str(key): float(value) / total_shots for key, value in raw_counts.items()
+                }
+                if task_id is not None:
+                    _set_cached_measurement(task_id, counts_result)
+                return counts_result
         except (ValueError, TypeError):
             pass
 
@@ -237,11 +276,13 @@ def parse_measurement_result(
                 total_shots = sum(counts.values())
                 if total_shots > 0:
                     probability = {str(k): float(v) / total_shots for k, v in counts.items()}
+                    if task_id is not None:
+                        _set_cached_measurement(task_id, probability)
                     return probability
         except (json.JSONDecodeError, ValueError, TypeError) as e:
             logger.debug(f"resultStatus JSON 解析失败: {e}")
 
-    # 路径 4: result 字段（嵌套 probability）
+    # 路径 4: result 字段（嵌套 probability 或直接是概率分布）
     result = status.get("result")
     if result and isinstance(result, Mapping):
         inner_prob = result.get("probability")
@@ -251,35 +292,34 @@ def parse_measurement_result(
                     probability[str(key)] = float(val)
                 except (ValueError, TypeError):
                     continue
-            if probability:
-                total = sum(probability.values())
-                if total > 0:
-                    probability = {k: v / total for k, v in probability.items()}
-                return probability
+        else:
+            for key, val in result.items():
+                if key in ("task_id", "status", "execution_time_s", "execute_time"):
+                    continue
+                try:
+                    probability[str(key)] = float(val)
+                except (ValueError, TypeError):
+                    continue
+        if probability:
+            total = sum(probability.values())
+            if total > 0:
+                probability = {k: v / total for k, v in probability.items()}
+            if task_id is not None:
+                _set_cached_measurement(task_id, probability)
+            return probability
 
-    return {}
+    empty_result: dict[str, float] = {}
+    return empty_result
 
 
-def compute_theoretical_distribution(qcis: str) -> dict[str, float]:
-    """根据 QCIS 电路计算理论概率分布（用于保真度对比，Issue #405 修复）。
-
-    使用 numpy 状态向量模拟精确计算 1-3 比特电路的理论概率分布，
-    支持 H/X/Y/Z/RX/RY/RZ/S/T/CNOT/CZ 等常见门。4 比特及以上电路
-    回退到均匀分布近似（保守估计）。
-
-    Args:
-        qcis: QCIS 格式电路字符串
-
-    Returns:
-        理论概率分布字典（键为测量比特串，值为概率）
-    """
-
+@lru_cache(maxsize=1024)
+def _compute_theoretical_distribution_cached(qcis: str) -> tuple[tuple[str, float], ...]:
     lines = [line.strip() for line in qcis.strip().split("\n") if line.strip()]
     gate_lines = [line for line in lines if not line.startswith("M")]
     measure_lines = [line for line in lines if line.startswith("M")]
 
     if not measure_lines:
-        return {"0": 1.0}
+        return (("0", 1.0),)
 
     measure_qubits: list[int] = []
     for line in measure_lines:
@@ -307,15 +347,35 @@ def compute_theoretical_distribution(qcis: str) -> dict[str, float]:
 
     if total_qubits > 3:
         n_states = 2**n_qubits
-        return {format(i, f"0{n_qubits}b"): 1.0 / n_states for i in range(n_states)}
+        return tuple((format(i, f"0{n_qubits}b"), 1.0 / n_states) for i in range(n_states))
 
     try:
         raw_dist = _simulate_qcis_statevector(qcis, total_qubits, measure_qubits)
-        return {k: round(v, 12) for k, v in raw_dist.items()}
+        return tuple((k, round(v, 12)) for k, v in raw_dist.items())
     except Exception as e:
         logger.warning(f"状态向量模拟失败({e})，回退均匀分布")
         n_states = 2**n_qubits
-        return {format(i, f"0{n_qubits}b"): 1.0 / n_states for i in range(n_states)}
+        return tuple((format(i, f"0{n_qubits}b"), 1.0 / n_states) for i in range(n_states))
+
+
+def compute_theoretical_distribution(qcis: str) -> dict[str, float]:
+    """根据 QCIS 电路计算理论概率分布（用于保真度对比，Issue #405 修复）。
+
+    使用 numpy 状态向量模拟精确计算 1-3 比特电路的理论概率分布，
+    支持 H/X/Y/Z/RX/RY/RZ/S/T/CNOT/CZ 等常见门。4 比特及以上电路
+    回退到均匀分布近似（保守估计）。
+
+    性能优化（Issue #525）：使用 LRU 缓存相同 QCIS 电路的计算结果，
+    最多缓存 1024 个不同电路，避免重复进行状态向量模拟。
+
+    Args:
+        qcis: QCIS 格式电路字符串
+
+    Returns:
+        理论概率分布字典（键为测量比特串，值为概率）
+    """
+    cached_tuple = _compute_theoretical_distribution_cached(qcis)
+    return dict(cached_tuple)
 
 
 def _simulate_qcis_statevector(
@@ -689,13 +749,19 @@ def record_real_failure(
 
 def poll_pending_real_tasks(env: "QuantumSchedulingEnv") -> float:
     """
-    非阻塞轮询已提交真机任务的结果，返回本步反馈 reward（Issue #64）。
+    非阻塞轮询已提交真机任务的结果，返回本步反馈 reward（Issue #64, #524）。
 
-    遍历 ``env._pending_real_tasks``，对每个任务调用 ``get_task_status`` 查询状态：
+    Issue #524 优化：不再在单次 step() 中轮询所有 pending 任务（会导致同步阻塞，
+    每个任务最多阻塞2秒），而是采用轮转队列策略：
+        - 每步最多轮询 ``max_poll_per_step`` 个任务（默认1），将阻塞时间控制在单次网络请求延迟内
+        - 轮询后仍在运行的任务移到 pending 队列末尾，等待后续步轮询
+        - 任务级状态缓存：同一步内不重复轮询同一任务（防御性检查）
+
+    对被轮询的任务调用 ``get_task_status`` 查询状态：
         - completed : 计入成功，返回 REAL_MACHINE_SUCCESS_BONUS
         - error     : 计入失败，返回 REAL_MACHINE_FAIL_PENALTY，触发降级判断
         - timeout   : 轮询次数超过 REAL_MACHINE_MAX_POLL_STEPS，视为超时失败
-        - running/unknown : poll_count +1，保留在 pending 列表
+        - running/unknown : poll_count +1，移到队尾等待下一轮轮询
 
     所有反馈乘以 ``env.real_machine_feedback_weight`` 后累加返回。
 
@@ -708,15 +774,24 @@ def poll_pending_real_tasks(env: "QuantumSchedulingEnv") -> float:
     if not env._pending_real_tasks:
         return 0.0
 
+    max_poll = getattr(env, "max_poll_per_step", 1)
+    n_pending = len(env._pending_real_tasks)
+    n_to_poll = min(max_poll, n_pending)
+
+    to_poll = env._pending_real_tasks[:n_to_poll]
+    remaining = env._pending_real_tasks[n_to_poll:]
+
     total_feedback = 0.0
     still_pending: list[dict[str, Any]] = []
 
-    for pending in env._pending_real_tasks:
-        pending["poll_count"] += 1
+    for pending in to_poll:
+        pending["poll_count"] = pending.get("poll_count", 0) + 1
         machine_name = pending["machine_name"]
         real_task_id = pending["task_id"]
         task_id_str = pending["task_id_str"]
         client = env._real_clients.get(machine_name)
+
+        pending["last_poll_step"] = env._current_step
 
         # 客户端丢失（理论上不应发生），视为失败
         if client is None:
@@ -727,9 +802,11 @@ def poll_pending_real_tasks(env: "QuantumSchedulingEnv") -> float:
 
         try:
             status = client.get_task_status(real_task_id)
+            pending["cached_status"] = dict(status) if status else {}
         except Exception as e:
-            # 查询异常视为本步未拿到结果，保留在 pending 列表
+            # 查询异常视为本步未拿到结果，移到队尾等待下次轮询
             logger.debug(f"[真机闭环] 查询 {real_task_id} 异常: {e}")
+            pending["cached_status"] = {"status": "unknown"}
             still_pending.append(pending)
             continue
 
@@ -737,17 +814,22 @@ def poll_pending_real_tasks(env: "QuantumSchedulingEnv") -> float:
 
         if status_str == "completed":
             # 真机成功：根据反馈模式计算 reward（Issue #235）
-            reward_delta, fidelity, formula = _compute_real_feedback(env, pending, status)
+            reward_delta, fidelity, formula, measured, _theoretical = _compute_real_feedback(
+                env, pending, status
+            )
             total_feedback += reward_delta * env.real_machine_feedback_weight
             env._real_success_count += 1
             env._real_consecutive_failures = 0  # 成功重置连续失败计数
 
-            # 记录详细结果元数据（Issue #235 可追溯性）
-            _record_real_result(env, pending, status, reward_delta, fidelity, formula)
+            # Issue #577: 触发噪声感知奖励反馈（保真度→后续步惩罚/加成闭环）
+            trigger_noise_aware_feedback(env, fidelity)
 
-            # 写入因果记录到 _real_feedback_log（Issue #235）
+            # 记录详细结果元数据（Issue #235 可追溯性），复用已解析的 measured
+            _record_real_result(env, pending, status, reward_delta, fidelity, formula, measured)
+
+            # 写入因果记录到 _real_feedback_log（Issue #235），复用已解析的 measured
             _record_causal_feedback(
-                env, pending, status, reward_delta, fidelity, formula, "completed"
+                env, pending, status, reward_delta, fidelity, formula, "completed", measured
             )
 
             # 真机执行时间回写队列（Issue #64 增强）
@@ -792,10 +874,11 @@ def poll_pending_real_tasks(env: "QuantumSchedulingEnv") -> float:
                 f"[真机闭环] 任务 {task_id_str} 轮询超时 (poll_count={pending['poll_count']})"
             )
         else:
-            # 仍在运行，保留到下一步轮询
+            # 仍在运行，移到队尾等待后续步轮询
             still_pending.append(pending)
 
-    env._pending_real_tasks = still_pending
+    # 新队列 = 未轮询的任务（保持在前） + 轮询后仍 pending 的任务（移到队尾）
+    env._pending_real_tasks = remaining + still_pending
     return total_feedback
 
 
@@ -808,7 +891,7 @@ def _compute_real_feedback(
     env: "QuantumSchedulingEnv",
     pending: dict[str, Any],
     status: dict[str, Any],
-) -> tuple[float, float, str]:
+) -> tuple[float, float, str, dict[str, float], dict[str, float]]:
     """根据真机反馈模式计算 reward（Issue #235）。
 
     三种模式：
@@ -816,39 +899,46 @@ def _compute_real_feedback(
     - result_aware : 解析测量分布，按保真度计算 reward
     - shuffled     : 打乱测量结果后按保真度计算（消融对照）
 
+    性能优化（Issue #525）：返回解析后的 measured 和 theoretical 分布，
+    供调用方复用，避免重复解析和计算。
+
     Args:
         env     : 调度环境实例
-        pending : pending 任务记录（含 qcis_circuit）
+        pending : pending 任务记录（含 qcis_circuit, task_id）
         status  : get_task_status() 返回的状态
 
     Returns:
-        (reward, fidelity, formula_str) 三元组
+        (reward, fidelity, formula_str, measured, theoretical) 五元组
     """
     mode = getattr(env, "real_feedback_mode", REAL_FEEDBACK_STATUS_ONLY)
+    real_task_id = pending.get("task_id")
 
     if mode == REAL_FEEDBACK_STATUS_ONLY:
         # 旧行为：固定 bonus，不解析测量结果
         return (
             REAL_MACHINE_SUCCESS_BONUS,
-            -1.0,  # -1 表示未计算保真度
+            -1.0,
             f"reward={REAL_MACHINE_SUCCESS_BONUS:.1f} (status_only, fixed bonus)",
+            {},
+            {},
         )
 
-    # result_aware 或 shuffled 模式：解析测量结果
-    measured = parse_measurement_result(status)
+    # result_aware 或 shuffled 模式：解析测量结果（传入 task_id 利用缓存）
+    original_measured = parse_measurement_result(status, task_id=real_task_id)
     qcis = pending.get("qcis_circuit", "H Q0\nM Q0")
     theoretical = compute_theoretical_distribution(qcis)
 
+    reward_measured = original_measured
     if mode == REAL_FEEDBACK_SHUFFLED:
-        # 打乱测量结果（消融对照）
-        measured = shuffle_measurement(measured)
+        # 打乱测量结果（消融对照）：reward 计算用打乱后的，但记录用原始结果
+        reward_measured = shuffle_measurement(original_measured)
 
-    reward, fidelity, formula = compute_real_result_reward(measured, theoretical)
+    reward, fidelity, formula = compute_real_result_reward(reward_measured, theoretical)
 
     if mode == REAL_FEEDBACK_SHUFFLED:
         formula += " [SHUFFLED]"
 
-    return reward, fidelity, formula
+    return reward, fidelity, formula, original_measured, theoretical
 
 
 def _record_real_result(
@@ -858,11 +948,14 @@ def _record_real_result(
     reward_delta: float,
     fidelity: float,
     formula: str,
+    measured: dict[str, float] | None = None,
 ) -> None:
     """记录真机结果的详细元数据（Issue #235 可追溯性）。
 
     每条记录包含 task_id、circuit_hash、backend、shots、counts/probability、
     objective_value、result_valid、fallback_mode、reward_delta 及计算公式。
+
+    性能优化（Issue #525）：支持传入已解析的 measured 分布，避免重复解析。
 
     Args:
         env          : 调度环境实例
@@ -871,11 +964,18 @@ def _record_real_result(
         reward_delta : 实际 reward 增量
         fidelity     : 保真度（-1 表示未计算）
         formula      : 计算公式描述
+        measured     : 已解析的测量概率分布（可选，传入则复用）
     """
     if not hasattr(env, "_real_result_records"):
         env._real_result_records = []
 
-    measured = parse_measurement_result(status) if fidelity >= 0 else {}
+    if measured is not None:
+        parsed_measured = measured
+    elif fidelity >= 0:
+        real_task_id = pending.get("task_id")
+        parsed_measured = parse_measurement_result(status, task_id=real_task_id)
+    else:
+        parsed_measured = {}
     mode = getattr(env, "real_feedback_mode", REAL_FEEDBACK_STATUS_ONLY)
 
     record: dict[str, Any] = {
@@ -887,12 +987,12 @@ def _record_real_result(
         "shots": env.real_machine_shots,
         "backend": pending.get("machine_name", ""),
         "feedback_mode": mode,
-        "probability": measured,
+        "probability": parsed_measured,
         "fidelity": round(fidelity, 6) if fidelity >= 0 else None,
         "reward_delta": round(reward_delta, 6),
         "formula": formula,
-        "result_valid": len(measured) > 0,
-        "fallback_mode": mode == REAL_FEEDBACK_STATUS_ONLY and len(measured) == 0,
+        "result_valid": len(parsed_measured) > 0,
+        "fallback_mode": mode == REAL_FEEDBACK_STATUS_ONLY and len(parsed_measured) == 0,
     }
 
     env._real_result_records.append(record)
@@ -906,6 +1006,7 @@ def _record_causal_feedback(
     fidelity: float,
     formula: str,
     outcome: str,
+    measured: dict[str, float] | None = None,
 ) -> None:
     """写入完整因果记录到 ``env._real_feedback_log``（Issue #235）。
 
@@ -918,6 +1019,8 @@ def _record_causal_feedback(
 
     在成功、失败、超时场景下均写入记录（通过 ``outcome`` 字段区分）。
 
+    性能优化（Issue #525）：支持传入已解析的 measured 分布，避免重复解析。
+
     Args:
         env      : 调度环境实例
         pending  : pending 任务记录（含 rl_action, rl_action_prob 等字段）
@@ -926,11 +1029,18 @@ def _record_causal_feedback(
         fidelity : 保真度（-1 表示未计算）
         formula  : 计算公式描述（失败时为空字符串）
         outcome  : 结果状态："completed" / "failed" / "timeout"
+        measured : 已解析的测量概率分布（可选，传入则复用）
     """
     if not hasattr(env, "_real_feedback_log"):
         env._real_feedback_log = []
 
-    measured = parse_measurement_result(status) if fidelity >= 0 and status else {}
+    if measured is not None:
+        parsed_measured = measured
+    elif fidelity >= 0 and status:
+        real_task_id = pending.get("task_id")
+        parsed_measured = parse_measurement_result(status, task_id=real_task_id)
+    else:
+        parsed_measured = {}
 
     record: dict[str, Any] = {
         "submit_step": pending.get("submit_step", 0),
@@ -943,7 +1053,7 @@ def _record_causal_feedback(
         "qcis_circuit": pending.get("qcis_circuit", ""),
         "machine_score": pending.get("machine_score", 0.0),
         "observation_snapshot": pending.get("observation_snapshot", {}),
-        "measured_prob": measured,
+        "measured_prob": parsed_measured,
         "fidelity": round(fidelity, 6) if fidelity >= 0 else None,
         "reward": round(reward, 6),
         "formula": formula,
@@ -1000,3 +1110,185 @@ def _update_task_duration(
 
     # 3. 找不到任务（已经被移除），不报错
     logger.debug(f"[真机闭环] 回写任务 {task_id_str} 找不到，已完成移除")
+
+
+# =============================================================================
+# 噪声感知奖励整形（Issue #577）
+# =============================================================================
+
+
+def init_noise_aware_state(env: "QuantumSchedulingEnv") -> None:
+    """初始化噪声感知奖励状态（在环境 reset 时调用）。
+
+    状态机：
+        - 新触发的值存在 _noise_aware_pending_value，标记 _has_pending=True
+        - 每步开头 advance 时：
+            * 如果有 pending：激活为 current_value，设置 decay_remaining=steps-1
+            * 否则如果 decay_remaining>0：current_value *= decay, decay_remaining-=1
+            * 否则：current_value=0
+
+    Args:
+        env: 调度环境实例
+    """
+    env._noise_aware_current_value = 0.0
+    env._noise_aware_decay_remaining = 0
+    env._noise_aware_pending_value = 0.0
+    env._noise_aware_has_pending = False
+    env._noise_aware_last_fidelity = 0.0
+    env._noise_aware_trigger_step = -1
+
+
+def _get_noise_config(env: "QuantumSchedulingEnv") -> RealMachineConfig:
+    """获取噪声感知奖励配置，兼容无配置的旧环境。
+
+    Args:
+        env: 调度环境实例
+
+    Returns:
+        RealMachineConfig 配置对象
+    """
+    config = getattr(env, "real_machine_config", None)
+    if config is not None and isinstance(config, RealMachineConfig):
+        return config
+    return RealMachineConfig()
+
+
+def trigger_noise_aware_feedback(
+    env: "QuantumSchedulingEnv",
+    fidelity: float,
+) -> None:
+    """当真机任务完成时，根据保真度触发噪声感知奖励反馈。
+
+    逻辑：
+        - fidelity < penalty_threshold: 施加负惩罚，强度与 (threshold - fidelity) 成正比
+        - fidelity > bonus_threshold: 施加正加成，强度与 (fidelity - threshold) 成正比
+        - penalty_threshold <= fidelity <= bonus_threshold: 无调整
+        - fidelity < 0（如 status_only 模式未计算保真度）：不触发
+
+    新触发的值不会影响当前步（当前步奖励已计算），将从下一步开始生效。
+    惩罚/加成采用指数衰减：第一步使用完整强度，后续 N-1 步每步乘以 decay_factor。
+
+    Args:
+        env     : 调度环境实例
+        fidelity: 真机测量保真度 [0, 1]，-1 表示未计算
+    """
+    if fidelity < 0:
+        return
+
+    config = _get_noise_config(env)
+    if not config.noise_aware_reward:
+        return
+
+    if not hasattr(env, "_noise_aware_has_pending"):
+        init_noise_aware_state(env)
+
+    steps = config.noise_penalty_steps
+    if fidelity < config.noise_penalty_threshold:
+        severity = config.noise_penalty_threshold - fidelity
+        magnitude = config.noise_penalty_strength * severity
+        env._noise_aware_pending_value = -magnitude
+        env._noise_aware_has_pending = True
+        env._noise_aware_last_fidelity = fidelity
+        env._noise_aware_trigger_step = env._current_step
+        logger.debug(
+            f"[噪声感知] 低保真度触发惩罚: fidelity={fidelity:.4f} "
+            f"< threshold={config.noise_penalty_threshold:.2f}, "
+            f"penalty={-magnitude:.4f}, steps={steps}"
+        )
+    elif fidelity > config.noise_bonus_threshold:
+        quality = fidelity - config.noise_bonus_threshold
+        magnitude = config.noise_bonus_strength * quality
+        env._noise_aware_pending_value = magnitude
+        env._noise_aware_has_pending = True
+        env._noise_aware_last_fidelity = fidelity
+        env._noise_aware_trigger_step = env._current_step
+        logger.debug(
+            f"[噪声感知] 高保真度触发加成: fidelity={fidelity:.4f} "
+            f"> threshold={config.noise_bonus_threshold:.2f}, "
+            f"bonus={magnitude:.4f}, steps={steps}"
+        )
+
+
+def advance_noise_aware_to_next_step(env: "QuantumSchedulingEnv") -> None:
+    """在每步开始时调用，将噪声感知状态推进到当前步。
+
+    状态转换逻辑：
+        1. 如果有新触发的 pending 值（真机刚返回结果）：
+           - current_value = pending_value（完整强度）
+           - decay_remaining = steps - 1（本步用完整值，还有 steps-1 次衰减）
+           - 清空 pending
+        2. 否则如果 decay_remaining > 0：
+           - current_value *= decay_factor
+           - decay_remaining -= 1
+        3. 否则：
+           - current_value = 0
+
+    时序示例（steps=5, decay=0.7, 触发值=-X）：
+        - 触发后下一步 advance: current=-X, decay_remaining=4  （第1步：完整值）
+        - 再下一步: current=-X*0.7=-0.7X, decay_remaining=3      （第2步）
+        - 再下一步: current=-0.49X, decay_remaining=2            （第3步）
+        - 再下一步: current=-0.343X, decay_remaining=1           （第4步）
+        - 再下一步: current=-0.240X, decay_remaining=0           （第5步）
+        - 再下一步: current=0                                    （结束）
+
+    Args:
+        env: 调度环境实例
+    """
+    if not hasattr(env, "_noise_aware_has_pending"):
+        init_noise_aware_state(env)
+
+    config = _get_noise_config(env)
+    if not config.noise_aware_reward:
+        env._noise_aware_current_value = 0.0
+        env._noise_aware_decay_remaining = 0
+        env._noise_aware_has_pending = False
+        return
+
+    # 1. 优先激活新触发的 pending 值（覆盖当前衰减中的值，新结果优先）
+    if env._noise_aware_has_pending:
+        env._noise_aware_current_value = env._noise_aware_pending_value
+        env._noise_aware_decay_remaining = config.noise_penalty_steps - 1
+        env._noise_aware_pending_value = 0.0
+        env._noise_aware_has_pending = False
+        return
+
+    # 2. 正在衰减中：指数衰减
+    if env._noise_aware_decay_remaining > 0:
+        env._noise_aware_current_value *= config.noise_decay_factor
+        env._noise_aware_decay_remaining -= 1
+    else:
+        # 3. 衰减结束，归零
+        env._noise_aware_current_value = 0.0
+
+
+def get_noise_aware_adjustment(
+    env: "QuantumSchedulingEnv",
+    action: int,
+) -> float:
+    """获取当前步的噪声感知奖励调整值（已通过动作类型过滤）。
+
+    仅对量子相关动作（ACTION_QUANTUM, ACTION_QUANTUM_QEM, ACTION_HYBRID）施加调整；
+    经典动作（ACTION_CLASSICAL）不受噪声影响，返回 0。
+
+    注意：必须在 advance_noise_aware_to_next_step() 之后调用，否则值未刷新。
+
+    Args:
+        env   : 调度环境实例
+        action: 当前调度动作
+
+    Returns:
+        奖励调整值（负为惩罚，正为加成，0 为无调整）
+    """
+    from src.scheduler.env_types import ACTION_CLASSICAL as _ACTION_CLASSICAL
+
+    if action == _ACTION_CLASSICAL:
+        return 0.0
+
+    if not hasattr(env, "_noise_aware_current_value"):
+        init_noise_aware_state(env)
+
+    config = _get_noise_config(env)
+    if not config.noise_aware_reward:
+        return 0.0
+
+    return float(env._noise_aware_current_value)

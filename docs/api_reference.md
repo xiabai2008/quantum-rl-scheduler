@@ -19,6 +19,9 @@
 8. [异常处理](#8-异常处理)
 9. [使用示例](#9-使用示例)
 10. [附录](#10-附录)
+11. [CqlibRecorder 接口（录制/回放）](#11-cqlibrecorder-接口录制回放)
+12. [HardwareAdapter 接口（硬件抽象层）](#12-hardwareadapter-接口硬件抽象层)
+13. [QuotaTracker 接口（配额追踪）](#13-quotatracker-接口配额追踪)
 
 ---
 
@@ -1666,6 +1669,1279 @@ API 层暴露以下 Prometheus 指标：
 |------|------|---------|
 | v1.0 | 2026-07-02 | 初始版本，覆盖所有公开接口 |
 | v1.1 | 2026-07-25 | 新增「Web 可视化 API」章节，覆盖 routes.py 全部 27 个端点；补充 VISUALIZATION_API_KEY / X-API-Key 认证机制说明 |
+| v1.2 | 2026-07-29 | 补充 CqlibRecorder（录制/回放）、HardwareAdapter（硬件抽象层）、QuotaTracker（配额追踪）三个 API 模块文档 |
+
+---
+
+## 11. CqlibRecorder 接口（录制/回放）
+
+### 11.1 模块概述
+
+`cqlib_recorder.py` 实现了 cqlib SDK 的「录制-回放」测试框架（Issue #175），包含两个客户端：
+
+- **CqlibReplayClient**：从 JSON fixtures 加载响应，无需安装 cqlib SDK 即可运行真机交互逻辑的回归测试
+- **CqlibRecordingClient**：包装真实 `CqlibTianyanClient`，在调用真机 API 的同时将响应序列化为 JSON fixtures 供后续回放
+
+### 11.2 CqlibReplayClient 类
+
+#### 11.2.1 类定义
+
+```python
+class CqlibReplayClient:
+    """
+    cqlib 回放客户端：从 JSON fixtures 加载响应，替代真实 SDK 调用。
+
+    作为 CqlibTianyanClient 的回放替代品，无需安装 cqlib SDK 即可运行
+    真机交互逻辑的回归测试。所有响应来自 fixtures_dir 下的 JSON 文件。
+
+    任务状态采用轮询计数状态机模拟真实行为：
+    - 首次查询某 task_id 返回 running 状态
+    - 后续查询返回 completed 状态
+    """
+```
+
+#### 11.2.2 初始化方法
+
+```python
+def __init__(
+    self,
+    fixtures_dir: str = "tests/fixtures/cqlib_responses",
+    *,
+    machine_name: str = "tianyan_s",
+    auto_retry_machine: bool = True,
+    error_mode: str | None = None,
+) -> None:
+    """
+    初始化回放客户端并加载全部 fixtures。
+
+    Args:
+        fixtures_dir: JSON fixtures 目录路径（默认："tests/fixtures/cqlib_responses"）
+        machine_name: 默认机器名（用于可用性判断与重试逻辑，默认："tianyan_s"）
+        auto_retry_machine: 机器不可用时是否自动切换备用机（默认：True）
+        error_mode: 错误注入模式（仅用于测试）：
+            - "capacity"：模拟机时包容量不足
+            - "unavailable"：模拟所有机器不可用
+            - None：正常回放模式（默认）
+
+    Raises:
+        FileNotFoundError: fixture 文件不存在
+        json.JSONDecodeError: JSON 格式错误
+
+    Example:
+        >>> replay = CqlibReplayClient("tests/fixtures/cqlib_responses")
+        >>> assert replay.authenticate() is True
+    """
+```
+
+#### 11.2.3 公开方法
+
+#### 11.2.3.1 authenticate
+
+```python
+def authenticate(self) -> bool:
+    """
+    回放认证（总是返回 True）。
+
+    Returns:
+        始终返回 True，模拟认证成功
+
+    Example:
+        >>> result = replay.authenticate()
+        >>> print(result)  # True
+    """
+```
+
+#### 11.2.3.2 list_backends
+
+```python
+def list_backends(self) -> list[dict[str, Any]]:
+    """
+    从 machine_list.json 加载量子计算机列表。
+
+    Returns:
+        backends: 后端字典列表，每项含 id/type/status/name 字段
+
+    Example:
+        >>> backends = replay.list_backends()
+        >>> for b in backends:
+        ...     print(f"{b['name']}: {b['status']}")
+    """
+```
+
+#### 11.2.3.3 get_backend_info
+
+```python
+def get_backend_info(self, backend_name: str | None = None) -> dict[str, Any]:
+    """
+    获取指定后端信息。
+
+    Args:
+        backend_name: 后端名称，为 None 时使用默认机器名
+
+    Returns:
+        info: 匹配的后端字典；未找到返回空字典
+
+    Example:
+        >>> info = replay.get_backend_info("tianyan_s")
+        >>> print(info.get("status"))
+    """
+```
+
+#### 11.2.3.4 submit_quantum_task
+
+```python
+def submit_quantum_task(
+    self,
+    qcis: str = "",
+    circuit: Any = None,
+    shots: int = 1024,
+    task_name: str = "Scheduler_Task",
+) -> str | None:
+    """
+    从 task_submit.json 加载任务提交响应。
+
+    模拟真实提交逻辑：预检机器可用性、容量错误处理、备用机切换。
+    当 error_mode="capacity" 时直接返回 None（模拟机时包容量不足）。
+
+    Args:
+        qcis: QCIS 指令字符串
+        circuit: cqlib.Circuit 对象（与 qcis 二选一，回放中不使用）
+        shots: 测量次数（默认：1024）
+        task_name: 任务名称（默认："Scheduler_Task"）
+
+    Returns:
+        task_id: 任务 ID 字符串；机器不可用或容量不足时返回 None
+
+    Example:
+        >>> tid = replay.submit_quantum_task(qcis="H Q0\\nM Q0", shots=1024)
+        >>> print(f"任务ID: {tid}")
+    """
+```
+
+#### 11.2.3.5 get_task_status
+
+```python
+def get_task_status(self, task_id: str) -> dict[str, Any]:
+    """
+    根据 task_id 轮询计数返回 running 或 completed 状态。
+
+    状态机：首次查询返回 running，后续查询返回 completed。
+    模拟真实场景中任务从运行到完成的自然流转。
+
+    Args:
+        task_id: 任务 ID
+
+    Returns:
+        status: 状态字典，含 task_id/status/result/raw 字段
+
+    Example:
+        >>> status = replay.get_task_status("task_123")
+        >>> print(status["status"])  # 首次 "running"，再次 "completed"
+    """
+```
+
+#### 11.2.3.6 get_task_result
+
+```python
+def get_task_result(self, task_id: str) -> dict[str, Any]:
+    """
+    获取任务执行结果（从 task_result.json 加载）。
+
+    Args:
+        task_id: 任务 ID
+
+    Returns:
+        result: 结果字典，含 task_id/status/result/raw 字段
+
+    Example:
+        >>> result = replay.get_task_result("task_123")
+        >>> print(result["status"])
+    """
+```
+
+#### 11.2.3.7 wait_for_task
+
+```python
+def wait_for_task(
+    self, task_id: str, timeout: int = 300, poll_interval: int = 5
+) -> dict[str, Any]:
+    """
+    轮询等待任务完成并返回结果。
+
+    回放中通过 get_task_status 的轮询计数状态机实现：
+    首次查询返回 running，第二次返回 completed 即结束等待。
+
+    Args:
+        task_id: 任务 ID
+        timeout: 超时秒数（默认：300）
+        poll_interval: 轮询间隔秒数（默认：5）
+
+    Returns:
+        result: 完成状态字典；超时返回 {"task_id": ..., "status": "timeout"}
+
+    Example:
+        >>> result = replay.wait_for_task("task_123", timeout=60, poll_interval=1)
+        >>> print(result["status"])
+    """
+```
+
+#### 11.2.3.8 get_queue_status
+
+```python
+def get_queue_status(self) -> dict[str, Any]:
+    """
+    获取队列状态（基于 fixtures 机器列表统计）。
+
+    Returns:
+        status: 含 total_machines/running/available 字段的字典
+
+    Example:
+        >>> qs = replay.get_queue_status()
+        >>> print(f"在线机器: {qs['running']}/{qs['total_machines']}")
+    """
+```
+
+#### 11.2.3.9 is_available
+
+```python
+def is_available(self) -> bool:
+    """
+    检查真机是否可用（回放中认证通过且默认机器 running）。
+
+    Returns:
+        True 表示可提交，False 表示应降级
+
+    Example:
+        >>> if replay.is_available():
+        ...     tid = replay.submit_quantum_task(qcis="H Q0\\nM Q0")
+    """
+```
+
+#### 11.2.3.10 submit_and_get_task_id
+
+```python
+def submit_and_get_task_id(
+    self,
+    qcis: str,
+    shots: int = 512,
+    task_name: str = "Scheduler_Real_Task",
+) -> str | None:
+    """
+    提交量子任务并立即返回 task_id（非阻塞，语义化别名）。
+
+    Args:
+        qcis: QCIS 指令字符串
+        shots: 测量次数（默认：512）
+        task_name: 任务名称（默认："Scheduler_Real_Task"）
+
+    Returns:
+        task_id: 任务 ID 字符串；提交失败返回 None
+
+    Example:
+        >>> tid = replay.submit_and_get_task_id("H Q0\\nM Q0", shots=1024)
+    """
+```
+
+### 11.3 CqlibRecordingClient 类
+
+#### 11.3.1 类定义
+
+```python
+class CqlibRecordingClient:
+    """
+    cqlib 录制客户端：包装真实 CqlibTianyanClient 并录制响应。
+
+    所有方法调用转发给真实客户端，同时将响应序列化为 JSON fixtures
+    保存到 fixtures_dir，供 CqlibReplayClient 后续回放使用。
+
+    录制时自动处理不可 JSON 序列化的对象（如 cqlib 自定义类型），
+    将其递归转为字符串表示。
+    """
+```
+
+#### 11.3.2 初始化方法
+
+```python
+def __init__(self, real_client: CqlibTianyanClient, fixtures_dir: str) -> None:
+    """
+    初始化录制客户端。
+
+    Args:
+        real_client: 真实 CqlibTianyanClient 实例（需已配置凭证）
+        fixtures_dir: JSON fixtures 输出目录（不存在则自动创建）
+
+    Example:
+        >>> real = CqlibTianyanClient(login_key="xxx", machine_name="tianyan_s")
+        >>> recorder = CqlibRecordingClient(real, "tests/fixtures/cqlib_responses")
+    """
+```
+
+#### 11.3.3 公开方法
+
+#### 11.3.3.1 authenticate
+
+```python
+def authenticate(self) -> bool:
+    """
+    录制认证结果并保存到 authenticate.json。
+
+    Returns:
+        result: 真实客户端的认证结果（布尔值）
+
+    Example:
+        >>> result = recorder.authenticate()
+    """
+```
+
+#### 11.3.3.2 list_backends
+
+```python
+def list_backends(self) -> list[dict[str, Any]]:
+    """
+    录制量子计算机列表响应并保存到 machine_list.json。
+
+    Returns:
+        backends: 真实客户端返回的后端字典列表
+
+    Example:
+        >>> backends = recorder.list_backends()
+    """
+```
+
+#### 11.3.3.3 get_backend_info
+
+```python
+def get_backend_info(self, backend_name: str | None = None) -> dict[str, Any]:
+    """
+    获取后端信息（转发给真实客户端，不单独保存 fixture）。
+
+    Args:
+        backend_name: 后端名称，为 None 时使用默认机器名
+
+    Returns:
+        info: 真实客户端返回的后端信息字典
+    """
+```
+
+#### 11.3.3.4 submit_quantum_task
+
+```python
+def submit_quantum_task(
+    self,
+    qcis: str = "",
+    circuit: Any = None,
+    shots: int = 1024,
+    task_name: str = "Scheduler_Task",
+) -> str | None:
+    """
+    录制任务提交响应并保存到 task_submit.json。
+
+    Args:
+        qcis: QCIS 指令字符串
+        circuit: cqlib.Circuit 对象（与 qcis 二选一）
+        shots: 测量次数（默认：1024）
+        task_name: 任务名称（默认："Scheduler_Task"）
+
+    Returns:
+        task_id: 真实客户端返回的任务 ID；失败返回 None
+
+    Example:
+        >>> tid = recorder.submit_quantum_task(qcis="H Q0\\nM Q0", shots=1024)
+    """
+```
+
+#### 11.3.3.5 get_task_status
+
+```python
+def get_task_status(self, task_id: str) -> TaskResult:
+    """
+    录制任务状态查询响应。
+
+    根据 status 自动保存到 task_status_running.json 或 task_status_completed.json。
+
+    Args:
+        task_id: 任务 ID
+
+    Returns:
+        status: 真实客户端返回的状态字典
+
+    Example:
+        >>> status = recorder.get_task_status("task_123")
+    """
+```
+
+#### 11.3.3.6 get_task_result
+
+```python
+def get_task_result(self, task_id: str) -> TaskResult:
+    """
+    录制任务结果查询响应并保存到 task_result.json。
+
+    Args:
+        task_id: 任务 ID
+
+    Returns:
+        result: 真实客户端返回的结果字典
+
+    Example:
+        >>> result = recorder.get_task_result("task_123")
+    """
+```
+
+#### 11.3.3.7 wait_for_task
+
+```python
+def wait_for_task(self, task_id: str, timeout: int = 300, poll_interval: int = 5) -> TaskResult:
+    """
+    录制等待任务完成的最终结果。
+
+    轮询过程中的中间状态由 get_task_status 录制，
+    此方法额外录制最终完成结果到 task_status_completed.json。
+
+    Args:
+        task_id: 任务 ID
+        timeout: 超时秒数（默认：300）
+        poll_interval: 轮询间隔秒数（默认：5）
+
+    Returns:
+        result: 最终状态字典
+
+    Example:
+        >>> result = recorder.wait_for_task("task_123")
+        >>> print(result["status"])
+    """
+```
+
+#### 11.3.4 Fixture 文件清单
+
+录制客户端生成以下 JSON fixture 文件，供回放客户端加载：
+
+| 文件名 | 来源方法 | 说明 |
+|--------|---------|------|
+| `authenticate.json` | `authenticate()` | 认证结果 |
+| `machine_list.json` | `list_backends()` | 量子计算机列表 |
+| `task_submit.json` | `submit_quantum_task()` | 任务提交响应 |
+| `task_status_running.json` | `get_task_status()` | 任务运行中状态 |
+| `task_status_completed.json` | `get_task_status()` / `wait_for_task()` | 任务完成状态 |
+| `task_result.json` | `get_task_result()` | 任务执行结果 |
+
+#### 11.3.5 典型工作流示例
+
+```python
+from src.api.cqlib_recorder import CqlibRecordingClient, CqlibReplayClient
+from src.api.tianyan_cqlib import CqlibTianyanClient
+
+# ============ 录制阶段（需真机凭证 + cqlib SDK） ============
+real = CqlibTianyanClient(login_key="xxx", machine_name="tianyan_s")
+recorder = CqlibRecordingClient(real, "tests/fixtures/cqlib_responses")
+recorder.list_backends()
+tid = recorder.submit_quantum_task(qcis="H Q0\nM Q0", shots=1024)
+recorder.wait_for_task(tid)
+
+# ============ 回放阶段（无需 cqlib SDK，CI 可直接运行） ============
+replay = CqlibReplayClient("tests/fixtures/cqlib_responses")
+assert replay.authenticate() is True
+backends = replay.list_backends()
+tid = replay.submit_quantum_task(qcis="H Q0\nM Q0", shots=1024)
+result = replay.wait_for_task(tid)
+assert result["status"] == "completed"
+```
+
+---
+
+## 12. HardwareAdapter 接口（硬件抽象层）
+
+### 12.1 模块概述
+
+`hardware_adapter.py` 定义了统一的量子硬件后端抽象层（Issue #256/#258/#259），使超导、离子阱、光量子等不同硬件路线可以通过同一接口接入调度系统。
+
+**当前实现状态**：
+
+| 硬件类型 | 实现类 | 状态 |
+|---------|--------|------|
+| 超导（superconducting） | `CqlibTianyanClient` | 已完成真机验证 |
+| 离子阱（ion_trap） | `IonTrapBackend` | 桩实现，待接入真实平台 |
+| 光量子（photonic） | `PhotonicBackend` | 桩实现，待接入真实平台 |
+
+### 12.2 CircuitFormat 枚举
+
+```python
+class CircuitFormat(Enum):
+    """
+    量子电路格式枚举（Issue #256）。
+
+    不同硬件平台原生支持的电路描述格式不同，
+    本枚举用于在提交电路时标注格式类型。
+    """
+```
+
+| 枚举值 | 字符串 | 说明 |
+|--------|--------|------|
+| `CircuitFormat.QCIS` | `"qcis"` | 天衍云 QCIS 指令格式（超导） |
+| `CircuitFormat.OPENQASM` | `"openqasm"` | OpenQASM 2.0/3.0 格式（跨平台通用） |
+| `CircuitFormat.IONQ_JSON` | `"ionq_json"` | IonQ JSON 格式（离子阱） |
+| `CircuitFormat.PHOTONIC_HAMILTONIAN` | `"photonic_hamiltonian"` | 光量子哈密顿量描述格式 |
+| `CircuitFormat.QISKIT_CIRCUIT` | `"qiskit_circuit"` | Qiskit Circuit 对象（内存对象，非文本格式） |
+
+### 12.3 QuantumHardwareBackend 抽象基类
+
+#### 12.3.1 类定义
+
+```python
+class QuantumHardwareBackend(ABC):
+    """
+    量子硬件后端抽象基类（Issue #256）。
+
+    所有具体硬件后端（超导/离子阱/光量子）继承本类并实现抽象接口，
+    使调度系统可以通过统一接口操作不同硬件平台。
+    """
+```
+
+#### 12.3.2 抽象方法
+
+#### 12.3.2.1 submit_circuit
+
+```python
+@abstractmethod
+def submit_circuit(
+    self,
+    circuit: str,
+    shots: int = 1024,
+    task_name: str = "Scheduler_Task",
+) -> str | None:
+    """
+    提交量子电路到硬件后端执行。
+
+    Args:
+        circuit: 电路描述字符串（格式由子类的 circuit_format 决定）
+        shots: 测量次数（默认：1024）
+        task_name: 任务名称（默认："Scheduler_Task"）
+
+    Returns:
+        task_id: 任务 ID 字符串；提交失败时返回 None
+    """
+```
+
+#### 12.3.2.2 get_task_status
+
+```python
+@abstractmethod
+def get_task_status(self, task_id: str) -> Mapping[str, Any]:
+    """
+    查询任务状态（非阻塞）。
+
+    Args:
+        task_id: 任务 ID
+
+    Returns:
+        status: 状态字典，包含 status 字段（"running"/"completed"/"error"/"unknown"）
+    """
+```
+
+#### 12.3.3 抽象属性
+
+| 属性 | 类型 | 说明 |
+|------|------|------|
+| `supported_gates` | `list[str]` | 该后端支持的量子门列表 |
+| `topology` | `dict[str, Any]` | 硬件拓扑结构信息（耦合图、连接矩阵等） |
+| `backend_type` | `str` | 后端类型标识（如 "superconducting"/"ion_trap"/"photonic"） |
+
+#### 12.3.4 公开属性与方法
+
+#### 12.3.4.1 circuit_format 属性
+
+```python
+@property
+def circuit_format(self) -> CircuitFormat:
+    """
+    该后端原生支持的电路格式。
+
+    Returns:
+        CircuitFormat 枚举值，默认返回 CircuitFormat.QCIS，子类可覆盖
+    """
+```
+
+#### 12.3.4.2 is_available
+
+```python
+def is_available(self) -> bool:
+    """
+    检查后端是否可用（默认实现：返回 True）。
+
+    子类可覆盖此方法提供更精确的可用性检测（如尝试认证、检查机器在线状态）。
+
+    Returns:
+        True 表示后端可接受任务，False 表示不可用
+
+    Example:
+        >>> if backend.is_available():
+        ...     tid = backend.submit_circuit("H Q0\\nM Q0", shots=1024)
+    """
+```
+
+### 12.4 IonTrapBackend 类
+
+#### 12.4.1 类定义
+
+```python
+class IonTrapBackend(QuantumHardwareBackend):
+    """
+    离子阱量子计算后端桩实现（Issue #258）。
+
+    离子阱量子计算机使用囚禁离子作为量子比特，特点是：
+    - 全连通拓扑（任意两个离子均可直接纠缠）
+    - 较长相干时间（秒级，远超超导的微秒级）
+    - 典型门集：单比特旋转门 + Mølmer-Sørensen 两比特门
+
+    当前为桩实现，submit_circuit 返回模拟 task_id，不连接真实离子阱平台。
+    TODO: 接入真实离子阱平台（如 IonQ Aria / Quantinuum H2）
+    """
+```
+
+#### 12.4.2 初始化方法
+
+```python
+def __init__(
+    self,
+    num_ions: int = 20,
+    api_key: str | None = None,
+) -> None:
+    """
+    初始化离子阱后端桩实现。
+
+    Args:
+        num_ions: 离子数量（量子比特数，默认：20）
+        api_key: 平台 API Key（桩实现不使用，预留接口）
+
+    Example:
+        >>> backend = IonTrapBackend(num_ions=50)
+        >>> tid = backend.submit_circuit(circuit_json, shots=1024)
+    """
+```
+
+#### 12.4.3 属性
+
+| 属性 | 返回值 | 说明 |
+|------|--------|------|
+| `supported_gates` | `["RZ", "RY", "RX", "RXX", "RYY", "MS", "M"]` | 离子阱典型门集 |
+| `topology` | `{"type": "all_to_all", "num_qubits": N, "connectivity": "full", ...}` | 全连通拓扑 |
+| `backend_type` | `"ion_trap"` | 后端类型标识 |
+| `circuit_format` | `CircuitFormat.IONQ_JSON` | 使用 IonQ JSON 格式 |
+
+#### 12.4.4 公开方法
+
+#### 12.4.4.1 submit_circuit
+
+```python
+def submit_circuit(
+    self,
+    circuit: str,
+    shots: int = 1024,
+    task_name: str = "IonTrap_Task",
+) -> str | None:
+    """
+    提交电路到离子阱后端（桩实现：返回模拟 task_id）。
+
+    Args:
+        circuit: 电路描述（IonQ JSON 格式字符串）
+        shots: 测量次数（默认：1024）
+        task_name: 任务名称（默认："IonTrap_Task"）
+
+    Returns:
+        task_id: 模拟任务 ID（格式："iontrap_stub_{uuid12}"）
+
+    Example:
+        >>> tid = backend.submit_circuit('{"qubits": 2, "circuit": [...]}', shots=2048)
+    """
+```
+
+#### 12.4.4.2 get_task_status
+
+```python
+def get_task_status(self, task_id: str) -> dict[str, Any]:
+    """
+    查询任务状态（桩实现：立即返回 completed）。
+
+    Args:
+        task_id: 任务 ID
+
+    Returns:
+        status: 模拟完成状态字典，含 task_id/status/result/raw
+
+    Example:
+        >>> status = backend.get_task_status("iontrap_stub_abc123")
+        >>> assert status["status"] == "completed"
+    """
+```
+
+#### 12.4.4.3 is_available
+
+```python
+def is_available(self) -> bool:
+    """
+    桩实现始终返回 True（模拟可用）。
+
+    Returns:
+        始终返回 True
+    """
+```
+
+### 12.5 PhotonicBackend 类
+
+#### 12.5.1 类定义
+
+```python
+class PhotonicBackend(QuantumHardwareBackend):
+    """
+    光量子计算后端桩实现（Issue #258）。
+
+    光量子计算机使用光子作为量子比特，特点是：
+    - 室温操作（无需极低温环境）
+    - 高速并行处理（光速计算）
+    - 典型门集：Hadamard + 分束器 + 相移器 + 光子探测
+    - 主要范式：玻色采样 / 高斯玻色采样 / 离散变量光量子
+
+    当前为桩实现，submit_circuit 返回模拟 task_id，不连接真实光量子平台。
+    TODO: 接入真实光量子平台（如 Xanadu Borealis / 国盾量子）
+    """
+```
+
+#### 12.5.2 初始化方法
+
+```python
+def __init__(
+    self,
+    num_modes: int = 16,
+    api_key: str | None = None,
+) -> None:
+    """
+    初始化光量子后端桩实现。
+
+    Args:
+        num_modes: 光学模式数（等效量子比特数，默认：16）
+        api_key: 平台 API Key（桩实现不使用，预留接口）
+
+    Example:
+        >>> backend = PhotonicBackend(num_modes=32)
+        >>> tid = backend.submit_circuit(hamiltonian_str, shots=1024)
+    """
+```
+
+#### 12.5.3 属性
+
+| 属性 | 返回值 | 说明 |
+|------|--------|------|
+| `supported_gates` | `["H", "BS", "PS", "S2", "M", "PNR"]` | 光量子典型门集（Hadamard/分束器/相移器/压缩门/测量/光子数分辨） |
+| `topology` | `{"type": "linear_chain", "num_modes": N, "connectivity": "nearest_neighbor", ...}` | 线性波导阵列拓扑 |
+| `backend_type` | `"photonic"` | 后端类型标识 |
+| `circuit_format` | `CircuitFormat.PHOTONIC_HAMILTONIAN` | 使用哈密顿量描述格式 |
+
+#### 12.5.4 公开方法
+
+#### 12.5.4.1 submit_circuit
+
+```python
+def submit_circuit(
+    self,
+    circuit: str,
+    shots: int = 1024,
+    task_name: str = "Photonic_Task",
+) -> str | None:
+    """
+    提交电路到光量子后端（桩实现：返回模拟 task_id）。
+
+    Args:
+        circuit: 电路描述（哈密顿量格式字符串）
+        shots: 测量次数（默认：1024）
+        task_name: 任务名称（默认："Photonic_Task"）
+
+    Returns:
+        task_id: 模拟任务 ID（格式："photonic_stub_{uuid12}"）
+
+    Example:
+        >>> tid = backend.submit_circuit(hamiltonian_str, shots=2048)
+    """
+```
+
+#### 12.5.4.2 get_task_status
+
+```python
+def get_task_status(self, task_id: str) -> dict[str, Any]:
+    """
+    查询任务状态（桩实现：立即返回 completed）。
+
+    Args:
+        task_id: 任务 ID
+
+    Returns:
+        status: 模拟完成状态字典，含 task_id/status/result/raw
+
+    Example:
+        >>> status = backend.get_task_status("photonic_stub_abc123")
+        >>> assert status["status"] == "completed"
+    """
+```
+
+#### 12.5.4.3 is_available
+
+```python
+def is_available(self) -> bool:
+    """
+    桩实现始终返回 True（模拟可用）。
+
+    Returns:
+        始终返回 True
+    """
+```
+
+### 12.6 create_hardware_backend 工厂函数
+
+```python
+def create_hardware_backend(
+    config: dict[str, Any] | None = None,
+) -> QuantumHardwareBackend:
+    """
+    根据配置创建硬件后端实例（Issue #259）。
+
+    工厂函数根据 config["hardware_type"] 选择对应的后端实现：
+    - "superconducting" → CqlibTianyanClient（超导真机）
+    - "ion_trap" → IonTrapBackend（离子阱桩）
+    - "photonic" → PhotonicBackend（光量子桩）
+
+    Args:
+        config: 配置字典，支持以下字段：
+            - hardware_type (str): 后端类型，默认 "superconducting"
+            - login_key (str): 超导后端的 API Key
+            - machine_name (str): 超导后端的机器名（默认 "tianyan_s"）
+            - num_ions (int): 离子阱离子数（默认 20）
+            - num_modes (int): 光量子模式数（默认 16）
+            - api_key (str): 离子阱/光量子的 API Key（预留）
+
+    Returns:
+        backend: 对应的 QuantumHardwareBackend 实例
+
+    Raises:
+        ValueError: 未知的 hardware_type 时抛出
+
+    Example:
+        >>> # 创建超导真机后端
+        >>> backend = create_hardware_backend({
+        ...     "hardware_type": "superconducting",
+        ...     "login_key": "your_api_key",
+        ...     "machine_name": "tianyan_s"
+        ... })
+        >>> # 创建离子阱后端
+        >>> backend = create_hardware_backend({
+        ...     "hardware_type": "ion_trap",
+        ...     "num_ions": 50
+        ... })
+        >>> # 创建光量子后端
+        >>> backend = create_hardware_backend({
+        ...     "hardware_type": "photonic",
+        ...     "num_modes": 32
+        ... })
+    """
+```
+
+### 12.7 使用示例
+
+```python
+from src.api.hardware_adapter import (
+    create_hardware_backend,
+    CircuitFormat,
+)
+
+# 通过工厂函数创建后端
+backend = create_hardware_backend({"hardware_type": "superconducting"})
+
+# 统一接口提交任务（不关心底层硬件类型）
+if backend.is_available():
+    circuit_fmt = backend.circuit_format
+    print(f"后端类型: {backend.backend_type}, 电路格式: {circuit_fmt.value}")
+    print(f"支持的门: {backend.supported_gates[:5]}...")
+    print(f"拓扑: {backend.topology['type']}")
+
+    task_id = backend.submit_circuit("H Q0\nM Q0", shots=1024)
+    if task_id:
+        status = backend.get_task_status(task_id)
+        print(f"任务状态: {status['status']}")
+```
+
+---
+
+## 13. QuotaTracker 接口（配额追踪）
+
+### 13.1 模块概述
+
+`quota_tracker.py` 实现了天衍云真机配额持久化追踪与预警模块，支持多维度配额检查、阈值告警、耗尽时间估算和状态持久化。
+
+**注意**：与 `src/api/tianyan_client.py` 中的 QuotaTracker（按窗口计数的轻量 API 配额追踪器）是不同概念；本模块面向真机配额，做持久化追踪与告警预警。
+
+**核心特性**：
+
+- 多维度配额检查（shots/tasks/wall_time_hours）
+- 阈值告警（warning/critical，使用 loguru 日志 + 可选 webhook）
+- 每日消耗历史记录，用于估算配额耗尽时间
+- 状态持久化（JSON 文件），重启后自动恢复
+- 线程安全（threading.Lock）
+
+### 13.2 QuotaExhaustedError 异常类
+
+```python
+class QuotaExhaustedError(ResourceExhaustedError):
+    """
+    真机配额耗尽异常。
+
+    当 consume/can_consume 检测到任一维度配额超出上限时抛出。
+    继承自 ResourceExhaustedError，便于上层统一资源异常处理。
+    """
+```
+
+#### 13.2.1 初始化方法
+
+```python
+def __init__(
+    self,
+    dimension: str,
+    used: float,
+    total: float,
+    *,
+    code: str = "QUOTA_EXHAUSTED",
+    retryable: bool = False,
+) -> None:
+    """
+    初始化配额耗尽异常。
+
+    Args:
+        dimension: 触发耗尽的维度名（"shots"/"tasks"/"wall_time_hours"）
+        used: 已用量
+        total: 总配额
+        code: 错误码（关键字参数，默认："QUOTA_EXHAUSTED"）
+        retryable: 是否可重试（关键字参数，默认：False）
+
+    Attributes:
+        dimension: 触发耗尽的维度名
+        used: 已用量
+        total: 总配额
+
+    Example:
+        >>> try:
+        ...     if not tracker.consume(shots=10000):
+        ...         raise QuotaExhaustedError("shots", 10000, 10000)
+        ... except QuotaExhaustedError as e:
+        ...     print(f"{e.dimension} 配额耗尽: {e.used}/{e.total}")
+    """
+```
+
+### 13.3 QuotaTracker 类
+
+#### 13.3.1 类定义
+
+```python
+class QuotaTracker:
+    """
+    真机配额追踪器。
+
+    从 config/quota.yaml 读取总配额配置，从 logs/quota_state.json 读取持久化状态，
+    支持多维度配额检查、阈值告警、耗尽时间估算。
+
+    线程安全：所有公开方法通过 threading.Lock 串行化，适合多线程调度循环调用。
+    """
+```
+
+#### 13.3.2 初始化方法
+
+```python
+def __init__(
+    self,
+    config_path: str = "config/quota.yaml",
+    state_path: str = "logs/quota_state.json",
+) -> None:
+    """
+    初始化配额追踪器，加载配置与持久化状态。
+
+    Args:
+        config_path: 配额配置文件路径（默认："config/quota.yaml"）
+        state_path: 状态持久化文件路径（默认："logs/quota_state.json"）
+
+    配置文件格式（config/quota.yaml）：
+        total_quota:
+          shots: 10000
+          tasks: 200
+          wall_time_hours: 50
+        warning_threshold: 0.8
+        critical_threshold: 0.95
+        notification:
+          type: log  # 或 "webhook"
+          webhook_url: null  # webhook 地址
+
+    默认配额（配置文件缺失时使用）：
+        - shots: 10000
+        - tasks: 200
+        - wall_time_hours: 50
+        - warning_threshold: 0.8
+        - critical_threshold: 0.95
+
+    Example:
+        >>> tracker = QuotaTracker()
+        >>> tracker = QuotaTracker("config/my_quota.yaml", "logs/my_state.json")
+    """
+```
+
+#### 13.3.3 公开方法
+
+#### 13.3.3.1 can_consume
+
+```python
+def can_consume(
+    self,
+    shots: int = 0,
+    tasks: int = 1,
+    wall_time_hours: float = 0.0,
+) -> bool:
+    """
+    检查是否还能消费指定额度（不实际扣减）。
+
+    Args:
+        shots: 本次拟消费的 shots 数（默认：0）
+        tasks: 本次拟消费的任务数（默认：1）
+        wall_time_hours: 本次拟消费的墙上时间，单位小时（默认：0.0）
+
+    Returns:
+        bool: 全部维度均在配额内返回 True，任一维度超额返回 False
+
+    Example:
+        >>> if tracker.can_consume(shots=1024, tasks=1):
+        ...     tracker.consume(shots=1024, tasks=1)
+        ... else:
+        ...     print("配额不足，无法提交任务")
+    """
+```
+
+#### 13.3.3.2 consume
+
+```python
+def consume(
+    self,
+    shots: int = 0,
+    tasks: int = 1,
+    wall_time_hours: float = 0.0,
+) -> bool:
+    """
+    消费配额，前置检查并持久化。
+
+    消费成功后自动将状态写入 state_path，确保重启后可恢复。
+
+    Args:
+        shots: 本次消费的 shots 数（默认：0）
+        tasks: 本次消费的任务数（默认：1）
+        wall_time_hours: 本次消费的墙上时间，单位小时（默认：0.0）
+
+    Returns:
+        bool: 允许消费并已记录返回 True；任一维度超额返回 False（不抛异常）
+
+    Example:
+        >>> success = tracker.consume(shots=2048, tasks=1, wall_time_hours=0.5)
+        >>> if not success:
+        ...     print("配额不足，消费被拒绝")
+    """
+```
+
+#### 13.3.3.3 remaining
+
+```python
+def remaining(self) -> dict[str, float]:
+    """
+    返回各维度剩余配额。
+
+    Returns:
+        remaining: 各维度剩余量字典，包含：
+            - shots: 剩余 shots 数
+            - tasks: 剩余任务数
+            - wall_time_hours: 剩余墙上时间（小时）
+        各值不会小于 0。
+
+    Example:
+        >>> rem = tracker.remaining()
+        >>> print(f"剩余 shots: {rem['shots']}, 剩余任务: {rem['tasks']}")
+    """
+```
+
+#### 13.3.3.4 usage_ratio
+
+```python
+def usage_ratio(self) -> dict[str, float]:
+    """
+    返回各维度使用比例（0-1）。
+
+    Returns:
+        ratio: 各维度使用比例字典，值范围 0.0-1.0；
+            总配额为 0 时对应维度返回 0.0
+
+    Example:
+        >>> ratio = tracker.usage_ratio()
+        >>> print(f"shots 使用率: {ratio['shots']:.1%}")
+    """
+```
+
+#### 13.3.3.5 status
+
+```python
+def status(self) -> dict[str, Any]:
+    """
+    返回完整状态摘要供 Web 面板展示。
+
+    Returns:
+        summary: 包含以下字段的字典：
+            - total: 各维度总配额 {shots, tasks, wall_time_hours}
+            - used: 各维度已用量 {shots, tasks, wall_time_hours}
+            - remaining: 各维度剩余量 {shots, tasks, wall_time_hours}
+            - usage_ratio: 各维度使用比例 {shots, tasks, wall_time_hours}
+            - warning_threshold: 警告阈值（默认 0.8）
+            - critical_threshold: 危急阈值（默认 0.95）
+            - warning_level: 当前告警级别（"normal"/"warning"/"critical"）
+            - estimated_exhaustion_time: 各维度估算耗尽时间（或 None）
+            - daily_history_count: 每日历史记录条数
+
+    Example:
+        >>> s = tracker.status()
+        >>> print(f"告警级别: {s['warning_level']}")
+        >>> print(f"使用率: shots={s['usage_ratio']['shots']:.1%}")
+        >>> if s['estimated_exhaustion_time']:
+        ...     print(f"shots 预计耗尽日期: {s['estimated_exhaustion_time']['shots']['date']}")
+    """
+```
+
+#### 13.3.3.6 check_and_alert
+
+```python
+def check_and_alert(self) -> str | None:
+    """
+    检查阈值并发出告警（使用 loguru.logger）。
+
+    - 任一维度使用率 ≥ critical_threshold 时：logger.critical + 可选 webhook
+    - 任一维度使用率 ≥ warning_threshold 时：logger.warning + 可选 webhook
+    - 否则：不发出告警
+
+    webhook 通知失败仅记录日志，不阻塞主流程。
+
+    Returns:
+        level: 告警级别字符串（"warning"/"critical"），未触发告警返回 None
+
+    Example:
+        >>> level = tracker.check_and_alert()
+        >>> if level == "critical":
+        ...     print("配额危急，请立即处理!")
+        ... elif level == "warning":
+        ...     print("配额即将耗尽，请注意")
+    """
+```
+
+#### 13.3.3.7 record_daily_usage
+
+```python
+def record_daily_usage(self) -> None:
+    """
+    记录当日用量到历史（用于估算耗尽时间）。
+
+    若当日已有记录则覆盖更新，否则追加新条目。
+    自动保留最近 30 天历史，避免文件无限增长。
+    建议通过定时任务每日调用一次。
+
+    Example:
+        >>> # 每日定时记录（如通过 APScheduler 或 cron）
+        >>> tracker.record_daily_usage()
+    """
+```
+
+#### 13.3.3.8 get_daily_history
+
+```python
+def get_daily_history(self) -> list[dict[str, Any]]:
+    """
+    返回每日消耗历史（按日期升序）。
+
+    Returns:
+        history: 每日用量记录列表，每条记录包含：
+            - date: 日期字符串（"YYYY-MM-DD"，UTC）
+            - shots: 当日累计 shots 消耗
+            - tasks: 当日累计任务数
+            - wall_time_hours: 当日累计墙上时间（小时）
+
+    Example:
+        >>> history = tracker.get_daily_history()
+        >>> for entry in history:
+        ...     print(f"{entry['date']}: shots={entry['shots']}, tasks={entry['tasks']}")
+    """
+```
+
+#### 13.3.4 配额维度说明
+
+| 维度 | 字段名 | 默认总量 | 说明 |
+|------|--------|---------|------|
+| 测量次数 | `shots` | 10,000 | 量子电路测量采样次数 |
+| 任务数 | `tasks` | 200 | 提交到真机的量子任务数量 |
+| 墙上时间 | `wall_time_hours` | 50 | 真机占用时间（小时） |
+
+#### 13.3.5 告警级别说明
+
+| 级别 | 触发条件 | 日志级别 | 说明 |
+|------|---------|---------|------|
+| `normal` | 所有维度使用率 < warning_threshold | - | 正常使用 |
+| `warning` | 任一维度使用率 ≥ 0.8（默认） | `logger.warning` | 配额即将耗尽，需关注 |
+| `critical` | 任一维度使用率 ≥ 0.95（默认） | `logger.critical` | 配额危急，需立即处理 |
+
+#### 13.3.6 Web `/api/quota` 端点响应
+
+QuotaTracker 的 `status()` 方法返回值直接映射到 Web 可视化 API 的 `GET /api/quota` 端点：
+
+```json
+{
+  "available": true,
+  "total": 10000,
+  "used": 3500,
+  "remaining": 6500,
+  "usage_ratio": 0.35,
+  "alert_level": "normal"
+}
+```
+
+> 配额追踪未启用时返回 `{"available": false, "message": "配额追踪未启用"}`。
+
+#### 13.3.7 使用示例
+
+```python
+from src.api.quota_tracker import QuotaTracker, QuotaExhaustedError
+
+# 初始化配额追踪器
+tracker = QuotaTracker()
+
+# 提交任务前检查配额
+shots_needed = 2048
+if tracker.can_consume(shots=shots_needed, tasks=1):
+    # 配额充足，消费配额并提交任务
+    tracker.consume(shots=shots_needed, tasks=1)
+    print(f"任务已提交，剩余 shots: {tracker.remaining()['shots']}")
+else:
+    print("配额不足，无法提交任务")
+
+# 检查并发出告警
+level = tracker.check_and_alert()
+if level:
+    print(f"告警级别: {level}")
+
+# 获取完整状态
+status = tracker.status()
+print(f"当前告警级别: {status['warning_level']}")
+print(f"使用率: {status['usage_ratio']}")
+
+# 每日定时记录用量（建议放入定时任务）
+tracker.record_daily_usage()
+
+# 查看历史消耗
+for day in tracker.get_daily_history():
+    print(f"{day['date']}: shots={day['shots']}, tasks={day['tasks']}")
+```
 
 ---
 

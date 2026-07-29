@@ -35,6 +35,7 @@ from numpy.typing import NDArray
 # 实现全局状态隔离。
 import src.visualization.app as _app
 from src.scheduler.explainability import DecisionExplainer
+from src.visualization import state as viz_state
 
 _explainer = DecisionExplainer()
 
@@ -95,11 +96,18 @@ async def simulate_scheduler() -> None:
                 _app.system_status["qubit_utilization"] = round(
                     float(new_obs[0]), 4
                 )  # 真实量子比特利用率
+                _app.system_status["classical_utilization"] = round(
+                    max(0.1, min(1.0, float(new_obs[0]) + random.uniform(-0.1, 0.15))), 4
+                )  # 经典资源利用率（与量子利用率相关但有波动）
                 _app.system_status["average_wait_time"] = round(
                     float(new_obs[2]) * 100, 1
                 )  # 真实平均等待时间（反归一化）
                 # 队列长度从真实环境观测读取（obs[1] = queue_length / MAX_QUEUE_SIZE=30）
                 _app.system_status["queue_length"] = round(float(new_obs[1]) * 30)
+
+                # 模拟任务完成（用于吞吐量计算）
+                if random.random() < 0.3:
+                    _app.system_status["completed_tasks"] += random.randint(0, 2)
 
                 # 检查 episode 是否结束
                 if terminated or truncated:
@@ -126,12 +134,37 @@ async def simulate_scheduler() -> None:
                     ),
                     4,
                 )
+                _app.system_status["classical_utilization"] = round(
+                    max(
+                        0.1,
+                        min(
+                            1.0,
+                            _app.system_status.get("classical_utilization", 0.0)
+                            + random.uniform(-0.05, 0.05),
+                        ),
+                    ),
+                    4,
+                )
+                # 模拟任务完成
+                if random.random() < 0.2:
+                    _app.system_status["completed_tasks"] += random.randint(0, 1)
         else:
             # 无模型，随机模拟
             _app.system_status["qubit_utilization"] = round(
                 max(
                     0.1,
                     min(1.0, _app.system_status["qubit_utilization"] + random.uniform(-0.03, 0.03)),
+                ),
+                4,
+            )
+            _app.system_status["classical_utilization"] = round(
+                max(
+                    0.1,
+                    min(
+                        1.0,
+                        _app.system_status.get("classical_utilization", 0.0)
+                        + random.uniform(-0.05, 0.05),
+                    ),
                 ),
                 4,
             )
@@ -171,6 +204,7 @@ async def simulate_scheduler() -> None:
             {
                 "step": _app.system_status["current_step"],
                 "qubit_utilization": _app.system_status["qubit_utilization"],
+                "classical_utilization": _app.system_status["classical_utilization"],
                 "queue_length": _app.system_status["queue_length"],
                 "completed_tasks": _app.system_status["completed_tasks"],
                 "average_wait_time": _app.system_status["average_wait_time"],
@@ -179,6 +213,17 @@ async def simulate_scheduler() -> None:
         )
         if len(_app._resource_history) > 100:
             _app._resource_history.pop(0)
+
+        # 计算实时指标（Issue #526：实时调度过程可视化增强）
+        realtime_metrics = viz_state.calculate_realtime_metrics(
+            current_step=_app.system_status["current_step"],
+            completed_tasks=_app.system_status["completed_tasks"],
+            qubit_util=_app.system_status["qubit_utilization"],
+            classical_util=_app.system_status["classical_utilization"],
+            avg_wait_time=_app.system_status["average_wait_time"],
+            ppo_step_reward=step_reward,
+        )
+        _app.system_status["throughput"] = realtime_metrics["throughput"]
 
         # 记录决策日志（Issue #22：决策过程回放）
         if action >= 0:
@@ -204,6 +249,9 @@ async def simulate_scheduler() -> None:
             if len(_app._decision_log) > 200:
                 _app._decision_log.pop(0)
 
+        # 获取 reward 对比数据
+        reward_comparison = viz_state.get_reward_comparison()
+
         await _app.manager.broadcast(
             {
                 "type": "status_update",
@@ -212,5 +260,7 @@ async def simulate_scheduler() -> None:
                 "ppo_active": _app._ppo_model is not None,
                 "ppo_episode_reward": round(_ppo_episode_reward, 2),
                 "ppo_episode_step": _ppo_episode_step,
+                "realtime_metrics": realtime_metrics,
+                "reward_comparison": reward_comparison,
             }
         )

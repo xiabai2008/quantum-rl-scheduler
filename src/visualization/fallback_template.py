@@ -1454,7 +1454,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                                         <div class="dt-scenario" onclick="dtSelectScenario('balanced')" id="dt-sc-balanced">
                                             <div class="dt-sc-title">均衡负载</div>
                                             <div class="dt-sc-desc">日常稳态运行</div>
-                                            <div class="dt-sc-recommend">PPO <span class="dt-up">+88.3%</span></div>
+                                            <div class="dt-sc-recommend">PPO <span class="dt-up">+123.4%</span></div>
                                         </div>
                                         <div class="dt-scenario" onclick="dtSelectScenario('high_load')" id="dt-sc-high_load">
                                             <div class="dt-sc-title">高负载积压</div>
@@ -1576,7 +1576,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                             <div class="strategy-buttons" id="strategy-buttons"></div>
                             <div style="font-size:10px; color:var(--text-muted); margin-top:8px; line-height:1.5;">
                                 * PPO为仿真验证最优策略<br>
-                                PPO vs FCFS: <b style="color:var(--green-light);">+88.3%</b> (N=250, p&lt;0.001)
+                                PPO vs FCFS: <b style="color:var(--green-light);">+123.4%</b> (N=250, p=1.449e-66)
                             </div>
                         </div>
                     </div>
@@ -1587,7 +1587,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             <div class="panel">
                 <div class="panel-header">
                     <h2><span class="icon" style="background:linear-gradient(135deg,rgba(59,201,219,0.2),rgba(167,139,250,0.1));border-color:rgba(167,139,250,0.25);color:#a78bfa;"><svg viewBox="0 0 24 24"><path d="M18 10a6 6 0 0 0-12 0c-2.2 0-4 1.8-4 4s1.8 4 4 4h12c2.2 0 4-1.8 4-4s-1.8-4-4-4z"/><path d="M12 14v4M12 10l-2 2M12 10l2 2" stroke-width="2"/></svg></span> 天衍量子云</h2>
-                    <span class="badge" id="real-machine-badge" style="background:rgba(52,211,153,0.1);color:var(--success);border-color:rgba(52,211,153,0.2);">284次·100%</span>
+                    <span class="badge" id="real-machine-badge" style="background:rgba(52,211,153,0.1);color:var(--success);border-color:rgba(52,211,153,0.2);">315次·100%</span>
                 </div>
                 <div class="panel-body" style="font-size:12px;line-height:1.8;">
                     <div id="real-machines-list">
@@ -1630,8 +1630,8 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
                     <div style="margin-top:10px;padding:8px 10px;background:rgba(59,201,219,0.06);border:1px solid rgba(59,201,219,0.12);border-radius:6px;font-size:11px;color:var(--ink-2);line-height:1.6;">
                         <strong style="color:var(--brand);">真机验证说明：</strong>
-                        已完成284次SDK全链路调用（认证→提交→轮询→结果），成功率100%。
-                        真机性能数据为探索性（5 seeds），核心性能claim基于N=250仿真统计结果。
+                        已完成315次SDK全链路调用（认证→提交→轮询→结果），成功率100%。
+                        真机性能数据为参考性（10 seeds v2），核心性能claim基于N=250仿真统计结果。
                         <span id="api-key-status" style="display:block;margin-top:4px;color:var(--warning);font-size:10px;">
                             ⚠ 未配置TIANYAN_API_KEY，真机提交将使用Mock模式演示
                         </span>
@@ -1651,7 +1651,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                     </div>
                     <div style="display:flex; justify-content:space-between;">
                         <span style="color:var(--text-muted);">PPO模型</span>
-                        <span>14维观测空间</span>
+                        <span>16维观测空间</span>
                     </div>
                     <div style="display:flex; justify-content:space-between;">
                         <span style="color:var(--text-muted);">量子比特</span>
@@ -1666,7 +1666,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                         <span>SDK可用性验证</span>
                     </div>
                     <div style="margin-top:8px; padding-top:8px; border-top:1px solid var(--border); font-size:11px; color:var(--text-muted);">
-                        注："量子赋能AI"为探索性研究方向，当前使用经典模拟退火，训练开销+74.5%，奖励提升统计不显著(p=0.190)
+                        注："量子赋能AI"主方向为真机噪声反馈（N=25配对, p=2.98e-08显著）；QUBO退火为探索性方向，训练开销+74.5%，奖励提升统计不显著(p=0.9430, 20seeds)
                     </div>
                 </div>
             </div>
@@ -2442,13 +2442,12 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             params: "arrival_rate=0.5, quantum_ratio=0.7, max_steps=200",
             strategies: [
                 {rank:1, name:"PPO", reward:2348.91, lift:"+123.4%", note:"综合最优"},
-                {rank:2, name:"DQN", reward:1527.65, lift:"+4.7%", note:""},
-                {rank:3, name:"SJF", reward:1462.39, lift:"+0.2%", note:""},
-                {rank:4, name:"FCFS", reward:1051.59, lift:"基线", note:"工业界默认"},
-                {rank:5, name:"Random", reward:1217.08, lift:"-16.6%", note:""},
-                {rank:6, name:"Greedy", reward:-25.95, lift:"-101.8%", note:"此场景崩溃"}
+                {rank:2, name:"SJF", reward:1060.30, lift:"+0.8%", note:""},
+                {rank:3, name:"FCFS", reward:1051.59, lift:"基线", note:"工业界默认"},
+                {rank:4, name:"Random", reward:891.53, lift:"-15.2%", note:""},
+                {rank:5, name:"Greedy", reward:-134.18, lift:"-112.8%", note:"此场景崩溃"}
             ],
-            conclusion: "均衡负载下PPO大幅领先所有基线（+88.3%），是稳态运行的最优选择。统计显著性：Mann-Whitney U p=1.032×10⁻⁴²，效应量r=-0.71（大效应）。",
+            conclusion: "均衡负载下PPO大幅领先所有基线（+123.4%），是稳态运行的最优选择。统计显著性：Welch t p=1.449e-66，Cohen's d=-2.14（大效应）。",
             recommend: "PPO"
         },
         high_load: {

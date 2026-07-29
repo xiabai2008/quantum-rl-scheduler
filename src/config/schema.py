@@ -100,6 +100,9 @@ class AnnealingConfig(BaseModel):
     sim_initial_temp: float = Field(default=2.0, ge=0.1, le=10.0, description="初始温度")
     sim_cooling_rate: float = Field(default=0.995, gt=0.0, lt=1.0, description="降温系数")
     sim_num_sweeps: int = Field(default=200, ge=10, le=10000, description="扫描次数")
+    sim_patience: int = Field(
+        default=20, ge=1, le=500, description="早停耐心值——连续 N 次扫描无改进则终止"
+    )
 
     # ── QUBO 构造参数（network_to_qubo） ──
     reg_lambda: float = Field(default=0.1, gt=0, le=1.0, description="L2 正则化系数")

@@ -414,7 +414,9 @@ class DAGScheduler:
         self.validate_dag()
 
         task_ids = list(self.tasks)
-        n_variables = len(task_ids) * time_horizon
+        n_tasks = len(task_ids)
+        t_horizon = time_horizon
+        n_variables = n_tasks * t_horizon
         if n_variables > 512:
             logger.warning(
                 "[DAG-QUBO] 变量数 {} 超过 512，建议缩小任务数或 time_horizon",
@@ -422,92 +424,78 @@ class DAGScheduler:
             )
 
         variable_map = {
-            task_index * time_horizon + slot: (task_id, slot)
+            task_index * t_horizon + slot: (task_id, slot)
             for task_index, task_id in enumerate(task_ids)
-            for slot in range(time_horizon)
+            for slot in range(t_horizon)
         }
         qubo = np.zeros((n_variables, n_variables), dtype=np.float64)
         if not task_ids:
             return qubo, variable_map
 
-        max_priority = max(max(0, task.priority) for task in self.tasks.values())
-        constraint_penalty = float(max(100, 10 * time_horizon * (max_priority + 2) * len(task_ids)))
+        task_id_to_idx = {tid: idx for idx, tid in enumerate(task_ids)}
 
-        def variable_index(task_id: str, slot: int) -> int:
-            return task_ids.index(task_id) * time_horizon + slot
+        priorities = np.array(
+            [1.0 + max(0, self.tasks[tid].priority) for tid in task_ids],
+            dtype=np.float64,
+        )
+        qubits_arr = np.array(
+            [max(0, self.tasks[tid].qubits_required) for tid in task_ids],
+            dtype=np.float64,
+        )
+        durations_arr = np.array(
+            [max(0.0, self.tasks[tid].estimated_time) for tid in task_ids],
+            dtype=np.float64,
+        )
 
-        def add_pair(left: int, right: int, effective_coefficient: float) -> None:
-            if left == right:
-                qubo[left, left] += effective_coefficient
-                return
-            half = effective_coefficient / 2.0
-            qubo[left, right] += half
-            qubo[right, left] += half
+        max_priority = float(priorities.max() - 1.0)
+        constraint_penalty = float(max(100, 10 * t_horizon * (max_priority + 2) * n_tasks))
+        penalty = constraint_penalty
+        capacity_scale = float(max(1, self.max_qubits) ** 2)
 
-        # 目标：晚开始成本 + 高优先级任务更强的提前倾向。
-        for task_id in task_ids:
-            task = self.tasks[task_id]
-            priority_weight = 1.0 + max(0, task.priority)
-            for slot in range(time_horizon):
-                index = variable_index(task_id, slot)
-                qubo[index, index] += priority_weight * slot
+        q4 = qubo.reshape(n_tasks, t_horizon, n_tasks, t_horizon)
 
-        # 唯一性：P * (sum_t x[i,t] - 1)^2。
-        for task_id in task_ids:
-            indices = [variable_index(task_id, slot) for slot in range(time_horizon)]
-            for index in indices:
-                qubo[index, index] -= constraint_penalty
-            for left_offset, left in enumerate(indices):
-                for right in indices[left_offset + 1 :]:
-                    add_pair(left, right, 2.0 * constraint_penalty)
+        slots = np.arange(t_horizon, dtype=np.float64)
+        diag_weights = priorities[:, np.newaxis] * slots[np.newaxis, :]
 
-        # 前驱：后继开始早于前驱完成的组合增加硬惩罚。
-        for successor_id in task_ids:
-            successor = self.tasks[successor_id]
-            for predecessor_id in successor.dependencies:
-                predecessor = self.tasks[predecessor_id]
-                duration = max(0.0, predecessor.estimated_time)
-                for predecessor_slot in range(time_horizon):
-                    earliest_successor = predecessor_slot + duration
-                    for successor_slot in range(time_horizon):
-                        if successor_slot + 1e-12 >= earliest_successor:
-                            continue
-                        add_pair(
-                            variable_index(predecessor_id, predecessor_slot),
-                            variable_index(successor_id, successor_slot),
-                            2.0 * constraint_penalty,
-                        )
+        # 1. 目标：晚开始成本（对角项）Q[i,t,i,t] += priority_weight[i] * t
+        for i in range(n_tasks):
+            q4[i, :, i, :] += np.diag(diag_weights[i])
 
-        # 容量：所有重叠任务加入轻量二次拥塞成本；两任务合计已超容量时
-        # 再加入硬惩罚。拥塞项能表达三项及以上并发负载的二次增长，
-        # 最终仍由解码后的独立校验保证总和不超过容量。
-        capacity_scale = max(1, self.max_qubits) ** 2
-        for left_offset, left_id in enumerate(task_ids):
-            left_task = self.tasks[left_id]
-            left_qubits = max(0, left_task.qubits_required)
-            left_duration = max(0.0, left_task.estimated_time)
-            for right_id in task_ids[left_offset + 1 :]:
-                right_task = self.tasks[right_id]
-                right_qubits = max(0, right_task.qubits_required)
-                right_duration = max(0.0, right_task.estimated_time)
-                congestion_cost = (
-                    0.05 * constraint_penalty * left_qubits * right_qubits / capacity_scale
-                )
-                hard_conflict = left_qubits + right_qubits > self.max_qubits
-                for left_slot in range(time_horizon):
-                    left_finish = left_slot + left_duration
-                    for right_slot in range(time_horizon):
-                        right_finish = right_slot + right_duration
-                        overlaps = left_slot < right_finish and right_slot < left_finish
-                        if overlaps:
-                            effective_coefficient = congestion_cost
-                            if hard_conflict:
-                                effective_coefficient += 2.0 * constraint_penalty
-                            add_pair(
-                                variable_index(left_id, left_slot),
-                                variable_index(right_id, right_slot),
-                                effective_coefficient,
-                            )
+        # 2. 唯一性约束：P * (sum_t x[i,t] - 1)^2
+        #    对角项：-P；块内非对角项：+P（上下三角对称，总系数 2P 均分为两个 P）
+        uniqueness_block = penalty * (np.ones((t_horizon, t_horizon)) - 2.0 * np.eye(t_horizon))
+        for i in range(n_tasks):
+            q4[i, :, i, :] += uniqueness_block
+
+        # 3. 前驱约束：后继早于前驱完成则惩罚 2P（对称分配各 P）
+        t_p, t_s = np.meshgrid(np.arange(t_horizon), np.arange(t_horizon), indexing="ij")
+        for succ_idx in range(n_tasks):
+            succ_id = task_ids[succ_idx]
+            for pred_id in self.tasks[succ_id].dependencies:
+                pred_idx = task_id_to_idx[pred_id]
+                d_p = durations_arr[pred_idx]
+                violate = t_s < (t_p + d_p - 1e-12)
+                q4[pred_idx, :, succ_idx, :] += penalty * violate
+                q4[succ_idx, :, pred_idx, :] += penalty * violate.T
+
+        # 4. 容量/重叠约束
+        #    add_pair 将 effective_coefficient 平分到上下三角，故每边加 coeff/2
+        t_i, t_j = np.meshgrid(np.arange(t_horizon), np.arange(t_horizon), indexing="ij")
+        for i in range(n_tasks):
+            q_i = qubits_arr[i]
+            d_i = durations_arr[i]
+            fin_i = t_i + d_i
+            for j in range(i + 1, n_tasks):
+                q_j = qubits_arr[j]
+                d_j = durations_arr[j]
+                fin_j = t_j + d_j
+                overlaps = (t_i < fin_j) & (t_j < fin_i)
+                coeff = 0.05 * penalty * q_i * q_j / capacity_scale
+                if q_i + q_j > self.max_qubits:
+                    coeff += 2.0 * penalty
+                half_block = (coeff / 2.0) * overlaps
+                q4[i, :, j, :] += half_block
+                q4[j, :, i, :] += half_block.T
 
         return qubo, variable_map
 

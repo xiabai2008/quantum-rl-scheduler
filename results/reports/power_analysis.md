@@ -1,5 +1,7 @@
 # 策略对比统计显著性检验报告
 
+> **⚠️ 历史报告冻结声明（2026-07-29）**：本报告基于 14 维旧模型多 seed 数据产出，p=1.032e-42 等为旧口径，**已废弃**。现行权威口径为 16 维交付模型：PPO vs FCFS Welch t p=1.449e-66（N=250），见 `config/statistics.yaml`。本报告仅作历史存档，禁止在答辩/白皮书/PPT 中直接引用其数字。
+
 > **数据来源**: `results\multiseed_evaluation\rewards_multiseed.json`
 > **显著性水平 α**: 0.05
 > **比较次数**: 28（Bonferroni 校正后 α = 0.0018）

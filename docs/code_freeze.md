@@ -559,7 +559,7 @@ git push origin v9.1-submission
 
 ### 3.4 提交校验通过
 
-- [ ] **提交清单校验脚本通过**（13 项检查中通过项 >= 12）
+- [ ] **提交清单校验脚本通过**（17 项检查中通过项 >= 12）
   - 负责人：瑞哥
   - 验证命令：`python scripts/ci/validate_submission.py --check`
 

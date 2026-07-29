@@ -43,6 +43,7 @@ __all__ = [
     "EnvBasedGreedyScheduler",
     "EnvBasedHEFTScheduler",
     "EnvBasedMinMinScheduler",
+    "EnvBasedQAOAScheduler",
     "EnvBasedSPTFScheduler",
     "EnvBasedScheduler",
     "FCFSScheduler",
@@ -50,6 +51,7 @@ __all__ = [
     "LIFOScheduler",
     "MinMinScheduler",
     "PriorityScheduler",
+    "QAOAScheduler",
     "RoundRobinScheduler",
     "SPTFScheduler",
     "get_all_baseline_schedulers",
@@ -537,6 +539,126 @@ class MinMinScheduler(BaselineScheduler):
         return order[0][0]
 
 
+class QAOAScheduler(BaselineScheduler):
+    """QAOA-inspired 量子近似优化调度启发式（Issue #599）。
+
+    使用 p=1 层 QAOA（Quantum Approximate Optimization Algorithm）的经典模拟
+    作为调度启发式策略，作为量子-经典混合调度方法的基线对比。
+
+    核心思想：
+    1. 将调度决策编码为 Ising 模型：每个任务对应一个量子比特（自旋 +1/-1），
+       +1 表示选择该任务，-1 表示不选择
+    2. 构造问题哈密顿量 H_C = Σ h_i Z_i + Σ J_ij Z_i Z_j：
+       - 局域场 h_i 根据任务优先级、等待时间、资源匹配度设置
+       - 高优先级/高紧急度/资源匹配的任务 h_i 为负（倾向 +1）
+    3. p=1 QAOA 线路：|ψ(γ,β)⟩ = e^{-iβ H_B} e^{-iγ H_C} |+⟩^⊗n
+       使用预定义角度 γ=π/2, β=π/4（经典优化后的常用近似值）
+    4. 用 numpy 模拟计算每个比特的期望值 ⟨Z_i⟩，选择期望值最高
+       （最倾向 +1，即最应该被调度）的任务
+
+    注：这是经典模拟的 QAOA-inspired 启发式，不需要真正的 QPU。
+    """
+
+    _GAMMA = np.pi / 2.0
+    _BETA = np.pi / 4.0
+
+    def __init__(self) -> None:
+        """初始化 QAOA 策略。"""
+        super().__init__("QAOA")
+
+    @staticmethod
+    def _compute_local_fields(tasks: list[dict], available_resources: dict) -> np.ndarray:
+        """计算每个任务对应的局域场 h_i（Ising 模型参数）。
+
+        h_i < 0 表示该任务倾向被选中（自旋 +1），h_i > 0 表示倾向不被选中。
+        综合考虑：优先级、等待时间（到达时间越早，等待越久）、量子比特需求匹配度。
+
+        Args:
+            tasks               : 待调度任务列表
+            available_resources : 可用资源字典
+
+        Returns:
+            shape=(n,) 的 numpy 数组，每个元素为对应任务的局域场 h_i
+        """
+        n = len(tasks)
+        if n == 0:
+            return np.array([])
+
+        qubits_avail = 1.0
+        classical_load = 0.0
+        if available_resources:
+            qubits_avail = float(available_resources.get("qubits", 20)) / max(
+                float(available_resources.get("max_qubits", 20)), 1.0
+            )
+            classical_load = float(available_resources.get("classical_load", 0.0))
+        qubits_avail = np.clip(qubits_avail, 0.0, 1.0)
+        classical_load = np.clip(classical_load, 0.0, 1.0)
+
+        h = np.zeros(n, dtype=np.float64)
+        for i, task in enumerate(tasks):
+            priority = _get_int(task, "priority", _DEFAULT_PRIORITY)
+            est_time = _get_float(task, "estimated_time", _DEFAULT_ESTIMATED_TIME)
+            arrival = _get_float(task, "arrival_time", _DEFAULT_ARRIVAL_TIME)
+            qubit_count = _get_int(task, "qubit_count", 0)
+
+            priority_term = -(priority - 3.0) * 0.3
+            wait_term = -arrival * 0.05
+            if qubit_count > 0:
+                resource_term = -(qubits_avail - 0.5) * 0.4
+            else:
+                resource_term = (classical_load - 0.5) * 0.4
+
+            short_task_bonus = -0.2 if est_time < 2.0 else 0.0
+
+            h[i] = priority_term + wait_term + resource_term + short_task_bonus
+
+        return h
+
+    def _qaoa_p1_expectations(self, h: np.ndarray) -> np.ndarray:
+        """模拟 p=1 QAOA，计算每个量子比特 Z 算符的期望值。
+
+        p=1 QAOA 线路：
+        |ψ⟩ = RX(2β) · RZ(2γ h_i) |+⟩  （独立比特近似，忽略 J_ij 耦合）
+
+        初态 |+⟩ = (|0⟩+|1⟩)/√2，经过 RZ(2γh) 后绕 z 轴旋转，
+        再经过 RX(2β) 绕 x 轴旋转。
+
+        对于单个比特，解析计算 ⟨Z⟩：
+        |+⟩ 在 Bloch 球 x 轴上，RZ(θ) 绕 z 轴转 θ，RX(φ) 绕 x 轴转 φ。
+        最终 ⟨Z⟩ = -sin(2β) sin(2γh)
+
+        Args:
+            h : shape=(n,) 的局域场数组
+
+        Returns:
+            shape=(n,) 的期望值数组 ⟨Z_i⟩ ∈ [-1, 1]，正值倾向 +1（选中）
+        """
+        gamma = self._GAMMA
+        beta = self._BETA
+        expectations = np.asarray(-np.sin(2.0 * beta) * np.sin(2.0 * gamma * h), dtype=np.float64)
+        return expectations
+
+    def select_action(self, tasks: list[dict], available_resources: dict) -> int:
+        """使用 p=1 QAOA 启发式选择任务（Issue #599）。
+
+        1. 将任务编码为 Ising 自旋，计算局域场 h_i
+        2. 模拟 p=1 QAOA 演化
+        3. 选择 ⟨Z_i⟩ 最大的任务（最倾向自旋 +1，即最应该被调度）
+
+        Args:
+            tasks               : 待调度任务列表
+            available_resources : 可用资源字典
+
+        Returns:
+            QAOA 启发式选中的任务索引；空列表返回 -1。
+        """
+        if not tasks:
+            return -1
+        h = self._compute_local_fields(tasks, available_resources)
+        expectations = self._qaoa_p1_expectations(h)
+        return int(np.argmax(expectations))
+
+
 # ---------------------------------------------------------------------------
 # 模块级工具函数
 # ---------------------------------------------------------------------------
@@ -546,7 +668,7 @@ def get_all_baseline_schedulers() -> list[BaselineScheduler]:
     """返回所有基线调度策略的实例列表。
 
     Returns:
-        包含 8 个基线策略实例的列表（FCFS/SPTF/EDF/Priority/RoundRobin/LIFO/HEFT/MinMin）
+        包含 9 个基线策略实例的列表（FCFS/SPTF/EDF/Priority/RoundRobin/LIFO/HEFT/MinMin/QAOA）
     """
     return [
         FCFSScheduler(),
@@ -557,6 +679,7 @@ def get_all_baseline_schedulers() -> list[BaselineScheduler]:
         LIFOScheduler(),
         HEFTScheduler(),
         MinMinScheduler(),
+        QAOAScheduler(),
     ]
 
 
@@ -1033,11 +1156,121 @@ class EnvBasedMinMinScheduler(EnvBasedScheduler):
         return _ACTION_CLASSICAL
 
 
+class EnvBasedQAOAScheduler(EnvBasedScheduler):
+    """QAOA-inspired 策略的 Gymnasium 环境适配器（Issue #599）。
+
+    使用 p=1 层 QAOA 经典模拟作为动作选择启发式：
+    1. 将三动作决策（classical/quantum/hybrid）编码为 2-qubit Ising 模型
+    2. 局域场根据观测特征（任务类型、量子可用性、保真度、紧急度）动态设置
+    3. p=1 QAOA（γ=π/2, β=π/4）演化后计算每个动作的"量子偏好值"
+    4. 选择期望值最优的动作
+
+    动作编码（2-qubit 测量结果 → 动作）：
+    - 00 → _ACTION_CLASSICAL (0)
+    - 01 → _ACTION_HYBRID (2)
+    - 10 → _ACTION_QUANTUM (1)
+    - 11 → _ACTION_QUANTUM (1)（量子占优）
+
+    注：这是经典模拟的 QAOA-inspired 启发式，不需要真正的 QPU。
+    """
+
+    _GAMMA = np.pi / 2.0
+    _BETA = np.pi / 4.0
+
+    def __init__(self) -> None:
+        """初始化 QAOA 环境策略。"""
+        super().__init__("QAOA")
+
+    def _compute_action_energies(self, info: ObsInfo) -> np.ndarray:
+        """根据观测信息计算每个动作的"能量"（QAOA 问题哈密顿量对角元）。
+
+        能量越低（越负）表示该动作越优。QAOA 演化后测量倾向于低能量态。
+
+        Args:
+            info: 解析后的观测信息
+
+        Returns:
+            shape=(3,) 的能量数组 [E_classical, E_quantum, E_hybrid]
+        """
+        energies = np.zeros(3, dtype=np.float64)
+
+        energies[_ACTION_CLASSICAL] = 0.0
+        if info.is_classical:
+            energies[_ACTION_CLASSICAL] -= 1.0
+        if info.is_quantum:
+            energies[_ACTION_CLASSICAL] += 2.0
+
+        energies[_ACTION_QUANTUM] = 0.0
+        if info.is_quantum:
+            energies[_ACTION_QUANTUM] -= 1.5
+        if info.qubit_avail < 0.2:
+            energies[_ACTION_QUANTUM] += 2.0
+        if info.fidelity < 0.85:
+            energies[_ACTION_QUANTUM] += 1.0
+        if info.quantum_queue > 0.7:
+            energies[_ACTION_QUANTUM] += 1.5
+        if info.urgency > 0.7 and info.qubit_avail > 0.3:
+            energies[_ACTION_QUANTUM] -= 1.0
+
+        energies[_ACTION_HYBRID] = -0.2
+        if info.is_quantum:
+            energies[_ACTION_HYBRID] -= 0.8
+        if 0.05 < info.qubit_avail < 0.3:
+            energies[_ACTION_HYBRID] -= 0.5
+        if 0.7 < info.fidelity < 0.9:
+            energies[_ACTION_HYBRID] -= 0.3
+        if info.quantum_queue > 0.5:
+            energies[_ACTION_HYBRID] += 0.5
+
+        return energies
+
+    def _qaoa_action_selection(self, energies: np.ndarray) -> int:
+        """使用 p=1 QAOA 模拟选择动作。
+
+        将 3 动作问题映射到 2-qubit 空间，使用 p=1 QAOA 计算
+        各动作的测量概率，选择概率最高的动作。
+
+        简化模型：对每个动作独立计算"QAOA 偏好值"，
+        基于 E → ⟨Z⟩ = -sin(2β)sin(2γ·E)，选择偏好值最负（能量最低）的动作。
+
+        Args:
+            energies: shape=(3,) 的能量数组
+
+        Returns:
+            选中的动作索引（0, 1, 2）
+        """
+        gamma = self._GAMMA
+        beta = self._BETA
+        z_expectations = -np.sin(2.0 * beta) * np.sin(2.0 * gamma * energies)
+        return int(np.argmin(z_expectations))
+
+    def select_action(self, observation: np.ndarray, env: Any) -> int:
+        """根据 QAOA 启发式选择动作（Issue #599）。
+
+        Args:
+            observation: 16维观测向量
+            env        : QuantumSchedulingEnv 实例
+
+        Returns:
+            动作值（0=classical, 1=quantum, 2=hybrid）
+        """
+        info = self._parse_obs(observation)
+        energies = self._compute_action_energies(info)
+        action = self._qaoa_action_selection(energies)
+
+        if info.is_quantum and action == _ACTION_CLASSICAL and info.qubit_avail > 0.05:
+            action = _ACTION_HYBRID
+        if not info.is_quantum and action == _ACTION_QUANTUM:
+            action = _ACTION_CLASSICAL
+
+        return action
+
+
 def get_all_env_based_schedulers() -> list[EnvBasedScheduler]:
     """返回所有 Gymnasium 环境适配的基线策略实例列表（Issue #230/#270）。
 
     Returns:
-        包含 6 个 EnvBasedScheduler 子类实例的列表（FCFS/SPTF/EDF/Greedy/HEFT/MinMin）
+        包含 7 个 EnvBasedScheduler 子类实例的列表（FCFS/SPTF/EDF/Greedy/HEFT/MinMin/QAOA）
     """
     return [
         EnvBasedFCFSScheduler(),
@@ -1046,4 +1279,5 @@ def get_all_env_based_schedulers() -> list[EnvBasedScheduler]:
         EnvBasedGreedyScheduler(),
         EnvBasedHEFTScheduler(),
         EnvBasedMinMinScheduler(),
+        EnvBasedQAOAScheduler(),
     ]

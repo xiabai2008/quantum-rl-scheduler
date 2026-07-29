@@ -353,7 +353,9 @@ class TestPlotPowerCurve(unittest.TestCase):
         result_t = plot_power_curve(n_per_group=30, test_type="t_test")
         result_mw = plot_power_curve(n_per_group=30, test_type="mann_whitney")
         # 至少有一些点 MW 功效 <= t 检验
-        has_lower = any(mw <= t for mw, t in zip(result_mw["powers"], result_t["powers"], strict=True))
+        has_lower = any(
+            mw <= t for mw, t in zip(result_mw["powers"], result_t["powers"], strict=True)
+        )
         self.assertTrue(has_lower, "Mann-Whitney 应至少有一处功效低于 t 检验")
 
     def test_threshold_80_exists_for_large_n(self):

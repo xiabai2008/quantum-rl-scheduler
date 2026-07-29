@@ -17,7 +17,7 @@ from pathlib import Path
 os.environ["TIANYAN_MOCK_MODE"] = "false"
 os.environ["TIANYAN_MOCK_DELAY"] = "0"
 
-_ROOT = Path(__file__).resolve().parent.parent
+_ROOT = Path(__file__).resolve().parents[2]
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 

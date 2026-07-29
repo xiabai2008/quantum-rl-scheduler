@@ -132,8 +132,13 @@ def advance_time(env: "QuantumSchedulingEnv", rng: np.random.Generator) -> None:
     for m in env._machines:
         # 可用比特比率波动
         m.available_ratio = float(np.clip(m.available_ratio + rng.uniform(-0.1, 0.1), 0.05, 1.0))
-        # 保真度衰减 + 随机恢复
-        m.fidelity = float(np.clip(m.fidelity - 0.002 + rng.uniform(0.0, 0.01), 0.7, 0.999))
+        # 保真度波动：有注入噪声profile时使用温和扰动（以真实值为基线），否则使用原有衰减模型
+        if getattr(m, "_noise_profile", None) is not None:
+            # Issue #591: 基于注入的真实噪声画像做小幅漂移
+            m.fidelity = float(np.clip(m.fidelity + rng.uniform(-0.003, 0.003), 0.7, 0.999))
+        else:
+            # 保真度衰减 + 随机恢复（原有Mock模式逻辑）
+            m.fidelity = float(np.clip(m.fidelity - 0.002 + rng.uniform(0.0, 0.01), 0.7, 0.999))
         # 更新物理噪声特征（基于新的 fidelity）
         m.update_noise_features(rng)
         # 在线状态随机波动（模拟真机维护/校准，5% 概率翻转）

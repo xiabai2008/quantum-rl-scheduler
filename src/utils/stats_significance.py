@@ -6,14 +6,25 @@ Statistical Significance Testing Module
 - 正态性检验（Shapiro-Wilk / D'Agostino K²）
 - 方差齐性检验（Levene）
 - 两两比较（独立样本 t 检验 / Welch t / Mann-Whitney U）
-- 效应量计算（Cohen's d / rank-biserial correlation）
+- 效应量计算（Cohen's d / rank-biserial correlation / Cliff's delta）
 - 多重比较校正（Bonferroni）
 - 均值差的 95% 置信区间
+- 统计功效分析（post-hoc power / 所需样本量 / 一站式功效报告）
 - 中文解释文本
 
 典型用法：
     from src.utils.stats_significance import compare_strategies
     results = compare_strategies({"PPO": [2747, 2850, ...], "FCFS": [1462, ...]})
+
+统一 Power Analysis 接口（Issue #597）：
+    from src.utils.stats_significance import (
+        compute_effect_size, compute_statistical_power,
+        required_sample_size, power_analysis_report,
+    )
+    es = compute_effect_size(group_a, group_b)
+    power = compute_statistical_power(es["cohens_d"], n1=30, n2=30)
+    n = required_sample_size(effect_size=0.5, power=0.8)
+    report = power_analysis_report({"PPO": [...], "DQN": [...], "FCFS": [...]})
 """
 
 import math
@@ -744,6 +755,412 @@ def plot_power_curve(
         "test_type": test_type,
         "threshold_80": threshold_80,
         "threshold_90": threshold_90,
+    }
+
+
+def cliffs_delta(x: list[float], y: list[float]) -> float:
+    """计算 Cliff's delta 效应量（非参数）
+
+    Cliff's delta 衡量两组数据重叠程度的非参数效应量，不依赖正态性或方差齐性假设。
+    公式：δ = (#(x_i > y_j) - #(x_i < y_j)) / (n1 * n2)
+    取值范围 [-1, 1]，正值表示 x 倾向大于 y。
+
+    解释阈值（Romano et al., 2006）：
+        |δ| < 0.147 → 可忽略
+        |δ| < 0.33  → 小效应
+        |δ| < 0.474 → 中效应
+        否则        → 大效应
+
+    Args:
+        x: 第一组样本
+        y: 第二组样本
+
+    Returns:
+        Cliff's delta 值；任一组为空时返回 nan
+    """
+    arr_x = np.asarray(x, dtype=float)
+    arr_y = np.asarray(y, dtype=float)
+    n1, n2 = len(arr_x), len(arr_y)
+    if n1 == 0 or n2 == 0:
+        return float("nan")
+    # 利用广播向量化计算：x_i > y_j 和 x_i < y_j 的次数
+    # 通过差分矩阵比较，避免 O(n*m) 内存开销过大时仍高效
+    diff = arr_x[:, np.newaxis] - arr_y[np.newaxis, :]
+    n_greater = float(np.sum(diff > 0))
+    n_less = float(np.sum(diff < 0))
+    return (n_greater - n_less) / (n1 * n2)
+
+
+def _cliffs_delta_level(d: float) -> str:
+    """Cliff's delta 效应量等级判定"""
+    if math.isnan(d):
+        return "无法计算"
+    abs_d = abs(d)
+    if abs_d < 0.147:
+        return "可忽略"
+    elif abs_d < 0.33:
+        return "小效应"
+    elif abs_d < 0.474:
+        return "中效应"
+    else:
+        return "大效应"
+
+
+def _resolve_test_type(test: str) -> str:
+    """将用户输入的 test 参数归一化为内部标准名称。
+
+    支持别名：'mannwhitney' / 'mann_whitney' / 'mw' → 'mannwhitney'
+              'ttest' / 't_test' / 't' → 'ttest'
+
+    Raises:
+        ValueError: 不认识的 test 名称
+    """
+    normalized = test.lower().replace("_", "").replace("-", "")
+    if normalized in ("mannwhitney", "mw", "mannwhitneyu"):
+        return "mannwhitney"
+    if normalized in ("ttest", "t", "studentt"):
+        return "ttest"
+    raise ValueError(f"不支持的 test 类型 '{test}'，请使用 'mannwhitney' 或 'ttest'")
+
+
+def compute_effect_size(group1: list[float], group2: list[float]) -> dict[str, Any]:
+    """统一效应量计算入口
+
+    一次性计算两组之间的三种效应量：
+    - Cohen's d（参数，基于均值差/合并标准差）
+    - rank-biserial correlation（非参数，基于 Mann-Whitney U）
+    - Cliff's delta（非参数，基于优势度，不依赖正态性）
+
+    同时返回每种效应量的中文等级解释，并自动推荐适合的数据分布类型。
+
+    Args:
+        group1: 第一组样本数据
+        group2: 第二组样本数据
+
+    Returns:
+        包含以下键的字典：
+        - ``cohens_d``           : Cohen's d 值
+        - ``cohens_d_level``     : Cohen's d 等级（可忽略/小/中/大）
+        - ``rank_biserial``      : rank-biserial 值
+        - ``rank_biserial_level``: rank-biserial 等级
+        - ``cliffs_delta``       : Cliff's delta 值
+        - ``cliffs_delta_level`` : Cliff's delta 等级
+        - ``n1``, ``n2``         : 两组样本量
+        - ``recommended``        : 推荐使用的效应量类型
+          （正态且方差齐 → Cohen's d；否则 → Cliff's delta）
+        - ``normality``          : 两组正态性检验结果
+    """
+    d = cohen_d(group1, group2)
+    rb = rank_biserial(group1, group2)
+    cd = cliffs_delta(group1, group2)
+
+    normal1, p1, test1 = normality_test(group1)
+    normal2, p2, test2 = normality_test(group2)
+    both_normal = normal1 and normal2
+
+    arr1 = np.asarray(group1, dtype=float)
+    arr2 = np.asarray(group2, dtype=float)
+    if both_normal and len(group1) >= 3 and len(group2) >= 3:
+        try:
+            lev = stats.levene(arr1, arr2)
+            equal_var = bool(lev.pvalue >= 0.05)
+        except Exception:
+            equal_var = False
+        recommended = "cohens_d" if equal_var else "cliffs_delta"
+    else:
+        recommended = "cliffs_delta"
+
+    return {
+        "cohens_d": d,
+        "cohens_d_level": _effect_level(d, "Cohen's d"),
+        "rank_biserial": rb,
+        "rank_biserial_level": _effect_level(rb, "rank-biserial correlation"),
+        "cliffs_delta": cd,
+        "cliffs_delta_level": _cliffs_delta_level(cd),
+        "n1": len(group1),
+        "n2": len(group2),
+        "recommended": recommended,
+        "normality": {
+            "group1": {"is_normal": normal1, "p_value": p1, "test": test1},
+            "group2": {"is_normal": normal2, "p_value": p2, "test": test2},
+        },
+    }
+
+
+def _power_mannwhitney(effect_size: float, n1: int, n2: int, alpha: float) -> float:
+    """Mann-Whitney U 检验的统计功效近似计算
+
+    使用 ARE（渐近相对效率）校正法：将 Mann-Whitney 功效近似为
+    有效样本量 n_eff = n * ARE（ARE ≈ 3/π ≈ 0.955）下的 t 检验功效。
+
+    Args:
+        effect_size: Cohen's d 效应量（取绝对值）
+        n1: 第一组样本量
+        n2: 第二组样本量
+        alpha: 显著性水平
+
+    Returns:
+        近似功效值 [0, 1]
+    """
+    n1_eff = max(2, int(np.ceil(n1 * _MANN_WHITNEY_ARE)))
+    n2_eff = max(2, int(np.ceil(n2 * _MANN_WHITNEY_ARE)))
+    return power_ttest(abs(effect_size), n1_eff, n2_eff, alpha)
+
+
+def compute_statistical_power(
+    effect_size: float,
+    n1: int,
+    n2: int | None = None,
+    alpha: float = 0.05,
+    test: str = "mannwhitney",
+) -> float:
+    """计算给定效应量和样本量下的统计功效（post-hoc power）
+
+    Args:
+        effect_size: 效应量（Cohen's d 尺度，取绝对值）
+        n1: 第一组样本量
+        n2: 第二组样本量（为 None 时默认与 n1 相等）
+        alpha: 显著性水平（默认 0.05）
+        test: 检验类型，``'mannwhitney'``（默认）或 ``'ttest'``
+
+    Returns:
+        统计功效值（0-1 之间）；参数非法或样本不足时返回 nan
+
+    Raises:
+        ValueError: test 类型不认识或 alpha 不在 (0,1)
+    """
+    if not 0 < alpha < 1:
+        raise ValueError(f"alpha 必须在 (0,1) 区间，当前: {alpha}")
+    test_type = _resolve_test_type(test)
+    if n2 is None:
+        n2 = n1
+    if n1 < 2 or n2 < 2 or math.isnan(effect_size):
+        return float("nan")
+    es = abs(effect_size)
+    if es == 0:
+        return alpha  # 效应量为 0 时，功效等于 Type I error rate
+    if test_type == "ttest":
+        return power_ttest(es, n1, n2, alpha)
+    return _power_mannwhitney(es, n1, n2, alpha)
+
+
+def required_sample_size(
+    effect_size: float,
+    power: float = 0.8,
+    alpha: float = 0.05,
+    test: str = "mannwhitney",
+) -> int:
+    """计算达到指定功效所需的每组样本量（等样本量设计）
+
+    通过迭代搜索找到最小 n，使得 ``compute_statistical_power(effect_size, n, n, alpha, test) >= power``。
+
+    Args:
+        effect_size: 目标效应量（Cohen's d 尺度，取绝对值）
+        power: 目标统计功效（默认 0.8）
+        alpha: 显著性水平（默认 0.05）
+        test: 检验类型，``'mannwhitney'``（默认）或 ``'ttest'``
+
+    Returns:
+        每组所需样本量（整数）；效应量为 0/NaN 或无法在合理范围内达到时返回 0
+
+    Raises:
+        ValueError: alpha/power 不在 (0,1) 或 test 类型不认识
+    """
+    if not 0 < alpha < 1:
+        raise ValueError(f"alpha 必须在 (0,1) 区间，当前: {alpha}")
+    if not 0 < power < 1:
+        raise ValueError(f"power 必须在 (0,1) 区间，当前: {power}")
+    test_type = _resolve_test_type(test)
+    if math.isnan(effect_size) or effect_size == 0:
+        return 0
+
+    es = abs(effect_size)
+    # 从已有 t 检验样本量估算起点，加速迭代
+    n_start = sample_size_for_effect(es, alpha, power, ratio=1.0)
+    n_start = 2 if n_start == 0 else max(2, n_start - 5)
+
+    for n in range(n_start, 200000):
+        p = compute_statistical_power(es, n, n, alpha, test_type)
+        if not math.isnan(p) and p >= power:
+            return n
+    return 0
+
+
+def power_analysis_report(
+    groups: dict[str, list[float]],
+    alpha: float = 0.05,
+    target_power: float = 0.8,
+) -> dict[str, Any]:
+    """一站式统计功效分析报告
+
+    对多组策略数据自动执行两两功效分析，包括：
+    - 每组基本描述统计（n, mean, std）
+    - 两两效应量（Cohen's d / rank-biserial / Cliff's delta）
+    - 基于当前样本量的事后功效
+    - 达到目标功效所需的样本量建议
+    - 功效充足/不足标记
+    - 总体摘要
+
+    Args:
+        groups: ``{组名: [样本数据列表]}`` 字典
+        alpha: 显著性水平（默认 0.05）
+        target_power: 目标统计功效（默认 0.8）
+
+    Returns:
+        完整的功效分析报告字典，包含：
+        - ``summary``: 总体摘要（总组数、充足功效对数、不足对数等）
+        - ``group_stats``: 每组描述统计
+        - ``pairwise``: 两两对比详情（键为 "A vs B" 格式）
+        - ``alpha``, ``target_power``: 使用的参数
+    """
+    if not groups or len(groups) < 2:
+        return {
+            "summary": {
+                "n_groups": len(groups) if groups else 0,
+                "n_pairs": 0,
+                "sufficient_power_pairs": 0,
+                "insufficient_power_pairs": 0,
+                "message": "至少需要 2 组数据才能进行两两功效分析",
+            },
+            "group_stats": {},
+            "pairwise": {},
+            "alpha": alpha,
+            "target_power": target_power,
+        }
+
+    # ---- 每组描述统计 ----
+    group_stats: dict[str, dict[str, Any]] = {}
+    for name, samples in groups.items():
+        arr = np.asarray(samples, dtype=float)
+        n = len(arr)
+        group_stats[name] = {
+            "n": n,
+            "mean": float(np.mean(arr)) if n > 0 else float("nan"),
+            "std": float(np.std(arr, ddof=1)) if n >= 2 else float("nan"),
+            "min": float(np.min(arr)) if n > 0 else float("nan"),
+            "max": float(np.max(arr)) if n > 0 else float("nan"),
+        }
+
+    # ---- 两两功效分析 ----
+    names = list(groups.keys())
+    pairs = list(combinations(names, 2))
+    pairwise: dict[str, dict[str, Any]] = {}
+    sufficient_count = 0
+    insufficient_count = 0
+
+    for name_a, name_b in pairs:
+        samples_a = list(groups[name_a])
+        samples_b = list(groups[name_b])
+        pair_key = f"{name_a} vs {name_b}"
+
+        n_a, n_b = len(samples_a), len(samples_b)
+        es = compute_effect_size(samples_a, samples_b)
+
+        # 根据数据分布选择推荐的检验类型
+        rec = es["recommended"]
+        test_type = "ttest" if rec == "cohens_d" else "mannwhitney"
+
+        d_abs = abs(es["cohens_d"])
+        d_valid = not math.isnan(es["cohens_d"])
+        d_nonzero = d_valid and es["cohens_d"] != 0
+
+        current_power_ttest = (
+            compute_statistical_power(d_abs, n_a, n_b, alpha, "ttest") if d_valid else float("nan")
+        )
+
+        current_power_mw = (
+            compute_statistical_power(d_abs, n_a, n_b, alpha, "mannwhitney")
+            if d_valid
+            else float("nan")
+        )
+
+        # 所需样本量（等样本量）
+        req_n_ttest = required_sample_size(d_abs, target_power, alpha, "ttest") if d_nonzero else 0
+
+        req_n_mw = (
+            required_sample_size(d_abs, target_power, alpha, "mannwhitney") if d_nonzero else 0
+        )
+
+        # 判断当前功效是否充足（使用推荐检验类型的功效）
+        current_p = current_power_ttest if test_type == "ttest" else current_power_mw
+        is_sufficient = (not math.isnan(current_p)) and current_p >= target_power
+        if is_sufficient:
+            sufficient_count += 1
+        else:
+            insufficient_count += 1
+
+        # 功效解释
+        if math.isnan(current_p):
+            power_msg = "无法计算（样本不足）"
+        elif current_p < 0.5:
+            power_msg = "功效严重不足"
+        elif current_p < target_power:
+            power_msg = f"功效不足（<{target_power:.0%}）"
+        elif current_p < 0.9:
+            power_msg = "功效充足"
+        else:
+            power_msg = "功效很高"
+
+        pairwise[pair_key] = {
+            "n_a": n_a,
+            "n_b": n_b,
+            "effect_sizes": {
+                "cohens_d": es["cohens_d"],
+                "cohens_d_level": es["cohens_d_level"],
+                "rank_biserial": es["rank_biserial"],
+                "rank_biserial_level": es["rank_biserial_level"],
+                "cliffs_delta": es["cliffs_delta"],
+                "cliffs_delta_level": es["cliffs_delta_level"],
+            },
+            "recommended_effect_size": rec,
+            "recommended_test": test_type,
+            "current_power": {
+                "ttest": current_power_ttest,
+                "mannwhitney": current_power_mw,
+            },
+            "current_power_recommended": current_p,
+            "power_sufficient": is_sufficient,
+            "required_n_per_group": {
+                "ttest": req_n_ttest,
+                "mannwhitney": req_n_mw,
+            },
+            "required_n_recommended": req_n_ttest if test_type == "ttest" else req_n_mw,
+            "power_interpretation": power_msg,
+            "normality": es["normality"],
+        }
+
+    n_pairs = len(pairs)
+    all_sufficient = sufficient_count == n_pairs
+    if all_sufficient:
+        summary_msg = f"所有 {n_pairs} 对比较的统计功效均达到 {target_power:.0%}，当前样本量充足。"
+    elif sufficient_count > 0:
+        summary_msg = (
+            f"{sufficient_count}/{n_pairs} 对比较功效充足，"
+            f"{insufficient_count} 对不足。建议对功效不足的对比增加样本量。"
+        )
+    else:
+        summary_msg = (
+            f"所有 {n_pairs} 对比较功效均不足（<{target_power:.0%}）。"
+            "建议增加样本量以获得可靠的统计结论。"
+        )
+
+    summary: dict[str, Any] = {
+        "n_groups": len(names),
+        "n_pairs": n_pairs,
+        "sufficient_power_pairs": sufficient_count,
+        "insufficient_power_pairs": insufficient_count,
+        "all_pairs_sufficient": all_sufficient,
+        "alpha": alpha,
+        "target_power": target_power,
+        "message": summary_msg,
+    }
+
+    return {
+        "summary": summary,
+        "group_stats": group_stats,
+        "pairwise": pairwise,
+        "alpha": alpha,
+        "target_power": target_power,
     }
 
 

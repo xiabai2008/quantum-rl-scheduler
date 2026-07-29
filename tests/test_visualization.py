@@ -444,9 +444,7 @@ async def test_api_key_auth_does_not_affect_get(async_client, monkeypatch):
     # Issue #513: GET /metrics 无头应 401（require_api_key 不豁免 GET）
     assert (await async_client.get("/metrics")).status_code == 401
     # GET /metrics 带正确密钥应 200
-    resp = await async_client.get(
-        "/metrics", headers={"X-API-Key": "secret-key-123"}
-    )
+    resp = await async_client.get("/metrics", headers={"X-API-Key": "secret-key-123"})
     assert resp.status_code == 200
 
 
@@ -1376,9 +1374,7 @@ class TestMetricsEndpoints:
             patch.dict(os.environ, {"VIZ_API_KEY": "test-key"}),
             TestClient(app) as client,
         ):
-            body = client.get(
-                "/metrics", headers={"X-API-Key": "test-key"}
-            ).text
+            body = client.get("/metrics", headers={"X-API-Key": "test-key"}).text
             # prometheus_client 默认暴露 python_ 或 process_ 指标
             assert "python_info" in body or "process_" in body or "scheduler_" in body
 

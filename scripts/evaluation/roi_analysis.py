@@ -322,7 +322,7 @@ def generate_report(
             f"| FCFS 真机均值 | {REAL_FCFS_MEAN} | multiseed_real_machine_report_20260724.md | {'✅ 验证通过' if verification_passed else '⚠️ 待验证'} |",
             f"| 真机 p 值 | {REAL_P_VALUE} | multiseed_real_machine_report_20260724.md | ✅ 锁定 |",
             "",
-            "> 注：仿真 p 值使用 Mann-Whitney U 检验（p=1.032e-42），与 AGENTS.md 权威口径一致。",
+            "> 注：仿真 p 值使用 Welch t 检验（p=1.449e-66，v9.1+ 16维交付模型），与 config/statistics.yaml 权威口径一致。",
             "",
             "---",
             "",

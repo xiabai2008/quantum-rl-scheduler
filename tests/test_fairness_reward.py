@@ -79,11 +79,11 @@ class TestComputeFairnessPenalty:
         expected = -FAIRNESS_PENALTY_FACTOR * 1.0
         assert result == pytest.approx(expected, abs=1e-6)
 
-    def test_none_tenant_id_treated_as_unknown(self) -> None:
-        """None 租户 ID 视为 "unknown"。"""
-        wait_times = {"unknown": 20.0, "tenant_b": 5.0}
+    def test_none_tenant_id_returns_zero(self) -> None:
+        """None 租户 ID 无租户上下文，返回0（不施加公平性惩罚）。"""
+        wait_times = {"t1": 10.0, "t2": 20.0}
         result = compute_fairness_penalty(None, wait_times)
-        assert result < 0.0
+        assert result == 0.0
 
 
 class TestFairnessRewardIntegration:
@@ -105,9 +105,7 @@ class TestFairnessRewardIntegration:
         """默认公平性惩罚为0，不影响奖励。"""
         rng = np.random.default_rng(42)
         task = _make_task()
-        reward_default = compute_execution_reward(
-            task, ACTION_CLASSICAL, rng, 0.99, 1.0
-        )
+        reward_default = compute_execution_reward(task, ACTION_CLASSICAL, rng, 0.99, 1.0)
         reward_explicit = compute_execution_reward(
             task, ACTION_CLASSICAL, rng, 0.99, 1.0, fairness_penalty=0.0
         )

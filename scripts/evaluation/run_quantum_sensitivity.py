@@ -420,7 +420,7 @@ def main():
         idx70 = ratios_list.index(70)
         ref_imp = improvements[idx70]
         report_lines += [
-            f"- **与权威数字对比**: 70% 量子占比下测得提升 +{ref_imp:.1f}%（权威数字 +88.3%，差异来源于 seed 数/训练策略/模型版本）",
+            f"- **与权威数字对比**: 70% 量子占比下测得提升 +{ref_imp:.1f}%（权威数字 +123.4%，差异来源于 seed 数/训练策略/模型版本）",
         ]
 
     report_lines += [

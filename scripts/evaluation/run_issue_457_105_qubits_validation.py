@@ -3,11 +3,11 @@
 
 在天衍-287 真实数据比特规模（105 数据比特+182 耦合比特）下，
 用已训练的 PPO 模型（ppo_best_model_16dim.zip，287 规模训练）跑 10 seeds × 5 episodes = N=50，
-对比 PPO vs FCFS 提升幅度，验证 +88.3% 权威数字的稳健性。
+对比 PPO vs FCFS 提升幅度，验证 +123.4% 权威数字的稳健性。
 
 验收标准（Issue #457）：
-- 提升幅度与 88.3% 同量级（缩水 ≤10pp，即 ≥78.3%）→ 通过
-- 缩水 >10pp（<78.3%）→ 触发预案 B（48h 全仓统一新数字，冻结顺延 3 天）
+- 提升幅度与 123.4% 同量级（缩水 ≤10pp，即 ≥113.4%）→ 通过
+- 缩水 >10pp（<113.4%）→ 触发预案 B（48h 全仓统一新数字，冻结顺延 3 天）
 
 用法：
     python scripts/evaluation/run_issue_457_105_qubits_validation.py
@@ -47,7 +47,7 @@ ALPHA = 0.05
 # 权威基准（50 seed N=250, max_qubits=287）
 AUTHORITATIVE_PPO_MEAN = 2348.91
 AUTHORITATIVE_FCFS_MEAN = 1051.59
-AUTHORITATIVE_IMPROVEMENT_PCT = 88.3
+AUTHORITATIVE_IMPROVEMENT_PCT = 123.4  # 2348.91/1051.59-1，见 config/statistics.yaml（旧 88.3 为 14 维口径，已废弃）
 SHRINK_THRESHOLD_PP = 10.0  # 缩水阈值（百分点）
 
 
@@ -272,7 +272,7 @@ def run_validation() -> dict:
         verdict = "❌ 缩水超过阈值，需触发预案 B"
         plan_b_triggered = True
     else:
-        verdict = f"✅ 缩水 ≤{SHRINK_THRESHOLD_PP}pp，+88.3% 在 105 规模下稳健"
+        verdict = f"✅ 缩水 ≤{SHRINK_THRESHOLD_PP}pp，+{AUTHORITATIVE_IMPROVEMENT_PCT}% 在 105 规模下稳健"
         plan_b_triggered = False
 
     print(f"  验收结论: {verdict}")
@@ -360,11 +360,11 @@ def _generate_report(
         "天衍-287 实际为 **105 数据比特 + 182 耦合比特** 超导量子计算机（祖冲之三号同款芯片）。",
         "原仿真使用 `max_qubits=287` 在 2.7 倍于真实数据比特的规模下验证调度，结论外推性存疑。",
         "",
-        "本实验在 `max_qubits=105` 规模下复跑 PPO vs FCFS，验证 +88.3% 权威数字的稳健性。",
+        f"本实验在 `max_qubits=105` 规模下复跑 PPO vs FCFS，验证 +{AUTHORITATIVE_IMPROVEMENT_PCT}% 权威数字的稳健性。",
         "",
         "## 二、验收标准",
         "",
-        f"- 提升幅度与 88.3% 同量级（缩水 ≤{SHRINK_THRESHOLD_PP}pp，即 ≥{AUTHORITATIVE_IMPROVEMENT_PCT - SHRINK_THRESHOLD_PP:.1f}%）→ 通过",
+        f"- 提升幅度与 {AUTHORITATIVE_IMPROVEMENT_PCT}% 同量级（缩水 ≤{SHRINK_THRESHOLD_PP}pp，即 ≥{AUTHORITATIVE_IMPROVEMENT_PCT - SHRINK_THRESHOLD_PP:.1f}%）→ 通过",
         f"- 缩水 >{SHRINK_THRESHOLD_PP}pp（<{AUTHORITATIVE_IMPROVEMENT_PCT - SHRINK_THRESHOLD_PP:.1f}%）→ 触发预案 B",
         "",
         "## 三、105 规模汇总统计（全策略）",
@@ -457,7 +457,7 @@ def _generate_report(
                 "- 48h 内全仓统一新数字（105 规模下的权威提升幅度）",
                 "- 代码冻结顺延 3 天定位原因",
                 "- 重新训练 105 规模 PPO 模型",
-                "- 更新 PPT/白皮书/答辩材料中的所有 +88.3% 数字",
+                f"- 更新 PPT/白皮书/答辩材料中的所有 +{AUTHORITATIVE_IMPROVEMENT_PCT}% 数字",
                 "",
             ]
         )
@@ -466,7 +466,7 @@ def _generate_report(
             [
                 "## 六、结论与说明",
                 "",
-                f"+88.3% 在 105 数据比特规模下稳健（缩水 ≤{SHRINK_THRESHOLD_PP}pp），",
+                f"+{AUTHORITATIVE_IMPROVEMENT_PCT}% 在 105 数据比特规模下稳健（缩水 ≤{SHRINK_THRESHOLD_PP}pp），",
                 "已训练的 PPO 模型（287 规模训练）在 105 规模下仍保持显著优势。",
                 "",
                 "> **口径说明**: 本次复跑使用 287 规模训练的 PPO 模型，在 105 规模环境下评估，",

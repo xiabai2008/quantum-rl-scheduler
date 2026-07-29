@@ -5,5 +5,6 @@
   "machine_names": [
     "tianyan_s",
     "tianyan_sw"
-  ]
+  ],
+  "scorer_method": "static"
 }

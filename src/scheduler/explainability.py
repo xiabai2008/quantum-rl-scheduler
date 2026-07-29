@@ -8,6 +8,7 @@ Decision Explainability Tracking Module
 核心能力：
 - DecisionRecord    : 决策记录数据类（状态/动作/置信度/特征贡献度）
 - DecisionExplainer : 决策解释器（贡献度计算、文本格式化、异常检测、会话汇总）
+- PPOExplainer      : PPO 模型专用 SHAP 解释器（Issue #596，保留正/负方向）
 - DecisionLogger    : 决策日志记录器（JSONL 持久化，UTF-8 编码）
 
 贡献度算法（两种模式）：
@@ -17,19 +18,25 @@ Decision Explainability Tracking Module
     - 无 q_values 时：contribution[i] = |z_score[i]| 归一化
                       z_score[i] = (state[i] - mean(state)) / std(state)
 - shap（Issue #596）：保留正/负方向，可区分特征对决策的推动/抑制
-    - shap 库可用且提供 predict_fn 时：使用 SHAP Explainer 精确计算
+    - shap 库可用且提供 predict_fn/PPO 模型时：使用 SHAP Explainer 精确计算
     - 否则回退到方向感知启发式（不取绝对值），仍能区分正/负方向
 
 使用示例：
-    from src.scheduler.explainability import DecisionExplainer, DecisionLogger
+    from src.scheduler.explainability import DecisionExplainer, DecisionLogger, PPOExplainer
     import numpy as np
 
+    # 方式 1：通用决策解释器
     explainer = DecisionExplainer()
     record = explainer.explain(
         state=np.random.rand(17), action=1, q_values=np.array([1.0, 3.0, 2.0]),
         action_prob=0.85, step=10,
     )
     print(explainer.format_explanation(record, top_k=5))
+
+    # 方式 2：PPO 模型专用 SHAP 解释器（Issue #596）
+    # ppo_explainer = PPOExplainer(ppo_agent.model)
+    # shap_values = ppo_explainer.explain(observation)
+    # importance = ppo_explainer.get_feature_importance(observations_batch)
 
     logger = DecisionLogger(log_dir="logs/decisions")
     logger.log(record)
@@ -48,7 +55,7 @@ from numpy.typing import NDArray
 # 常量定义
 # ---------------------------------------------------------------------------
 
-# 状态空间 17 维特征名（与 env_types.py 的 OBS_* 常量严格对应）
+# 状态空间 16 维特征名（与 env_types.py 的 OBS_* 常量严格对应，OBS_DIM=16）
 STATE_FEATURE_NAMES: list[str] = [
     "量子比特可用率",  # OBS_QUBIT_AVAILABILITY = 0
     "队列长度",  # OBS_QUEUE_LENGTH = 1
@@ -66,8 +73,13 @@ STATE_FEATURE_NAMES: list[str] = [
     "平均连通度",  # OBS_AVG_CONNECTIVITY = 13
     "串扰风险",  # OBS_CROSSTALK_RISK = 14
     "到达率MA",  # OBS_ARRIVAL_RATE_MA = 15
-    "公平性指数",  # OBS_FAIRNESS_INDEX = 16（Issue #588，Jain 多租户等待公平性）
 ]
+
+# Issue #588: 公平性指数特征名（第17维，仅在 include_fairness_obs=True 时使用）
+FAIRNESS_FEATURE_NAME: str = "公平性指数"  # OBS_FAIRNESS_INDEX = 16
+
+# 包含公平性观测的 17 维特征名列表
+STATE_FEATURE_NAMES_WITH_FAIRNESS: list[str] = [*STATE_FEATURE_NAMES, FAIRNESS_FEATURE_NAME]
 
 # 异常决策检测：低置信度阈值（action_prob 低于此值视为异常）
 _LOW_CONFIDENCE_THRESHOLD: float = 0.3
@@ -664,3 +676,288 @@ class DecisionLogger:
         """清空日志文件内容（保留文件本身）。"""
         with open(self.log_path, "w", encoding="utf-8") as f:
             f.write("")
+
+
+# ---------------------------------------------------------------------------
+# PPO 模型专用 SHAP 解释器（Issue #596）
+# ---------------------------------------------------------------------------
+
+
+class PPOExplainer:
+    """
+    PPO 模型专用 SHAP 可解释性解释器（Issue #596）。
+
+    与 DecisionExplainer 的区别：
+        - DecisionExplainer 是通用解释器，基于 state + q_values/action_prob 工作
+        - PPOExplainer 直接封装训练好的 PPO 模型，使用 SHAP 库计算精确的特征贡献度
+        - 保留 SHAP 值的正/负方向，可区分特征对决策的「推动」或「抑制」作用
+
+    依赖说明：
+        - shap 为可选依赖，未安装时自动回退到方向感知启发式方法
+        - SHAP 相关导入均延迟到方法内部，避免强制依赖
+
+    Attributes:
+        model        : 训练好的 stable-baselines3 PPO/RecurrentPPO 模型
+        feature_names: 状态空间特征名列表
+        method       : 解释方法，"shap"（默认）或 "heuristic"
+        n_features   : 状态空间维度
+        n_actions    : 动作空间维度
+        _shap_available: shap 库是否可用
+        _explainer   : 懒加载的 SHAP Explainer 实例
+    """
+
+    def __init__(
+        self,
+        model: Any,
+        feature_names: list[str] | None = None,
+        method: str = "shap",
+        background_samples: int = 100,
+    ) -> None:
+        """
+        初始化 PPO SHAP 解释器。
+
+        Args:
+            model             : 训练好的 stable-baselines3 PPO/RecurrentPPO 模型
+            feature_names     : 状态特征名列表，None 时使用默认 17 维特征名
+            method            : 解释方法，"shap"（默认）或 "heuristic"
+            background_samples: KernelExplainer 背景样本数，默认 100
+        """
+        self.model = model
+        self.feature_names: list[str] = (
+            list(feature_names) if feature_names is not None else list(STATE_FEATURE_NAMES)
+        )
+        self.method: str = method
+        self.background_samples: int = background_samples
+        self._shap_available: bool = self._check_shap_available()
+        self._explainer: Any = None
+        self._background_data: NDArray[Any] | None = None
+
+        obs_space = getattr(model, "observation_space", None)
+        action_space = getattr(model, "action_space", None)
+        self.n_features: int = (
+            int(obs_space.shape[0]) if obs_space is not None and obs_space.shape else 17
+        )
+        self.n_actions: int = int(action_space.n) if action_space is not None else 3
+
+        if len(self.feature_names) < self.n_features:
+            self.feature_names = self.feature_names + [
+                f"特征{i}" for i in range(len(self.feature_names), self.n_features)
+            ]
+        elif len(self.feature_names) > self.n_features:
+            self.feature_names = self.feature_names[: self.n_features]
+
+    @staticmethod
+    def _check_shap_available() -> bool:
+        """检查 shap 库是否已安装（不强制依赖）。"""
+        try:
+            import shap  # noqa: F401
+
+            return True
+        except ImportError:
+            return False
+
+    def _get_shap_import_error_msg(self) -> str:
+        """返回 shap 库未安装时的友好错误提示。"""
+        return (
+            "SHAP 解释需要 shap 库支持，但当前环境未安装 shap。\n"
+            "请使用以下命令安装可选依赖：\n"
+            "  pip install shap\n"
+            "或使用 method='heuristic' 回退到方向感知启发式方法。"
+        )
+
+    def _predict_proba(self, observations: NDArray[Any]) -> NDArray[Any]:
+        """
+        模型预测函数：返回各动作的概率分布（SHAP 解释用）。
+
+        将 stable-baselines3 PPO 模型包装为 SHAP 所需的 f(X) -> y 接口，
+        输入批量状态，输出批量动作概率矩阵。
+
+        Args:
+            observations: 批量状态数组，形状 (batch_size, n_features)
+
+        Returns:
+            动作概率数组，形状 (batch_size, n_actions)
+        """
+        import torch  # stable-baselines3 依赖 torch
+
+        obs_t = torch.as_tensor(observations, dtype=torch.float32)
+        with torch.no_grad():
+            dist = self.model.policy.get_distribution(obs_t)
+            probs = dist.distribution.probs.cpu().numpy()
+        return np.asarray(probs, dtype=np.float64)
+
+    def _init_shap_explainer(self) -> Any:
+        """
+        懒加载初始化 SHAP KernelExplainer。
+
+        使用零向量作为背景数据（可配置 background_samples 数量），
+        KernelExplainer 适用于任何黑盒模型，兼容性最好。
+
+        Returns:
+            初始化好的 shap.KernelExplainer 实例
+
+        Raises:
+            ImportError: shap 库未安装
+        """
+        if self._explainer is not None:
+            return self._explainer
+
+        if not self._shap_available:
+            raise ImportError(self._get_shap_import_error_msg())
+
+        import shap
+
+        rng = np.random.default_rng(seed=42)
+        self._background_data = rng.normal(
+            loc=0.0, scale=0.1, size=(self.background_samples, self.n_features)
+        )
+        self._explainer = shap.KernelExplainer(
+            model=self._predict_proba,
+            data=self._background_data,
+        )
+        return self._explainer
+
+    def explain(
+        self,
+        observation: NDArray[Any],
+        action: int | None = None,
+    ) -> dict[str, float]:
+        """
+        解释单个观察的决策，返回各特征的 SHAP 值（含正负方向）。
+
+        Args:
+            observation: 状态向量（1D 数组，长度 n_features）
+            action     : 指定解释的动作索引，None 时自动选择模型预测的动作
+
+        Returns:
+            特征名 -> SHAP 值 的字典，值可正可负：
+            - 正值：该特征推动模型选择该动作
+            - 负值：该特征抑制模型选择该动作
+
+        Raises:
+            RuntimeError: method='shap' 但 shap 库不可用（已回退到启发式时不抛出）
+        """
+        obs_arr = np.asarray(observation, dtype=np.float64).flatten()
+        if len(obs_arr) != self.n_features:
+            obs_arr = np.resize(obs_arr, self.n_features)
+
+        if self.method == "shap" and self._shap_available:
+            return self._explain_shap(obs_arr, action)
+        else:
+            if self.method == "shap" and not self._shap_available:
+                import warnings
+
+                warnings.warn(
+                    self._get_shap_import_error_msg() + "\n已自动回退到 heuristic 方法。",
+                    stacklevel=2,
+                )
+            return self._explain_heuristic(obs_arr, action)
+
+    def _explain_shap(self, obs_arr: NDArray[Any], action: int | None) -> dict[str, float]:
+        """使用 SHAP KernelExplainer 计算特征贡献度。"""
+        raw: NDArray[Any]
+        try:
+            explainer = self._init_shap_explainer()
+            shap_values = explainer.shap_values(obs_arr.reshape(1, -1), nsamples=100)
+
+            if action is None:
+                probs = self._predict_proba(obs_arr.reshape(1, -1))
+                action = int(np.argmax(probs[0]))
+
+            action_idx = int(action) % self.n_actions
+
+            if isinstance(shap_values, list):
+                raw = np.asarray(shap_values[action_idx], dtype=np.float64).flatten()
+            elif isinstance(shap_values, np.ndarray):
+                sv = np.asarray(shap_values, dtype=np.float64)
+                if sv.ndim == 3:
+                    raw = np.asarray(sv[0, :, action_idx], dtype=np.float64)
+                elif sv.ndim == 2:
+                    raw = np.asarray(sv[0], dtype=np.float64)
+                else:
+                    raw = np.asarray(sv.flatten(), dtype=np.float64)
+            else:
+                raw = np.zeros(self.n_features, dtype=np.float64)
+        except Exception:
+            raw = self._directional_raw_values(obs_arr, action)
+
+        return {name: float(val) for name, val in zip(self.feature_names, raw, strict=True)}
+
+    def _explain_heuristic(self, obs_arr: NDArray[Any], action: int | None) -> dict[str, float]:
+        """方向感知启发式方法（回退方案，保留正/负方向）。"""
+        raw = self._directional_raw_values(obs_arr, action)
+        return {name: float(val) for name, val in zip(self.feature_names, raw, strict=True)}
+
+    def _directional_raw_values(self, obs_arr: NDArray[Any], action: int | None) -> NDArray[Any]:
+        """
+        方向感知原始贡献度计算（不取绝对值，保留正/负方向）。
+
+        当 shap 不可用时作为回退方案，基于 z-score 符号保留方向信息。
+
+        Args:
+            obs_arr: 状态向量
+            action : 动作索引（启发式下主要用于决定advantage符号）
+
+        Returns:
+            原始贡献度数组（可正可负，未归一化）
+        """
+        n = len(obs_arr)
+        if n == 0:
+            return np.zeros(0, dtype=np.float64)
+
+        mean = float(obs_arr.mean())
+        std = float(obs_arr.std())
+        if std > 1e-12:
+            z_scores = (obs_arr - mean) / std
+        else:
+            z_scores = obs_arr - mean
+            if float(np.abs(z_scores).sum()) <= 1e-12:
+                z_scores = np.ones(n, dtype=np.float64)
+
+        if action is not None and self.model is not None:
+            try:
+                probs = self._predict_proba(obs_arr.reshape(1, -1))
+                advantage = float(probs[0, action] - probs.mean())
+                return z_scores * advantage
+            except Exception:
+                pass
+
+        return z_scores
+
+    def get_feature_importance(
+        self,
+        observations_batch: NDArray[Any] | list[NDArray[Any]],
+    ) -> dict[str, float]:
+        """
+        批量计算特征重要性：平均 |SHAP| 值。
+
+        对一批状态分别计算 SHAP 值，然后取各特征绝对 SHAP 值的均值
+        作为全局特征重要性指标。
+
+        Args:
+            observations_batch: 批量状态数组，形状 (N, n_features) 或状态列表
+
+        Returns:
+            特征名 -> 平均|SHAP|值 的字典（值均为非负），
+            按重要性降序排列
+        """
+        batch = np.asarray(observations_batch, dtype=np.float64)
+        if batch.ndim == 1:
+            batch = batch.reshape(1, -1)
+
+        n_samples = batch.shape[0]
+        accumulator = np.zeros(self.n_features, dtype=np.float64)
+
+        for i in range(n_samples):
+            obs = batch[i]
+            shap_dict = self.explain(obs)
+            for j, name in enumerate(self.feature_names):
+                accumulator[j] += abs(shap_dict[name])
+
+        mean_abs = accumulator / n_samples if n_samples > 0 else accumulator
+
+        importance_dict = {
+            name: float(val) for name, val in zip(self.feature_names, mean_abs, strict=True)
+        }
+        sorted_items = sorted(importance_dict.items(), key=lambda kv: kv[1], reverse=True)
+        return dict(sorted_items)

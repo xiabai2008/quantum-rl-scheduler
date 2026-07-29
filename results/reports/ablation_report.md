@@ -1,5 +1,7 @@
 # 消融实验报告
 
+> **⚠️ 历史报告冻结声明（2026-07-29）**：本报告中 PPO 相关数字基于 14 维旧模型（已删除）产出，+88.3%、p=1.032e-42 等为旧口径，**已废弃**。现行权威口径为 16 维交付模型：PPO vs FCFS **+123.4%**（N=250, Welch t p=1.449e-66），见 `config/statistics.yaml`。本报告仅作历史存档，禁止在答辩/白皮书/PPT 中直接引用其数字。
+
 > **数据来源**:
 > - D5: `results/ablation_annealing_multiseed_20260701_004148.json`（5 Seed 完整消融）
 > - D4: `results/multi_machine_real_report.md`（单机 vs 多机对比）

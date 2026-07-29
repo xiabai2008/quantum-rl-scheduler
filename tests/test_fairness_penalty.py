@@ -18,7 +18,7 @@ import numpy as np
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from src.scheduler.env_reward import compute_fairness_penalty, compute_execution_reward
+from src.scheduler.env_reward import compute_execution_reward, compute_fairness_penalty
 from src.scheduler.env_types import (
     ACTION_CLASSICAL,
     ACTION_HYBRID,

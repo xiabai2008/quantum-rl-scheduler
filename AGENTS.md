@@ -35,7 +35,7 @@ feat / fix / docs / test / refactor / chore
 
 **核心创新—双向赋能**：
 
-- AI 赋能 量子计算：调度层(PPO +123.4%, p<0.001) + 编译层(PPO替代SABRE，公平对比v2，Issue #451；4×4 2D网格拓扑下同池配对60电路，深电路(14-16q)SWAP减少约33%（n=20, Wilcoxon p=0.29不显著, Issue #564）；原-76.4%为不公平对比已废弃)
+- AI 赋能 量子计算：调度层(PPO +123.4%, p<0.001) + 编译层(PPO替代SABRE，公平对比v2，Issue #451；4×4 2D网格拓扑下同池配对60电路，深电路(14-16q)SWAP减少约33%（n=20），整体p=0.86不显著（Issue #564）；原-76.4%为不公平对比已废弃)
 - 量子 赋能 AI：真机噪声特征建模与PPO鲁棒性评估（tianyan-287 H门1024 shots→保真度0.976→噪声分布建模→PPO噪声鲁棒性基准。注：单seed等待时间-5.7%为探索性结果，10seeds分布实验揭示噪声对RL的挑战）
 - 退火模块：探索性功能，默认关闭，不再投入开发（20seeds统计不显著 p=0.9430，实为经典模拟退火）
 - 量化目标：综合调度收益+123.4%（核心目标，已达成）；资源利用率+7.9%（p=0.0046，多目标权衡维度）
@@ -263,21 +263,23 @@ quantum-rl-scheduler/
 - 统计显著性：Bonferroni校正，PPO vs FCFS p=1.449e-66（Welch t检验）
 - 权威数字锁定：PPO=2348.91±857.25 vs FCFS=1051.59±58.34，提升 +123.4%
 
-## 6. v8 实验成果（50seed N=250 验证，2026-07-24）
+## 6. 权威实验成果（50seed N=250 验证，v9.1 基于16维交付模型重评，2026-07-29）
 
-> **权威实验配置**：14维原生环境、50 seeds × 5 episodes = 250次独立运行（N=250）、200步/episode、泊松到达λ=0.5
+> **权威实验配置**：16维交付模型（ppo_best_model_16dim.zip）、50 seeds × 5 episodes = 250次独立运行（N=250）、200步/episode、泊松到达λ=0.5
 > **统计显著性**：PPO vs FCFS 使用 Welch t 检验，p=1.449e-66，Cohen's d=-2.1353（大效应量），Bonferroni校正后显著
 
 |  排名 | 策略             |     平均奖励    |   标准差   | 提升 vs FCFS |
 | :-: | :------------- | :---------: | :-----: | :--------: |
 |  1  | **PPO**        | **2348.91** | 857.25 | **+123.4%** |
-|  2  | DQN            |   1527.65   |  124.02 |    +4.7%   |
-|  3  | SJF            |   1462.39   |  134.32 |    +0.2%   |
-|  4  | FCFS           |   1051.59   |  58.34  |     基线     |
-|  5  | Random         |   1217.08   |  395.05 |   -16.6%   |
-|  6  | Greedy         |    -25.95   |  625.52 |   -101.8%  |
-|  7  | Quantum-Only   |   -920.54   |  232.68 |   -163.1%  |
-|  8  | Classical-Only |   -1128.29  |  59.46  |   -177.3%  |
+|  2  | SJF            |   1060.30   |  109.71 |    +0.8%   |
+|  3  | FCFS           |   1051.59   |  58.34  |     基线     |
+|  4  | DQN（Random占位） |    891.53   |  313.35 |   -15.2%   |
+|  5  | Random         |    891.53   |  313.35 |   -15.2%   |
+|  6  | Greedy         |   -134.18   |  552.17 |   -112.8%  |
+|  7  | Quantum-Only   |   -940.56   |  205.83 |   -189.4%  |
+|  8  | Classical-Only |   -1128.79  |  59.17  |   -207.3%  |
+
+> 注：v9 已删除 DQN 模型，DQN 策略位使用 Random 策略占位（见 `config/statistics.yaml` strategy_summary.DQN.note）。
 
 ### 消融实验（参考）
 
@@ -330,7 +332,7 @@ quantum-rl-scheduler/
 | 价值量化报告            | `docs/value_quantification.md`                      | ✅ 已完成（6节，10项指标，ROI分析，VQE场景案例）                     |
 | 技术瓶颈分析            | `docs/technical_bottlenecks.md`                     | ✅ 已完成（7项瓶颈+缓解策略，2026-07-24）                       |
 | 公平调度实验报告          | `results/reports/fair_scheduling_report.md`         | ✅ 已完成（5租户Jain's指数=0.9875，PPO总奖励+57.6%，2026-07-24） |
-| 退火显著性答辩策略         | `docs/annealing_significance-defense.md`            | ✅ 已完成（5类评委问题应对话术，p=0.19→delta=0.40，2026-07-24）    |
+| 退火显著性答辩策略         | `docs/annealing_significance-defense.md`            | ✅ 已完成（5类评委问题应对话术，p=0.9430（20seeds）→delta=0.40，2026-07-24）    |
 | 部署架构文档            | `docs/deployment.md`                                | ✅ 已完成（三阶段部署路径+ONNX优化+K8s配置，2026-07-24）            |
 | D3奖励消融报告          | `results/reports/d3_reward_ablation_report.md`      | ✅ 已完成（7预设×2策略×10seeds，策略-奖励耦合分析，2026-07-24）       |
 | 高负载公平调度报告         | `results/reports/high_load_fairness_report.md`      | ✅ 已完成（λ=1.2高负载5租户公平调度，PPO/FCFS/SJF对比，2026-07-25）  |
@@ -380,7 +382,7 @@ PR审查        ████████████████░░░░  80
   - 冻结前检查清单:
     1. 所有 CI 检查全绿（lint/test/typecheck/security）
     2. `python scripts/ci/validate_submission.py --check` 通过
-    3. PPT/白皮书数字与代码权威数字一致（+123.4%，14维权威实验N=250，16维需重新验证）
+    3. PPT/白皮书数字与代码权威数字一致（+123.4%，16维交付模型权威实验N=250，p=1.449e-66，旧14维+88.3%已废弃）
     4. 演示视频已就位
     5. 打标签: `git tag -a v9.1-submission -m "v9.1 提交版本" && git push origin v9.1-submission`
     6. 打包: `python scripts/ci/validate_submission.py --pack`

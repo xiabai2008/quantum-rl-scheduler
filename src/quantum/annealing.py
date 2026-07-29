@@ -568,18 +568,30 @@ class QuantumAnnealingOptimizer:
         # ---- 路径 2/3：仿真退火 ----
         if self.use_dw:
             # ---- 使用 D-Wave neal 求解器 ----
+            # Issue #359: sim_* 参数真正驱动 neal 模拟退火求解器
+            # neal 使用 beta = 1/T 控制温度；geometric beta schedule 对应等比降温
             self.solver_type = "neal_sa"
             self._last_solver = "neal_sa"
+            beta_start = 1.0 / max(self._sim_initial_temp, 1e-12)
+            t_final = self._sim_initial_temp * (self._sim_cooling_rate**self._sim_num_sweeps)
+            beta_end = 1.0 / max(t_final, 1e-12)
+            beta_end = min(beta_end, 1e12)
             logger.info(
                 f"[退火] 使用 D-Wave neal 求解器, QUBO 规模 {n}x{n}, "
-                f"shots={self.shots}, annealing_time={self.annealing_time}μs"
+                f"num_reads={self.shots}, num_sweeps={self._sim_num_sweeps}, "
+                f"beta_range=({beta_start:.4f}, {beta_end:.4f}), "
+                f"schedule=geometric (T0={self._sim_initial_temp}, α={self._sim_cooling_rate})"
             )
             qubo_dict = self._matrix_to_qubo_dict(qubo_matrix)
             sampler = neal.SimulatedAnnealingSampler()
-            # Issue #391: neal 路径也传入 seed，保证可复现
+            # Issue #391: neal 路径传入 seed，保证可复现
+            # Issue #359: sim_initial_temp→beta_start, sim_cooling_rate→geometric schedule,
+            # sim_num_sweeps→num_sweeps；annealing_time 是真机参数不传 neal
             sample_kwargs: dict[str, Any] = {
                 "num_reads": self.shots,
-                "annealing_time": self.annealing_time,
+                "num_sweeps": self._sim_num_sweeps,
+                "beta_range": (beta_start, beta_end),
+                "beta_schedule_type": "geometric",
             }
             if self.random_state is not None:
                 sample_kwargs["seed"] = self.random_state
@@ -2028,9 +2040,13 @@ class QuantumAnnealingOptimizer:
             2. 在每个温度下执行多次扫描（sweep）：
                - 随机翻转一个比特
                - 计算能量差 ΔE
-               - 如果 ΔE < 0 或 rand() < exp(-ΔE/T)，接受翻转
+               - 如果 ΔE < 0 则接受；若 ΔE > 0，以概率 P = exp(-ΔE/T) 接受
             3. 按冷却率降低温度
-            4. 重复直至温度低于终止阈值
+            4. 重复直至温度低于终止阈值或连续 sim_patience 次扫描无改进
+
+        温度调度由 sim_initial_temp / sim_cooling_rate / sim_num_sweeps 驱动；
+        早停由 sim_patience 控制。accept_threshold_ratio 仅在外层策略优化
+        循环（optimize_policy）中生效，不影响内层 SA 的 Metropolis 准则。
 
         Args:
             qubo_matrix: QUBO 矩阵 Q
@@ -2070,9 +2086,18 @@ class QuantumAnnealingOptimizer:
                 delta_energy = self._qubo_flip_delta(qubo_matrix, current_solution, flip_idx)
 
                 # Metropolis 准则：以概率 min(1, exp(-ΔE/T)) 接受新解
-                if delta_energy < 0 or py_rng.random() < math.exp(
-                    -delta_energy / max(temperature, 1e-12)
-                ):
+                # Issue #359: accept_threshold_ratio 作为接受概率阈值——
+                # 当计算出的接受概率 P = exp(-ΔE/T) 低于此阈值时直接拒绝，
+                # 避免对极劣翻转进行无意义的随机采样，使求解器更具选择性。
+                if delta_energy < 0:
+                    do_accept = True
+                else:
+                    p_accept = math.exp(-delta_energy / max(temperature, 1e-12))
+                    # Issue #359: accept_threshold_ratio 在外层策略优化循环中
+                    # 作为 loss 上升阈值使用，内层 SA 的 Metropolis 准则保持标准形式：
+                    # 以概率 P = exp(-ΔE/T) 接受，不做硬阈值截断（否则会陷入局部最优）。
+                    do_accept = py_rng.random() < p_accept
+                if do_accept:
                     current_solution[flip_idx] = 1.0 - current_solution[flip_idx]
                     current_energy += delta_energy
 

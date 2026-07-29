@@ -256,9 +256,8 @@ async def metrics(_auth: None = Depends(require_api_key)) -> Response:
     返回 prometheus_client 默认注册表中所有指标的 Prometheus 文本格式输出，
     采集器（Prometheus server）可通过该端点定期拉取监控数据。
 
-    Issue #513: 使用严格认证（require_api_key），GET 请求也需提供 X-API-Key，
-    防止内部运行时指标泄露给未授权方。
-    Prometheus 采集器需在 scrape_config 中配置 Bearer token 或 Authorization 头。
+    Issue #513: /metrics 暴露内部运行时指标，即使 GET 请求也需严格认证，
+    使用 require_api_key 而非 verify_api_key。
     """
     return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
 
@@ -921,3 +920,58 @@ async def submit_circuit(
         "gate_count": validation["gate_count"],
         "qubit_count": validation["qubit_count"],
     }
+
+
+# ============================================================
+# 实时指标 API（Issue #526：实时调度过程可视化增强）
+# ============================================================
+
+
+@router.get("/api/realtime-metrics")
+async def get_realtime_metrics(
+    limit: int = 100,
+    _auth: None = Depends(verify_api_key),
+) -> dict:
+    """获取实时指标历史数据（Issue #526）。
+
+    返回吞吐量、平均等待时间趋势、量子/经典资源利用率、PPO vs Baseline reward 对比历史。
+
+    Args:
+        limit: 返回最近多少条数据点，默认 100，最大 200
+
+    Returns:
+        包含 metrics 历史列表和当前最新指标的字典
+    """
+    limit = min(max(limit, 1), 200)
+    current_status = state.get_system_status()
+    metrics_history = state.get_metrics_history(limit)
+    reward_comparison = state.get_reward_comparison()
+
+    return {
+        "current": {
+            "throughput": current_status.get("throughput", 0.0),
+            "qubit_utilization": current_status.get("qubit_utilization", 0.0),
+            "classical_utilization": current_status.get("classical_utilization", 0.0),
+            "average_wait_time": current_status.get("average_wait_time", 0.0),
+            "queue_length": current_status.get("queue_length", 0),
+            "completed_tasks": current_status.get("completed_tasks", 0),
+        },
+        "history": metrics_history,
+        "reward_comparison": reward_comparison,
+    }
+
+
+@router.get("/api/reward-comparison")
+async def get_reward_comparison(
+    limit: int = 50,
+    _auth: None = Depends(verify_api_key),
+) -> dict:
+    """获取 PPO vs Baseline (FCFS) reward 对比数据（Issue #526）。
+
+    Args:
+        limit: 返回最近多少条历史点，默认 50
+
+    Returns:
+        包含累积奖励和对比曲线的字典
+    """
+    return state.get_reward_comparison()

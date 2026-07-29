@@ -21,15 +21,28 @@ const reconnectAttempts = ref(0)
 
 const status = reactive<SystemStatus>({
   qubit_utilization: 0.65,
+  classical_utilization: 0.55,
   queue_length: 5,
   average_wait_time: 12.3,
   completed_tasks: 42,
   current_step: 1024,
+  throughput: 0.0,
   current_strategy: 'DQN-Reward',
   strategy_options: ['DQN-Reward', 'DQN-Latency', 'PPO-Balanced', 'QAOA-Hybrid', 'FCFS'],
   real_machines: [],
   real_submissions: [],
   last_update: new Date().toISOString()
+})
+
+// PPO vs Baseline reward 对比（Issue #526）
+const rewardComparison = ref<{
+  ppo_cumulative: number
+  baseline_cumulative: number
+  gap: number
+}>({
+  ppo_cumulative: 0,
+  baseline_cumulative: 0,
+  gap: 0
 })
 
 const tasks = ref<Task[]>([])
@@ -151,10 +164,26 @@ const handleWSMessage = (msg: WSMessage) => {
       if (status.current_strategy) selectedStrategy.value = status.current_strategy
       // 拉取配额
       fetchQuota()
+      // 初始化 reward 对比
+      if (msg.reward_comparison) {
+        rewardComparison.value = {
+          ppo_cumulative: msg.reward_comparison.ppo_cumulative,
+          baseline_cumulative: msg.reward_comparison.baseline_cumulative,
+          gap: msg.reward_comparison.gap
+        }
+      }
       break
     case 'status_update':
       if (msg.status) Object.assign(status, msg.status)
       if (msg.tasks) tasks.value = msg.tasks
+      // 更新 reward 对比
+      if (msg.reward_comparison) {
+        rewardComparison.value = {
+          ppo_cumulative: msg.reward_comparison.ppo_cumulative,
+          baseline_cumulative: msg.reward_comparison.baseline_cumulative,
+          gap: msg.reward_comparison.gap
+        }
+      }
       break
     case 'task_added':
       if (msg.task) tasks.value.push(msg.task)
@@ -268,7 +297,12 @@ defineExpose({
     <div class="status-card card-blue">
       <div class="card-label">量子比特利用率</div>
       <div class="card-value">{{ (status.qubit_utilization * 100).toFixed(1) }}%</div>
-      <div class="card-sub">实时资源使用</div>
+      <div class="card-sub">实时量子资源使用</div>
+    </div>
+    <div class="status-card card-indigo">
+      <div class="card-label">经典资源利用率</div>
+      <div class="card-value">{{ (status.classical_utilization * 100).toFixed(1) }}%</div>
+      <div class="card-sub">实时经典资源使用</div>
     </div>
     <div class="status-card card-purple">
       <div class="card-label">任务队列长度</div>
@@ -280,6 +314,11 @@ defineExpose({
       <div class="card-value">{{ status.average_wait_time.toFixed(1) }}s</div>
       <div class="card-sub">任务延迟指标</div>
     </div>
+    <div class="status-card card-teal">
+      <div class="card-label">吞吐量</div>
+      <div class="card-value">{{ status.throughput.toFixed(2) }}<small style="font-size: 0.5em;"> tasks/s</small></div>
+      <div class="card-sub">任务处理速率</div>
+    </div>
     <div class="status-card card-green">
       <div class="card-label">已完成任务</div>
       <div class="card-value">{{ status.completed_tasks }}</div>
@@ -289,6 +328,13 @@ defineExpose({
       <div class="card-label">当前步数</div>
       <div class="card-value">{{ status.current_step.toLocaleString() }}</div>
       <div class="card-sub">调度决策次数</div>
+    </div>
+    <div class="status-card card-pink">
+      <div class="card-label">PPO vs Baseline</div>
+      <div class="card-value" :style="{ color: rewardComparison.gap >= 0 ? '#4ade80' : '#f87171' }">
+        {{ rewardComparison.gap >= 0 ? '+' : '' }}{{ rewardComparison.gap.toFixed(1) }}
+      </div>
+      <div class="card-sub">Reward 差距（PPO 领先）</div>
     </div>
   </div>
 

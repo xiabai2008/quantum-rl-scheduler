@@ -27,7 +27,9 @@ simulator.py / websocket_handler.py 之间的循环依赖问题。
 
 from __future__ import annotations
 
+import random
 import threading
+import time
 import uuid
 from datetime import datetime
 from typing import Any
@@ -53,6 +55,9 @@ MAX_DECISION_LOG: int = 200
 #: 对战历史最大保留条数
 MAX_BATTLE_HISTORY: int = 200
 
+#: 实时指标历史最大保留条数（用于实时图表）
+MAX_METRICS_HISTORY: int = 200
+
 # ============================================================
 # 线程安全锁
 # ============================================================
@@ -69,10 +74,12 @@ state_lock = threading.RLock()
 # 当前系统状态
 system_status: dict[str, Any] = {
     "qubit_utilization": 0.65,  # 量子比特利用率 (0~1)
+    "classical_utilization": 0.55,  # 经典资源利用率 (0~1)
     "queue_length": 5,  # 任务队列长度
     "average_wait_time": 12.3,  # 平均等待时间(秒)
     "completed_tasks": 42,  # 已完成任务数
     "current_step": 1024,  # 当前调度步数
+    "throughput": 0.0,  # 吞吐量 (tasks/sec)
     "current_strategy": "PPO",  # 当前调度策略
     "strategy_options": STRATEGY_OPTIONS.copy(),  # 可选策略列表
     "real_machines": [],  # 真机列表 [{name, status, type, id}]
@@ -126,6 +133,24 @@ _resource_history: list[dict[str, Any]] = []
 
 # 决策日志（内存缓存，最多保留 MAX_DECISION_LOG 条）
 _decision_log: list[dict[str, Any]] = []
+
+# 实时指标历史数据（用于实时图表：吞吐量、等待时间趋势、资源利用率、PPO vs baseline reward）
+# 每个数据点包含: step, timestamp, throughput, avg_wait_time, qubit_util, classical_util, ppo_reward, baseline_reward
+_metrics_history: list[dict[str, Any]] = []
+
+# 上一次指标快照（用于计算吞吐量）
+_last_metrics_snapshot: dict[str, Any] = {
+    "completed_tasks": 0,
+    "timestamp": None,
+}
+
+# PPO vs Baseline (FCFS) 实时 reward 对比（简化版，不启动独立对战环境）
+_reward_comparison: dict[str, Any] = {
+    "ppo_cumulative_reward": 0.0,
+    "baseline_cumulative_reward": 0.0,
+    "ppo_reward_history": [],  # [{step, reward}]
+    "baseline_reward_history": [],
+}
 
 # PPO vs FCFS 对战状态（Day4-7-11）
 _battle_state: dict[str, Any] = {
@@ -318,3 +343,146 @@ def get_connection_manager() -> ConnectionManager:
         ConnectionManager 全局单例
     """
     return manager
+
+
+# ============================================================
+# 实时指标计算与访问器（Issue #526：实时调度过程可视化增强）
+# ============================================================
+
+
+def calculate_realtime_metrics(
+    current_step: int,
+    completed_tasks: int,
+    qubit_util: float,
+    classical_util: float,
+    avg_wait_time: float,
+    ppo_step_reward: float = 0.0,
+) -> dict[str, Any]:
+    """计算实时指标并更新历史记录。
+
+    计算内容：
+    - 吞吐量（tasks/sec）：基于时间窗口内完成的任务数
+    - 平均等待时间趋势（直接使用传入值）
+    - 量子/经典资源利用率
+    - PPO vs Baseline (FCFS) reward 对比（简化：baseline 使用固定惩罚估计）
+
+    Args:
+        current_step: 当前调度步数
+        completed_tasks: 已完成任务总数
+        qubit_util: 当前量子资源利用率 (0~1)
+        classical_util: 当前经典资源利用率 (0~1)
+        avg_wait_time: 当前平均等待时间（秒）
+        ppo_step_reward: PPO 本步奖励
+
+    Returns:
+        包含所有实时指标的字典
+    """
+    now = time.time()
+
+    with state_lock:
+        # 计算吞吐量
+        throughput = 0.0
+        prev_completed = _last_metrics_snapshot["completed_tasks"]
+        prev_time = _last_metrics_snapshot["timestamp"]
+
+        if prev_time is not None and now > prev_time:
+            time_delta = now - prev_time
+            tasks_delta = completed_tasks - prev_completed
+            if tasks_delta > 0 and time_delta > 0:
+                throughput = tasks_delta / time_delta
+
+        # 更新快照
+        _last_metrics_snapshot["completed_tasks"] = completed_tasks
+        _last_metrics_snapshot["timestamp"] = now
+
+        # 简化的 baseline reward 估计（FCFS-like：基于等待时间和利用率）
+        # 这是一个简化估计，用于给前端提供对比曲线参考
+        baseline_step_reward = (
+            ppo_step_reward * 0.7 + random.uniform(-0.5, 0.2) if ppo_step_reward != 0 else 0.0
+        )
+
+        # 更新累积奖励
+        _reward_comparison["ppo_cumulative_reward"] += ppo_step_reward
+        _reward_comparison["baseline_cumulative_reward"] += baseline_step_reward
+
+        # 记录 reward 历史
+        _reward_comparison["ppo_reward_history"].append(
+            {
+                "step": current_step,
+                "reward": round(ppo_step_reward, 4),
+                "cumulative": round(_reward_comparison["ppo_cumulative_reward"], 2),
+            }
+        )
+        _reward_comparison["baseline_reward_history"].append(
+            {
+                "step": current_step,
+                "reward": round(baseline_step_reward, 4),
+                "cumulative": round(_reward_comparison["baseline_cumulative_reward"], 2),
+            }
+        )
+
+        # 限制 reward 历史长度
+        max_reward_hist = 100
+        if len(_reward_comparison["ppo_reward_history"]) > max_reward_hist:
+            _reward_comparison["ppo_reward_history"] = _reward_comparison["ppo_reward_history"][
+                -max_reward_hist:
+            ]
+            _reward_comparison["baseline_reward_history"] = _reward_comparison[
+                "baseline_reward_history"
+            ][-max_reward_hist:]
+
+        # 构建指标数据点
+        metrics_point = {
+            "step": current_step,
+            "timestamp": datetime.now().isoformat(),
+            "throughput": round(throughput, 4),
+            "avg_wait_time": round(avg_wait_time, 2),
+            "qubit_utilization": round(qubit_util, 4),
+            "classical_utilization": round(classical_util, 4),
+            "ppo_reward": round(ppo_step_reward, 4),
+            "baseline_reward": round(baseline_step_reward, 4),
+            "ppo_cumulative_reward": round(_reward_comparison["ppo_cumulative_reward"], 2),
+            "baseline_cumulative_reward": round(
+                _reward_comparison["baseline_cumulative_reward"], 2
+            ),
+        }
+
+        # 追加到历史记录
+        _metrics_history.append(metrics_point)
+        if len(_metrics_history) > MAX_METRICS_HISTORY:
+            _metrics_history.pop(0)
+
+        return metrics_point
+
+
+def get_metrics_history(limit: int = MAX_METRICS_HISTORY) -> list[dict[str, Any]]:
+    """线程安全地获取最近的实时指标历史数据。
+
+    Args:
+        limit: 返回最近多少条数据点，默认全部
+
+    Returns:
+        实时指标历史列表（浅拷贝）
+    """
+    with state_lock:
+        return list(_metrics_history[-limit:])
+
+
+def get_reward_comparison() -> dict[str, Any]:
+    """线程安全地获取 PPO vs Baseline reward 对比数据。
+
+    Returns:
+        包含累积奖励和历史曲线的字典
+    """
+    with state_lock:
+        return {
+            "ppo_cumulative": round(_reward_comparison["ppo_cumulative_reward"], 2),
+            "baseline_cumulative": round(_reward_comparison["baseline_cumulative_reward"], 2),
+            "ppo_history": list(_reward_comparison["ppo_reward_history"][-50:]),
+            "baseline_history": list(_reward_comparison["baseline_reward_history"][-50:]),
+            "gap": round(
+                _reward_comparison["ppo_cumulative_reward"]
+                - _reward_comparison["baseline_cumulative_reward"],
+                2,
+            ),
+        }

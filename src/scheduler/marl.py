@@ -81,18 +81,25 @@ class MultiAgentEnvWrapper:
     # 每台机器的局部观测增量维度：fidelity + available_ratio + queue_length
     PER_MACHINE_FEATURE_DIM = 3
 
-    def __init__(self, env: QuantumSchedulingEnv):
+    def __init__(
+        self,
+        env: QuantumSchedulingEnv,
+        scorer: MachineScorer | None = None,
+    ):
         """
         初始化多智能体环境包装器。
 
         Args:
             env: 已配置好机器的 QuantumSchedulingEnv 实例
+            scorer: 机器评分器实例；为 None 时使用 StaticMachineScorer（启发式公式）。
+                    通过 ``create_machine_scorer('learnable')`` 可启用可学习评分网络（Issue #598）。
         """
         self.env = env
         self.num_agents = env.num_machines
         self.machine_names: list[str] = list(env.machine_names)
         # 局部观测维度 = 全局 10 + 本机 3
         self.local_obs_dim = OBS_DIM + self.PER_MACHINE_FEATURE_DIM
+        self.scorer: MachineScorer = scorer if scorer is not None else StaticMachineScorer()
 
     def refresh_machines(self) -> bool:
         """刷新环境中的机器列表，支持包装器运行期间动态加入机器。
@@ -135,14 +142,20 @@ class MultiAgentEnvWrapper:
         result: np.ndarray = np.concatenate([global_obs.astype(np.float32), per_machine])
         return result
 
-    def get_local_observations(self) -> dict[str, np.ndarray]:
+    def get_local_observations(self, global_obs: np.ndarray | None = None) -> dict[str, np.ndarray]:
         """
         获取所有 Agent 的局部观测。
+
+        Args:
+            global_obs: 可选的预计算全局观测向量。若提供则直接复用，避免
+                重复调用 ``env._get_observation()``（Issue #627 性能优化）；
+                若为 None 则即时构建。
 
         Returns:
             机器名 -> 局部观测向量的字典
         """
-        global_obs = self.env._get_observation()
+        if global_obs is None:
+            global_obs = self.env._get_observation()
         return {
             self.machine_names[i]: self._build_local_obs(global_obs, i)
             for i in range(self.num_agents)
@@ -170,9 +183,10 @@ class MultiAgentEnvWrapper:
 
     def _machine_score(self, machine_idx: int) -> float:
         """
-        计算机器评分：保真度 * 可用比率 / (1 + 队列长度)。
+        计算机器评分，委托给注入的 scorer。
 
-        与 env._select_best_machine 的评分保持一致，用于在多个投票机器中择优。
+        Issue #598：支持可学习评分网络。具体评分逻辑由 ``self.scorer`` 决定，
+        默认为 StaticMachineScorer（启发式公式），可配置为 LearnableMachineScorer。
 
         Args:
             machine_idx: 机器索引
@@ -180,8 +194,7 @@ class MultiAgentEnvWrapper:
         Returns:
             评分值（越高越优）
         """
-        m = self.env._machines[machine_idx]
-        return m.fidelity * m.available_ratio / (1.0 + m.quantum_queue)
+        return self.scorer.score(machine_idx, self.env)
 
     def aggregate_actions(self, actions: dict[str, int]) -> tuple[int, int | None]:
         """
@@ -293,7 +306,8 @@ class MultiAgentEnvWrapper:
         info["chosen_machine"] = self.machine_names[chosen_idx] if chosen_idx is not None else None
         info["env_action"] = env_action
 
-        local_obs = self.get_local_observations()
+        # Issue #627: 复用 env.step() 返回的全局观测，避免再次调用 _get_observation()
+        local_obs = self.get_local_observations(global_obs=_next_obs)
         return local_obs, float(reward), bool(terminated), bool(truncated), info
 
     def reset(
@@ -310,8 +324,9 @@ class MultiAgentEnvWrapper:
             local_obs: 机器名 -> 局部观测
             info: 环境信息字典
         """
-        _, info = self.env.reset(seed=seed, options=options)
-        return self.get_local_observations(), info
+        reset_obs, info = self.env.reset(seed=seed, options=options)
+        # Issue #627: 复用 reset 返回的全局观测构建局部观测，避免再次 _get_observation()
+        return self.get_local_observations(global_obs=reset_obs), info
 
 
 # ---------------------------------------------------------------------------
@@ -456,6 +471,305 @@ class CentralizedCritic(nn.Module):
             价值张量，形状 (batch,)
         """
         return self.net(global_state).squeeze(-1)  # type: ignore[no-any-return]
+
+
+# ---------------------------------------------------------------------------
+# 机器评分器（Issue #598：可学习路由/评分网络）
+# ---------------------------------------------------------------------------
+
+MACHINE_SCORE_FEATURE_DIM = 8
+
+
+def _extract_machine_features(m: Any) -> np.ndarray:
+    """
+    从 QuantumMachine 提取 8 维特征向量，用于机器评分。
+
+    特征定义（均归一化到 [0,1]）：
+        0. fidelity              : 量子比特平均保真度
+        1. available_ratio       : 可用量子比特比率
+        2. queue_length_norm     : 量子队列长度 / MAX_QUEUE_SIZE
+        3. available_flag        : 机器是否在线（1.0 / 0.0）
+        4. single_gate_fidelity  : 单比特门保真度
+        5. two_gate_fidelity     : 两比特门保真度
+        6. readout_error         : 读出错误率（越低越好，直接传入由网络学习权重）
+        7. used_qubits_ratio     : 已用比特占比（load/utilization）
+
+    Args:
+        m: QuantumMachine 实例
+
+    Returns:
+        形状 (8,) 的 float32 特征向量
+    """
+    total_q = max(getattr(m, "total_qubits", 1), 1)
+    used_q = getattr(m, "used_qubits", 0)
+    return np.array(
+        [
+            float(np.clip(getattr(m, "fidelity", 0.0), 0.0, 1.0)),
+            float(np.clip(getattr(m, "available_ratio", 0.0), 0.0, 1.0)),
+            float(np.clip(getattr(m, "quantum_queue", 0) / MAX_QUEUE_SIZE, 0.0, 1.0)),
+            1.0 if getattr(m, "available", False) else 0.0,
+            float(np.clip(getattr(m, "single_gate_fidelity", 0.99), 0.0, 1.0)),
+            float(np.clip(getattr(m, "two_gate_fidelity", 0.95), 0.0, 1.0)),
+            float(np.clip(getattr(m, "readout_error", 0.0), 0.0, 1.0)),
+            float(np.clip(used_q / total_q, 0.0, 1.0)),
+        ],
+        dtype=np.float32,
+    )
+
+
+class MachineScorer:
+    """
+    机器评分器抽象基类。
+
+    所有评分器必须实现 ``score`` 方法：给定机器索引和环境引用，返回标量评分
+    （越高越优）。评分器在多智能体动作聚合时用于从投票机器中选择最优机器。
+    """
+
+    def score(self, machine_idx: int, env: QuantumSchedulingEnv) -> float:
+        """
+        计算指定机器的评分。
+
+        Args:
+            machine_idx: 机器在 env._machines 列表中的索引
+            env: QuantumSchedulingEnv 实例（提供 _machines 访问）
+
+        Returns:
+            评分标量（越高越优）
+        """
+        raise NotImplementedError
+
+    def save(self, path: str) -> None:
+        """保存模型权重（静态评分器为空操作）。"""
+
+    def load(self, path: str) -> None:
+        """加载模型权重（静态评分器为空操作）。"""
+
+
+class StaticMachineScorer(MachineScorer):
+    """
+    静态启发式机器评分器（baseline）。
+
+    评分公式与 env._select_best_machine 保持一致：
+        score = fidelity * available_ratio / (1 + quantum_queue)
+
+    该评分器不包含可学习参数，仅作为基线对照使用。
+    """
+
+    def score(self, machine_idx: int, env: QuantumSchedulingEnv) -> float:
+        m = env._machines[machine_idx]
+        return float(m.fidelity * m.available_ratio / (1.0 + m.quantum_queue))
+
+
+class LearnableMachineScorer(MachineScorer, nn.Module):
+    """
+    可学习机器评分网络（Issue #598）。
+
+    使用 2 层 MLP（hidden_dim=64，Tanh 激活）将 8 维机器状态特征
+    映射为标量评分。训练时通过 MAPPO 策略梯度端到端优化评分权重，
+    推理时 ``score`` 方法在 no_grad 模式下前向计算。
+
+    网络结构：
+        Linear(8, 64) → Tanh → Linear(64, 64) → Tanh → Linear(64, 1) → Squeeze
+
+    Attributes:
+        device: 计算设备
+        hidden_dim: 隐藏层维度（默认 64）
+    """
+
+    def __init__(
+        self,
+        input_dim: int = MACHINE_SCORE_FEATURE_DIM,
+        hidden_dim: int = 64,
+        learning_rate: float = 3e-4,
+        device: str | torch.device = "cpu",
+    ):
+        """
+        初始化可学习评分网络。
+
+        Args:
+            input_dim: 输入特征维度（默认 8）
+            hidden_dim: 隐藏层维度（默认 64）
+            learning_rate: 优化器学习率
+            device: 计算设备
+        """
+        nn.Module.__init__(self)
+        MachineScorer.__init__(self)
+        self.input_dim = input_dim
+        self.hidden_dim = hidden_dim
+        if isinstance(device, str):
+            self.device = torch.device(
+                "cuda" if device == "auto" and torch.cuda.is_available() else device
+            )
+        else:
+            self.device = device
+
+        self.net = nn.Sequential(
+            nn.Linear(input_dim, hidden_dim),
+            nn.Tanh(),
+            nn.Linear(hidden_dim, hidden_dim),
+            nn.Tanh(),
+            nn.Linear(hidden_dim, 1),
+        ).to(self.device)
+
+        self.optimizer = Adam(self.net.parameters(), lr=learning_rate, eps=1e-5)
+
+    def forward(self, features: torch.Tensor) -> torch.Tensor:
+        """
+        可微分前向传播（训练时使用）。
+
+        Args:
+            features: 机器特征张量，形状 (batch, input_dim) 或 (input_dim,)
+
+        Returns:
+            评分张量，形状 (batch,) 或 ()
+        """
+        if features.dim() == 1:
+            features = features.unsqueeze(0)
+            return self.net(features).squeeze(-1).squeeze(0)  # type: ignore[no-any-return]
+        return self.net(features).squeeze(-1)  # type: ignore[no-any-return]
+
+    def get_score(self, machine_features: np.ndarray) -> float:
+        """
+        推理模式评分：给定特征向量返回标量评分（no_grad）。
+
+        Args:
+            machine_features: 形状 (input_dim,) 的机器特征向量
+
+        Returns:
+            标量评分
+        """
+        with torch.no_grad():
+            t = torch.as_tensor(machine_features, dtype=torch.float32, device=self.device)
+            score_t = self.forward(t)
+            return float(score_t.item())
+
+    def score(self, machine_idx: int, env: QuantumSchedulingEnv) -> float:
+        """
+        MachineScorer 接口实现：提取特征并推理评分。
+
+        Args:
+            machine_idx: 机器索引
+            env: 环境实例
+
+        Returns:
+            标量评分
+        """
+        m = env._machines[machine_idx]
+        features = _extract_machine_features(m)
+        return self.get_score(features)
+
+    def update(self, loss: torch.Tensor, max_grad_norm: float = 0.5) -> float:
+        """
+        执行一次梯度更新步骤。
+
+        供 MAPPO 训练循环调用：对评分网络损失进行反向传播和参数更新。
+        该方法封装了 zero_grad → backward → clip_grad_norm → optimizer.step
+        的完整流程，使训练集成时只需传入损失张量即可。
+
+        Args:
+            loss: 评分网络的损失标量张量（需保留计算图）
+            max_grad_norm: 梯度裁剪最大范数
+
+        Returns:
+            更新前的损失值（float）
+        """
+        loss_val = float(loss.item())
+        self.optimizer.zero_grad()
+        loss.backward()
+        nn.utils.clip_grad_norm_(self.net.parameters(), max_grad_norm)
+        self.optimizer.step()
+        return loss_val
+
+    def save(self, path: str) -> None:
+        """
+        保存模型权重和优化器状态到文件。
+
+        Args:
+            path: 保存路径（不含扩展名，将自动添加 _scorer.pt）
+        """
+        os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+        state = {
+            "model_state_dict": self.net.state_dict(),
+            "optimizer_state_dict": self.optimizer.state_dict(),
+            "config": {
+                "input_dim": self.input_dim,
+                "hidden_dim": self.hidden_dim,
+            },
+        }
+        save_path = path + "_scorer.pt" if not path.endswith("_scorer.pt") else path
+        torch.save(state, save_path)
+
+    def load(self, path: str) -> None:
+        """
+        从文件加载模型权重和优化器状态。
+
+        Args:
+            path: 模型文件路径（.pt 文件，或不含 _scorer.pt 的路径前缀）
+        """
+        if path.endswith(".pt") and not path.endswith("_scorer.pt"):
+            load_path = path.replace(".pt", "_scorer.pt")
+        elif not path.endswith("_scorer.pt"):
+            load_path = path + "_scorer.pt"
+        else:
+            load_path = path
+        if not os.path.exists(load_path):
+            if not path.endswith(".pt") and os.path.exists(path + ".pt"):
+                load_path = path + "_scorer.pt"
+            else:
+                logger.warning(f"[LearnableMachineScorer] 权重文件不存在: {load_path}，跳过加载")
+                return
+        state = torch.load(load_path, map_location=self.device, weights_only=False)
+        self.net.load_state_dict(state["model_state_dict"])
+        if "optimizer_state_dict" in state:
+            self.optimizer.load_state_dict(state["optimizer_state_dict"])
+        if self.device.type != "cpu":
+            for state_pg in self.optimizer.state.values():
+                for k, v in state_pg.items():
+                    if torch.is_tensor(v):
+                        state_pg[k] = v.to(self.device)
+
+
+def create_machine_scorer(
+    method: str = "learnable",
+    *,
+    device: str | torch.device = "cpu",
+    hidden_dim: int = 64,
+    learning_rate: float = 3e-4,
+) -> MachineScorer:
+    """
+    机器评分器工厂函数（Issue #598）。
+
+    根据 ``method`` 参数创建对应类型的评分器实例，
+    使调度系统可配置选择静态启发式或可学习评分网络。
+
+    Args:
+        method: 评分方法，``"learnable"``（默认）或 ``"static"``
+        device: 计算设备（仅 learnable 模式使用）
+        hidden_dim: 隐藏层维度（仅 learnable 模式使用）
+        learning_rate: 学习率（仅 learnable 模式使用）
+
+    Returns:
+        MachineScorer 实例
+
+    Raises:
+        ValueError: method 不是 "learnable" 或 "static" 时
+    """
+    if method == "static":
+        return StaticMachineScorer()
+    if method == "learnable":
+        if isinstance(device, str) and device == "auto":
+            dev = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        elif isinstance(device, str):
+            dev = torch.device(device)
+        else:
+            dev = device
+        return LearnableMachineScorer(
+            input_dim=MACHINE_SCORE_FEATURE_DIM,
+            hidden_dim=hidden_dim,
+            learning_rate=learning_rate,
+            device=dev,
+        )
+    raise ValueError(f"未知的 machine scoring method: {method!r}，可选 'learnable' 或 'static'")
 
 
 # ---------------------------------------------------------------------------
@@ -675,6 +989,7 @@ class MultiAgentPPO:
         device: str = "auto",
         verbose: int = 1,
         lr_schedule: LRScheduleType = "linear",
+        scorer_method: str = "static",
     ):
         """
         初始化 MAPPO 智能体。
@@ -700,13 +1015,16 @@ class MultiAgentPPO:
             lr_schedule: 学习率调度类型（Issue #403），可选 ``"linear"``
                 / ``"cosine"`` / ``"constant"``，默认 ``"linear"``。
                 ``"constant"`` 等价于旧行为（固定学习率）。
+            scorer_method: 机器评分方法（Issue #598），``"static"``（默认，启发式公式）
+                或 ``"learnable"``（可学习 MLP 评分网络）。默认 ``"static"`` 以保持
+                向后兼容；设置为 ``"learnable"`` 启用可学习路由/评分网络骨架。
         """
         self.env = env
-        self.wrapper = MultiAgentEnvWrapper(env)
-        self.num_agents = self.wrapper.num_agents
-        self.machine_names = self.wrapper.machine_names
-        self.local_obs_dim = self.wrapper.local_obs_dim
-        self.global_state_dim = self.wrapper.local_obs_dim * self.num_agents
+        self.num_agents = env.num_machines
+        self.machine_names: list[str] = list(env.machine_names)
+        # 局部观测维度 = 全局 OBS_DIM + 本机 PER_MACHINE_FEATURE_DIM
+        self.local_obs_dim = OBS_DIM + MultiAgentEnvWrapper.PER_MACHINE_FEATURE_DIM
+        self.global_state_dim = self.local_obs_dim * self.num_agents
 
         # 超参数
         self.learning_rate = learning_rate
@@ -725,6 +1043,7 @@ class MultiAgentPPO:
         self.seed = seed
         self.log_dir = log_dir
         self.verbose = verbose
+        self.scorer_method = scorer_method
 
         os.makedirs(log_dir, exist_ok=True)
 
@@ -736,6 +1055,16 @@ class MultiAgentPPO:
 
         # 设置随机种子
         self._set_seed(seed)
+
+        # Issue #598: 创建机器评分器
+        self.machine_scorer = create_machine_scorer(
+            method=scorer_method,
+            device=self.device,
+            learning_rate=learning_rate,
+        )
+
+        # 构建环境包装器（注入评分器）
+        self.wrapper = MultiAgentEnvWrapper(env, scorer=self.machine_scorer)
 
         # 构建网络
         self.actors: list[ActorNet] = [
@@ -804,7 +1133,10 @@ class MultiAgentPPO:
         Returns:
             拼接后的全局状态向量（float32），等价于 ``wrapper.get_global_state()``。
         """
-        return np.concatenate([local_obs[name] for name in self.machine_names]).astype(np.float32)
+        result: np.ndarray = np.concatenate(
+            [local_obs[name] for name in self.machine_names]
+        ).astype(np.float32)
+        return result
 
     # ------------------------------------------------------------------
     # 动作采样
@@ -870,6 +1202,12 @@ class MultiAgentPPO:
                 pg["lr"] = new_lr
         for pg in self.critic_optimizer.param_groups:
             pg["lr"] = new_lr
+        # Issue #598: 同步更新可学习评分器的学习率
+        if self.scorer_method == "learnable" and isinstance(
+            self.machine_scorer, LearnableMachineScorer
+        ):
+            for pg in self.machine_scorer.optimizer.param_groups:
+                pg["lr"] = new_lr
 
     def train(
         self,
@@ -1143,13 +1481,17 @@ class MultiAgentPPO:
         episode_success: list[float] = []
 
         for _ in range(num_episodes):
-            self.wrapper.reset()
+            local_obs, _ = self.wrapper.reset()
             total_reward = 0.0
             done = False
             steps = 0
+            info: dict[str, Any] = {}
             while not done and steps < self.env.max_steps:
-                env_action = self.predict(deterministic=deterministic)
-                _, reward, terminated, truncated, info = self.env.step(env_action)
+                global_state = self._global_state_from_local_obs(local_obs)
+                actions, _, _ = self._sample_actions(
+                    local_obs, deterministic=deterministic, global_state=global_state
+                )
+                local_obs, reward, terminated, truncated, info = self.wrapper.step(actions)
                 total_reward += reward
                 done = bool(terminated or truncated)
                 steps += 1
@@ -1170,7 +1512,6 @@ class MultiAgentPPO:
     def _save_internal(self, path: str) -> None:
         """内部保存（不打印日志），用于 best_model 检查点。"""
         os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
-        # 将权重数据与配置分离，权重用 torch.save(weights_only=True) 安全保存
         state = {
             "actors": [actor.state_dict() for actor in self.actors],
             "critic": self.critic.state_dict(),
@@ -1180,22 +1521,26 @@ class MultiAgentPPO:
             "local_obs_dim": self.local_obs_dim,
             "global_state_dim": self.global_state_dim,
             "machine_names": self.machine_names,
+            "scorer_method": self.scorer_method,
         }
         torch.save(state, path + ".pt")
-        # 配置单独保存为 JSON（避免 torch.load 反序列化风险）
         with open(path + "_config.json", "w", encoding="utf-8") as f:
             json.dump(config, f, ensure_ascii=False, indent=2)
+        # Issue #598: 保存可学习评分器权重
+        self.machine_scorer.save(path)
 
     def save(self, path: str) -> None:
         """
         保存 MAPPO 模型到指定路径。
 
         Args:
-            path: 保存路径（不含扩展名，将自动添加 .pt）
+            path: 保存路径（不含扩展名，将自动添加 .pt；
+                  LearnableMachineScorer 额外保存 _scorer.pt）
         """
         self._save_internal(path)
         if self.verbose >= 1:
-            logger.info(f"[MAPPO] 模型已保存至: {path}.pt + {path}_config.json")
+            scorer_suffix = " + _scorer.pt" if self.scorer_method == "learnable" else ""
+            logger.info(f"[MAPPO] 模型已保存至: {path}.pt + {path}_config.json{scorer_suffix}")
 
     def load(self, path: str) -> None:
         """
@@ -1207,18 +1552,15 @@ class MultiAgentPPO:
         if not path.endswith(".pt"):
             path = path + ".pt"
 
-        # 优先从独立 JSON 加载配置（新格式，weights_only=True 安全）
         config_path = path.replace(".pt", "_config.json")
         if os.path.exists(config_path):
             with open(config_path, encoding="utf-8") as f:
                 cfg = json.load(f)
             state = torch.load(path, map_location=self.device, weights_only=True)
         else:
-            # 兼容旧格式：配置嵌入在 .pt 文件中，需 weights_only=False
             logger.warning("模型文件使用旧格式（配置嵌入 pickle），建议重新保存以启用安全加载。")
-            state = torch.load(path, map_location=self.device, weights_only=False)  # nosec B614: 旧格式兼容路径，仅当缺少 _config.json 时使用
+            state = torch.load(path, map_location=self.device, weights_only=False)  # nosec B614
             cfg = state.pop("config")
-        # 校验配置一致性
         if cfg["num_agents"] != self.num_agents:
             raise ValueError(
                 f"模型 num_agents={cfg['num_agents']} 与当前环境 "
@@ -1227,6 +1569,9 @@ class MultiAgentPPO:
         for i, actor in enumerate(self.actors):
             actor.load_state_dict(state["actors"][i])
         self.critic.load_state_dict(state["critic"])
+        # Issue #598: 加载评分器权重（learnable 模式）
+        if self.scorer_method == "learnable":
+            self.machine_scorer.load(path)
         if self.verbose >= 1:
             logger.info(f"[MAPPO] 模型已从 {path} 加载")
 
@@ -1259,6 +1604,7 @@ class MultiAgentPPO:
             "vf_coef": self.vf_coef,
             "max_grad_norm": self.max_grad_norm,
             "device": str(self.device),
+            "scorer_method": self.scorer_method,
         }
 
     def __repr__(self) -> str:
@@ -1272,6 +1618,7 @@ class MultiAgentPPO:
             f"  局部观测维度={cfg['local_obs_dim']},\n"
             f"  全局状态维度={cfg['global_state_dim']},\n"
             f"  学习率={cfg['learning_rate']},\n"
+            f"  评分器={cfg['scorer_method']},\n"
             f"  n_steps={cfg['n_steps']},\n"
             f"  batch_size={cfg['batch_size']}\n"
             f")"

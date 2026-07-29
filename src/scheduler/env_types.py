@@ -96,6 +96,9 @@ REAL_MACHINE_FAIL_PENALTY = -1.0
 REAL_MACHINE_DEGRADE_FAIL_THRESHOLD = 3
 # 单个真机任务结果轮询的最大次数（超过则视为超时失败）
 REAL_MACHINE_MAX_POLL_STEPS = 20
+# 每步最多轮询的 pending 任务数（Issue #524：避免 step() 中同步阻塞）
+# 默认值 1 确保每个 step() 最多发起 1 次网络请求，将阻塞时间控制在单次请求延迟内
+REAL_MACHINE_MAX_POLL_PER_STEP_DEFAULT = 1
 
 # ---------------------------------------------------------------------------
 # 真机结果反馈模式（Issue #235）
@@ -119,6 +122,15 @@ REAL_RESULT_REWARD_MIN = 0.0  # 测量解析失败时给 0 奖励（不鼓励失
 
 # Issue #576: 真机提交训练级硬上限默认值（配合 200 步训练约 4-5 次真机提交）
 REAL_MACHINE_MAX_SUBMISSIONS_DEFAULT = 30
+
+# Issue #577: 噪声感知奖励整形默认参数
+NOISE_AWARE_REWARD_ENABLED_DEFAULT = True
+NOISE_AWARE_PENALTY_THRESHOLD = 0.9
+NOISE_AWARE_BONUS_THRESHOLD = 0.95
+NOISE_AWARE_PENALTY_STEPS = 5
+NOISE_AWARE_DECAY_FACTOR = 0.7
+NOISE_AWARD_PENALTY_STRENGTH = 2.0
+NOISE_AWARD_BONUS_STRENGTH = 0.5
 
 
 # ---------------------------------------------------------------------------
@@ -149,8 +161,16 @@ class RealMachineConfig:
         success_bonus          : 真机任务成功完成时的奖励加成
         fail_penalty           : 真机任务失败时的惩罚
         max_poll_steps         : 单任务结果轮询最大次数（超时视为失败）
+        max_poll_per_step      : 每步最多轮询的 pending 任务数（Issue #524，避免阻塞）
         result_reward_max      : result_aware 模式最大奖励上限
         result_reward_min      : result_aware 模式最小奖励下限
+        noise_aware_reward     : 是否启用噪声感知奖励整形（Issue #577）
+        noise_penalty_threshold: 低保真度惩罚阈值（低于此值施加惩罚）
+        noise_bonus_threshold  : 高保真度奖励阈值（高于此值给与加成）
+        noise_penalty_steps    : 惩罚/加成持续步数
+        noise_decay_factor     : 指数衰减因子（每步乘以该因子）
+        noise_penalty_strength : 惩罚强度系数
+        noise_bonus_strength   : 奖励加成强度系数
     """
 
     submit_probability: float = REAL_SUBMIT_PROBABILITY_DEFAULT
@@ -160,30 +180,57 @@ class RealMachineConfig:
     success_bonus: float = 5.0
     fail_penalty: float = REAL_MACHINE_FAIL_PENALTY
     max_poll_steps: int = REAL_MACHINE_MAX_POLL_STEPS
+    max_poll_per_step: int = REAL_MACHINE_MAX_POLL_PER_STEP_DEFAULT
     result_reward_max: float = REAL_RESULT_REWARD_MAX
     result_reward_min: float = REAL_RESULT_REWARD_MIN
+    noise_aware_reward: bool = NOISE_AWARE_REWARD_ENABLED_DEFAULT
+    noise_penalty_threshold: float = NOISE_AWARE_PENALTY_THRESHOLD
+    noise_bonus_threshold: float = NOISE_AWARE_BONUS_THRESHOLD
+    noise_penalty_steps: int = NOISE_AWARE_PENALTY_STEPS
+    noise_decay_factor: float = NOISE_AWARE_DECAY_FACTOR
+    noise_penalty_strength: float = NOISE_AWARD_PENALTY_STRENGTH
+    noise_bonus_strength: float = NOISE_AWARD_BONUS_STRENGTH
 
     def __post_init__(self) -> None:
         """参数校验。"""
         if not 0.0 <= self.submit_probability <= 1.0:
-            raise ValueError(
-                f"submit_probability must be in [0, 1], got {self.submit_probability}"
-            )
+            raise ValueError(f"submit_probability must be in [0, 1], got {self.submit_probability}")
         if self.submit_interval < 1:
-            raise ValueError(
-                f"submit_interval must be >= 1, got {self.submit_interval}"
-            )
+            raise ValueError(f"submit_interval must be >= 1, got {self.submit_interval}")
         if self.max_submissions < 0:
-            raise ValueError(
-                f"max_submissions must be non-negative, got {self.max_submissions}"
-            )
+            raise ValueError(f"max_submissions must be non-negative, got {self.max_submissions}")
         if self.degrade_fail_threshold < 1:
             raise ValueError(
                 f"degrade_fail_threshold must be >= 1, got {self.degrade_fail_threshold}"
             )
         if self.max_poll_steps < 1:
+            raise ValueError(f"max_poll_steps must be >= 1, got {self.max_poll_steps}")
+        if self.max_poll_per_step < 1:
+            raise ValueError(f"max_poll_per_step must be >= 1, got {self.max_poll_per_step}")
+        if not 0.0 <= self.noise_penalty_threshold <= 1.0:
             raise ValueError(
-                f"max_poll_steps must be >= 1, got {self.max_poll_steps}"
+                f"noise_penalty_threshold must be in [0, 1], got {self.noise_penalty_threshold}"
+            )
+        if not 0.0 <= self.noise_bonus_threshold <= 1.0:
+            raise ValueError(
+                f"noise_bonus_threshold must be in [0, 1], got {self.noise_bonus_threshold}"
+            )
+        if self.noise_penalty_threshold > self.noise_bonus_threshold:
+            raise ValueError(
+                f"noise_penalty_threshold ({self.noise_penalty_threshold}) must be <= "
+                f"noise_bonus_threshold ({self.noise_bonus_threshold})"
+            )
+        if self.noise_penalty_steps < 1:
+            raise ValueError(f"noise_penalty_steps must be >= 1, got {self.noise_penalty_steps}")
+        if not 0.0 < self.noise_decay_factor <= 1.0:
+            raise ValueError(f"noise_decay_factor must be in (0, 1], got {self.noise_decay_factor}")
+        if self.noise_penalty_strength < 0:
+            raise ValueError(
+                f"noise_penalty_strength must be non-negative, got {self.noise_penalty_strength}"
+            )
+        if self.noise_bonus_strength < 0:
+            raise ValueError(
+                f"noise_bonus_strength must be non-negative, got {self.noise_bonus_strength}"
             )
 
 
@@ -268,10 +315,12 @@ class QuantumMachine:
         is_real         : 是否对接真机（True 时可走 cqlib 提交）
         single_gate_fidelity : 单比特门平均保真度（SPAM error 补数）
         two_gate_fidelity : 两比特门平均保真度（CZ门误差率补数）
+        readout_error   : 读出错误率（0-1）
         coupling_density : 耦合图密度 = 实际连接数 / 全连接数
         avg_connectivity : 量子比特平均连通度 = 平均连接数 / max_connections
         active_tasks    : 当前正在该机器上并行执行的任务列表
         used_qubits     : 当前已占用的量子比特数
+        _noise_profile  : 注入的真机噪声画像（Issue #591），None 表示使用随机生成
     """
 
     name: str = "tianyan_s"
@@ -285,29 +334,92 @@ class QuantumMachine:
     # 物理噪声特征（阶段1）
     single_gate_fidelity: float = 0.99
     two_gate_fidelity: float = 0.95
+    readout_error: float = 0.015
     # 拓扑特征（阶段2）
     coupling_density: float = 0.5
     avg_connectivity: float = 0.5
     active_tasks: list = field(default_factory=list)
     used_qubits: int = 0
+    _noise_profile: dict[str, Any] | None = field(default=None, repr=False)
+
+    def inject_noise_profile(self, profile: dict[str, Any]) -> None:
+        """注入来自 NoiseModelExtractor 的真机噪声画像（Issue #591）。
+
+        接收 ``NoiseModelExtractor.extract_noise_profile()`` 返回的噪声字典，
+        从中提取平均保真度和读出错误率，用于驱动仿真环境的噪声特征。
+
+        Args:
+            profile: NoiseModelExtractor 返回的噪声画像字典，结构为::
+
+                {
+                    "readout_error": {"Q0": 0.012, ...},
+                    "gate_error": {"Q0_H": 0.0008, "Q0_Q1_CZ": 0.012, ...},
+                    "t1_time": {"Q0": 45.2, ...},
+                    "metadata": {"source": "real"|"mock", ...}
+                }
+        """
+        self._noise_profile = profile
+
+        gate_errors = profile.get("gate_error", {})
+        readout_errors = profile.get("readout_error", {})
+
+        single_gate_errors: list[float] = []
+        two_gate_errors: list[float] = []
+        for key, err in gate_errors.items():
+            if key.count("_") == 1:
+                single_gate_errors.append(float(err))
+            elif key.count("_") == 2:
+                two_gate_errors.append(float(err))
+
+        if single_gate_errors:
+            avg_single_err = float(np.mean(single_gate_errors))
+            self.single_gate_fidelity = float(np.clip(1.0 - avg_single_err, 0.0, 1.0))
+
+        if two_gate_errors:
+            avg_two_err = float(np.mean(two_gate_errors))
+            self.two_gate_fidelity = float(np.clip(1.0 - avg_two_err, 0.0, 1.0))
+
+        if readout_errors:
+            self.readout_error = float(np.mean(list(readout_errors.values())))
+
+        if single_gate_errors and two_gate_errors:
+            avg_total_err = float(np.mean(single_gate_errors + two_gate_errors))
+            self.fidelity = float(np.clip(1.0 - avg_total_err, 0.0, 1.0))
 
     def update_noise_features(self, rng: np.random.Generator) -> None:
         """
-        更新物理噪声特征（基于保真度噪声衰减模型）。
+        更新物理噪声特征。
 
-        单比特门保真度：fidelity * 0.99 + random(-0.02, 0)
-        两比特门保真度：fidelity * 0.95 + random(-0.03, 0.01)
+        当已通过 ``inject_noise_profile()`` 注入真机噪声画像时，
+        基于注入值添加小幅随机扰动（模拟真实噪声漂移）；
+        否则使用原有随机生成逻辑（Mock 模式，保持向后兼容）。
 
         Args:
             rng: NumPy 随机数生成器
         """
-        # 单比特门保真度：基于 fidelity 的噪声衰减
-        noise_single = rng.uniform(-0.02, 0.0)
-        self.single_gate_fidelity = float(np.clip(self.fidelity * 0.99 + noise_single, 0.0, 1.0))
+        if self._noise_profile is not None:
+            noise_single = rng.uniform(-0.005, 0.005)
+            self.single_gate_fidelity = float(
+                np.clip(self.single_gate_fidelity + noise_single, 0.0, 1.0)
+            )
+            noise_two = rng.uniform(-0.008, 0.008)
+            self.two_gate_fidelity = float(np.clip(self.two_gate_fidelity + noise_two, 0.0, 1.0))
+            noise_readout = rng.uniform(-0.003, 0.003)
+            self.readout_error = float(np.clip(self.readout_error + noise_readout, 0.0, 1.0))
+            noise_fid = rng.uniform(-0.003, 0.003)
+            self.fidelity = float(np.clip(self.fidelity + noise_fid, 0.0, 1.0))
+        else:
+            noise_single = rng.uniform(-0.02, 0.0)
+            self.single_gate_fidelity = float(
+                np.clip(self.fidelity * 0.99 + noise_single, 0.0, 1.0)
+            )
 
-        # 两比特门保真度：基于 fidelity 的噪声衰减（两比特门误差更大）
-        noise_two = rng.uniform(-0.03, 0.01)
-        self.two_gate_fidelity = float(np.clip(self.fidelity * 0.95 + noise_two, 0.0, 1.0))
+            noise_two = rng.uniform(-0.03, 0.01)
+            self.two_gate_fidelity = float(np.clip(self.fidelity * 0.95 + noise_two, 0.0, 1.0))
+
+            self.readout_error = float(
+                np.clip((1.0 - self.fidelity) * 0.5 + rng.uniform(-0.005, 0.01), 0.0, 1.0)
+            )
 
     def update_topology_features(self) -> None:
         """

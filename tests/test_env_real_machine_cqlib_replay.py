@@ -230,13 +230,11 @@ class TestFeedbackModes:
         assert records[0]["fallback_mode"] is True
 
     def test_result_aware_parses_measurement(self) -> None:
-        """result_aware 模式：尝试解析测量分布并按保真度计算 reward。
+        """result_aware 模式：正确解析 fixture 中直接包含概率分布的 result 字段。
 
-        注意：当前 fixtures 的 ``result`` 字段直接是概率分布
-        (``{"0": 0.509, "1": 0.491}``)，而 ``parse_measurement_result``
-        路径4 期望 ``result.probability`` 嵌套结构，导致解析返回空字典。
-        此测试如实记录当前行为：测量解析失败时 reward=REAL_RESULT_REWARD_MIN，
-        fidelity=None，fallback_mode=True。fixture 格式改进是后续工作。
+        fixtures 的 ``result`` 字段直接是概率分布 (``{"0": 0.509, "1": 0.491}``)，
+        parse_measurement_result 路径4 应支持这种格式，正确计算保真度和奖励。
+        H 门理论分布 {0:0.5, 1:0.5}，测量分布接近理论值，保真度应接近 1.0。
         """
         env, _client = _make_env(feedback_mode=REAL_FEEDBACK_RESULT_AWARE)
         machine = env._machines[0]
@@ -245,18 +243,17 @@ class TestFeedbackModes:
         poll_pending_real_tasks(env)  # running
         feedback = poll_pending_real_tasks(env)  # completed
 
-        # fixture 格式不匹配 → 解析失败 → 最小奖励，fidelity=0.0
-        assert feedback == REAL_RESULT_REWARD_MIN
+        # H 门测量分布接近理论值，奖励应为高保真度奖励
+        assert feedback > REAL_RESULT_REWARD_MIN
+        assert feedback <= REAL_RESULT_REWARD_MAX
         records = env._real_result_records
         assert len(records) == 1
-        # 解析失败时 fidelity=0.0（非 None，因 0.0 >= 0 触发 round）
-        assert records[0]["fidelity"] == 0.0
-        assert records[0]["result_valid"] is False
-        # fallback_mode 仅在 status_only 模式下为 True；result_aware 模式始终 False
+        assert records[0]["fidelity"] is not None
+        assert records[0]["fidelity"] > 0.99
+        assert records[0]["result_valid"] is True
         assert records[0]["fallback_mode"] is False
-        # 因果日志应记录解析失败
         log = env._real_feedback_log[0]
-        assert "measurement_parse_failed" in log["formula"]
+        assert "measurement_parse_failed" not in log["formula"]
 
     def test_result_aware_with_inline_probability(self) -> None:
         """result_aware 模式 + 顶层 probability 字段：正确计算保真度。
@@ -547,13 +544,17 @@ class TestMultiplePendingTasks:
     """验证多个 pending 任务并发轮询的场景。"""
 
     def test_multiple_submissions_share_polling(self) -> None:
-        """多个 pending 任务在同一次轮询中各自独立流转。
+        """多个 pending 任务通过轮转队列逐步完成。
 
         注意：CqlibReplayClient 的 ``_task_submit`` fixture 只有一个 task_id，
         且 ``_task_polls`` 按 task_id 计数。两次提交返回相同 task_id 时，
-        第二次提交会重置计数器，导致第一个 pending 在第一次轮询时 running，
-        第二个 pending 在同一次轮询时 completed。此测试如实记录该行为：
-        单次轮询即可完成所有 pending（因共享 task_id 计数器）。
+        第二次提交会重置计数器。在轮转轮询模式下（max_poll_per_step=1），
+        每次 poll 只轮询队列头部的一个任务，未完成的任务移到队尾等待后续轮询。
+
+        轮询时序：
+            - 第1次poll：轮询qt1 → 第1次查询 → running（移到队尾）
+            - 第2次poll：轮询qt2 → 第2次查询 → completed（发放bonus，移除）
+            - 第3次poll：轮询qt1 → 第3次查询 → completed（发放bonus，移除）
         """
         env, _client = _make_env()
         machine = env._machines[0]
@@ -563,19 +564,20 @@ class TestMultiplePendingTasks:
 
         assert len(env._pending_real_tasks) == 2
 
-        # 单次轮询：qt1 running（保留），qt2 completed（完成）
-        # 因第二次提交重置了 _task_polls[task_id]=0，第一次查询返回 running，
-        # 第二次查询（同 task_id）返回 completed
+        # 第1次poll：轮询qt1 → running，无反馈，qt1移到队尾
         feedback = poll_pending_real_tasks(env)
+        assert feedback == 0.0
+        assert env._real_success_count == 0
+        assert len(env._pending_real_tasks) == 2
 
-        # qt2 完成发放 bonus，qt1 仍 running 无奖励
+        # 第2次poll：轮询qt2 → completed，发放bonus，qt2移除
+        feedback = poll_pending_real_tasks(env)
         assert feedback == REAL_MACHINE_SUCCESS_BONUS
         assert env._real_success_count == 1
-        # qt1 仍保留在 pending
         assert len(env._pending_real_tasks) == 1
         assert env._pending_real_tasks[0]["task_id_str"] == "qt1"
 
-        # 第二次轮询：qt1 完成
+        # 第3次poll：轮询qt1 → completed，发放bonus，qt1移除
         feedback2 = poll_pending_real_tasks(env)
         assert feedback2 == REAL_MACHINE_SUCCESS_BONUS
         assert env._real_success_count == 2

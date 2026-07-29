@@ -47,15 +47,46 @@ export interface RealSubmission {
 /** 系统状态（来自 /api/status 或 WS init） */
 export interface SystemStatus {
   qubit_utilization: number
+  classical_utilization: number
   queue_length: number
   average_wait_time: number
   completed_tasks: number
   current_step: number
+  throughput: number
   current_strategy: string
   strategy_options: string[]
   real_machines: MachineInfo[]
   real_submissions: RealSubmission[]
   last_update: string
+}
+
+/** 实时指标历史数据点（Issue #526） */
+export interface RealtimeMetricsPoint {
+  step: number
+  timestamp: string
+  throughput: number
+  avg_wait_time: number
+  qubit_utilization: number
+  classical_utilization: number
+  ppo_reward: number
+  baseline_reward: number
+  ppo_cumulative_reward: number
+  baseline_cumulative_reward: number
+}
+
+/** PPO vs Baseline reward 对比数据（Issue #526） */
+export interface RewardComparisonPoint {
+  step: number
+  reward: number
+  cumulative: number
+}
+
+export interface RewardComparison {
+  ppo_cumulative: number
+  baseline_cumulative: number
+  ppo_history: RewardComparisonPoint[]
+  baseline_history: RewardComparisonPoint[]
+  gap: number
 }
 
 /** 配额状态（来自即将新增的 /api/quota） */
@@ -115,6 +146,8 @@ export type WSMessageType =
   | 'status_update'
   | 'task_added'
   | 'strategy_changed'
+  | 'realtime_metrics'
+  | 'reward_comparison'
 
 /** WebSocket 消息载荷 */
 export interface WSMessage {
@@ -124,6 +157,16 @@ export interface WSMessage {
   task?: Task
   old_strategy?: string
   new_strategy?: string
+  ppo_active?: boolean
+  ppo_episode_reward?: number
+  ppo_episode_step?: number
+  realtime_metrics?: RealtimeMetricsPoint
+  reward_comparison?: RewardComparison
+  realtime_metrics_history?: RealtimeMetricsPoint[]
+  ppo_stats?: {
+    ppo_rank?: number
+    total?: number
+  }
 }
 
 /** Toast 通知 */

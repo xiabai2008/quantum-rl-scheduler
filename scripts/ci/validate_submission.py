@@ -568,7 +568,7 @@ class SubmissionValidator:
 
     # 缺失项与建议处理方式的映射，用于生成跟踪报告
     MISSING_ITEM_GUIDANCE: ClassVar[dict[str, str]] = {
-        "CODE_REPO": "在代码冻结日（2026-08-15）后由管理员执行 `git tag v9.0-submission` 并推送标签",
+        "CODE_REPO": "在代码冻结日（2026-08-15）后由管理员执行 `git tag v9.1-submission` 并推送标签",
         "CODE_ARCHIVE": "代码冻结后执行 `python scripts/ci/validate_submission.py --pack` 生成压缩包",
         "WHITEPAPER": "将 `技术白皮书_量子RL调度系统_v3.docx` 导出为 PDF（20-50 页，需含摘要/目录/参考文献）",
         "PRESENTATION": "根据 `答辩PPT大纲.md` 制作 .pptx 文件（15-20 页，需含封面/问题定义/架构图/实验结果/团队介绍）",

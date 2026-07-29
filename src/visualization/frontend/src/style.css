@@ -85,10 +85,13 @@ body {
   margin-top: 6px;
 }
 .card-blue .card-value { color: var(--accent-blue); }
+.card-indigo .card-value { color: #818cf8; }
 .card-purple .card-value { color: var(--accent-purple); }
 .card-green .card-value { color: var(--accent-green); }
 .card-amber .card-value { color: var(--accent-amber); }
 .card-cyan .card-value { color: var(--accent-cyan); }
+.card-teal .card-value { color: #2dd4bf; }
+.card-pink .card-value { color: #f472b6; }
 
 /* ===== 主内容区域 ===== */
 .main-content {

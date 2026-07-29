@@ -4,7 +4,7 @@
 
 Issue #141: 消除4套p值混用，建立单一权威统计源
 
-扫描所有 .md 文件中的统计数字（p值、效应量、N值），
+扫描所有 .md 文件及演示链路 .py 文件中的统计数字（p值、效应量、N值），
 与 config/statistics.yaml 权威源比对，报告不一致告警。
 
 用法:
@@ -34,6 +34,16 @@ if hasattr(sys.stdout, "reconfigure"):
 # 需要扫描的文件模式
 SCAN_GLOBS = ["*.md", "**/*.md"]
 
+# 演示链路 .py 文件（Web面板模板/一键演示/PPT生成脚本的展示字符串
+# 曾多次出现废弃数字，同样纳入口径审计）
+DEMO_CHAIN_FILES = [
+    "src/visualization/fallback_template.py",
+    "scripts/demo_one_click.py",
+    "scripts/generate_defense_ppt.py",
+    "scripts/demo/demo.py",
+    "scripts/demo/demo_multi_machine.py",
+]
+
 # 排除的文件/目录（权威报告本身，不检查自身）
 EXCLUDE_PATHS = {
     "config/statistics.yaml",
@@ -49,6 +59,14 @@ EXCLUDE_PATHS = {
     "results/reports/real_machine_boundary_statement.md",
     "results/reports/roi_analysis.md",
     "results/reports/utilization_multiseed_report.md",
+    # 历史实验报告（14维旧模型口径，已加废弃横幅冻结，禁止直接引用）
+    "results/reports/ablation_report.md",
+    "results/reports/issue_457_105_qubits_validation_report.md",
+    "results/reports/power_analysis.md",
+    "results/reports/quantum_ratio_sensitivity.md",
+    "results/reports/real_machine_closed_loop.md",
+    "results/reports/real_machine_validation.md",
+    "results/reports/tradeoff_analysis.md",
 }
 
 # 排除的文件名模式（内部协作文档，不提交到仓库，不需检查）
@@ -126,7 +144,7 @@ BLACKLIST_PATTERNS: list[tuple[str, str]] = [
         "BLACKLIST: v5白皮书/PPT从未存在，实际为docs/technical_whitepaper.pdf（7章），PPT制作中",
     ),
     (
-        r"利用率(提升)?\s*[≥>=]\s*30%.*已?达成|资源利用率.*≥30%.*达标",
+        r"利用率(提升)?\s*[≥>=]\s*30%.*已?达成|资源利用率.*≥30%.*(?<!未)达标",
         "BLACKLIST: N=250权威数据利用率仅+7.9%（未达30%目标），需改为部分达成口径",
     ),
     (
@@ -324,15 +342,26 @@ def extract_p_values_from_line(line: str) -> list[tuple[str, str]]:
     return results
 
 
+def _is_deprecation_notice(line: str) -> bool:
+    """判断行内是否为废弃声明上下文（在废弃声明中提及旧p值属合规引用）。"""
+    lower = line.lower()
+    return any(kw in line or kw in lower for kw in ("已废弃", "已淘汰", "deprecated"))
+
+
 def check_welch_t_misattribution(line: str) -> str | None:
     """检查 Welch t + p=1.032e-42 的错误搭配。"""
     line_lower = line.lower()
     has_1032e42 = (
         "1.032e-42" in line_lower or "1.032×10⁻⁴²" in line_lower or "1.03×10⁻⁴²" in line_lower
     )
-    # 如果行中同时包含 Mann-Whitney，说明是对比说明文本（如"已被...取代"），不报错
-    has_mann_whitney = "mann-whitney" in line_lower
-    if has_1032e42 and "welch" in line_lower and not has_mann_whitney:
+    # 行中同时包含 Mann-Whitney 或正确新p值 1.449e-66 或废弃声明时，
+    # 说明是对比/废弃说明文本，不报错
+    has_context = (
+        "mann-whitney" in line_lower
+        or "1.449e-66" in line_lower
+        or _is_deprecation_notice(line)
+    )
+    if has_1032e42 and "welch" in line_lower and not has_context:
         return WELCH_T_FOR_1032E42
     return None
 
@@ -368,7 +397,9 @@ def scan_markdown_file(
         # 提取p值
         p_values = extract_p_values_from_line(line)
         for _raw, normalized in p_values:
-            # 检查是否为废弃p值
+            # 检查是否为废弃p值（废弃声明上下文中提及旧p值属合规引用，豁免）
+            if _is_deprecation_notice(line):
+                break
             for dep_val, dep_msg in deprecated_p.items():
                 if normalized == dep_val or normalized.startswith(dep_val[:8]):
                     # 检查上下文：如果是在正确的实验上下文中使用则跳过
@@ -434,6 +465,11 @@ def main() -> int:
 
     # 收集所有Markdown文件（使用 os.walk 跳过 node_modules 等目录）
     md_files = set()
+    # 演示链路 .py 文件纳入扫描（与 .md 共用同一套逐行检查逻辑）
+    for rel in DEMO_CHAIN_FILES:
+        demo_path = _PROJECT_ROOT / rel
+        if demo_path.exists():
+            md_files.add(demo_path)
     # Issue #174: 排除非交付目录（AI 工作目录、数据转储、临时文件等），
     # 这些目录可能包含历史数字/草稿，不应参与口径审计，避免假失败
     exclude_dirs = {

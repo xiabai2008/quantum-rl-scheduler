@@ -128,6 +128,7 @@ def compute_execution_reward(
     quantum_available_ratio: float,
     crosstalk_penalty: float = 0.0,
     fairness_penalty: float = 0.0,
+    noise_adjustment: float = 0.0,
 ) -> float:
     """
     计算任务执行成功后的即时奖励。
@@ -141,6 +142,9 @@ def compute_execution_reward(
 
     **Issue #587 改进**：
         - 新增 ``fairness_penalty`` 参数，将公平性惩罚嵌入奖励函数
+
+    **Issue #577 改进**：
+        - 新增 ``noise_adjustment`` 参数，噪声感知奖励整形（真机保真度闭环反馈）
 
     奖励规则：
         - 经典执行 (action=0):
@@ -165,6 +169,7 @@ def compute_execution_reward(
         quantum_available_ratio : 当前量子资源聚合可用比率（0-1）
         crosstalk_penalty       : 串扰惩罚值
         fairness_penalty        : 公平性惩罚值（Issue #587，非正数）
+        noise_adjustment        : 噪声感知奖励调整值（Issue #577，负为惩罚，正为加成）
 
     Returns:
         float: 计算得到的即时奖励
@@ -198,6 +203,10 @@ def compute_execution_reward(
 
         # Issue #587: 累加公平性惩罚
         reward += fairness_penalty
+
+        # Issue #577: 应用噪声感知奖励调整
+        reward += noise_adjustment
+
         return float(reward + REWARD_SUCCESS_BONUS)
 
     elif action == ACTION_QUANTUM_QEM:
@@ -222,6 +231,10 @@ def compute_execution_reward(
 
         # Issue #587: 累加公平性惩罚
         reward += fairness_penalty
+
+        # Issue #577: 应用噪声感知奖励调整
+        reward += noise_adjustment
+
         return float(reward + REWARD_SUCCESS_BONUS)
 
     else:  # ACTION_HYBRID
@@ -233,6 +246,10 @@ def compute_execution_reward(
         reward = float(base * hybrid_factor * task_weight + REWARD_SUCCESS_BONUS)
         # Issue #587: 累加公平性惩罚
         reward += fairness_penalty
+
+        # Issue #577: 应用噪声感知奖励调整（混合执行也受量子噪声影响）
+        reward += noise_adjustment
+
         return reward
 
 

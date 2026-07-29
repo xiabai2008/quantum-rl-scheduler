@@ -29,6 +29,7 @@ from src.scheduler.baselines import (
     EnvBasedGreedyScheduler,
     EnvBasedHEFTScheduler,
     EnvBasedMinMinScheduler,
+    EnvBasedQAOAScheduler,
     EnvBasedScheduler,
     EnvBasedSPTFScheduler,
     FCFSScheduler,
@@ -36,6 +37,7 @@ from src.scheduler.baselines import (
     LIFOScheduler,
     MinMinScheduler,
     PriorityScheduler,
+    QAOAScheduler,
     RoundRobinScheduler,
     SPTFScheduler,
     get_all_baseline_schedulers,
@@ -373,14 +375,24 @@ class TestRunBaselineComparison(unittest.TestCase):
     """测试 run_baseline_comparison 对比函数。"""
 
     def test_returns_all_strategies(self):
-        """返回结果应包含全部 8 个基线策略。"""
+        """返回结果应包含全部 9 个基线策略。"""
         tasks = [
             _make_task("T1", priority=3, estimated_time=5.0, arrival_time=0.0),
             _make_task("T2", priority=5, estimated_time=3.0, arrival_time=1.0),
             _make_task("T3", priority=1, estimated_time=10.0, arrival_time=2.0),
         ]
         results = run_baseline_comparison(tasks, num_steps=10)
-        expected_names = {"FCFS", "SPTF", "EDF", "Priority", "RoundRobin", "LIFO", "HEFT", "MinMin"}
+        expected_names = {
+            "FCFS",
+            "SPTF",
+            "EDF",
+            "Priority",
+            "RoundRobin",
+            "LIFO",
+            "HEFT",
+            "MinMin",
+            "QAOA",
+        }
         self.assertEqual(set(results.keys()), expected_names)
 
     def test_result_structure_complete(self):
@@ -416,12 +428,13 @@ class TestRunBaselineComparison(unittest.TestCase):
             self.assertLessEqual(metrics["throughput"], 1.0, f"{name} throughput>1")
 
     def test_get_all_baseline_schedulers(self):
-        """get_all_baseline_schedulers 应返回 8 个不同策略实例。"""
+        """get_all_baseline_schedulers 应返回 9 个不同策略实例。"""
         schedulers = get_all_baseline_schedulers()
-        self.assertEqual(len(schedulers), 8)
+        self.assertEqual(len(schedulers), 9)
         names = {s.name for s in schedulers}
         self.assertEqual(
-            names, {"FCFS", "SPTF", "EDF", "Priority", "RoundRobin", "LIFO", "HEFT", "MinMin"}
+            names,
+            {"FCFS", "SPTF", "EDF", "Priority", "RoundRobin", "LIFO", "HEFT", "MinMin", "QAOA"},
         )
         for s in schedulers:
             self.assertIsInstance(s, BaselineScheduler)
@@ -436,7 +449,7 @@ class TestEdgeCases(unittest.TestCase):
     def test_empty_task_list_comparison(self):
         """空任务列表对比时各策略应完成 0 任务且奖励为 0。"""
         results = run_baseline_comparison([], num_steps=10)
-        self.assertEqual(len(results), 8)
+        self.assertEqual(len(results), 9)
         for name, metrics in results.items():
             self.assertEqual(metrics["completed_tasks"], 0, f"{name} 空列表应完成 0")
             self.assertEqual(metrics["total_reward"], 0.0, f"{name} 空列表奖励应为 0")
@@ -490,12 +503,12 @@ class TestEnvBasedScheduler(unittest.TestCase):
     """测试 EnvBasedScheduler Gymnasium 环境适配器（Issue #230/#270）。"""
 
     def test_get_all_env_based_schedulers(self):
-        """get_all_env_based_schedulers 应返回 6 个 EnvBasedScheduler 实例。"""
+        """get_all_env_based_schedulers 应返回 7 个 EnvBasedScheduler 实例。"""
         schedulers = get_all_env_based_schedulers()
-        self.assertEqual(len(schedulers), 6)
+        self.assertEqual(len(schedulers), 7)
         names = {s.name for s in schedulers}
         self.assertEqual(
-            names, {"FCFS", "SPTF", "EDF", "Greedy", "EnvBased-HEFT", "EnvBased-MinMin"}
+            names, {"FCFS", "SPTF", "EDF", "Greedy", "EnvBased-HEFT", "EnvBased-MinMin", "QAOA"}
         )
         for s in schedulers:
             self.assertIsInstance(s, EnvBasedScheduler)
@@ -993,11 +1006,19 @@ class TestRunBaselineComparisonEnv(unittest.TestCase):
                 f"{name} 应为 env_based 模式",
             )
 
-    def test_use_env_returns_six_schedulers(self):
-        """use_env=True 时应返回 6 个 EnvBasedScheduler 策略。"""
+    def test_use_env_returns_seven_schedulers(self):
+        """use_env=True 时应返回 7 个 EnvBasedScheduler 策略。"""
         tasks = [_make_task("T1", priority=3, estimated_time=5.0, arrival_time=0.0)]
         results = run_baseline_comparison(tasks, num_steps=10, use_env=True, seed=42)
-        expected_names = {"FCFS", "SPTF", "EDF", "Greedy", "EnvBased-HEFT", "EnvBased-MinMin"}
+        expected_names = {
+            "FCFS",
+            "SPTF",
+            "EDF",
+            "Greedy",
+            "EnvBased-HEFT",
+            "EnvBased-MinMin",
+            "QAOA",
+        }
         self.assertEqual(set(results.keys()), expected_names)
 
     def test_legacy_mode_returns_legacy(self):
@@ -1383,6 +1404,146 @@ class TestHEFTRewardFix(unittest.TestCase):
                         0.0,
                         f"EFT 不应为负: action={action}, est={est}, speedup={speedup}, ft={ft}",
                     )
+
+
+# ============================================================
+# TestQAOAScheduler（Issue #599）
+# ============================================================
+class TestQAOAScheduler(unittest.TestCase):
+    """测试 QAOA-inspired 量子近似优化调度启发式（Issue #599）。"""
+
+    def test_qaoa_scheduler_selects_valid_index(self):
+        """QAOAScheduler 应返回合法任务索引。"""
+        tasks = [
+            _make_task("A", priority=3, estimated_time=5.0),
+            _make_task("B", priority=5, estimated_time=3.0),
+            _make_task("C", priority=1, estimated_time=10.0),
+        ]
+        scheduler = QAOAScheduler()
+        idx = scheduler.select_action(tasks, _EMPTY_RESOURCES)
+        self.assertIn(idx, range(len(tasks)), f"QAOA 应返回合法索引，实际为 {idx}")
+
+    def test_qaoa_empty_list_returns_negative(self):
+        """空任务列表应返回 -1。"""
+        scheduler = QAOAScheduler()
+        self.assertEqual(scheduler.select_action([], _EMPTY_RESOURCES), -1)
+
+    def test_qaoa_single_task_returns_zero(self):
+        """单任务时应返回索引 0。"""
+        tasks = [_make_task("only", priority=3, estimated_time=5.0)]
+        scheduler = QAOAScheduler()
+        idx = scheduler.select_action(tasks, _EMPTY_RESOURCES)
+        self.assertEqual(idx, 0)
+
+    def test_qaoa_prefers_high_priority(self):
+        """QAOA 应倾向选择高优先级任务。"""
+        tasks = [
+            _make_task("low", priority=1, estimated_time=5.0),
+            _make_task("high", priority=5, estimated_time=5.0),
+        ]
+        scheduler = QAOAScheduler()
+        idx = scheduler.select_action(tasks, _EMPTY_RESOURCES)
+        self.assertEqual(tasks[idx]["task_id"], "high", "QAOA 应选择高优先级任务")
+
+    def test_qaoa_name_and_repr(self):
+        """策略名应为 'QAOA'。"""
+        s = QAOAScheduler()
+        self.assertEqual(s.name, "QAOA")
+        self.assertIn("QAOA", repr(s))
+
+    def test_qaoa_local_fields_shape(self):
+        """_compute_local_fields 应返回正确形状的数组。"""
+        tasks = [_make_task("A"), _make_task("B"), _make_task("C")]
+        scheduler = QAOAScheduler()
+        h = scheduler._compute_local_fields(tasks, _EMPTY_RESOURCES)
+        self.assertEqual(h.shape, (3,))
+
+    def test_qaoa_expectations_in_range(self):
+        """_qaoa_p1_expectations 返回值应在 [-1, 1] 范围内。"""
+        import numpy as np
+
+        scheduler = QAOAScheduler()
+        h = np.array([-1.0, 0.0, 0.5, 1.0])
+        expectations = scheduler._qaoa_p1_expectations(h)
+        self.assertTrue(np.all(expectations >= -1.0))
+        self.assertTrue(np.all(expectations <= 1.0))
+
+    def test_env_based_qaoa_returns_valid_action(self):
+        """EnvBasedQAOAScheduler 应返回合法动作 [0, 1, 2]。"""
+        import numpy as np
+
+        from src.scheduler.env import QuantumSchedulingEnv
+
+        env = QuantumSchedulingEnv(max_steps=10, max_qubits=20, seed=42)
+        obs = env.reset(seed=42)[0]
+        scheduler = EnvBasedQAOAScheduler()
+        action = scheduler.select_action(obs, env)
+        self.assertIn(action, [0, 1, 2], f"EnvBasedQAOA 返回非法动作 {action}")
+
+    def test_env_based_qaoa_runs_in_env(self):
+        """EnvBasedQAOAScheduler 应能在环境中运行多步不报错。"""
+        from src.scheduler.env import QuantumSchedulingEnv
+
+        env = QuantumSchedulingEnv(max_steps=20, max_qubits=20, seed=42)
+        scheduler = EnvBasedQAOAScheduler()
+        scheduler.reset()
+        obs = env.reset(seed=42)[0]
+
+        done = False
+        steps = 0
+        while not done and steps < 20:
+            action = scheduler.select_action(obs, env)
+            self.assertIn(action, [0, 1, 2])
+            obs, _reward, terminated, truncated, _info = env.step(action)
+            done = terminated or truncated
+            steps += 1
+
+        self.assertGreater(steps, 0, "QAOA 应至少运行一步")
+
+    def test_env_based_qaoa_name(self):
+        """EnvBasedQAOAScheduler 策略名应为 'QAOA'。"""
+        s = EnvBasedQAOAScheduler()
+        self.assertEqual(s.name, "QAOA")
+        self.assertIn("QAOA", repr(s))
+
+    def test_qaoa_in_get_all_schedulers(self):
+        """QAOAScheduler 应在 get_all_baseline_schedulers 列表中。"""
+        schedulers = get_all_baseline_schedulers()
+        names = [s.name for s in schedulers]
+        self.assertIn("QAOA", names)
+        qaoa = next(s for s in schedulers if s.name == "QAOA")
+        self.assertIsInstance(qaoa, QAOAScheduler)
+
+    def test_env_based_qaoa_in_get_all(self):
+        """EnvBasedQAOAScheduler 应在 get_all_env_based_schedulers 列表中。"""
+        schedulers = get_all_env_based_schedulers()
+        names = [s.name for s in schedulers]
+        self.assertIn("QAOA", names)
+        qaoa = next(s for s in schedulers if s.name == "QAOA")
+        self.assertIsInstance(qaoa, EnvBasedQAOAScheduler)
+
+    def test_qaoa_produces_positive_rewards(self):
+        """QAOA baseline 在环境中运行应产生正总奖励（与其他 baseline 相当）。"""
+        from src.scheduler.env import QuantumSchedulingEnv
+
+        env = QuantumSchedulingEnv(max_steps=50, max_qubits=20, seed=42)
+        scheduler = EnvBasedQAOAScheduler()
+        scheduler.reset()
+        obs = env.reset(seed=42)[0]
+
+        total_reward = 0.0
+        done = False
+        while not done:
+            action = scheduler.select_action(obs, env)
+            obs, reward, terminated, truncated, _info = env.step(action)
+            total_reward += float(reward)
+            done = terminated or truncated
+
+        self.assertGreater(
+            total_reward,
+            0.0,
+            f"QAOA 总奖励应为正，实际为 {total_reward}",
+        )
 
 
 if __name__ == "__main__":

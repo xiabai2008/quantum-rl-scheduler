@@ -117,6 +117,8 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
                 "status": state.get_system_status(),
                 "tasks": state.get_task_queue(),
                 "ppo_stats": ppo_stats,
+                "realtime_metrics_history": state.get_metrics_history(50),
+                "reward_comparison": state.get_reward_comparison(),
             }
         )
         # 保持连接，监听客户端消息（心跳/指令）

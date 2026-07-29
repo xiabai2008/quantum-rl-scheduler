@@ -821,7 +821,9 @@ class TestComputeRealFeedback:
         env, _, _, _ = _make_env_with_client(real_feedback_mode="status_only")
         pending = {"qcis_circuit": "H Q0\nM Q0"}
         status = {"status": "completed", "probability": {"0": 0.5, "1": 0.5}}
-        reward, fidelity, formula = _compute_real_feedback(env, pending, status)
+        reward, fidelity, formula, _measured, _theoretical = _compute_real_feedback(
+            env, pending, status
+        )
         assert abs(reward - REAL_MACHINE_SUCCESS_BONUS) < 1e-9
         assert fidelity == -1.0
         assert "status_only" in formula
@@ -831,7 +833,9 @@ class TestComputeRealFeedback:
         env, _, _, _ = _make_env_with_client(real_feedback_mode="result_aware")
         pending = {"qcis_circuit": "H Q0\nM Q0"}
         status = {"status": "completed", "probability": {"0": 0.5, "1": 0.5}}
-        reward, fidelity, formula = _compute_real_feedback(env, pending, status)
+        reward, fidelity, formula, _measured, _theoretical = _compute_real_feedback(
+            env, pending, status
+        )
         # 完美匹配 → fidelity=1.0 → reward=MAX
         assert abs(fidelity - 1.0) < 1e-9
         assert abs(reward - REAL_RESULT_REWARD_MAX) < 1e-9
@@ -842,7 +846,9 @@ class TestComputeRealFeedback:
         env, _, _, _ = _make_env_with_client(real_feedback_mode="shuffled")
         pending = {"qcis_circuit": "H Q0\nM Q0"}
         status = {"status": "completed", "probability": {"0": 0.3, "1": 0.7}}
-        _reward, _fidelity, formula = _compute_real_feedback(env, pending, status)
+        _reward, _fidelity, formula, _measured, _theoretical = _compute_real_feedback(
+            env, pending, status
+        )
         assert "[SHUFFLED]" in formula
 
 

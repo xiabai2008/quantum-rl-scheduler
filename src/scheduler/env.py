@@ -30,6 +30,9 @@ from src.scheduler.env_machines import (
 from src.scheduler.env_observation import get_info, get_observation
 from src.scheduler.env_real_machine import (
     FREE_TIER_MAX_QUBITS,
+    advance_noise_aware_to_next_step,
+    get_noise_aware_adjustment,
+    init_noise_aware_state,
     poll_pending_real_tasks,
     record_real_failure,
     submit_to_real_machine,
@@ -71,6 +74,7 @@ from src.scheduler.env_types import (
     QUBIT_UTIL_THRESHOLD,
     REAL_MACHINE_DEGRADE_FAIL_THRESHOLD,
     REAL_MACHINE_FAIL_PENALTY,
+    REAL_MACHINE_MAX_POLL_PER_STEP_DEFAULT,
     REAL_MACHINE_MAX_POLL_STEPS,
     REAL_MACHINE_MAX_SUBMISSIONS_DEFAULT,
     REAL_MACHINE_SUBMIT_INTERVAL,
@@ -172,6 +176,9 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
         noise_profile: str | dict[str, Any] | None = None,
         include_fairness_obs: bool = False,
         observation_dim: int | None = None,
+        use_noise_profile: bool = False,
+        max_poll_per_step: int = REAL_MACHINE_MAX_POLL_PER_STEP_DEFAULT,
+        real_machine_config: "RealMachineConfig | None" = None,
     ):
         """初始化量子任务调度环境（参数详见子模块文档）。"""
         super().__init__()
@@ -192,9 +199,12 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
             raise ValueError("real_machine_shots must be positive")
         if real_machine_max_qubits <= 0:
             raise ValueError("real_machine_max_qubits must be positive")
+        if max_poll_per_step < 1:
+            raise ValueError("max_poll_per_step must be >= 1")
         self.max_real_submissions = max_real_submissions
         self.real_machine_shots = int(real_machine_shots)
         self.real_machine_max_qubits = int(real_machine_max_qubits)
+        self.max_poll_per_step = int(max_poll_per_step)
         # 真机结果反馈模式（Issue #235）：status_only / result_aware / shuffled
         from src.scheduler.env_types import REAL_FEEDBACK_MODES
 
@@ -215,6 +225,8 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
             float(quantum_task_ratio) if quantum_task_ratio is not None else None
         )
         self.noise_profile = self._resolve_noise_profile(noise_profile)
+        self.use_noise_profile = bool(use_noise_profile)
+        self._injected_noise_profile: dict[str, Any] | None = None
 
         # Issue #588: 公平性观测开关（不影响默认 OBS_DIM=16，保持向后兼容）
         self._include_fairness_obs = bool(include_fairness_obs)
@@ -278,6 +290,8 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
         self._real_fail_count: int = 0
         # 跨 episode 累积，确保训练级硬上限不会被 reset 绕过。
         self._real_submission_attempts_total: int = 0
+        # Issue #524: 非阻塞轮询游标，标记下次从 pending 列表的哪个位置开始轮询
+        self._poll_cursor: int = 0
 
         # 内部状态
         self._current_step: int = 0
@@ -315,10 +329,30 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
         # 通过 set_fairness_tracker() 显式设置；include_fairness_obs 时也可设置
         self._fairness_tracker: Any | None = None
 
+        # Issue #627: 观测向量缓存，消除 step() 后外部冗余 _get_observation() 调用。
+        # step()/reset() 末尾设置此缓存，_get_observation() 优先返回缓存；
+        # 任何改变环境状态并需要重新计算观测的操作前，必须将其置 None。
+        self._cached_obs: NDArray[Any] | None = None
+
         # LSTM 时序流量感知 (Superpower)
         self.max_arrival_history_length = 10
         self.arrival_history: list[int] = []
         self.current_time_window_arrivals = 0
+
+        # Issue #577: 真机闭环配置（含噪声感知奖励参数）
+        # 若未显式传入，则使用默认配置（噪声感知奖励默认启用）
+        self.real_machine_config: RealMachineConfig = (
+            real_machine_config if real_machine_config is not None else RealMachineConfig()
+        )
+
+        # Issue #577: 噪声感知奖励状态（真机保真度→后续步奖励惩罚闭环）
+        self._noise_aware_current_value: float = 0.0
+        self._noise_aware_decay_remaining: int = 0
+        self._noise_aware_pending_value: float = 0.0
+        self._noise_aware_has_pending: bool = False
+        self._noise_aware_last_fidelity: float = 0.0
+        self._noise_aware_trigger_step: int = -1
+        init_noise_aware_state(self)
 
     def attach_real_clients(self, clients: dict[str, Any]) -> None:
         """绑定真机客户端，启用选择性真机验证。
@@ -327,6 +361,7 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
             clients: 机器名 -> 客户端实例的映射（如 CqlibTianyanClient）。
                      绑定后，对应机器的 is_real 会被置为 True。
         """
+        self._cached_obs = None  # Issue #627: 客户端绑定可能改变机器状态，失效缓存
         self._real_clients.update(clients)
         for m in self._machines:
             if m.name in clients:
@@ -341,7 +376,41 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
         Args:
             tracker: MultiTenantFairnessTracker 实例，或 None 清除。
         """
+        self._cached_obs = None  # Issue #627: 公平性跟踪器影响第17维观测
         self._fairness_tracker = tracker
+
+    def inject_noise_profile(
+        self,
+        profile: dict[str, Any],
+        machine_name: str | None = None,
+    ) -> None:
+        """注入来自 NoiseModelExtractor 的真机噪声画像（Issue #591）。
+
+        将 ``NoiseModelExtractor.extract_noise_profile()`` 返回的噪声画像
+        注入到指定量子机器（或所有机器），用于驱动仿真环境的噪声特征。
+
+        当 ``use_noise_profile=True`` 时，reset() 会自动将已注入的 profile
+        应用到机器上；若启用但未调用此方法注入 profile，则回退到随机生成。
+
+        Args:
+            profile: NoiseModelExtractor.extract_noise_profile() 返回的噪声画像字典。
+            machine_name: 目标机器名称。None 表示注入到所有机器（默认）。
+        """
+        from loguru import logger
+
+        self._cached_obs = None  # Issue #627: 噪声注入改变机器保真度/噪声特征
+        self._injected_noise_profile = profile
+        targets = [m for m in self._machines if machine_name is None or m.name == machine_name]
+        if not targets:
+            logger.warning(f"[NoiseProfile] 未找到名为 {machine_name!r} 的机器，注入被忽略")
+            return
+        for m in targets:
+            m.inject_noise_profile(profile)
+        source = profile.get("metadata", {}).get("source", "unknown")
+        logger.info(
+            f"[NoiseProfile] 已注入噪声画像 (source={source}) 到 "
+            f"{len(targets)} 台机器: {[m.name for m in targets]}"
+        )
 
     @property
     def machine_names(self) -> list[str]:
@@ -441,6 +510,9 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
         super().reset(seed=seed)
         rng = self.np_random
 
+        # Issue #627: reset 会彻底重建状态，失效旧缓存
+        self._cached_obs = None
+
         # 重置步数和统计
         self._current_step = 0
         self._total_scheduled = 0
@@ -470,6 +542,9 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
         self._real_result_records = []
         self._real_feedback_log = []
 
+        # Issue #577: 重置噪声感知奖励状态（episode 内状态，每 episode 重置）
+        init_noise_aware_state(self)
+
         # 随机初始化任务队列（5-20 个任务）
         self._task_queue = []
         initial_count = rng.integers(INITIAL_QUEUE_RANGE[0], INITIAL_QUEUE_RANGE[1] + 1)
@@ -479,10 +554,16 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
         # 随机初始化每台量子机器状态（多机器调度扩展）
         for m in self._machines:
             m.available_ratio = rng.uniform(0.3, 1.0)
-            m.fidelity = self._sample_initial_fidelity(rng)
             m.quantum_queue = 0
             m.available = True
-            m.update_noise_features(rng)
+            m.active_tasks = []
+            m.used_qubits = 0
+            # Issue #591: 噪声画像模式
+            if self.use_noise_profile and self._injected_noise_profile is not None:
+                m.inject_noise_profile(self._injected_noise_profile)
+            else:
+                m.fidelity = self._sample_initial_fidelity(rng)
+                m.update_noise_features(rng)
             m.update_topology_features()
         # 聚合到 self._quantum，保证旧版 obs/reward 逻辑不变
         self._recompute_aggregate()
@@ -497,12 +578,17 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
         # 取出队首任务作为当前任务
         self._pick_next_task()
 
-        return self._get_observation(), self._get_info()
+        # Issue #627: reset 末尾缓存观测，供外部 _get_observation() 复用
+        self._cached_obs = get_observation(self)
+        return self._cached_obs, self._get_info()
 
     def step(self, action: int) -> tuple[NDArray[Any], float, bool, bool, dict[str, Any]]:
         """执行一步调度决策：根据 action 分配到经典/量子/混合资源并计算奖励。"""
         self._current_step += 1
         rng = self.np_random
+
+        # Issue #577: 推进噪声感知奖励状态到当前步（激活新触发值、执行指数衰减）
+        advance_noise_aware_to_next_step(self)
 
         # 本步总奖励 = 执行收益 + 队列等待惩罚 + 资源利用率惩罚
         reward = 0.0
@@ -652,9 +738,11 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
             self._consecutive_idle_steps >= idle_termination_threshold
         )
 
-        # Issue #522: 步首缓存的 obs 用于奖励计算，步尾重新构建观测以反映
+        # Issue #522/#627: 步首缓存的 obs 用于奖励计算，步尾需重新构建观测以反映
         # advance_time 后的状态（如 arrival_rate_ma 已更新），保证返回给 Agent
         # 的观测与原始实现语义一致（原实现返回 advance_time 后的观测）。
+        # 先失效缓存，再通过 _get_observation() 计算新 obs 并写入缓存。
+        self._cached_obs = None
         return_obs = self._get_observation()
         return return_obs, reward, terminated, truncated, self._get_info()
 
@@ -789,6 +877,9 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
         if fairness_penalty is None:
             fairness_penalty = self._compute_fairness_penalty_for_task(task)
 
+        # Issue #577: 噪声感知奖励调整（真机保真度闭环反馈）
+        noise_adjustment = get_noise_aware_adjustment(self, action)
+
         return compute_execution_reward(
             task=task,
             action=action,
@@ -797,6 +888,7 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
             quantum_available_ratio=self._quantum.available_ratio,
             crosstalk_penalty=crosstalk_penalty,
             fairness_penalty=fairness_penalty,
+            noise_adjustment=noise_adjustment,
         )
 
     def _compute_fairness_penalty_for_task(self, task: Task) -> float:
@@ -833,7 +925,11 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
         pick_next_task(self)
 
     def _get_observation(self) -> NDArray[Any]:
-        return get_observation(self)
+        # Issue #627: 优先返回缓存观测，避免热路径中重复构建 16/17 维向量
+        if self._cached_obs is not None:
+            return self._cached_obs
+        self._cached_obs = get_observation(self)
+        return self._cached_obs
 
     def _get_info(self) -> dict[str, Any]:
         return get_info(self)

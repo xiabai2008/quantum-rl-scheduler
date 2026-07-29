@@ -409,8 +409,8 @@ class TestWebAPIIntegration(unittest.TestCase):
         self.assertTrue(strat_data["success"])
         self.assertIn("FCFS", strat_data["message"])
 
-        # 5. GET /metrics — 获取 Prometheus 指标
-        resp = self.client.get("/metrics")
+        # 5. GET /metrics — 获取 Prometheus 指标（Issue #513: /metrics 需要 API Key）
+        resp = self.client.get("/metrics", headers=self._auth_headers)
         self.assertEqual(resp.status_code, 200)
         content_type = resp.headers.get("content-type", "")
         self.assertIn("text/plain", content_type)

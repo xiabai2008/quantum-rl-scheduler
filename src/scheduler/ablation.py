@@ -20,17 +20,25 @@ from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
+import gymnasium as gym
 import numpy as np
 
 from src.scheduler.env import (
     DEFAULT_MACHINE_CONFIGS,
     MAX_WAIT_STEPS,
+    OBS_ARRIVAL_RATE_MA,
+    OBS_AVG_CONNECTIVITY,
     OBS_AVG_WAIT_TIME,
+    OBS_COUPLING_DENSITY,
+    OBS_CROSSTALK_RISK,
+    OBS_SINGLE_GATE_FIDELITY,
     OBS_TASK_TYPE_QUANTUM,
+    OBS_TWO_GATE_FIDELITY,
     QuantumSchedulingEnv,
 )
+from src.scheduler.env_types import OBS_DIM
 
 # 多目标奖励包装器为可选依赖：不可用时退化为原始环境
 try:
@@ -75,12 +83,14 @@ class AblationConfig:
         description : 配置的人类可读描述
         components  : 各组件开关，如 {"rl": True, "annealing": False, ...}
         env_params  : 环境参数覆盖，如 {"max_steps": 200, "seed": 42}
+        obs_mask    : 需要屏蔽（置零）的观测维度索引列表，如 [OBS_CROSSTALK_RISK]
     """
 
     name: str
     description: str
     components: dict[str, bool]
     env_params: dict[str, Any] = field(default_factory=dict)
+    obs_mask: list[int] = field(default_factory=list)
 
 
 @dataclass
@@ -107,6 +117,84 @@ class AblationResult:
     resource_utilization: float
     n_episodes: int
     timestamp: str
+
+
+# ---------------------------------------------------------------------------
+# 观测维度屏蔽包装器
+# ---------------------------------------------------------------------------
+
+
+class ObsMaskWrapper(gym.Wrapper):
+    """
+    观测维度屏蔽包装器：将指定维度的观测值置零，用于观测维度消融实验。
+
+    与截断维度不同，本包装器保持观测空间维度不变（仍为 OBS_DIM=16），
+    仅将被屏蔽的维度置为中性值 0，避免影响现有代码中使用固定索引的逻辑。
+
+    Args:
+        env       : 待包装的环境
+        mask_dims : 需要置零的观测维度索引列表
+    """
+
+    def __init__(self, env: gym.Env, mask_dims: list[int]) -> None:
+        super().__init__(env)
+        self.mask_dims = set(mask_dims)
+        self.observation_space = gym.spaces.Box(
+            low=0.0,
+            high=1.0,
+            shape=(OBS_DIM,),
+            dtype=np.float32,
+        )
+
+    def _apply_mask(self, obs: np.ndarray) -> np.ndarray:
+        masked = obs.copy()
+        for dim in self.mask_dims:
+            if 0 <= dim < len(masked):
+                masked[dim] = 0.0
+        return masked
+
+    def reset(self, **kwargs: Any) -> tuple[np.ndarray, dict[str, Any]]:
+        obs, info = self.env.reset(**kwargs)
+        return self._apply_mask(obs), info
+
+    def step(self, action: int) -> tuple[np.ndarray, float, bool, bool, dict[str, Any]]:
+        obs, reward, terminated, truncated, info = self.env.step(action)
+        return self._apply_mask(obs), float(reward), terminated, truncated, info
+
+
+# ---------------------------------------------------------------------------
+# D2 观测维度消融配置预设
+# ---------------------------------------------------------------------------
+
+D2_OBSERVATION_CONFIGS: dict[str, dict[str, Any]] = {
+    "full": {
+        "mask_dims": [],
+        "description": "完整 16 维观测空间（含串扰风险和到达率 MA，含物理维度）",
+        "dim": 16,
+    },
+    "no_crosstalk": {
+        "mask_dims": [OBS_CROSSTALK_RISK],
+        "description": "无串扰风险维度（屏蔽 OBS_CROSSTALK_RISK=14），15 维有效",
+        "dim": 15,
+    },
+    "no_arrival_rate": {
+        "mask_dims": [OBS_ARRIVAL_RATE_MA],
+        "description": "无到达率滑动平均维度（屏蔽 OBS_ARRIVAL_RATE_MA=15），15 维有效",
+        "dim": 15,
+    },
+    "no_physical": {
+        "mask_dims": [
+            OBS_SINGLE_GATE_FIDELITY,
+            OBS_TWO_GATE_FIDELITY,
+            OBS_COUPLING_DENSITY,
+            OBS_AVG_CONNECTIVITY,
+        ],
+        "description": (
+            "无物理特征维度（屏蔽单/双门保真度、耦合密度、连通度，共 4 维），12 维有效"
+        ),
+        "dim": 12,
+    },
+}
 
 
 # ---------------------------------------------------------------------------
@@ -331,6 +419,190 @@ class AblationRunner:
         return [self.run_single(cfg, n_episodes=n_episodes) for cfg in configs]
 
     # ------------------------------------------------------------------
+    # D2 观测维度消融
+    # ------------------------------------------------------------------
+
+    def define_d2_observation_configs(self) -> list[AblationConfig]:
+        """
+        定义 D2 观测维度消融配置（Issue #585）。
+
+        对比四种观测配置：
+            - D2_full_16dim        : 完整 16 维观测（基线）
+            - D2_no_crosstalk_15dim: 屏蔽串扰风险维度 (OBS_CROSSTALK_RISK=14)
+            - D2_no_arrival_15dim  : 屏蔽到达率滑动平均维度 (OBS_ARRIVAL_RATE_MA=15)
+            - D2_no_physical_12dim : 屏蔽物理特征维度（单/双门保真度、耦合密度、连通度）
+
+        Returns:
+            list[AblationConfig]: 4 个 D2 观测消融配置
+        """
+        configs: list[AblationConfig] = []
+        full_components = dict(_FULL_COMPONENTS)
+
+        for cfg_name, cfg_info in D2_OBSERVATION_CONFIGS.items():
+            configs.append(
+                AblationConfig(
+                    name=f"D2_{cfg_name}_{cfg_info['dim']}dim",
+                    description=cfg_info["description"],
+                    components=full_components,
+                    env_params={},
+                    obs_mask=cfg_info["mask_dims"],
+                )
+            )
+
+        return configs
+
+    def run_d2_observation_ablation(
+        self,
+        n_episodes: int = 10,
+    ) -> tuple[list[AblationResult], dict[str, Any]]:
+        """
+        运行 D2 观测维度消融实验（Issue #585）。
+
+        对比 full(16dim) vs no_crosstalk(15dim) vs no_arrival_rate(15dim) vs no_physical(12dim)
+        的性能差异，量化各观测维度组对调度性能的贡献。
+
+        Args:
+            n_episodes: 每个配置运行的回合数
+
+        Returns:
+            tuple: (results_list, comparison_dict)
+        """
+        configs = self.define_d2_observation_configs()
+        results = [self.run_single(cfg, n_episodes=n_episodes) for cfg in configs]
+        comparison = self.compare(results)
+        return results, comparison
+
+    def generate_d2_observation_report(
+        self,
+        results: list[AblationResult],
+        comparison: dict[str, Any],
+        output_path: str = "results/ablation/d2_observation_ablation_report.md",
+    ) -> str:
+        """
+        生成 D2 观测维度消融实验的专项报告。
+
+        Args:
+            results     : D2 消融结果列表
+            comparison  : compare() 返回的对比结果
+            output_path : 报告输出路径
+
+        Returns:
+            str: 生成的 Markdown 报告内容
+        """
+        lines: list[str] = []
+        lines.append("# D2 观测维度消融实验报告（Issue #585）")
+        lines.append("")
+        lines.append(
+            f"> 生成时间: {datetime.now(timezone.utc).isoformat()}  | 配置数: {len(results)}"
+        )
+        lines.append("")
+        lines.append("## 实验目的")
+        lines.append("")
+        lines.append(
+            "Issue #585 要求修复 D2 观测维度消融：原实现仅切换策略类型，未真正改变观测维度。"
+        )
+        lines.append(
+            "本实验通过 ObsMaskWrapper 选择性屏蔽观测维度，量化各观测维度组对调度性能的边际贡献。"
+        )
+        lines.append("")
+        lines.append("## 消融配置")
+        lines.append("")
+        lines.append("| 配置名 | 有效维度 | 屏蔽维度 | 说明 |")
+        lines.append("|:--|:--:|:--|:--|")
+
+        dim_name_map: dict[int, str] = {
+            OBS_SINGLE_GATE_FIDELITY: "单门保真度(10)",
+            OBS_TWO_GATE_FIDELITY: "双门保真度(11)",
+            OBS_COUPLING_DENSITY: "耦合密度(12)",
+            OBS_AVG_CONNECTIVITY: "连通度(13)",
+            OBS_CROSSTALK_RISK: "串扰风险(14)",
+            OBS_ARRIVAL_RATE_MA: "到达率MA(15)",
+        }
+
+        for r in results:
+            mask_dims = r.config.obs_mask
+            mask_desc = (
+                ", ".join(dim_name_map.get(d, str(d)) for d in mask_dims) if mask_dims else "无"
+            )
+            dim_count = OBS_DIM - len(mask_dims)
+            lines.append(
+                f"| {r.config.name} | {dim_count} | {mask_desc} | {r.config.description} |"
+            )
+        lines.append("")
+
+        # 结果汇总表
+        lines.append("## 结果汇总")
+        lines.append("")
+        lines.append("| 配置名 | 平均奖励 | 标准差 | 完成率 | 平均等待(步) | 资源利用率 | 回合数 |")
+        lines.append("|:--|--:|--:|--:|--:|--:|--:|")
+        for r in results:
+            lines.append(
+                f"| {r.config.name} | {r.mean_reward:.2f} | {r.std_reward:.2f} "
+                f"| {r.completion_rate:.4f} | {r.avg_wait_time:.2f} "
+                f"| {r.resource_utilization:.4f} | {r.n_episodes} |"
+            )
+        lines.append("")
+
+        # 相对基线对比
+        baseline = comparison.get("baseline")
+        deltas = comparison.get("deltas", {})
+        lines.append("## 相对基线对比")
+        lines.append("")
+        if baseline is not None:
+            lines.append(f"**基线**: {baseline['name']}（平均奖励 {baseline['mean_reward']:.2f}）")
+            lines.append("")
+            lines.append("| 配置名 | 奖励差值 | 奖励变化% | 完成率差值 | 等待差值 | 利用率差值 |")
+            lines.append("|:--|--:|--:|--:|--:|--:|")
+            lines.append(f"| {baseline['name']} (基线) | 0.00 | 0.00% | 0.0000 | 0.00 | 0.0000 |")
+            for name, d in deltas.items():
+                lines.append(
+                    f"| {name} | {d['reward_delta']:.2f} | {d['reward_pct']:.2f}% "
+                    f"| {d['completion_delta']:.4f} | {d['wait_delta']:.2f} "
+                    f"| {d['utilization_delta']:.4f} |"
+                )
+        lines.append("")
+
+        # 结论
+        lines.append("## 结论")
+        lines.append("")
+        if baseline is not None and deltas:
+            worst = min(deltas.items(), key=lambda kv: kv[1]["reward_delta"])
+            lines.append(
+                f"- 屏蔽 **{worst[0]}** 造成奖励下降最多（"
+                f"{worst[1]['reward_delta']:.2f}，{worst[1]['reward_pct']:.2f}%），"
+                f"提示该组观测维度对系统性能贡献最大。"
+            )
+
+            # 分别分析各维度组
+            for name, d in deltas.items():
+                if "no_crosstalk" in name:
+                    lines.append(
+                        f"- **串扰风险维度**: 移除后奖励变化 {d['reward_delta']:+.2f}"
+                        f"（{d['reward_pct']:+.2f}%）"
+                    )
+                elif "no_arrival" in name:
+                    lines.append(
+                        f"- **到达率 MA 维度**: 移除后奖励变化 {d['reward_delta']:+.2f}"
+                        f"（{d['reward_pct']:+.2f}%）"
+                    )
+                elif "no_physical" in name:
+                    lines.append(
+                        f"- **物理特征维度（4维）**: 移除后奖励变化 {d['reward_delta']:+.2f}"
+                        f"（{d['reward_pct']:+.2f}%）"
+                    )
+        else:
+            lines.append("- 结果不足，无法计算观测维度贡献度。")
+        lines.append("")
+
+        report = "\n".join(lines)
+
+        out = Path(output_path)
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(report, encoding="utf-8")
+
+        return report
+
+    # ------------------------------------------------------------------
     # 对比分析
     # ------------------------------------------------------------------
 
@@ -526,6 +798,7 @@ class AblationRunner:
                 description=cfg_dict["description"],
                 components=cfg_dict["components"],
                 env_params=cfg_dict.get("env_params", {}),
+                obs_mask=cfg_dict.get("obs_mask", []),
             )
             results.append(
                 AblationResult(
@@ -549,23 +822,24 @@ class AblationRunner:
         self,
         config: AblationConfig,
         env_params: dict[str, Any],
-    ) -> QuantumSchedulingEnv:
+    ) -> gym.Env:
         """
         根据配置构建调度环境。
 
-        多机调度开关决定机器配置；多目标奖励开关决定是否包装奖励。
+        多机调度开关决定机器配置；多目标奖励开关决定是否包装奖励；
+        obs_mask 决定是否应用观测维度屏蔽。
 
         Args:
             config     : 消融配置
             env_params : 环境参数
 
         Returns:
-            QuantumSchedulingEnv: 构建好的环境（可能被多目标包装器包裹）
+            gym.Env: 构建好的环境（可能被多目标包装器、观测屏蔽包装器包裹）
         """
         multi_machine = bool(config.components.get("multi_machine", True))
         machine_configs = DEFAULT_MACHINE_CONFIGS if multi_machine else None
 
-        env = QuantumSchedulingEnv(
+        env: gym.Env = QuantumSchedulingEnv(
             max_steps=int(env_params.get("max_steps", 150)),
             max_qubits=int(env_params.get("max_qubits", 50)),
             seed=int(env_params.get("seed", 42)),
@@ -577,7 +851,11 @@ class AblationRunner:
             bool(config.components.get("multi_objective", True))
             and MultiObjectiveRewardWrapper is not None
         ):
-            env = MultiObjectiveRewardWrapper(env)  # type: ignore[assignment]
+            env = MultiObjectiveRewardWrapper(cast(QuantumSchedulingEnv, env))
+
+        # 观测维度屏蔽包装
+        if config.obs_mask:
+            env = ObsMaskWrapper(env, config.obs_mask)
 
         return env
 

@@ -162,7 +162,7 @@ def generate_report(
 
 ---
 
-> **⚠️ 重要说明（数据一致性）**：本报告 PPO 相对 FCFS 提升 **{ppo_fcfs["improvement_pct"]:+.1f}%**（14维原生观测，{total_runs} runs），与权威数字 **+88.3%**（14维原生环境，250 runs）存在差异。差异源于样本量（{total_runs} vs 250 runs）不同；两套实验均显示 PPO 显著优于 FCFS，策略排名一致。详见 §3.3。
+> **⚠️ 重要说明（数据一致性）**：本报告 PPO 相对 FCFS 提升 **{ppo_fcfs["improvement_pct"]:+.1f}%**（14维原生观测，{total_runs} runs），与权威数字 **+123.4%**（16维交付模型，N=250）存在差异。差异源于观测维度（14维 vs 16维）与样本量（{total_runs} vs 250 runs）不同；两套实验均显示 PPO 显著优于 FCFS，策略排名一致。详见 §3.3。
 
 ---
 
@@ -222,13 +222,13 @@ PPO（Proximal Policy Optimization）和 DQN（Deep Q-Network）在调度问题�
 | 本报告（14维, {total_runs} runs） | {ppo["mean_reward"]:.2f} | {fcfs["mean_reward"]:.2f} | {ppo_fcfs["improvement_pct"]:+.1f}% | {ppo_fcfs["p_value"]:.2e} |
 | 权威8策略（16维, 250 runs） | 2348.91 | 1051.59 | +123.4% | 1.449e-66 |
 
-> **⚠️ 数据一致性说明**：本报告 PPO 提升 {ppo_fcfs["improvement_pct"]:+.1f}% 与权威数字 +88.3% 存在差异，原因如下：
-> 1. **观测维度相同**：本报告与主对比实验均使用 14 维原生观测（不使用 10 维截断包装）
+> **⚠️ 数据一致性说明**：本报告 PPO 提升 {ppo_fcfs["improvement_pct"]:+.1f}% 与权威数字 +123.4% 存在差异，原因如下：
+> 1. **观测维度不同**：本报告使用 14 维原生观测，权威 8 策略实验使用 16 维交付模型（ppo_best_model_16dim.zip）
 > 2. **seed 数量不同**：本报告 {total_runs} runs（10 seeds），权威实验 250 runs（50 seeds）
 > 3. **任务配置相同**：均使用 200 tasks/episode, 泊松到达 λ=0.5
 > 4. **策略排名一致**：两套实验均显示 PPO 显著优于 FCFS，验证了结论的稳健性
 >
-> 答辩时应以权威数字（+88.3%, p=1.032e-42, N=250）为主要引用，本报告用于验证 14 维环境下策略排名的一致性。
+> 答辩时应以权威数字（+123.4%, Welch t p=1.449e-66, N=250，见 config/statistics.yaml）为主要引用，本报告用于验证 14 维环境下策略排名的一致性。旧 14 维口径 +88.3%（p=1.032e-42）已废弃，禁止再引用。
 
 ---
 
