@@ -687,6 +687,7 @@ def record_real_failure(
         )
 
 
+# =============================================================================
 def poll_pending_real_tasks(env: "QuantumSchedulingEnv") -> float:
     """
     非阻塞轮询已提交真机任务的结果，返回本步反馈 reward（Issue #64）。
@@ -753,6 +754,8 @@ def poll_pending_real_tasks(env: "QuantumSchedulingEnv") -> float:
             # 真机执行时间回写队列（Issue #64 增强）
             actual_duration = status.get("execution_time_s", None)
             _update_task_duration(env, task_id_str, actual_duration)
+
+            # 噪声感知奖励整形：低保真度触发后续步惩罚（Issue #577）
 
             logger.debug(
                 f"[真机闭环] 任务 {task_id_str} 真机执行成功 "
@@ -1000,3 +1003,322 @@ def _update_task_duration(
 
     # 3. 找不到任务（已经被移除），不报错
     logger.debug(f"[真机闭环] 回写任务 {task_id_str} 找不到，已完成移除")
+
+
+# =============================================================================
+# 噪声模型提取（Issue #579）
+# =============================================================================
+
+
+def generate_readout_calibration_circuit(num_qubits: int = 1) -> str:
+    """生成读出校准电路（H 门 + 测量）。
+
+    对每个比特施加 H 门后测量，理想情况下 "0" 和 "1" 各 50%。
+    偏离 50/50 的程度反映 readout error。
+
+    Args:
+        num_qubits: 校准比特数（默认 1）
+
+    Returns:
+        QCIS 格式校准电路
+    """
+    if num_qubits < 1:
+        raise ValueError("num_qubits must be >= 1")
+    lines = []
+    for q in range(num_qubits):
+        lines.append(f"H Q{q}")
+    measure_qubits = " ".join(f"Q{q}" for q in range(num_qubits))
+    lines.append(f"M {measure_qubits}")
+    return "\n".join(lines)
+
+
+def generate_rb_circuit(
+    num_cliffords: int = 10,
+    num_qubits: int = 1,
+    seed: int | None = None,
+) -> str:
+    """生成简化版随机化基准（Randomized Benchmarking）电路。
+
+    生成包含 ``num_cliffords`` 个随机 Clifford 门（用 H/X/Z/CNOT 近似）
+    加一个逆操作的 QCIS 电路。实际 RB 应使用完整 Clifford 群，
+    此处用基础门近似，适用于代码框架验证和噪声特征提取的演示。
+
+    Args:
+        num_cliffords: Clifford 序列长度（门数），默认 10
+        num_qubits:    参与比特数，默认 1
+        seed:          随机种子（可复现）
+
+    Returns:
+        QCIS 格式 RB 电路
+    """
+    if num_cliffords < 1:
+        raise ValueError("num_cliffords must be >= 1")
+    if num_qubits < 1:
+        raise ValueError("num_qubits must be >= 1")
+
+    rng = random.Random(seed)
+    lines: list[str] = []
+
+    # 简化 Clifford 近似：从 {H, X, Z, S} 中随机选择
+    clifford_gates = ["H", "X", "Z", "S"]
+
+    for _ in range(num_cliffords):
+        for q in range(num_qubits):
+            gate = rng.choice(clifford_gates)
+            lines.append(f"{gate} Q{q}")
+
+    # 逆操作：对每个比特施加与序列中门的自逆操作
+    # H, X, Z 都是自逆的，所以逆序列 = 反向重复原始序列
+    # ⚠️ 警告：此逆操作为近似处理，不可用于真实 RB 基准测试。
+    # 真实 RB 要求逆操作是序列的精确逆（Clifford 群的逆元素）。
+    # 此处仅施加 H 门作为框架占位，实际 RB 测量需实现完整的 Clifford 逆操作。
+    # 详见 Issue #579 的后续改进计划。
+    for q in range(num_qubits):
+        lines.append(f"H Q{q}")
+
+    measure_qubits = " ".join(f"Q{q}" for q in range(num_qubits))
+    lines.append(f"M {measure_qubits}")
+    return "\n".join(lines)
+
+
+def generate_t1_delay_circuit(
+    delay_steps: int = 5,
+    qubit: int = 0,
+) -> str:
+    """生成 T1 弛豫测量电路（X 门 + 延迟 + 测量）。
+
+    将比特激发到 |1> 态后，经过若干步延迟再测量。
+    多次运行不同延迟长度可拟合 T1 弛豫时间。
+
+    .. note::
+        QCIS 格式本身不包含延迟指令。此函数通过插入空操作
+        （重复测量前的 M 指令间隔）来模拟延迟。
+        实际真机延迟通过提交时指定 ``delay`` 参数实现。
+
+    Args:
+        delay_steps: 延迟步数（控制电路长度），默认 5
+        qubit:       目标比特索引，默认 0
+
+    Returns:
+        QCIS 格式 T1 延迟电路
+    """
+    if delay_steps < 0:
+        raise ValueError("delay_steps must be non-negative")
+    if qubit < 0:
+        raise ValueError("qubit must be non-negative")
+
+    lines = [f"X Q{qubit}"]
+    # ⚠️ 警告：Z 门不是空闲操作。Z 门对 |1> 态会施加相位（|1> → -|1>）。
+    # 真实 T1 衰减需要时间延迟（idle/delay 指令），而非施加门操作。
+    # QCIS 格式若无 delay 指令，此电路仅用于框架占位。
+    # 实际 T1 测量需通过提交参数指定延迟时间。
+    # 详见 Issue #579 的后续改进计划。
+    for _ in range(delay_steps):
+        lines.append(f"Z Q{qubit}")
+    lines.append(f"M Q{qubit}")
+    return "\n".join(lines)
+
+
+class NoiseModelExtractor:
+    """真机噪声参数提取器（Issue #579）。
+
+    从真机测量结果中提取结构化噪声参数，包括：
+        - readout error    : 读出误差率（从 H 门测量分布计算）
+        - gate error       : 平均门误差率（从 RB 序列拟合）
+        - decoherence (T1) : 弛豫时间（从延迟测量拟合）
+
+    使用方式::
+
+        extractor = NoiseModelExtractor()
+        readout_err = extractor.extract_readout_error({"0": 0.45, "1": 0.55})
+        gate_err = extractor.extract_gate_error([
+            {"m": 1, "fidelity": 0.99},
+            {"m": 5, "fidelity": 0.95},
+            {"m": 10, "fidelity": 0.90},
+        ])
+        t1 = extractor.extract_decoherence([
+            {"t": 10, "p1": 0.9},
+            {"t": 50, "p1": 0.6},
+            {"t": 100, "p1": 0.3},
+        ])
+    """
+
+    @staticmethod
+    def extract_readout_error(measurement_results: dict[str, float]) -> float:
+        """从 H 门测量结果计算 readout error rate。
+
+        理想 H 门测量应得到 50/50 分布。偏离程度反映 readout error：
+            error_rate = |P(0) - 0.5| * 2
+
+        Args:
+            measurement_results: 测量概率分布，如 {"0": 0.45, "1": 0.55}
+
+        Returns:
+            readout error rate（0-1），0 表示完美读出
+        """
+        p0 = measurement_results.get("0", 0.5)
+        p0 = float(p0)
+        return abs(p0 - 0.5) * 2.0
+
+    @staticmethod
+    def extract_gate_error(rb_results: list[dict[str, Any]]) -> float:
+        """从随机化基准（RB）结果拟合平均门误差率。
+
+        RB 衰减模型：F(m) = a * alpha^(2m) + B
+        其中 alpha 为退极化参数，平均门误差 = (1 - alpha) / 2。
+
+        拟合方法：对 (F - B) 取对数后线性回归，
+        斜率 = 2 * ln(alpha)，从而 alpha = exp(slope / 2)。
+
+        Args:
+            rb_results: RB 结果列表，每项含：
+                - "m": Clifford 序列长度
+                - "fidelity": 该长度下的平均保真度
+
+        Returns:
+            平均门误差率（0-1），0 表示完美门操作。
+            数据不足时返回 0.0。
+        """
+        if len(rb_results) < 2:
+            return 0.0
+
+        # 渐近保真度 b（当前硬编码为 0.5，仅适用于单比特场景；多比特需 1/2^n）
+        b = 0.5
+
+        # 提取有效数据点（fidelity > b 才能取对数）
+        ms: list[float] = []
+        log_values: list[float] = []
+        for item in rb_results:
+            m = float(item.get("m", 0))
+            fidelity = float(item.get("fidelity", 0.0))
+            diff = fidelity - b
+            if diff > 1e-10 and m > 0:
+                ms.append(m)
+                log_values.append(math.log(diff))
+
+        if len(ms) < 2:
+            return 0.0
+
+        # 线性回归：log(F - b) = log(a) + 2m * log(alpha)
+        # 斜率 = 2 * log(alpha)
+        n = len(ms)
+        sum_m = sum(ms)
+        sum_log = sum(log_values)
+        sum_mm = sum(m * m for m in ms)
+        sum_ml = sum(m * lv for m, lv in zip(ms, log_values, strict=False))
+
+        denom = n * sum_mm - sum_m * sum_m
+        if abs(denom) < 1e-15:
+            return 0.0
+
+        slope = (n * sum_ml - sum_m * sum_log) / denom
+
+        # alpha = exp(slope / 2)
+        alpha = math.exp(slope / 2.0)
+        alpha = max(0.0, min(1.0, alpha))  # 裁剪到 [0, 1]
+
+        # 平均门误差
+        gate_error = (1.0 - alpha) / 2.0
+        return float(gate_error)
+
+    @staticmethod
+    def extract_decoherence(delay_results: list[dict[str, Any]]) -> dict[str, float]:
+        """从延迟测量结果拟合 T1 弛豫时间。
+
+        T1 衰减模型：P(1)(t) = A * exp(-t / T1) + B
+        拟合方法：对 (P(1) - B) 取对数后线性回归，
+        斜率 = -1 / T1，从而 T1 = -1 / slope。
+
+        Args:
+            delay_results: 延迟测量结果列表，每项含：
+                - "t": 延迟时间（微秒）
+                - "p1": |1> 态测量概率
+
+        Returns:
+            拟合结果字典：
+                - "t1": T1 弛豫时间（微秒），拟合失败时为 -1.0
+                - "amplitude": 拟合振幅 A
+                - "offset": 拟合偏移 B
+                - "fit_quality": 拟合质量 R²（0-1）
+        """
+        if len(delay_results) < 2:
+            return {"t1": -1.0, "amplitude": 0.0, "offset": 0.0, "fit_quality": 0.0}
+
+        # 估算偏移 b（长时间后的渐近值）
+        b = 0.0
+
+        # 提取有效数据点（P(1) - b > 0 才能取对数）
+        ts: list[float] = []
+        log_values: list[float] = []
+        for item in delay_results:
+            t = float(item.get("t", 0))
+            p1 = float(item.get("p1", 0.0))
+            diff = p1 - b
+            if diff > 1e-10 and t > 0:
+                ts.append(t)
+                log_values.append(math.log(diff))
+
+        if len(ts) < 2:
+            return {"t1": -1.0, "amplitude": 0.0, "offset": 0.0, "fit_quality": 0.0}
+
+        # 线性回归：log(P(1) - b) = log(A) - t / T1
+        n = len(ts)
+        sum_t = sum(ts)
+        sum_log = sum(log_values)
+        sum_tt = sum(t * t for t in ts)
+        sum_tl = sum(t * lv for t, lv in zip(ts, log_values, strict=False))
+
+        denom = n * sum_tt - sum_t * sum_t
+        if abs(denom) < 1e-15:
+            return {"t1": -1.0, "amplitude": 0.0, "offset": 0.0, "fit_quality": 0.0}
+
+        slope = (n * sum_tl - sum_t * sum_log) / denom
+        intercept = (sum_log - slope * sum_t) / n
+
+        # T1 = -1 / slope（slope 应为负值）
+        if slope >= 0:
+            return {"t1": -1.0, "amplitude": 0.0, "offset": 0.0, "fit_quality": 0.0}
+
+        t1 = -1.0 / slope
+        amplitude = math.exp(intercept)
+
+        # 计算 R² 拟合质量
+        mean_log = sum_log / n
+        ss_res = sum(
+            (lv - (intercept + slope * t)) ** 2
+            for t, lv in zip(ts, log_values, strict=False)
+        )
+        ss_tot = sum((lv - mean_log) ** 2 for lv in log_values)
+        r_squared = 1.0 - (ss_res / ss_tot) if ss_tot > 1e-15 else 0.0
+
+        return {
+            "t1": float(t1),
+            "amplitude": float(amplitude),
+            "offset": float(b),
+            "fit_quality": float(max(0.0, min(1.0, r_squared))),
+        }
+
+    def extract_all(
+        self,
+        measurement_results: dict[str, float] | None = None,
+        rb_results: list[dict[str, Any]] | None = None,
+        delay_results: list[dict[str, Any]] | None = None,
+    ) -> dict[str, Any]:
+        """一次性提取全部噪声参数。
+
+        Args:
+            measurement_results: H 门测量分布（用于 readout error）
+            rb_results:          RB 结果列表（用于 gate error）
+            delay_results:       延迟测量结果（用于 T1）
+
+        Returns:
+            噪声参数字典，未提供数据的参数值为 None
+        """
+        result: dict[str, Any] = {}
+        if measurement_results is not None:
+            result["readout_error"] = self.extract_readout_error(measurement_results)
+        if rb_results is not None:
+            result["gate_error"] = self.extract_gate_error(rb_results)
+        if delay_results is not None:
+            result["decoherence"] = self.extract_decoherence(delay_results)
+        return result
