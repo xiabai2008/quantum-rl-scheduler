@@ -169,7 +169,7 @@ class AblationRunner:
                 name="D2_state_simplified",
                 description="状态空间消融：关闭 14 维扩展状态（使用 8 维简化）",
                 components=d2,
-                env_params={},
+                env_params={"observation_dim": 8},
             )
         )
 
@@ -565,11 +565,15 @@ class AblationRunner:
         multi_machine = bool(config.components.get("multi_machine", True))
         machine_configs = DEFAULT_MACHINE_CONFIGS if multi_machine else None
 
+        # Issue #585: 传递 observation_dim 参数（D2 消融实验截断观测空间）
+        observation_dim = env_params.get("observation_dim")
+
         env = QuantumSchedulingEnv(
             max_steps=int(env_params.get("max_steps", 150)),
             max_qubits=int(env_params.get("max_qubits", 50)),
             seed=int(env_params.get("seed", 42)),
             machine_configs=machine_configs,
+            observation_dim=observation_dim,
         )
 
         # 多目标奖励包装（依赖可用时）
