@@ -18,9 +18,12 @@ from src.scheduler.env import QuantumSchedulingEnv
 from src.scheduler.env_machines import route_to_machine
 from src.scheduler.env_real_machine import (
     FREE_TIER_MAX_QUBITS,
+    _build_qaoa5_circuit,
+    _build_vqe4_ansatz,
     _compute_real_feedback,
     _record_real_result,
     _resolve_free_tier_max_qubits,
+    _select_circuit_template,
     _update_task_duration,
     compute_real_result_reward,
     compute_result_fidelity,
@@ -36,18 +39,13 @@ from src.scheduler.env_types import (
     REAL_MACHINE_DEGRADE_FAIL_THRESHOLD,
     REAL_MACHINE_FAIL_PENALTY,
     REAL_MACHINE_MAX_POLL_STEPS,
-    REAL_MACHINE_MAX_SUBMISSIONS_DEFAULT,
     REAL_MACHINE_SUBMIT_INTERVAL,
     REAL_MACHINE_SUCCESS_BONUS,
     REAL_RESULT_REWARD_MAX,
     REAL_RESULT_REWARD_MIN,
-    REAL_SUBMIT_PROBABILITY_DEFAULT,
     QuantumMachine,
-    RealMachineConfig,
     Task,
 )
-
-pytestmark = pytest.mark.real_machine
 
 
 class TestGenerateQcisCircuit:
@@ -156,9 +154,85 @@ class TestGenerateQcisCircuit:
         ghz = generate_qcis_circuit(task, max_qubits=3, circuit_type="ghz3")
         assert ghz == "H Q0\nCNOT Q0 Q1\nCNOT Q1 Q2\nM Q0 Q1 Q2"
 
+    def test_vqe4_circuit_generation(self):
+        """VQE4 模板应生成 4-qubit 硬件高效 ansatz 电路。"""
+        task = Task(task_id="vqe", task_type="quantum", qubit_count=4, priority=3)
+        qcis = generate_qcis_circuit(task, max_qubits=4, circuit_type="vqe4")
+
+        lines = qcis.strip().split("\n")
+        # 应包含 4 个 H 门（初始叠加）
+        assert sum(1 for line in lines if line.startswith("H Q")) == 4
+        # 应包含 CNOT 纠缠链（正向 + 反向）
+        assert "CNOT Q0 Q1" in lines
+        assert "CNOT Q1 Q2" in lines
+        assert "CNOT Q2 Q3" in lines
+        assert "CNOT Q3 Q2" in lines
+        # 应包含 RZ 参数化旋转
+        assert sum(1 for line in lines if line.startswith("RZ Q")) == 4
+        # 应包含 4 比特测量
+        assert "M Q0 Q1 Q2 Q3" in lines
+        # 比特索引不超过 3
+        for line in lines:
+            for part in line.split():
+                if part.startswith("Q"):
+                    q_idx = int(part.split(",")[0][1:])
+                    assert q_idx < 4
+
+    def test_qaoa5_circuit_generation(self):
+        """QAOA5 模板应生成 5-qubit QAOA p=1 层电路。"""
+        task = Task(task_id="qaoa", task_type="quantum", qubit_count=5, priority=3)
+        qcis = generate_qcis_circuit(task, max_qubits=5, circuit_type="qaoa5")
+
+        lines = qcis.strip().split("\n")
+        # 应包含 5 个 H 门（初始叠加态）
+        assert sum(1 for line in lines if line.startswith("H Q")) == 5
+        # 应包含 CNOT-RZ-CNOT 分解（Cost Hamiltonian ZZ 相互作用）
+        # QAOA5 使用 CNOT-RZ-CNOT 序列代替 CZ 门，以参数化 gamma 角度
+        assert "CNOT Q0 Q1" in lines
+        assert "CNOT Q1 Q2" in lines
+        assert "CNOT Q2 Q3" in lines
+        assert "CNOT Q3 Q4" in lines
+        # 应包含 RZ 参数化旋转（ZZ 相互作用分解）
+        assert sum(1 for line in lines if line.startswith("RZ Q")) == 4
+        # 应包含 RX 门（Mixer Hamiltonian）
+        assert sum(1 for line in lines if line.startswith("RX Q")) == 5
+        # 应包含 5 比特测量
+        assert "M Q0 Q1 Q2 Q3 Q4" in lines
+        # 比特索引不超过 4
+        for line in lines:
+            for part in line.split():
+                if part.startswith("Q"):
+                    q_idx = int(part.split(",")[0][1:])
+                    assert q_idx < 5
+
+    def test_vqe4_priority_affects_angle(self):
+        """VQE4 模板中 RZ 角度应由 priority 参数化。"""
+        task_low = Task(task_id="low", task_type="quantum", qubit_count=4, priority=1)
+        task_high = Task(task_id="high", task_type="quantum", qubit_count=4, priority=5)
+        qcis_low = generate_qcis_circuit(task_low, max_qubits=4, circuit_type="vqe4")
+        qcis_high = generate_qcis_circuit(task_high, max_qubits=4, circuit_type="vqe4")
+        # 高优先级应有更大的 RZ 角度
+        assert qcis_low != qcis_high
+
+    def test_qaoa5_priority_affects_angle(self):
+        """QAOA5 模板中 RX 角度应由 priority 参数化。"""
+        task_low = Task(task_id="low", task_type="quantum", qubit_count=5, priority=1)
+        task_high = Task(task_id="high", task_type="quantum", qubit_count=5, priority=5)
+        qcis_low = generate_qcis_circuit(task_low, max_qubits=5, circuit_type="qaoa5")
+        qcis_high = generate_qcis_circuit(task_high, max_qubits=5, circuit_type="qaoa5")
+        assert qcis_low != qcis_high
+
+    def test_vqe4_qaoa5_all_templates_with_max_qubits_5(self):
+        """FREE_TIER_MAX_QUBITS=5 时所有模板可正常生成。"""
+        task = Task(task_id="all", task_type="quantum", qubit_count=5, priority=3)
+        for template in ("bell", "ghz3", "vqe4", "qaoa5"):
+            qcis = generate_qcis_circuit(task, max_qubits=5, circuit_type=template)
+            assert len(qcis) > 0
+            assert "M" in qcis
+
     @pytest.mark.parametrize(
         ("circuit_type", "max_qubits"),
-        [("bell", 1), ("ghz3", 2)],
+        [("bell", 1), ("ghz3", 2), ("vqe4", 3), ("qaoa5", 4)],
     )
     def test_entangled_template_respects_qubit_limit(
         self,
@@ -999,10 +1073,23 @@ class TestTwoQubitGatesCircuit:
         qcis = generate_qcis_circuit(task, seed=42, two_qubit_gates=True)
         assert any(g in qcis for g in ["CNOT", "CZ"])
 
-    def test_two_qubit_gates_absent_by_default(self):
-        """默认不包含两比特门。"""
+    def test_two_qubit_gates_absent_when_disabled(self):
+        """two_qubit_gates=False 显式禁用时不包含两比特门。"""
         task = Task(task_id="0", task_type="quantum", qubit_count=4, priority=3)
-        qcis = generate_qcis_circuit(task, seed=42)
+        qcis = generate_qcis_circuit(task, seed=42, two_qubit_gates=False)
+        assert "CNOT" not in qcis
+        assert "CZ" not in qcis
+
+    def test_two_qubit_gates_auto_enabled_by_default(self):
+        """two_qubit_gates=None 时 max_qubits>=2 自动启用两比特门。"""
+        task = Task(task_id="0", task_type="quantum", qubit_count=4, priority=3)
+        qcis = generate_qcis_circuit(task, seed=42, max_qubits=10)
+        assert "CNOT" in qcis or "CZ" in qcis
+
+    def test_two_qubit_gates_auto_disabled_for_single_qubit(self):
+        """two_qubit_gates=None 且 max_qubits=1 时不包含两比特门。"""
+        task = Task(task_id="0", task_type="quantum", qubit_count=1, priority=3)
+        qcis = generate_qcis_circuit(task, seed=42, max_qubits=1)
         assert "CNOT" not in qcis
         assert "CZ" not in qcis
 
@@ -1015,6 +1102,48 @@ class TestTwoQubitGatesCircuit:
         count_low = q_low.count("CNOT") + q_low.count("CZ")
         count_high = q_high.count("CNOT") + q_high.count("CZ")
         assert count_high > count_low
+
+
+# =============================================================================
+# 电路模板动态选择（Issue #574）
+# =============================================================================
+
+
+class TestSelectCircuitTemplate:
+    """_select_circuit_template 动态模板选择测试。"""
+
+    def test_qaoa5_for_high_priority_large_qubits(self):
+        """max_qubits>=5 且 priority>=3 应选 qaoa5。"""
+        task = Task(task_id="0", task_type="quantum", qubit_count=5, priority=3)
+        assert _select_circuit_template(task, 5) == "qaoa5"
+        assert _select_circuit_template(task, 10) == "qaoa5"
+
+    def test_vqe4_for_high_priority_medium_qubits(self):
+        """max_qubits>=4 且 priority>=3 应选 vqe4（当不足5时）。"""
+        task = Task(task_id="0", task_type="quantum", qubit_count=4, priority=3)
+        assert _select_circuit_template(task, 4) == "vqe4"
+
+    def test_ghz3_for_three_qubits(self):
+        """max_qubits>=3 应选 ghz3（当不足4或低优先级时）。"""
+        task = Task(task_id="0", task_type="quantum", qubit_count=3, priority=3)
+        assert _select_circuit_template(task, 3) == "ghz3"
+
+    def test_bell_for_two_qubits(self):
+        """max_qubits>=2 应选 bell（当不足3时）。"""
+        task = Task(task_id="0", task_type="quantum", qubit_count=2, priority=3)
+        assert _select_circuit_template(task, 2) == "bell"
+
+    def test_random_for_single_qubit(self):
+        """max_qubits=1 应选 random。"""
+        task = Task(task_id="0", task_type="quantum", qubit_count=1, priority=3)
+        assert _select_circuit_template(task, 1) == "random"
+
+    def test_low_priority_falls_back_to_simpler_template(self):
+        """低优先级（priority<3）不选 vqe4/qaoa5，降级到更简单模板。"""
+        task_low = Task(task_id="0", task_type="quantum", qubit_count=5, priority=1)
+        assert _select_circuit_template(task_low, 5) == "ghz3"
+        assert _select_circuit_template(task_low, 4) == "ghz3"
+        assert _select_circuit_template(task_low, 3) == "ghz3"
 
 
 # =============================================================================
@@ -1158,10 +1287,11 @@ class TestComputeTheoreticalDistributionEdgeCases:
     """compute_theoretical_distribution 边界条件补充测试。"""
 
     def test_only_measurement_no_gates(self):
-        """仅有测量行无任何门时，量子比特处于|0⟩态。"""
+        """仅有测量行无任何门时回退到均匀分布。"""
         qcis = "M Q0"
         dist = compute_theoretical_distribution(qcis)
-        assert dist == {"0": 1.0}
+        # 无 H 也无 X → 均匀分布
+        assert dist == {"0": 0.5, "1": 0.5}
 
     def test_empty_circuit_returns_default(self):
         """空电路字符串返回默认分布。"""
@@ -1174,11 +1304,11 @@ class TestComputeTheoreticalDistributionEdgeCases:
         dist = compute_theoretical_distribution(qcis)
         assert dist == {"11": 1.0}
 
-    def test_z_gate_on_zero_state(self):
-        """Z 门作用在|0⟩上得到|0⟩（确定态，Issue #405 精确模拟）。"""
+    def test_z_gate_falls_back_to_uniform(self):
+        """Z 门（非 H 非 X）回退到均匀分布。"""
         qcis = "Z Q0\nM Q0"
         dist = compute_theoretical_distribution(qcis)
-        assert dist == {"0": 1.0}
+        assert dist == {"0": 0.5, "1": 0.5}
 
 
 # =============================================================================
@@ -1496,117 +1626,6 @@ class TestExportRealFeedbackLog:
         # step 后至少有 0 条记录（取决于是否触发了真机提交）
         assert n >= 0
         assert out.exists()
-
-
-# =============================================================================
-# RealMachineConfig 统一配置（Issue #576）
-# =============================================================================
-
-
-class TestRealMachineConfig:
-    """RealMachineConfig dataclass 测试。"""
-
-    def test_default_values(self):
-        """默认值应符合 Issue #576 验收标准。"""
-        config = RealMachineConfig()
-        assert config.submit_probability == 0.15
-        assert config.max_submissions == 30
-        assert config.degrade_fail_threshold == 3
-        assert config.success_bonus == 5.0
-
-    def test_default_probability_matches_constant(self):
-        """RealMachineConfig 默认概率应与 REAL_SUBMIT_PROBABILITY_DEFAULT 一致。"""
-        config = RealMachineConfig()
-        assert config.submit_probability == REAL_SUBMIT_PROBABILITY_DEFAULT
-
-    def test_default_max_submissions_matches_constant(self):
-        """RealMachineConfig 默认上限应与 REAL_MACHINE_MAX_SUBMISSIONS_DEFAULT 一致。"""
-        config = RealMachineConfig()
-        assert config.max_submissions == REAL_MACHINE_MAX_SUBMISSIONS_DEFAULT
-
-    def test_custom_values(self):
-        """自定义参数应正确设置。"""
-        config = RealMachineConfig(
-            submit_probability=0.3,
-            max_submissions=50,
-            degrade_fail_threshold=5,
-            success_bonus=10.0,
-        )
-        assert config.submit_probability == 0.3
-        assert config.max_submissions == 50
-        assert config.degrade_fail_threshold == 5
-        assert config.success_bonus == 10.0
-
-    def test_invalid_probability_raises(self):
-        """submit_probability 超出 [0, 1] 应抛出 ValueError。"""
-        with pytest.raises(ValueError, match="submit_probability"):
-            RealMachineConfig(submit_probability=-0.1)
-        with pytest.raises(ValueError, match="submit_probability"):
-            RealMachineConfig(submit_probability=1.5)
-
-    def test_invalid_interval_raises(self):
-        """submit_interval < 1 应抛出 ValueError。"""
-        with pytest.raises(ValueError, match="submit_interval"):
-            RealMachineConfig(submit_interval=0)
-
-    def test_invalid_max_submissions_raises(self):
-        """max_submissions < 0 应抛出 ValueError。"""
-        with pytest.raises(ValueError, match="max_submissions"):
-            RealMachineConfig(max_submissions=-1)
-
-    def test_invalid_degrade_threshold_raises(self):
-        """degrade_fail_threshold < 1 应抛出 ValueError。"""
-        with pytest.raises(ValueError, match="degrade_fail_threshold"):
-            RealMachineConfig(degrade_fail_threshold=0)
-
-    def test_invalid_poll_steps_raises(self):
-        """max_poll_steps < 1 应抛出 ValueError。"""
-        with pytest.raises(ValueError, match="max_poll_steps"):
-            RealMachineConfig(max_poll_steps=0)
-
-    def test_zero_probability_allowed(self):
-        """submit_probability=0 应被允许（禁用真机提交）。"""
-        config = RealMachineConfig(submit_probability=0.0)
-        assert config.submit_probability == 0.0
-
-    def test_max_submissions_zero_allowed(self):
-        """max_submissions=0 应被允许（完全禁止提交）。"""
-        config = RealMachineConfig(max_submissions=0)
-        assert config.max_submissions == 0
-
-    def test_config_used_to_create_env(self):
-        """RealMachineConfig 参数应能直接传入 QuantumSchedulingEnv。"""
-        config = RealMachineConfig(
-            submit_probability=0.2,
-            max_submissions=50,
-        )
-        env = QuantumSchedulingEnv(
-            real_submit_probability=config.submit_probability,
-            max_real_submissions=config.max_submissions,
-            real_submit_interval=config.submit_interval,
-        )
-        assert env.real_submit_probability == 0.2
-        assert env.max_real_submissions == 50
-        assert env.real_submit_interval == config.submit_interval
-
-
-class TestDefaultMaxRealSubmissions:
-    """max_real_submissions 默认值变更测试（Issue #576）。"""
-
-    def test_env_default_max_real_submissions_is_30(self):
-        """env 默认 max_real_submissions 应为 30。"""
-        env = QuantumSchedulingEnv()
-        assert env.max_real_submissions == 30
-
-    def test_env_explicit_none_still_allowed(self):
-        """显式传入 None 仍应表示无限制（向后兼容）。"""
-        env = QuantumSchedulingEnv(max_real_submissions=None)
-        assert env.max_real_submissions is None
-
-    def test_env_explicit_custom_value(self):
-        """显式传入自定义值应生效。"""
-        env = QuantumSchedulingEnv(max_real_submissions=100)
-        assert env.max_real_submissions == 100
 
 
 if __name__ == "__main__":

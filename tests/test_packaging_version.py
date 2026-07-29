@@ -14,13 +14,8 @@
 import os
 
 import pytest
+import tomllib
 import yaml
-
-# Python 3.10 没有 tomllib（3.11+ 才进入标准库），需 tomli 替代
-try:
-    import tomllib
-except ModuleNotFoundError:
-    import tomli as tomllib  # type: ignore[no-redef]
 
 _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 

@@ -18,7 +18,6 @@ import unittest
 from unittest.mock import MagicMock, patch
 
 import numpy as np
-import pytest
 import torch
 from torch import nn
 
@@ -1009,7 +1008,7 @@ class TestOptimizePolicyAndHelpers(unittest.TestCase):
         ):
             self.assertTrue(torch.equal(p1, p2))
 
-    @pytest.mark.slow
+    @unittest.skip("v5 ??? head_only ?????,???????")
     def test_optimize_policy_head_only_raises_attribute_error(self):
         pass
 
@@ -1896,7 +1895,7 @@ class TestTargetNetGradient(unittest.TestCase):
         from stable_baselines3 import DQN
 
         env = gym.make("CartPole-v1")
-        model = DQN("MlpPolicy", env, verbose=0, device="cpu")
+        model = DQN("MlpPolicy", env, verbose=0)
         # SB3 ????? target ??
         self.assertIsNot(model.policy.q_net, model.policy.q_net_target)
         self.assertIsInstance(model.policy.q_net_target, nn.Module)

@@ -36,8 +36,6 @@ from src.scheduler.env_types import (
     Task,
 )
 
-pytestmark = pytest.mark.real_machine
-
 
 # ============================================================
 # 辅助：构造轻量 mock 环境（避免实例化完整 QuantumSchedulingEnv）
@@ -110,11 +108,17 @@ class TestGenerateQcisTwoQubitGates:
         assert "CZ" not in qcis
 
     def test_two_qubit_gates_disabled_by_default(self):
-        """默认 two_qubit_gates=False 不生成纠缠门。"""
+        """显式 two_qubit_gates=False 不生成纠缠门。"""
         task = Task(task_id="noent", task_type="quantum", qubit_count=4, priority=5)
-        qcis = generate_qcis_circuit(task, seed=42)
+        qcis = generate_qcis_circuit(task, seed=42, two_qubit_gates=False)
         assert "CNOT" not in qcis
         assert "CZ" not in qcis
+
+    def test_two_qubit_gates_auto_enabled_by_default(self):
+        """默认 two_qubit_gates=None 且 max_qubits>=2 时自动启用纠缠门。"""
+        task = Task(task_id="auto", task_type="quantum", qubit_count=4, priority=3)
+        qcis = generate_qcis_circuit(task, seed=42, max_qubits=10)
+        assert "CNOT" in qcis or "CZ" in qcis
 
 
 # ============================================================
