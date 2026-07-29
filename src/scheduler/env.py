@@ -30,33 +30,28 @@ from src.scheduler.env_machines import (
 from src.scheduler.env_observation import get_info, get_observation
 from src.scheduler.env_real_machine import (
     FREE_TIER_MAX_QUBITS,
+    apply_noise_penalty_to_reward,
     poll_pending_real_tasks,
     record_real_failure,
     submit_to_real_machine,
 )
 from src.scheduler.env_render import close_env, render_env
-from src.scheduler.env_reward import (
-    compute_execution_reward,
-    compute_fairness_penalty,
-    compute_wait_penalty,
-)
+from src.scheduler.env_reward import compute_execution_reward, compute_wait_penalty
 from src.scheduler.env_types import (
     ACTION_CLASSICAL,
     ACTION_HYBRID,
     ACTION_QUANTUM,
+    ACTION_QUANTUM_QEM,
     DEFAULT_MACHINE_CONFIGS,
     INITIAL_QUEUE_RANGE,
     MAX_QUEUE_SIZE,
     MAX_STEPS_DEFAULT,
     MAX_WAIT_STEPS,
-    OBS_ARRIVAL_RATE_MA,
     OBS_AVG_CONNECTIVITY,
     OBS_AVG_WAIT_TIME,
     OBS_CLASSICAL_LOAD,
     OBS_COUPLING_DENSITY,
-    OBS_CROSSTALK_RISK,
     OBS_DIM,
-    OBS_DIM_WITH_FAIRNESS,
     OBS_FIDELITY,
     OBS_QUANTUM_QUEUE_RATIO,
     OBS_QUBIT_AVAILABILITY,
@@ -72,7 +67,6 @@ from src.scheduler.env_types import (
     REAL_MACHINE_DEGRADE_FAIL_THRESHOLD,
     REAL_MACHINE_FAIL_PENALTY,
     REAL_MACHINE_MAX_POLL_STEPS,
-    REAL_MACHINE_MAX_SUBMISSIONS_DEFAULT,
     REAL_MACHINE_SUBMIT_INTERVAL,
     REAL_MACHINE_SUCCESS_BONUS,
     REAL_SUBMIT_PROBABILITY_DEFAULT,
@@ -86,7 +80,6 @@ from src.scheduler.env_types import (
     ClassicalResource,
     QuantumMachine,
     QuantumResource,
-    RealMachineConfig,
     Task,
 )
 
@@ -99,14 +92,11 @@ __all__ = [
     "MAX_QUEUE_SIZE",
     "MAX_STEPS_DEFAULT",
     "MAX_WAIT_STEPS",
-    "OBS_ARRIVAL_RATE_MA",
     "OBS_AVG_CONNECTIVITY",
     "OBS_AVG_WAIT_TIME",
     "OBS_CLASSICAL_LOAD",
     "OBS_COUPLING_DENSITY",
-    "OBS_CROSSTALK_RISK",
     "OBS_DIM",
-    "OBS_DIM_WITH_FAIRNESS",
     "OBS_FIDELITY",
     "OBS_QUANTUM_QUEUE_RATIO",
     "OBS_QUBIT_AVAILABILITY",
@@ -136,7 +126,6 @@ __all__ = [
     "QuantumMachine",
     "QuantumResource",
     "QuantumSchedulingEnv",
-    "RealMachineConfig",
     "Task",
     "register_env",
 ]
@@ -145,7 +134,7 @@ __all__ = [
 class QuantumSchedulingEnv(gym.Env[Any, Any]):
     """量子-经典混合计算调度环境（Gymnasium 接口）。
 
-    状态空间 16 维 Box(float32)，动作空间 Discrete(4)。
+    状态空间 14 维 Box(float32)，动作空间 Discrete(3)。
     详见模块文档与各子模块实现。
     """
 
@@ -162,16 +151,14 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
         real_submit_interval: int = REAL_MACHINE_SUBMIT_INTERVAL,
         use_real_machine: bool = False,
         real_machine_feedback_weight: float = 1.0,
-        max_real_submissions: int | None = REAL_MACHINE_MAX_SUBMISSIONS_DEFAULT,
+        max_real_submissions: int | None = None,
         real_machine_shots: int = 512,
         real_feedback_mode: str = "status_only",
         tenant_manager: Any | None = None,
         arrival_lambda: float | Callable[[int, int], float] | None = None,
         quantum_task_ratio: float | None = None,
         real_machine_max_qubits: int = FREE_TIER_MAX_QUBITS,
-        noise_profile: str | dict[str, Any] | None = None,
-        include_fairness_obs: bool = False,
-        observation_dim: int | None = None,
+        noise_aware_reward_shaping: bool = False,
     ):
         """初始化量子任务调度环境（参数详见子模块文档）。"""
         super().__init__()
@@ -214,24 +201,10 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
         self.quantum_task_ratio = (
             float(quantum_task_ratio) if quantum_task_ratio is not None else None
         )
-        self.noise_profile = self._resolve_noise_profile(noise_profile)
 
-        # Issue #588: 公平性观测开关（不影响默认 OBS_DIM=16，保持向后兼容）
-        self._include_fairness_obs = bool(include_fairness_obs)
-        # Issue #585: 消融实验支持截断观测空间
-        self._observation_dim = observation_dim
-
-        # Gymnasium 标准空间定义（16 维 obs + Discrete(4)，确保 PPO 模型可复用）
-        # Issue #585: observation_dim 截断优先级最高
-        # Issue #588: include_fairness_obs 扩展到 17 维
-        if observation_dim is not None and observation_dim < OBS_DIM:
-            eff_dim = observation_dim
-        elif self._include_fairness_obs:
-            eff_dim = OBS_DIM_WITH_FAIRNESS
-        else:
-            eff_dim = OBS_DIM
-        self.observation_space = spaces.Box(low=0.0, high=1.0, shape=(eff_dim,), dtype=np.float32)
-        self.action_space = spaces.Discrete(4)  # 0: classical, 1: quantum, 2: hybrid, 3: qem
+        # Gymnasium 标准空间定义（扩充 Discrete(4) 支持 QEM）
+        self.observation_space = spaces.Box(low=0.0, high=1.0, shape=(OBS_DIM,), dtype=np.float32)
+        self.action_space = spaces.Discrete(4)
 
         # ---- 多机器调度扩展 ----
         # machine_configs=None → 单机模式（与旧版完全等价）
@@ -270,6 +243,11 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
         self._pending_real_tasks: list[dict[str, Any]] = []
         # _real_result_records: 真机结果详细记录（Issue #235 可追溯性）
         self._real_result_records: list[dict[str, Any]] = []
+
+        # 流量突发感知：任务到达率历史（滑动窗口）
+        self.arrival_history: list[int] = []
+        self.current_time_window_arrivals: int = 0
+        self.max_arrival_history_length: int = 10
         # _real_feedback_log: 真机因果记录（Issue #235，"RL动作→真机任务→结果→reward"因果链）
         self._real_feedback_log: list[dict[str, Any]] = []
         self._real_machine_degraded: bool = False  # 降级标志：True 时跳过真机提交
@@ -278,6 +256,12 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
         self._real_fail_count: int = 0
         # 跨 episode 累积，确保训练级硬上限不会被 reset 绕过。
         self._real_submission_attempts_total: int = 0
+
+        # 噪声感知奖励整形状态（Issue #577）
+        self.noise_aware_reward_shaping: bool = noise_aware_reward_shaping
+        self._noise_penalty_remaining: int = 0
+        self._noise_penalty_initial: float = 0.0
+        self._noise_penalty_total: float = 0.0  # 累计衰减量（真机-仿真奖励差异量化）
 
         # 内部状态
         self._current_step: int = 0
@@ -311,15 +295,6 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
         # 多租户配额管理器（Issue #97）
         self._tenant_manager: Any | None = tenant_manager
 
-        # Issue #587: 公平性跟踪器（可选，用于计算公平性惩罚；默认 None）
-        # 通过 set_fairness_tracker() 显式设置；include_fairness_obs 时也可设置
-        self._fairness_tracker: Any | None = None
-
-        # LSTM 时序流量感知 (Superpower)
-        self.max_arrival_history_length = 10
-        self.arrival_history: list[int] = []
-        self.current_time_window_arrivals = 0
-
     def attach_real_clients(self, clients: dict[str, Any]) -> None:
         """绑定真机客户端，启用选择性真机验证。
 
@@ -334,14 +309,6 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
         # 更新 total_qubits 缓存（Issue #219）
         # attach_real_clients 不修改 _machines 列表本身，但保守起见同步缓存
         self._total_qubits_cache = sum(m.total_qubits for m in self._machines)
-
-    def set_fairness_tracker(self, tracker: Any | None) -> None:
-        """设置公平性跟踪器，启用奖励函数中的公平性惩罚（Issue #587）。
-
-        Args:
-            tracker: MultiTenantFairnessTracker 实例，或 None 清除。
-        """
-        self._fairness_tracker = tracker
 
     @property
     def machine_names(self) -> list[str]:
@@ -378,6 +345,8 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
             "fail_count": self._real_fail_count,
             "degraded": self._real_machine_degraded,
             "consecutive_failures": self._real_consecutive_failures,
+            "noise_penalty_remaining": self._noise_penalty_remaining,
+            "noise_penalty_total": self._noise_penalty_total,
         }
 
     def export_real_feedback_log(self, path: str) -> int:
@@ -451,10 +420,6 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
         self._episode_reward = 0.0
         self._render_log = []
 
-        # 重置 LSTM 时序流量感知状态
-        self.arrival_history = []
-        self.current_time_window_arrivals = 0
-
         # 重置连续无任务步数（Issue #400）
         self._consecutive_idle_steps = 0
 
@@ -470,6 +435,15 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
         self._real_result_records = []
         self._real_feedback_log = []
 
+        # 重置噪声感知奖励整形状态（Issue #577）
+        # _noise_penalty_remaining 每个 episode 重置，_noise_penalty_total 跨 episode 累积
+        self._noise_penalty_remaining = 0
+        self._noise_penalty_initial = 0.0
+
+        # 重置到达率历史
+        self.arrival_history = []
+        self.current_time_window_arrivals = 0
+
         # 随机初始化任务队列（5-20 个任务）
         self._task_queue = []
         initial_count = rng.integers(INITIAL_QUEUE_RANGE[0], INITIAL_QUEUE_RANGE[1] + 1)
@@ -479,7 +453,7 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
         # 随机初始化每台量子机器状态（多机器调度扩展）
         for m in self._machines:
             m.available_ratio = rng.uniform(0.3, 1.0)
-            m.fidelity = self._sample_initial_fidelity(rng)
+            m.fidelity = rng.uniform(0.85, 0.99)
             m.quantum_queue = 0
             m.available = True
             m.update_noise_features(rng)
@@ -507,12 +481,6 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
         # 本步总奖励 = 执行收益 + 队列等待惩罚 + 资源利用率惩罚
         reward = 0.0
 
-        # Issue #522 性能优化：本步只构建一次观测并缓存复用。
-        # 原实现中 step() 兼容分支、_compute_execution_reward()、返回值各调用一次
-        # _get_observation()，单步共 3 次观测构建（含 numpy 向量化加权平均），开销大。
-        # 缓存后保证单步内观测一致，并将构建次数降为 1。
-        obs = self._get_observation()
-
         if self._current_task is not None:
             task = self._current_task
             is_compatible = self._check_compatibility(task, action)
@@ -531,7 +499,8 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
                 )
             else:
                 # 兼容分配：为量子任务选择最佳机器
-                quantum_action = action in (ACTION_QUANTUM, ACTION_HYBRID)
+                quantum_action = action in (ACTION_QUANTUM, ACTION_HYBRID, ACTION_QUANTUM_QEM)
+                is_qem = action == ACTION_QUANTUM_QEM
                 selected_machine = None
                 if quantum_action:
                     selected_machine = self._select_best_machine(task)
@@ -539,7 +508,7 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
                 quantum_unavailable = quantum_action and selected_machine is None
 
                 if quantum_unavailable:
-                    if action == ACTION_QUANTUM:
+                    if action in (ACTION_QUANTUM, ACTION_QUANTUM_QEM):
                         # 纯量子动作：任务重新排队，半个 mismatch 惩罚
                         reward += REWARD_MISMATCH * 0.5
                         task.wait_steps += 1
@@ -552,7 +521,7 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
                         )
                     else:
                         # 混合动作：降级为经典执行，避免系统空转
-                        reward += self._compute_execution_reward(task, ACTION_CLASSICAL, rng, obs)
+                        reward += self._compute_execution_reward(task, ACTION_CLASSICAL, rng)
                         self._total_scheduled += 1
                         self._classical_success += 1
                         self._last_selected_machine = None
@@ -561,13 +530,8 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
                             f"混合任务{task.task_id}降级为经典执行，reward={reward:.2f}"
                         )
                 else:
-                    # 兼容分配：计算执行奖励（复用步首缓存的 obs，避免重复构建观测）
-                    crosstalk_risk = obs[OBS_CROSSTALK_RISK]
-                    crosstalk_penalty = crosstalk_risk * 2.0
-
-                    reward += (
-                        self._compute_execution_reward(task, action, rng, obs) - crosstalk_penalty
-                    )
+                    # 兼容分配：计算执行奖励
+                    reward += self._compute_execution_reward(task, action, rng, selected_machine)
                     self._total_scheduled += 1
 
                     # 构建观测快照（Issue #234）：记录关键状态字段用于因果追溯
@@ -579,7 +543,7 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
                         "quantum_queue": self._quantum.quantum_queue,
                     }
 
-                    if action == ACTION_QUANTUM:
+                    if action in (ACTION_QUANTUM, ACTION_QUANTUM_QEM):
                         self._quantum_success += 1
                         self._route_to_machine(
                             selected_machine,
@@ -587,6 +551,7 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
                             rng,
                             rl_action=action,
                             observation_snapshot=_obs_snapshot,
+                            is_qem=is_qem,
                         )
                     elif action == ACTION_CLASSICAL:
                         self._classical_success += 1
@@ -647,16 +612,10 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
         # terminated=True → 自然终止（连续无任务，环境无意义继续），不 Bootstrap
         # truncated=True → 因 max_steps 外部限制截断（任务可能未完成），需要 Bootstrap
         idle_termination_threshold = 10
+        terminated = self._consecutive_idle_steps >= idle_termination_threshold
         truncated = self._current_step >= self.max_steps
-        terminated = (not truncated) and (
-            self._consecutive_idle_steps >= idle_termination_threshold
-        )
 
-        # Issue #522: 步首缓存的 obs 用于奖励计算，步尾重新构建观测以反映
-        # advance_time 后的状态（如 arrival_rate_ma 已更新），保证返回给 Agent
-        # 的观测与原始实现语义一致（原实现返回 advance_time 后的观测）。
-        return_obs = self._get_observation()
-        return return_obs, reward, terminated, truncated, self._get_info()
+        return self._get_observation(), reward, terminated, truncated, self._get_info()
 
     # -- 薄包装方法：委托给子模块，保留实例方法签名以兼容现有测试 --
 
@@ -665,43 +624,6 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
 
     def close(self) -> None:
         close_env(self)
-
-    @staticmethod
-    def _resolve_noise_profile(
-        profile: str | dict[str, Any] | None,
-    ) -> dict[str, Any]:
-        """解析保真度噪声模型配置（Issue #456 噪声反馈 v2）。
-
-        Args:
-            profile: 噪声模型名称或自定义参数字典。
-                - None/"uniform": 默认均匀分布 U(0.85, 0.99)
-                - "real_machine": 真机噪声分布 Beta(μ=0.886, σ=0.087) 截断到 [0.671, 0.994]
-                - dict: 自定义参数 {distribution, mean, std, low, high}
-
-        Returns:
-            标准化的噪声配置字典。
-        """
-        if profile is None or profile == "uniform":
-            return {"distribution": "uniform", "low": 0.85, "high": 0.99}
-        if profile == "real_machine":
-            return _beta_params_from_mean_std(0.8863, 0.0874, 0.671, 0.994)
-        if isinstance(profile, dict):
-            return dict(profile)
-        raise ValueError(f"Unknown noise_profile: {profile!r}")
-
-    def _sample_initial_fidelity(self, rng: np.random.Generator) -> float:
-        """根据 noise_profile 采样初始保真度。"""
-        p = self.noise_profile
-        if p["distribution"] == "uniform":
-            return float(rng.uniform(p["low"], p["high"]))
-        if p["distribution"] == "beta":
-            for _ in range(100):
-                val = rng.beta(p["a"], p["b"])
-                val = val * (p["high"] - p["low"]) + p["low"]
-                if p["low"] <= val <= p["high"]:
-                    return float(val)
-            return float(p["mean"])
-        return float(rng.uniform(0.85, 0.99))
 
     def _generate_random_task(self, rng: np.random.Generator, task_id: int) -> Task:
         return generate_random_task(rng, task_id, self.quantum_task_ratio)
@@ -734,8 +656,11 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
         rl_action: int = -1,
         rl_action_prob: float = 0.0,
         observation_snapshot: dict[str, Any] | None = None,
+        is_qem: bool = False,
     ) -> None:
-        route_to_machine(self, machine, task, rng, rl_action, rl_action_prob, observation_snapshot)
+        route_to_machine(
+            self, machine, task, rng, rl_action, rl_action_prob, observation_snapshot, is_qem
+        )
 
     def _submit_to_real_machine(
         self,
@@ -757,71 +682,28 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
         recompute_aggregate(self)
 
     def _compute_execution_reward(
-        self,
-        task: Task,
-        action: int,
-        rng: np.random.Generator,
-        obs: NDArray[Any] | None = None,
-        fairness_penalty: float | None = None,
+        self, task: Task, action: int, rng: np.random.Generator, selected_machine: Any = None
     ) -> float:
-        """计算执行奖励（委托给 env_reward.compute_execution_reward）。
+        crosstalk_penalty = 0.0
+        if selected_machine is not None and hasattr(selected_machine, "active_tasks"):
+            active_count = len(selected_machine.active_tasks)
+            if active_count > 0:
+                crosstalk_penalty = 0.1 * active_count
 
-        Args:
-            task: 待执行任务。
-            action: 调度动作（ACTION_CLASSICAL / ACTION_QUANTUM / ACTION_HYBRID）。
-            rng: 随机数生成器。
-            obs: 步首缓存的全局观测向量。若提供则直接读取串扰风险，避免重复构建观测
-                （Issue #522 性能优化）；若为 None 则回退到即时构建。
-            fairness_penalty: 公平性惩罚值（Issue #587）。为 None 时自动从
-                ``_fairness_tracker`` 计算；非 None 时直接使用传入值。
-
-        Returns:
-            执行奖励标量。
-        """
-        # Issue #522: 优先复用步首缓存的观测，避免在奖励计算中重复调用 _get_observation()
-        if obs is None:
-            obs = self._get_observation()
-        crosstalk_risk = obs[OBS_CROSSTALK_RISK]
-        crosstalk_penalty = crosstalk_risk * 2.0  # 惩罚因子可调
-
-        # Issue #587: 公平性惩罚嵌入奖励函数
-        # 若未显式传入 fairness_penalty，则根据 tenant_manager 是否存在决定是否计算
-        if fairness_penalty is None:
-            fairness_penalty = self._compute_fairness_penalty_for_task(task)
-
-        return compute_execution_reward(
+        reward = compute_execution_reward(
             task=task,
             action=action,
             rng=rng,
             quantum_fidelity=self._quantum.fidelity,
             quantum_available_ratio=self._quantum.available_ratio,
             crosstalk_penalty=crosstalk_penalty,
-            fairness_penalty=fairness_penalty,
         )
 
-    def _compute_fairness_penalty_for_task(self, task: Task) -> float:
-        """计算单个任务的公平性惩罚（Issue #587）。
+        # 噪声感知奖励整形：真机低保真度后续步惩罚（Issue #577）
+        if self.noise_aware_reward_shaping:
+            reward = apply_noise_penalty_to_reward(self, reward)
 
-        当 ``_fairness_tracker`` 为 None 时（未设置跟踪器），返回 0.0。
-        否则从 ``_fairness_tracker`` 提取各租户的平均等待时间字典，
-        调用 ``compute_fairness_penalty`` 计算惩罚。
-
-        Args:
-            task: 待执行任务（使用 tenant_id 字段）
-
-        Returns:
-            公平性惩罚值（非正数）
-        """
-        # Issue #587: 未设置公平性跟踪器时无惩罚
-        if self._fairness_tracker is None:
-            return 0.0
-        # 从 fairness_tracker 提取各租户的平均等待时间字典
-        wait_times = self._fairness_tracker.get_wait_times_dict()
-        tenant_id = getattr(task, "tenant_id", None)
-        return compute_fairness_penalty(
-            tenant_id=tenant_id,
-            fairness_wait_times=wait_times,
-        )
+        return reward
 
     def _compute_wait_penalty(self) -> float:
         return compute_wait_penalty(self._task_queue)
@@ -841,33 +723,6 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
     @property
     def _max_steps(self) -> int:
         return self.max_steps
-
-
-def _beta_params_from_mean_std(mean: float, std: float, low: float, high: float) -> dict[str, Any]:
-    """将均值/标准差映射到 Beta 分布参数 a, b（已线性缩放到 [low, high]）。
-
-    方法矩估计：μ = a/(a+b), σ² = ab/((a+b)²(a+b+1))
-    """
-    range_ = high - low
-    if range_ <= 0:
-        return {"distribution": "beta", "a": 1.0, "b": 1.0, "low": low, "high": high, "mean": mean}
-    m = (mean - low) / range_
-    v = (std / range_) ** 2
-    if v >= m * (1 - m):
-        v = m * (1 - m) * 0.9
-    a = m * (m * (1 - m) / v - 1)
-    b = (1 - m) * (m * (1 - m) / v - 1)
-    a = max(a, 0.5)
-    b = max(b, 0.5)
-    return {
-        "distribution": "beta",
-        "a": float(a),
-        "b": float(b),
-        "low": float(low),
-        "high": float(high),
-        "mean": float(mean),
-        "std": float(std),
-    }
 
 
 def register_env() -> None:
