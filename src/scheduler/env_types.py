@@ -71,6 +71,22 @@ FAIRNESS_PENALTY_THRESHOLD = 0.3
 FAIRNESS_PENALTY_FACTOR = 2.0
 
 # ---------------------------------------------------------------------------
+# 噪声参数注入常量（Issue #591）
+# ---------------------------------------------------------------------------
+# noise_profile 字典的标准键名
+NOISE_KEY_READOUT_ERROR = "readout_error"  # 读出误差率 (0-1)
+NOISE_KEY_GATE_ERROR = "gate_error"  # 平均门误差率 (0-1)
+NOISE_KEY_T1 = "t1"  # T1 弛豫时间 (微秒)
+
+# 噪声对量子奖励的惩罚权重
+# 最终量子奖励 = 原始奖励 * (1 - readout_error * NOISE_READOUT_PENALTY_WEIGHT
+#                                   - gate_error * NOISE_GATE_PENALTY_WEIGHT)
+NOISE_READOUT_PENALTY_WEIGHT = 1.0  # 读出误差 1:1 映射到奖励折扣
+NOISE_GATE_PENALTY_WEIGHT = 2.0  # 门误差 2:1 映射（门误差对量子计算影响更大）
+# 奖励折扣下限：即使噪声极大，奖励也不低于原始的 10%
+NOISE_PENALTY_FLOOR = 0.1
+
+# ---------------------------------------------------------------------------
 # 环境参数
 # ---------------------------------------------------------------------------
 MAX_QUEUE_SIZE = 30  # 队列最大长度（用于归一化）

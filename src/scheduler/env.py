@@ -343,6 +343,50 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
         """
         self._fairness_tracker = tracker
 
+    def inject_noise_profile(self, noise_params: dict[str, Any]) -> None:
+        """注入真机噪声参数到仿真环境（Issue #591）。
+
+        将 NoiseModelExtractor.extract_all() 提取的噪声参数注入环境的
+        ``noise_profile``，使奖励函数感知真机噪声水平。
+
+        调用示例::
+
+            from src.scheduler.env_real_machine import NoiseModelExtractor
+
+            extractor = NoiseModelExtractor()
+            results = extractor.extract_all(
+                measurement_results={"0": 0.45, "1": 0.55},
+                rb_results=[{"m": 1, "fidelity": 0.99}, ...],
+                delay_results=[{"t": 10, "p1": 0.9}, ...],
+            )
+            env.inject_noise_profile(results)
+
+        注入后，量子执行奖励将根据 readout_error 和 gate_error 折扣，
+        混合执行奖励以半权重折扣。T1 参数记录但不参与当前奖励计算。
+
+        Args:
+            noise_params: 噪声参数字典，可包含：
+                - "readout_error": 读出误差率 (0-1)
+                - "gate_error": 平均门误差率 (0-1)
+                - "decoherence": T1 拟合结果子字典（含 "t1" 键）
+        """
+        profile: dict[str, float] = {}
+
+        # readout_error 直接取值
+        if "readout_error" in noise_params:
+            profile["readout_error"] = float(noise_params["readout_error"])
+
+        # gate_error 直接取值
+        if "gate_error" in noise_params:
+            profile["gate_error"] = float(noise_params["gate_error"])
+
+        # decoherence 是子字典，提取 t1 值
+        decoherence = noise_params.get("decoherence")
+        if isinstance(decoherence, dict) and "t1" in decoherence:
+            profile["t1"] = float(decoherence["t1"])
+
+        self.noise_profile = profile if profile else None
+
     @property
     def machine_names(self) -> list[str]:
         """返回当前所有机器名称列表。"""
@@ -378,6 +422,7 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
             "fail_count": self._real_fail_count,
             "degraded": self._real_machine_degraded,
             "consecutive_failures": self._real_consecutive_failures,
+            "noise_profile": self.noise_profile,
         }
 
     def export_real_feedback_log(self, path: str) -> int:
@@ -692,9 +737,12 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
     def _sample_initial_fidelity(self, rng: np.random.Generator) -> float:
         """根据 noise_profile 采样初始保真度。"""
         p = self.noise_profile
-        if p["distribution"] == "uniform":
+        if p is None:
+            return float(rng.uniform(0.85, 0.99))
+        dist = p.get("distribution")
+        if dist == "uniform":
             return float(rng.uniform(p["low"], p["high"]))
-        if p["distribution"] == "beta":
+        if dist == "beta":
             for _ in range(100):
                 val = rng.beta(p["a"], p["b"])
                 val = val * (p["high"] - p["low"]) + p["low"]
@@ -797,6 +845,7 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
             quantum_available_ratio=self._quantum.available_ratio,
             crosstalk_penalty=crosstalk_penalty,
             fairness_penalty=fairness_penalty,
+            noise_profile=self.noise_profile,
         )
 
     def _compute_fairness_penalty_for_task(self, task: Task) -> float:

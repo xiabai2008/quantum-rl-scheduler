@@ -18,6 +18,11 @@ from src.scheduler.env_types import (
     FAIRNESS_PENALTY_FACTOR,
     FAIRNESS_PENALTY_THRESHOLD,
     MAX_WAIT_STEPS,
+    NOISE_GATE_PENALTY_WEIGHT,
+    NOISE_KEY_GATE_ERROR,
+    NOISE_KEY_READOUT_ERROR,
+    NOISE_PENALTY_FLOOR,
+    NOISE_READOUT_PENALTY_WEIGHT,
     QUANTUM_SPEEDUP_RANGE,
     REWARD_CLASSICAL,
     REWARD_HYBRID,
@@ -128,6 +133,7 @@ def compute_execution_reward(
     quantum_available_ratio: float,
     crosstalk_penalty: float = 0.0,
     fairness_penalty: float = 0.0,
+    noise_profile: dict[str, float] | None = None,
 ) -> float:
     """
     计算任务执行成功后的即时奖励。
@@ -165,6 +171,11 @@ def compute_execution_reward(
         quantum_available_ratio : 当前量子资源聚合可用比率（0-1）
         crosstalk_penalty       : 串扰惩罚值
         fairness_penalty        : 公平性惩罚值（Issue #587，非正数）
+        noise_profile           : 噪声参数字典（Issue #591），可包含：
+                                    - "readout_error": 读出误差率 (0-1)
+                                    - "gate_error": 平均门误差率 (0-1)
+                                    - "t1": T1 弛豫时间（微秒，当前未参与奖励计算）
+                                  None 表示无噪声注入（仿真模式）。
 
     Returns:
         float: 计算得到的即时奖励
@@ -193,6 +204,9 @@ def compute_execution_reward(
         # 应用串扰惩罚
         reward -= crosstalk_penalty
 
+        # 噪声参数注入惩罚（Issue #591）：真机噪声参数折扣量子奖励
+        reward *= _compute_noise_discount(noise_profile, full_weight=True)
+
         # Issue #401: 应用 urgency/priority 加权
         reward *= task_weight
 
@@ -217,6 +231,9 @@ def compute_execution_reward(
         # 应用串扰惩罚
         reward -= crosstalk_penalty
 
+        # 噪声参数注入惩罚（Issue #591）：QEM 模式全权重噪声折扣
+        reward *= _compute_noise_discount(noise_profile, full_weight=True)
+
         # 应用 urgency/priority 加权
         reward *= task_weight
 
@@ -229,11 +246,45 @@ def compute_execution_reward(
         base = REWARD_HYBRID
         # available_ratio=0 时 factor=0.5，available_ratio=1 时 factor=1.0。
         hybrid_factor = 0.5 + 0.5 * quantum_available_ratio
+        # 噪声参数注入惩罚（Issue #591）：混合执行半权重
+        reward = base * hybrid_factor
+        reward *= _compute_noise_discount(noise_profile, full_weight=False)
         # Issue #401: 应用 urgency/priority 加权
-        reward = float(base * hybrid_factor * task_weight + REWARD_SUCCESS_BONUS)
+        reward = float(reward * task_weight + REWARD_SUCCESS_BONUS)
         # Issue #587: 累加公平性惩罚
         reward += fairness_penalty
         return reward
+
+
+def _compute_noise_discount(
+    noise_profile: dict[str, float] | None,
+    full_weight: bool = True,
+) -> float:
+    """根据噪声参数计算奖励折扣因子（Issue #591）。
+
+    折扣因子 = 1 - readout_error * w_readout - gate_error * w_gate
+    其中权重在混合执行模式下减半（混合执行对噪声敏感度较低）。
+    最终折扣因子被裁剪到 [NOISE_PENALTY_FLOOR, 1.0]。
+
+    Args:
+        noise_profile: 噪声参数字典，None 表示无噪声注入
+        full_weight  : True=全权重（量子执行），False=半权重（混合执行）
+
+    Returns:
+        折扣因子 (0.1 ~ 1.0)，1.0 表示无噪声折扣
+    """
+    if not noise_profile:
+        return 1.0
+
+    readout_error = float(noise_profile.get(NOISE_KEY_READOUT_ERROR, 0.0))
+    gate_error = float(noise_profile.get(NOISE_KEY_GATE_ERROR, 0.0))
+
+    weight_scale = 1.0 if full_weight else 0.5
+    discount = 1.0 - (
+        readout_error * NOISE_READOUT_PENALTY_WEIGHT * weight_scale
+        + gate_error * NOISE_GATE_PENALTY_WEIGHT * weight_scale
+    )
+    return max(NOISE_PENALTY_FLOOR, min(1.0, discount))
 
 
 def compute_wait_penalty(task_queue: list[Task]) -> float:
