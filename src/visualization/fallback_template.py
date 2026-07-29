@@ -2218,16 +2218,16 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         bars.innerHTML = html;
     }
 
-    // 内置权威策略排名（当API不可用时使用，基于14维公平重训结果）
+    // 内置权威策略排名（当API不可用时使用，基于16维交付模型N=250权威数据）
     var BUILTIN_RANKINGS = [
-        {name: 'PPO', score: 2374},
-        {name: 'DQN', score: 1510},
-        {name: 'SJF', score: 1462},
-        {name: 'FCFS', score: 1261},
-        {name: 'Random', score: 1217},
-        {name: 'MAPPO', score: 1200},
-        {name: 'Greedy', score: -26},
-        {name: 'Quantum-Only', score: -920}
+        {name: 'PPO', score: 2348.91},
+        {name: 'SJF', score: 1060.30},
+        {name: 'FCFS', score: 1051.59},
+        {name: 'DQN', score: 891.53},
+        {name: 'Random', score: 891.53},
+        {name: 'MAPPO', score: 891.53},
+        {name: 'Greedy', score: -134.18},
+        {name: 'Quantum-Only', score: -1327.39}
     ];
 
     function renderRanking(stats) {

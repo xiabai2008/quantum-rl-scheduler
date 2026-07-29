@@ -62,7 +62,7 @@ feat / fix / docs / test / refactor / chore
 | 2026-09-30 | 初审结果公布                      | 📅  |
 | 2026-11    | 终审擂台赛                       | 📅  |
 
-## 3. 项目代码结构（v8）
+## 3. 项目代码结构（v9.1）
 
 ```
 quantum-rl-scheduler/
@@ -83,13 +83,13 @@ quantum-rl-scheduler/
 │   ├── config/                   # 配置管理（settings.py, schema.py）
 │   ├── scheduler/                # 调度引擎（核心模块，~23文件）
 │   │   ├── parser.py             # 量子任务解析
-│   │   ├── env.py                # Gymnasium调度环境入口（14维/异质化/多机器）
-│   │   ├── env_observation.py    # 观测空间（14维）
+│   │   ├── env.py                # Gymnasium调度环境入口（16维/异质化/多机器）
+│   │   ├── env_observation.py    # 观测空间（16维）
 │   │   ├── env_dynamics.py       # 环境动力学（泊松任务生成）
 │   │   ├── env_machines.py       # 多机器管理
 │   │   ├── env_reward.py         # 奖励函数
 │   │   ├── env_render.py         # 渲染
-│   │   ├── env_types.py          # 类型定义（OBS_DIM=14）
+│   │   ├── env_types.py          # 类型定义（OBS_DIM=16）
 │   │   ├── env_real_machine.py   # 真机集成
 │   │   ├── agent.py              # DQN 智能体
 │   │   ├── ppo_agent.py          # PPO 智能体
@@ -395,12 +395,13 @@ PR审查        ████████████████░░░░  80
 
 | 维度                | 适用场景                     | 包装器                        |
 | :---------------- | :----------------------- | :------------------------- |
-| 14维（原生）           | PPO训练/评估、真机实验、答辩提交       | 无（QuantumSchedulingEnv 原生） |
+| 16维（原生·交付标准）     | PPO训练/评估、真机实验、答辩提交       | 无（QuantumSchedulingEnv 原生） |
+| 14维（编译层专用）       | 量子比特映射（编译PPO vs SABRE）   | 编译环境compilation_env.py独立实现 |
 | 10维（Obs10Wrapper） | DQN基线对比（与旧版10维 DQN 公平对比） | Obs10Wrapper（截断前10维）       |
 
 **口径切换声明要求**：
 
-- 10维和14维结果不可直接比较
+- 10维和16维结果不可直接比较；调度层16维与编译层14维是独立任务，指标不可跨任务比较
 - 报告/表格必须标注观测维度
 - PPO +123.4% 为16维交付模型权威对比结果（v9.1+，OBS_DIM=16，50seed×5episodes=250次独立运行），PPO 模型文件为 ppo_best_model_16dim.zip（v9 已由 14 维迁移至 16 维，旧版 dqn_best_model_10dim.zip / dqn_best_model_14dim.zip 已删除）。10维 Obs10Wrapper 仅用于与旧版 10维 DQN 模型的公平对比
 

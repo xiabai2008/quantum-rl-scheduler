@@ -4,6 +4,25 @@
 
 ## [2026-07-29] - v9.1.0 权威数字更新 + 评审报告P0/P1修复
 
+### v9.1 关键变更总览（相对于v8.x）
+- **16维观测空间**：新增串扰风险（OBS_CROSSTALK_RISK）、到达率滑动平均（OBS_ARRIVAL_RATE_MA）两维，OBS_DIM=14→16
+- **第17维可选公平性指数观测**：`include_fairness_obs`开关控制Jain公平性指数是否纳入状态（默认关闭保持向后兼容）
+- **新增circuit_templates.py**：Bell/GHZ/VQE4/QAOA5标准量子电路模板
+- **新增noise_extractor.py**：NoiseModelExtractor真机噪声画像提取与注入
+- **噪声感知奖励整形**：低保真度惩罚/高保真度加成机制（NOISE_AWARD_*）
+- **SHAP可解释性集成**：PPOExplainer决策特征贡献度分析
+- **LearnableMachineScorer可学习路由**：数据驱动的机器评分与路由
+- **QAOAScheduler基线**：QAOA专用调度器基线策略
+- **非阻塞轮转轮询**：真机结果轮询改为非阻塞异步，避免step()阻塞
+- **观测缓存消除重复计算**：ObservationCache复用帧间不变特征
+- **Prometheus /metrics端点**：7个核心指标暴露（任务队列/等待时间/利用率/API延迟/失败率/退火耗时）
+- **DAG QUBO numpy向量化**：退火模块QUBO矩阵构建numpy加速
+- **AnnealingConfig修复**：Metropolis接受阈值bug修复
+- **MARL evaluate()修复**：训练-评估一致性修复，多智能体评估结果可复现
+- **Property-based测试 + 性能基准测试**：Hypothesis策略测试+ASV基准
+- **27个issues全部关闭**：所有P0/P1/P2 issues已处理
+- **测试3359通过，ruff/mypy 0 errors**
+
 ### 变更 (v9.0.0 → 9.1.0)
 - **权威数字更新**：基于16维交付模型 `ppo_best_model_16dim.zip` 重跑 N=250 多seed评估，PPO vs FCFS 提升 +88.3% → **+123.4%**（Welch t p=1.449e-66，Cohen's d=-2.14，CI[+113.3%, +133.5%]）；旧14维数字移入 `config/statistics.yaml` deprecated 段留痕
 - **量子→AI 统计证据**：新增 N=25 配对检验（Wilcoxon signed-rank p=2.98e-08，d_z=7.71，事后功效 1.0），真机噪声分布对PPO策略奖励显著影响，噪声感知闭环统计成立（`results/reports/quantum_noise_paired_canonical.md`），取代旧10seeds探索性实验
