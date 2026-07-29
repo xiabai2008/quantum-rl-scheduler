@@ -1,0 +1,9 @@
+{
+  "num_agents": 2,
+  "local_obs_dim": 19,
+  "global_state_dim": 38,
+  "machine_names": [
+    "tianyan_s",
+    "tianyan_sw"
+  ]
+}

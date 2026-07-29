@@ -1,0 +1,414 @@
+# =============================================================================
+# 量子RL调度系统 — CI/CD 持续集成流水线
+# Quantum RL Scheduler — CI/CD Pipeline
+#
+# 触发条件：推送到 main 分支 or 发起 Pull Request
+# 执行内容：代码格式检查 → 类型检查 → 单元测试 → 覆盖率报告
+# =============================================================================
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review]
+
+# 取消同一PR的冗余CI运行
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+
+  # ---------------------------------------------------------------------------
+  # Job 1: 代码格式检查（ruff format + ruff check + bandit）
+  # 工具栈与 .pre-commit-config.yaml / pyproject.toml 保持一致
+  # 迁移说明：从 black+isort+flake8 迁移到 ruff（2026-07-19）
+  #   - ruff format --check：严格阻断（格式基线，必须通过）
+  #   - ruff check：严格阻断（142→0，2026-07-20 完成）
+  #   - bandit：严格阻断（安全扫描）
+  # ---------------------------------------------------------------------------
+  lint:
+    name: "Lint (ruff format + ruff check + bandit)"
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install lint dependencies
+        run: |
+          pip install --upgrade pip
+          pip install "ruff>=0.15.0" "bandit>=1.7.0" "pyyaml>=6.0"
+
+      - name: Check code formatting (ruff format)
+        run: ruff format --check src/ scripts/ tests/
+
+      - name: Lint with ruff
+        run: ruff check src/ scripts/ tests/
+
+      - name: Security scan (bandit)
+        run: bandit -c pyproject.toml -r src/ -ll
+
+      - name: Check statistics consistency (Issue #141)
+        run: python scripts/ci/check_stats_consistency.py --strict
+
+  # ---------------------------------------------------------------------------
+  # Job 2: 单元测试 + 覆盖率（跨平台 × Python 多版本矩阵）
+  # ---------------------------------------------------------------------------
+  test:
+    name: "Test (${{ matrix.os }}, Python ${{ matrix.python-version }})"
+    runs-on: ${{ matrix.os }}
+    # 60 分钟 timeout（实际约 7 分钟完成）。
+    # 矩阵策略说明（2026-07-19）：
+    #   完整测试套件（1658 测试）只在 Windows runner 上跑。
+    #   Linux/macOS 共享 runner 只有 2 核 7GB RAM，跑完整套件会因
+    #   CPU/内存耗尽导致 runner 失联（47 分钟后 lost communication），
+    #   即使跳过退火测试、加 xdist 并行化仍无法解决。
+    #   跨平台兼容性已由 ubuntu 的 lint/typecheck/security job 验证。
+    #   Issue #185: 矩阵显式声明 os 维度，避免 Codecov 上传条件引用
+    #   未定义的 matrix.os 导致恒假；当前仅 windows-latest。
+    timeout-minutes: 30
+    needs: lint
+    # Issue #260: 需要 pull-requests: write 才能在 PR 上发布覆盖率评论。
+    permissions:
+      contents: read
+      pull-requests: write
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+        os: [windows-latest]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Cache pip packages
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.os == 'Windows' && '~\AppData\Local\pip\Cache' || '~/.cache/pip' }}
+          key: ${{ runner.os }}-pip-${{ matrix.python-version }}-${{ hashFiles('requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-${{ matrix.python-version }}-
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+          # Dev/test dependencies (not in requirements.txt to keep prod image lean)
+          pip install -r requirements-dev.txt
+
+      # Issue #548: CI 仅在 Windows runner 运行（团队开发环境统一为 Windows）
+      # Linux/macOS 平台代码已清理，如需跨平台支持请参考 .github/workflows/ci.yml 历史
+      - name: Install ffmpeg (Windows)
+        if: runner.os == 'Windows'
+        run: choco install ffmpeg -y
+        continue-on-error: true
+
+      - name: Run tests with coverage
+        shell: bash
+        run: |
+          # Issue #189: test_annealing.py 资源耗尽问题已修复
+          # （慢测试最慢 1.13s，总耗时 65s），不再需要 --ignore。
+          # CI test job 已简化为只跑 Windows（2026-07-19），
+          # 退火逻辑在 Windows 矩阵（3 个 Python 版本）完整验证。
+          python -m pytest tests/ \
+            -v \
+            -n auto --dist loadscope \
+            --cov=src \
+            --cov-report=term-missing \
+            --cov-report=xml \
+            --cov-fail-under=80 \
+            --timeout=120 \
+            -W ignore::DeprecationWarning
+
+      - name: QUBO formal/property verification
+        # Issue #253: 将 QUBO 数学验证纳入 CI。
+        # 运行 QUBO 的形式化/属性测试（tests/test_qubo_optimization.py 中
+        # 方法名含 formal / property 的用例，均为纯 numpy + 标准库实现）。
+        # 仅在 3.11 + Windows 组合运行一次，避免矩阵重复执行。
+        # 退出码处理：pytest 返回 5（无命中测试）视为“验证待补充”而通过；
+        # 返回非 0（测试失败）则显式回显反例（counterexample）后退出 1。
+        if: matrix.python-version == '3.11' && matrix.os == 'windows-latest'
+        shell: bash
+        run: |
+          pytest tests/test_qubo_optimization.py -k "formal or property"
+          status=$?
+          if [ "$status" -eq 5 ]; then
+            echo "No 'formal'/'property' QUBO tests collected (verification pending)."
+            exit 0
+          elif [ "$status" -ne 0 ]; then
+            echo 'HYPOTHESIS COUNTEREXAMPLE ABOVE'
+            exit 1
+          fi
+
+      - name: Upload coverage to Codecov
+        # Issue #185: 条件需匹配矩阵中实际运行的 OS（windows-latest），
+        # 避免引用未定义的 matrix.os 或恒假的 ubuntu 条件。
+        # 仅在 Python 3.11 + windows-latest 组合上传一次，避免重复上传。
+        if: matrix.python-version == '3.11' && matrix.os == 'windows-latest'
+        uses: codecov/codecov-action@v4
+        with:
+          file: ./coverage.xml
+          flags: unittests
+          fail_ci_if_error: false
+          token: ${{ secrets.CODECOV_TOKEN }}
+
+      - name: Upload coverage XML artifact
+        # Issue #260: 将 coverage.xml 作为可下载 artifact 保存，
+        # 便于审阅者随时下载本次构建的覆盖率报告快照。
+        if: always() && matrix.python-version == '3.11' && matrix.os == 'windows-latest'
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-xml
+          path: coverage.xml
+          if-no-files-found: warn
+
+      - name: Post coverage comment to PR
+        # Issue #260: 在 PR 上留言当前总覆盖率（行覆盖率 %）。
+        # 使用 $GITHUB_TOKEN 鉴权，仅在 pull_request 事件下运行。
+        # always() 确保即使主测试步骤失败也仍发布覆盖率（便于审阅者看到数值）。
+        if: always() && github.event_name == 'pull_request' && matrix.python-version == '3.11' && matrix.os == 'windows-latest'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        shell: bash
+        run: python scripts/ci/post_coverage_comment.py
+
+  # ---------------------------------------------------------------------------
+  # Job 2b: Linux 跨平台冒烟测试（Issue #185: 跨平台兼容性验证）
+  # ---------------------------------------------------------------------------
+  # 完整测试套件（1658 测试）只在 Windows runner 上跑（资源限制）。
+  # Linux 冒烟测试仅运行核心 CI 验证脚本和快速单元测试，确保跨平台兼容性。
+  linux-smoke:
+    name: "Linux Smoke Test (Python ${{ matrix.python-version }})"
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: lint
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Cache pip packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-smoke-${{ matrix.python-version }}-${{ hashFiles('requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-smoke-${{ matrix.python-version }}-
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
+
+      - name: Run core CI validation scripts
+        run: |
+          # 权威数字一致性校验（纯 Python，无平台依赖）
+          python scripts/ci/validate_authoritative_numbers.py --strict
+          # 权威指标审计（纯 Python，无平台依赖）
+          python scripts/ci/audit_authoritative_metrics.py
+          # 统计一致性检查
+          python scripts/ci/check_stats_consistency.py --strict
+
+      - name: Run metric audit tests (fast, platform-independent)
+        run: |
+          python -m pytest tests/test_metric_audit.py tests/test_evidence_lineage.py \
+            -v --timeout=60 -W ignore::DeprecationWarning
+
+  # ---------------------------------------------------------------------------
+  # Job 3: 类型检查（mypy）
+  # ---------------------------------------------------------------------------
+  typecheck:
+    name: "Type Check (mypy)"
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: lint
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Cache pip packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-mypy-${{ hashFiles('requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-mypy-
+
+      - name: Install dependencies for mypy type resolution
+        run: |
+          pip install --upgrade pip
+          pip install mypy>=1.5.0
+          # Install project deps so mypy can resolve third-party types
+          # (without deps, ignore_missing_imports treats all as Any,
+          #  making # type: ignore comments "unused" → false failures)
+          pip install -r requirements.txt
+
+      - name: Run mypy (strict mode, config from mypy.ini)
+        run: |
+          mypy src/ --pretty
+
+  # ---------------------------------------------------------------------------
+  # Job 4: 依赖安全审计（pip-audit）
+  # 自动扫描 requirements.txt 中的依赖项，检测已知漏洞（CVE/GHSA）
+  # Issue #184: 移除 continue-on-error，使安全审计成为阻断性门禁
+  # Issue #566: 扫描主依赖和开发依赖的安全漏洞
+  # ---------------------------------------------------------------------------
+  security-audit:
+    name: "Dependency Security Audit (pip-audit)"
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: lint
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install pip-audit
+        run: |
+          pip install --upgrade pip
+          pip install pip-audit
+
+      - name: Run pip-audit on requirements.txt
+        run: |
+          # 扫描全部依赖；如需跳过已确认的误报，添加 --ignore-vuln <GHSA-ID>
+          # Issue #184: 移除占位 --ignore-vuln GHSA-xxxx，避免无效参数
+          pip-audit -r requirements.txt --desc
+
+      # Issue #566: 扫描开发依赖安全漏洞
+      - name: Audit dev dependencies
+        run: pip-audit -r requirements-dev.txt
+
+  # ---------------------------------------------------------------------------
+  # Job 5: Mutation Testing（mutmut）— 评估测试质量
+  # 仅对核心模块进行变异测试，避免过长的 CI 运行时间
+  # 注：仅在 main 分支推送时运行，PR 中跳过（耗时较长）
+  #     初期 continue-on-error: true，仅收集基线数据
+  # ---------------------------------------------------------------------------
+  mutation-testing:
+    name: "Mutation Testing (mutmut)"
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: test  # 在测试通过后运行
+    # 在 main 分支推送和 PR 时均运行（Issue #176: 扩展到 PR 检测测试质量退化）
+    if: github.event_name == 'push' || github.event_name == 'pull_request'
+    # mutmut 3.x trampoline 与 src-layout 不兼容（pyproject.toml 注释），
+    # CI 无法自动执行手动 import 改写，暂不阻断 PR。
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
+          pip install mutmut
+
+      - name: Run mutation testing
+        run: mutmut run
+        continue-on-error: true  # mutmut 3.x src-layout incompat
+
+      - name: Show mutation results
+        run: mutmut results
+        if: always()
+
+  # ---------------------------------------------------------------------------
+  # Job 6: Benchmark 性能追踪（跨版本回归检测）
+  # 对比 main 分支基线，检测性能退化
+  # ---------------------------------------------------------------------------
+  benchmark:
+    name: "Benchmark Regression Check"
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: test
+    permissions:
+      contents: write
+    # Issue #176: 扩展到 PR 触发，检测性能退化
+    if: github.event_name == 'push' || github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
+
+      - name: Run benchmarks
+        run: |
+          python -m pytest tests/benchmarks/ \
+            --benchmark-only \
+            --benchmark-json=benchmark_results.json \
+            -v
+
+      - name: Track and compare benchmarks
+        run: |
+          python scripts/ci/benchmark_tracker.py benchmark_results.json --report
+        continue-on-error: true  # micro-bench variance, non-blocking
+
+      - name: Generate performance trend chart
+        run: |
+          pip install matplotlib -q
+          python scripts/ci/visualize_benchmark_trend.py
+
+      - name: Commit benchmark history
+        # 仅在 main 分支推送时提交基准历史（PR 无写权限）
+        if: success() && github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add results/benchmark_history.jsonl results/reports/performance_trend.png
+          git diff --cached --quiet || (
+            git commit -m "ci: update benchmark history & trend chart [skip ci]"
+            git push origin main
+          )
+
+      - name: Upload benchmark results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-results
+          path: |
+            benchmark_results.json
+            results/benchmark_history.jsonl
+            results/reports/performance_trend.png

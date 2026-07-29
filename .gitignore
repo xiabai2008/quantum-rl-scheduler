@@ -1,0 +1,143 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# 虚拟环境
+venv/
+.venv/
+ENV/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Jupyter
+.ipynb_checkpoints/
+
+# 日志
+logs/
+*.log
+
+# 数据库
+*.db
+*.sqlite
+
+# 配置文件（敏感信息）
+# 环境变量（包含敏感信息，绝对不能提交！）
+config/.env
+.env
+# 敏感 JSON 配置（避免全局 *.json 误伤合法 JSON 文件，如前端 package.json、测试 fixture 等）
+config/secrets.json
+config/credentials.json
+config/api_keys.json
+*_secret.json
+*_credentials.json
+
+# 测试覆盖率
+.coverage
+htmlcov/
+.pytest_cache/
+
+# 构建输出
+dist/
+build/
+
+# 临时文件
+tmp/
+temp/
+*.tmp
+
+# 模型文件（大模型权重）
+*.pth
+*.pt
+*.ckpt
+*.h5
+
+# 数据文件
+data/
+datasets/
+*.csv
+*.xlsx
+*.parquet
+
+# 训练产物
+models/
+results/
+tensorboard_logs/
+
+# ── 提交必需产物（覆盖上方的 models/ 与 results/ 忽略规则）──
+# 1) 实验证据报告：submission_manifest.yaml 强制要求，必须入库
+!results/
+!results/reports/
+!results/reports/**
+# 2) 重新忽略 results/ 下的大体积数据（JSON 实验数据等），避免仓库膨胀
+results/**/*.json
+# 3) 但 results/reports/ 下的 JSON 报告文件允许入库（覆盖上方 results/**/*.json）
+!results/reports/**/*.json
+# 4) Pareto 前沿分析图（Issue #142），白皮书/PPT 引用图，体积小
+!results/completion_reward_pareto.png
+results/raw/
+results/fair_comparison/
+results/issue_experiments/
+results/multiseed_evaluation/*
+# 权威评估原始数据（Issue #171）：N=250 评估数据，作为复现性证据入库
+!results/multiseed_evaluation/rewards_multiseed.json
+# 真机实验数据：tianyan287 实验数据小（<4KB），作为可信度证据入库
+!results/real_machine/
+!results/real_machine/tianyan287/
+!results/real_machine/tianyan287/**
+!results/real_machine/tianyan287_multiseed/
+!results/real_machine/tianyan287_multiseed/**
+# Issue #249: 多比特真机验证实验数据（<5KB），作为可信度证据入库
+!results/real_machine/multi_qubit_validation/
+!results/real_machine/multi_qubit_validation/**
+
+# ── 变异测试 / 临时虚拟环境（切勿提交）──
+mutants/
+.venv-mutmut/
+.venv-mutmut-wsl/
+.venv-mutmut-win/
+
+# ── TRAE 工作目录 ──
+.trae/
+
+# ── 前端构建产物 ──
+node_modules/
+*.tsbuildinfo
+src/visualization/frontend/vite.config.d.ts
+src/visualization/frontend/vite.config.js
+
+# ── 项目评审临时文件 ──
+project-review/
+.trae-html-share-packages/
+
+# ── 内部队友协作文档 ──
+docs/teammate_*.md
+docs/pr_patrol_*.md
+docs/project_dashboard_*.html
+# 归档的临时文件（从 docs/ 移入 archive/ 的临时文件，不纳入版本控制）
+archive/pr_patrol/
+archive/project_dashboard/

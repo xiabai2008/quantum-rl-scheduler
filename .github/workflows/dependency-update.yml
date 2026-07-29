@@ -1,0 +1,63 @@
+name: Dependency Update Check
+
+on:
+  schedule:
+    - cron: "0 9 * * 1"  # 每周一 09:00 UTC
+  workflow_dispatch:  # 手动触发
+
+jobs:
+  check-updates:
+    name: "Check Dependency Updates"
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install pip-tools
+        run: pip install pip-tools
+
+      - name: Install current dependencies
+        run: pip install -r requirements.txt
+
+      - name: Check for outdated packages
+        run: |
+          pip list --outdated --format=columns > outdated_packages.txt
+          echo "=== 过期包列表 ==="
+          cat outdated_packages.txt
+
+      - name: Generate updated lock file
+        run: |
+          pip-compile requirements.txt -o requirements.lock.new --allow-unsafe
+          echo "=== 生成新的 lock 文件 ==="
+          if [ -f requirements.lock ]; then
+            echo "=== 对比差异 ==="
+            diff requirements.lock requirements.lock.new || echo "发现更新"
+          else
+            echo "requirements.lock 不存在（首次运行），直接使用新生成的文件"
+          fi
+
+      - name: Upload results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: dependency-check-results
+          path: |
+            outdated_packages.txt
+            requirements.lock.new
+          retention-days: 30
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "## 依赖检查结果" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### 过期包" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          cat outdated_packages.txt >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY

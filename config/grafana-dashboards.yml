@@ -1,0 +1,12 @@
+# config/grafana-dashboards.yml
+apiVersion: 1
+
+providers:
+  - name: 'QR-LS Dashboards'
+    orgId: 1
+    folder: 'Quantum RL Scheduler'
+    type: file
+    disableDeletion: true
+    editable: false
+    options:
+      path: /etc/grafana/dashboards

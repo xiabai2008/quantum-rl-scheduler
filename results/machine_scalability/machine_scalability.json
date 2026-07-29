@@ -1,0 +1,1226 @@
+{
+  "config": {
+    "experiment": "Machine Scalability Test",
+    "experiment_type": "simulation_scale_validation",
+    "real_machine_involved": false,
+    "seeds": [
+      42,
+      179,
+      316,
+      453,
+      590
+    ],
+    "episodes_per_seed": 5,
+    "tasks_per_episode": 200,
+    "obs_dim": 10,
+    "machine_scales": [
+      1,
+      3,
+      10,
+      50,
+      100
+    ],
+    "ppo_model": "deliverable_models/ppo_best_model_10dim.zip",
+    "ppo_model_loaded_once": true,
+    "total_elapsed_seconds": 43.89,
+    "timestamp": "20260722_121842"
+  },
+  "results": {
+    "1": {
+      "seeds": {
+        "42": {
+          "avg_wait_time": 60.0971,
+          "completion_rate": 1.0,
+          "qubit_utilization": 0.3804,
+          "classical_utilization": 0.533,
+          "avg_execution_time": 1.0,
+          "ep_rewards": [
+            1172.2325906146957,
+            2402.259254557116,
+            3019.340167550652,
+            3130.7470995201747,
+            3840.3918740979893
+          ],
+          "mean_reward": 2712.9941972681254,
+          "std_reward": 1001.2359107284107,
+          "avg_step_time_us": 584.01,
+          "p50_step_time_us": 548.25,
+          "p99_step_time_us": 1095.69,
+          "throughput_tasks_per_sec": 1712.3,
+          "load_balance": {
+            "cv": 0.0,
+            "max_min_ratio": 1.0,
+            "entropy": 1.0,
+            "n_machines": 1,
+            "total_allocated": 129,
+            "total_scheduled": 135,
+            "mean_load": 129.0,
+            "max_load": 129,
+            "min_load": 129
+          },
+          "avg_cv_across_episodes": 0.0,
+          "load_balance_invariant_violations": [],
+          "load_balance_invariant_passed": true,
+          "memory_mb": -1.0,
+          "elapsed_seconds": 0.59,
+          "success": true
+        },
+        "179": {
+          "avg_wait_time": 62.2158,
+          "completion_rate": 1.0,
+          "qubit_utilization": 0.3831,
+          "classical_utilization": 0.4864,
+          "avg_execution_time": 1.0,
+          "ep_rewards": [
+            1400.8930525916096,
+            929.1467979957757,
+            3455.12298227141,
+            3460.775008527133,
+            4645.420984685598
+          ],
+          "mean_reward": 2778.271765214305,
+          "std_reward": 1559.3764552949965,
+          "avg_step_time_us": 585.63,
+          "p50_step_time_us": 562.7,
+          "p99_step_time_us": 965.97,
+          "throughput_tasks_per_sec": 1707.56,
+          "load_balance": {
+            "cv": 0.0,
+            "max_min_ratio": 1.0,
+            "entropy": 1.0,
+            "n_machines": 1,
+            "total_allocated": 152,
+            "total_scheduled": 154,
+            "mean_load": 152.0,
+            "max_load": 152,
+            "min_load": 152
+          },
+          "avg_cv_across_episodes": 0.0,
+          "load_balance_invariant_violations": [],
+          "load_balance_invariant_passed": true,
+          "memory_mb": -1.0,
+          "elapsed_seconds": 0.6,
+          "success": true
+        },
+        "316": {
+          "avg_wait_time": 62.9175,
+          "completion_rate": 1.0,
+          "qubit_utilization": 0.4266,
+          "classical_utilization": 0.3864,
+          "avg_execution_time": 1.0,
+          "ep_rewards": [
+            2701.6991516842713,
+            -21.38657718311601,
+            3008.0231980298577,
+            5316.671979008334,
+            2502.296034570623
+          ],
+          "mean_reward": 2701.460757221994,
+          "std_reward": 1896.5016816977127,
+          "avg_step_time_us": 604.4,
+          "p50_step_time_us": 578.0,
+          "p99_step_time_us": 1104.07,
+          "throughput_tasks_per_sec": 1654.53,
+          "load_balance": {
+            "cv": 0.0,
+            "max_min_ratio": 1.0,
+            "entropy": 1.0,
+            "n_machines": 1,
+            "total_allocated": 95,
+            "total_scheduled": 103,
+            "mean_load": 95.0,
+            "max_load": 95,
+            "min_load": 95
+          },
+          "avg_cv_across_episodes": 0.0,
+          "load_balance_invariant_violations": [],
+          "load_balance_invariant_passed": true,
+          "memory_mb": -1.0,
+          "elapsed_seconds": 0.61,
+          "success": true
+        },
+        "453": {
+          "avg_wait_time": 57.5427,
+          "completion_rate": 1.0,
+          "qubit_utilization": 0.3937,
+          "classical_utilization": 0.5674,
+          "avg_execution_time": 1.0,
+          "ep_rewards": [
+            4512.026660979669,
+            1951.6799658407615,
+            3420.2080429271323,
+            3003.9375315796497,
+            2258.1883306488176
+          ],
+          "mean_reward": 3029.208106395206,
+          "std_reward": 1013.3865015898629,
+          "avg_step_time_us": 778.53,
+          "p50_step_time_us": 738.0,
+          "p99_step_time_us": 1447.52,
+          "throughput_tasks_per_sec": 1284.47,
+          "load_balance": {
+            "cv": 0.0,
+            "max_min_ratio": 1.0,
+            "entropy": 1.0,
+            "n_machines": 1,
+            "total_allocated": 83,
+            "total_scheduled": 85,
+            "mean_load": 83.0,
+            "max_load": 83,
+            "min_load": 83
+          },
+          "avg_cv_across_episodes": 0.0,
+          "load_balance_invariant_violations": [],
+          "load_balance_invariant_passed": true,
+          "memory_mb": -1.0,
+          "elapsed_seconds": 0.79,
+          "success": true
+        },
+        "590": {
+          "avg_wait_time": 59.5076,
+          "completion_rate": 1.0,
+          "qubit_utilization": 0.5694,
+          "classical_utilization": 0.3967,
+          "avg_execution_time": 1.0,
+          "ep_rewards": [
+            2362.1741751660097,
+            2963.2696201490153,
+            2951.1604571349526,
+            2993.1136488902407,
+            3317.672159085003
+          ],
+          "mean_reward": 2917.478012085044,
+          "std_reward": 345.4959604027876,
+          "avg_step_time_us": 680.53,
+          "p50_step_time_us": 623.95,
+          "p99_step_time_us": 1554.13,
+          "throughput_tasks_per_sec": 1469.44,
+          "load_balance": {
+            "cv": 0.0,
+            "max_min_ratio": 1.0,
+            "entropy": 1.0,
+            "n_machines": 1,
+            "total_allocated": 113,
+            "total_scheduled": 116,
+            "mean_load": 113.0,
+            "max_load": 113,
+            "min_load": 113
+          },
+          "avg_cv_across_episodes": 0.0,
+          "load_balance_invariant_violations": [],
+          "load_balance_invariant_passed": true,
+          "memory_mb": -1.0,
+          "elapsed_seconds": 0.69,
+          "success": true
+        }
+      },
+      "summary": {
+        "n_machines": 1,
+        "n_successful_seeds": 5,
+        "mean_reward": 2827.88,
+        "std_reward": 141.6,
+        "mean_step_time_us": 646.62,
+        "mean_cv": 0.0,
+        "throughput_tasks_per_sec": 1546.5
+      }
+    },
+    "3": {
+      "seeds": {
+        "42": {
+          "avg_wait_time": 47.6341,
+          "completion_rate": 1.0,
+          "qubit_utilization": 0.4961,
+          "classical_utilization": 0.5226,
+          "avg_execution_time": 1.0,
+          "ep_rewards": [
+            4802.704086214962,
+            5955.963093664188,
+            4639.983923595097,
+            5115.465815102485,
+            5478.45550972705
+          ],
+          "mean_reward": 5198.514485660757,
+          "std_reward": 530.9460220855643,
+          "avg_step_time_us": 762.12,
+          "p50_step_time_us": 718.0,
+          "p99_step_time_us": 1502.31,
+          "throughput_tasks_per_sec": 1312.13,
+          "load_balance": {
+            "cv": 0.4894,
+            "max_min_ratio": 2.4857,
+            "entropy": 0.9305,
+            "n_machines": 3,
+            "total_allocated": 168,
+            "total_scheduled": 174,
+            "mean_load": 56.0,
+            "max_load": 87,
+            "min_load": 35
+          },
+          "avg_cv_across_episodes": 0.4276,
+          "load_balance_invariant_violations": [],
+          "load_balance_invariant_passed": true,
+          "memory_mb": -1.0,
+          "elapsed_seconds": 0.77,
+          "success": true
+        },
+        "179": {
+          "avg_wait_time": 48.1924,
+          "completion_rate": 1.0,
+          "qubit_utilization": 0.3858,
+          "classical_utilization": 0.5631,
+          "avg_execution_time": 1.0,
+          "ep_rewards": [
+            4779.990901491397,
+            5059.336324125173,
+            5260.80869292168,
+            4927.5977906750995,
+            5655.336602133178
+          ],
+          "mean_reward": 5136.614062269306,
+          "std_reward": 339.6090064518121,
+          "avg_step_time_us": 695.45,
+          "p50_step_time_us": 665.95,
+          "p99_step_time_us": 1255.61,
+          "throughput_tasks_per_sec": 1437.92,
+          "load_balance": {
+            "cv": 0.3587,
+            "max_min_ratio": 2.0606,
+            "entropy": 0.9572,
+            "n_machines": 3,
+            "total_allocated": 169,
+            "total_scheduled": 181,
+            "mean_load": 56.33,
+            "max_load": 68,
+            "min_load": 33
+          },
+          "avg_cv_across_episodes": 0.3862,
+          "load_balance_invariant_violations": [],
+          "load_balance_invariant_passed": true,
+          "memory_mb": -1.0,
+          "elapsed_seconds": 0.71,
+          "success": true
+        },
+        "316": {
+          "avg_wait_time": 43.0187,
+          "completion_rate": 1.0,
+          "qubit_utilization": 0.4196,
+          "classical_utilization": 0.504,
+          "avg_execution_time": 1.0,
+          "ep_rewards": [
+            5780.869161126499,
+            5153.352005213475,
+            5317.008016683144,
+            6158.780951146025,
+            5123.191527327297
+          ],
+          "mean_reward": 5506.640332299288,
+          "std_reward": 449.526106173276,
+          "avg_step_time_us": 727.88,
+          "p50_step_time_us": 706.4,
+          "p99_step_time_us": 1213.83,
+          "throughput_tasks_per_sec": 1373.85,
+          "load_balance": {
+            "cv": 0.2105,
+            "max_min_ratio": 1.5,
+            "entropy": 0.9868,
+            "n_machines": 3,
+            "total_allocated": 168,
+            "total_scheduled": 177,
+            "mean_load": 56.0,
+            "max_load": 69,
+            "min_load": 46
+          },
+          "avg_cv_across_episodes": 0.4092,
+          "load_balance_invariant_violations": [],
+          "load_balance_invariant_passed": true,
+          "memory_mb": -1.0,
+          "elapsed_seconds": 0.74,
+          "success": true
+        },
+        "453": {
+          "avg_wait_time": 44.9828,
+          "completion_rate": 1.0,
+          "qubit_utilization": 0.4111,
+          "classical_utilization": 0.3875,
+          "avg_execution_time": 1.0,
+          "ep_rewards": [
+            6024.606115595908,
+            4800.219032885634,
+            5569.4571094609955,
+            4564.491746637138,
+            4416.738983171411
+          ],
+          "mean_reward": 5075.102597550217,
+          "std_reward": 692.0387232948925,
+          "avg_step_time_us": 694.34,
+          "p50_step_time_us": 674.55,
+          "p99_step_time_us": 1235.06,
+          "throughput_tasks_per_sec": 1440.22,
+          "load_balance": {
+            "cv": 0.2681,
+            "max_min_ratio": 1.6875,
+            "entropy": 0.9768,
+            "n_machines": 3,
+            "total_allocated": 139,
+            "total_scheduled": 152,
+            "mean_load": 46.33,
+            "max_load": 54,
+            "min_load": 32
+          },
+          "avg_cv_across_episodes": 0.4253,
+          "load_balance_invariant_violations": [],
+          "load_balance_invariant_passed": true,
+          "memory_mb": -1.0,
+          "elapsed_seconds": 0.7,
+          "success": true
+        },
+        "590": {
+          "avg_wait_time": 43.3644,
+          "completion_rate": 1.0,
+          "qubit_utilization": 0.4249,
+          "classical_utilization": 0.3625,
+          "avg_execution_time": 1.0,
+          "ep_rewards": [
+            5324.580448895958,
+            4797.058576049754,
+            5110.342788582703,
+            5630.452609000843,
+            5928.744418598676
+          ],
+          "mean_reward": 5358.235768225587,
+          "std_reward": 440.76228838398333,
+          "avg_step_time_us": 691.1,
+          "p50_step_time_us": 672.8,
+          "p99_step_time_us": 1125.11,
+          "throughput_tasks_per_sec": 1446.97,
+          "load_balance": {
+            "cv": 0.5833,
+            "max_min_ratio": 3.5714,
+            "entropy": 0.8939,
+            "n_machines": 3,
+            "total_allocated": 186,
+            "total_scheduled": 191,
+            "mean_load": 62.0,
+            "max_load": 100,
+            "min_load": 28
+          },
+          "avg_cv_across_episodes": 0.3447,
+          "load_balance_invariant_violations": [],
+          "load_balance_invariant_passed": true,
+          "memory_mb": -1.0,
+          "elapsed_seconds": 0.7,
+          "success": true
+        }
+      },
+      "summary": {
+        "n_machines": 3,
+        "n_successful_seeds": 5,
+        "mean_reward": 5255.02,
+        "std_reward": 175.75,
+        "mean_step_time_us": 714.18,
+        "mean_cv": 0.3986,
+        "throughput_tasks_per_sec": 1400.21
+      }
+    },
+    "10": {
+      "seeds": {
+        "42": {
+          "avg_wait_time": 40.3983,
+          "completion_rate": 1.0,
+          "qubit_utilization": 0.4647,
+          "classical_utilization": 0.4634,
+          "avg_execution_time": 1.0,
+          "ep_rewards": [
+            6230.332008092859,
+            6395.884255797146,
+            6227.222420563905,
+            6299.110897215753,
+            6270.247192882131
+          ],
+          "mean_reward": 6284.55935491036,
+          "std_reward": 68.98903555268008,
+          "avg_step_time_us": 943.4,
+          "p50_step_time_us": 911.5,
+          "p99_step_time_us": 1567.73,
+          "throughput_tasks_per_sec": 1060.0,
+          "load_balance": {
+            "cv": 0.594,
+            "max_min_ratio": 6.6,
+            "entropy": 0.9311,
+            "n_machines": 10,
+            "total_allocated": 169,
+            "total_scheduled": 200,
+            "mean_load": 16.9,
+            "max_load": 33,
+            "min_load": 5
+          },
+          "avg_cv_across_episodes": 0.4815,
+          "load_balance_invariant_violations": [],
+          "load_balance_invariant_passed": true,
+          "memory_mb": -1.0,
+          "elapsed_seconds": 0.95,
+          "success": true
+        },
+        "179": {
+          "avg_wait_time": 43.2624,
+          "completion_rate": 1.0,
+          "qubit_utilization": 0.416,
+          "classical_utilization": 0.3553,
+          "avg_execution_time": 1.0,
+          "ep_rewards": [
+            6063.541490242151,
+            6108.471863567259,
+            5943.87348510156,
+            6233.205479283969,
+            6198.229305770664
+          ],
+          "mean_reward": 6109.464324793121,
+          "std_reward": 114.80561077851164,
+          "avg_step_time_us": 1033.46,
+          "p50_step_time_us": 978.55,
+          "p99_step_time_us": 1766.7,
+          "throughput_tasks_per_sec": 967.62,
+          "load_balance": {
+            "cv": 0.4522,
+            "max_min_ratio": 3.5,
+            "entropy": 0.9612,
+            "n_machines": 10,
+            "total_allocated": 200,
+            "total_scheduled": 200,
+            "mean_load": 20.0,
+            "max_load": 35,
+            "min_load": 10
+          },
+          "avg_cv_across_episodes": 0.5262,
+          "load_balance_invariant_violations": [],
+          "load_balance_invariant_passed": true,
+          "memory_mb": -1.0,
+          "elapsed_seconds": 1.05,
+          "success": true
+        },
+        "316": {
+          "avg_wait_time": 34.2121,
+          "completion_rate": 1.0,
+          "qubit_utilization": 0.3995,
+          "classical_utilization": 0.6661,
+          "avg_execution_time": 1.0,
+          "ep_rewards": [
+            6414.007118759992,
+            6493.001062614798,
+            6077.1964055437375,
+            5924.385357508355,
+            6283.625179880708
+          ],
+          "mean_reward": 6238.443024861519,
+          "std_reward": 235.74173551160493,
+          "avg_step_time_us": 988.61,
+          "p50_step_time_us": 947.45,
+          "p99_step_time_us": 1735.99,
+          "throughput_tasks_per_sec": 1011.52,
+          "load_balance": {
+            "cv": 0.3163,
+            "max_min_ratio": 2.7778,
+            "entropy": 0.979,
+            "n_machines": 10,
+            "total_allocated": 177,
+            "total_scheduled": 200,
+            "mean_load": 17.7,
+            "max_load": 25,
+            "min_load": 9
+          },
+          "avg_cv_across_episodes": 0.5161,
+          "load_balance_invariant_violations": [],
+          "load_balance_invariant_passed": true,
+          "memory_mb": -1.0,
+          "elapsed_seconds": 1.0,
+          "success": true
+        },
+        "453": {
+          "avg_wait_time": 37.7876,
+          "completion_rate": 1.0,
+          "qubit_utilization": 0.4322,
+          "classical_utilization": 0.4761,
+          "avg_execution_time": 1.0,
+          "ep_rewards": [
+            6527.51802268611,
+            6577.051970705012,
+            6327.2385751699085,
+            6351.032258937807,
+            6131.964871269812
+          ],
+          "mean_reward": 6382.96113975373,
+          "std_reward": 177.26500464649789,
+          "avg_step_time_us": 1080.94,
+          "p50_step_time_us": 1021.0,
+          "p99_step_time_us": 1982.0,
+          "throughput_tasks_per_sec": 925.12,
+          "load_balance": {
+            "cv": 0.5819,
+            "max_min_ratio": -1.0,
+            "entropy": 0.918,
+            "n_machines": 10,
+            "total_allocated": 173,
+            "total_scheduled": 199,
+            "mean_load": 17.3,
+            "max_load": 33,
+            "min_load": 0
+          },
+          "avg_cv_across_episodes": 0.6103,
+          "load_balance_invariant_violations": [],
+          "load_balance_invariant_passed": true,
+          "memory_mb": -1.0,
+          "elapsed_seconds": 1.09,
+          "success": true
+        },
+        "590": {
+          "avg_wait_time": 35.3431,
+          "completion_rate": 1.0,
+          "qubit_utilization": 0.4384,
+          "classical_utilization": 0.5933,
+          "avg_execution_time": 1.0,
+          "ep_rewards": [
+            6287.246799650196,
+            6058.475656355419,
+            6279.16074146182,
+            6321.523378238981,
+            6468.001687696648
+          ],
+          "mean_reward": 6282.881652680613,
+          "std_reward": 146.7596344312133,
+          "avg_step_time_us": 988.52,
+          "p50_step_time_us": 949.1,
+          "p99_step_time_us": 1650.59,
+          "throughput_tasks_per_sec": 1011.61,
+          "load_balance": {
+            "cv": 0.5138,
+            "max_min_ratio": 37.0,
+            "entropy": 0.9369,
+            "n_machines": 10,
+            "total_allocated": 198,
+            "total_scheduled": 200,
+            "mean_load": 19.8,
+            "max_load": 37,
+            "min_load": 1
+          },
+          "avg_cv_across_episodes": 0.4876,
+          "load_balance_invariant_violations": [],
+          "load_balance_invariant_passed": true,
+          "memory_mb": -1.0,
+          "elapsed_seconds": 1.0,
+          "success": true
+        }
+      },
+      "summary": {
+        "n_machines": 10,
+        "n_successful_seeds": 5,
+        "mean_reward": 6259.66,
+        "std_reward": 99.21,
+        "mean_step_time_us": 1006.99,
+        "mean_cv": 0.5243,
+        "throughput_tasks_per_sec": 993.06
+      }
+    },
+    "50": {
+      "seeds": {
+        "42": {
+          "avg_wait_time": 40.5125,
+          "completion_rate": 1.0,
+          "qubit_utilization": 0.4132,
+          "classical_utilization": 0.5127,
+          "avg_execution_time": 1.0,
+          "ep_rewards": [
+            6399.194608947116,
+            6207.607897213391,
+            6653.986650130581,
+            6530.8643827617225,
+            6310.843408801453
+          ],
+          "mean_reward": 6420.499389570852,
+          "std_reward": 176.42126280569127,
+          "avg_step_time_us": 2349.82,
+          "p50_step_time_us": 2293.7,
+          "p99_step_time_us": 3489.36,
+          "throughput_tasks_per_sec": 425.56,
+          "load_balance": {
+            "cv": 1.1087,
+            "max_min_ratio": -1.0,
+            "entropy": 0.8483,
+            "n_machines": 50,
+            "total_allocated": 185,
+            "total_scheduled": 200,
+            "mean_load": 3.7,
+            "max_load": 18,
+            "min_load": 0
+          },
+          "avg_cv_across_episodes": 0.9753,
+          "load_balance_invariant_violations": [],
+          "load_balance_invariant_passed": true,
+          "memory_mb": -1.0,
+          "elapsed_seconds": 2.37,
+          "success": true
+        },
+        "179": {
+          "avg_wait_time": 43.528,
+          "completion_rate": 1.0,
+          "qubit_utilization": 0.4361,
+          "classical_utilization": 0.5378,
+          "avg_execution_time": 1.0,
+          "ep_rewards": [
+            6229.635960705025,
+            6543.915121763984,
+            6570.021043319408,
+            6247.010591853837,
+            6473.201010978857
+          ],
+          "mean_reward": 6412.756745724222,
+          "std_reward": 163.2429918362039,
+          "avg_step_time_us": 2493.91,
+          "p50_step_time_us": 2385.95,
+          "p99_step_time_us": 4355.74,
+          "throughput_tasks_per_sec": 400.98,
+          "load_balance": {
+            "cv": 0.9929,
+            "max_min_ratio": -1.0,
+            "entropy": 0.8594,
+            "n_machines": 50,
+            "total_allocated": 194,
+            "total_scheduled": 200,
+            "mean_load": 3.88,
+            "max_load": 13,
+            "min_load": 0
+          },
+          "avg_cv_across_episodes": 1.009,
+          "load_balance_invariant_violations": [],
+          "load_balance_invariant_passed": true,
+          "memory_mb": -1.0,
+          "elapsed_seconds": 2.52,
+          "success": true
+        },
+        "316": {
+          "avg_wait_time": 38.3296,
+          "completion_rate": 1.0,
+          "qubit_utilization": 0.4286,
+          "classical_utilization": 0.4526,
+          "avg_execution_time": 1.0,
+          "ep_rewards": [
+            6113.647250580643,
+            6140.5228598208505,
+            6734.3708475392295,
+            6182.777192307426,
+            6227.817672570753
+          ],
+          "mean_reward": 6279.827164563781,
+          "std_reward": 257.7572003051377,
+          "avg_step_time_us": 2556.63,
+          "p50_step_time_us": 2463.5,
+          "p99_step_time_us": 4085.48,
+          "throughput_tasks_per_sec": 391.14,
+          "load_balance": {
+            "cv": 1.0217,
+            "max_min_ratio": -1.0,
+            "entropy": 0.8517,
+            "n_machines": 50,
+            "total_allocated": 183,
+            "total_scheduled": 200,
+            "mean_load": 3.66,
+            "max_load": 12,
+            "min_load": 0
+          },
+          "avg_cv_across_episodes": 1.0384,
+          "load_balance_invariant_violations": [],
+          "load_balance_invariant_passed": true,
+          "memory_mb": -1.0,
+          "elapsed_seconds": 2.57,
+          "success": true
+        },
+        "453": {
+          "avg_wait_time": 42.1007,
+          "completion_rate": 1.0,
+          "qubit_utilization": 0.4306,
+          "classical_utilization": 0.4116,
+          "avg_execution_time": 1.0,
+          "ep_rewards": [
+            6420.96883603266,
+            6242.417883302988,
+            6180.920616813024,
+            6730.454684018764,
+            6221.3961804255105
+          ],
+          "mean_reward": 6359.231640118591,
+          "std_reward": 226.96746377195674,
+          "avg_step_time_us": 2410.07,
+          "p50_step_time_us": 2350.55,
+          "p99_step_time_us": 3572.93,
+          "throughput_tasks_per_sec": 414.93,
+          "load_balance": {
+            "cv": 1.0697,
+            "max_min_ratio": -1.0,
+            "entropy": 0.8624,
+            "n_machines": 50,
+            "total_allocated": 192,
+            "total_scheduled": 200,
+            "mean_load": 3.84,
+            "max_load": 18,
+            "min_load": 0
+          },
+          "avg_cv_across_episodes": 0.9696,
+          "load_balance_invariant_violations": [],
+          "load_balance_invariant_passed": true,
+          "memory_mb": -1.0,
+          "elapsed_seconds": 2.43,
+          "success": true
+        },
+        "590": {
+          "avg_wait_time": 40.5777,
+          "completion_rate": 1.0,
+          "qubit_utilization": 0.4439,
+          "classical_utilization": 0.463,
+          "avg_execution_time": 1.0,
+          "ep_rewards": [
+            6055.744912685776,
+            6892.014364198763,
+            6225.649468409433,
+            6314.010469826337,
+            6429.658588910804
+          ],
+          "mean_reward": 6383.415560806223,
+          "std_reward": 315.39119386262087,
+          "avg_step_time_us": 2445.12,
+          "p50_step_time_us": 2353.95,
+          "p99_step_time_us": 3928.21,
+          "throughput_tasks_per_sec": 408.98,
+          "load_balance": {
+            "cv": 1.1101,
+            "max_min_ratio": -1.0,
+            "entropy": 0.8443,
+            "n_machines": 50,
+            "total_allocated": 170,
+            "total_scheduled": 200,
+            "mean_load": 3.4,
+            "max_load": 13,
+            "min_load": 0
+          },
+          "avg_cv_across_episodes": 1.0624,
+          "load_balance_invariant_violations": [],
+          "load_balance_invariant_passed": true,
+          "memory_mb": -1.0,
+          "elapsed_seconds": 2.46,
+          "success": true
+        }
+      },
+      "summary": {
+        "n_machines": 50,
+        "n_successful_seeds": 5,
+        "mean_reward": 6371.15,
+        "std_reward": 56.57,
+        "mean_step_time_us": 2451.11,
+        "mean_cv": 1.0109,
+        "throughput_tasks_per_sec": 407.98
+      }
+    },
+    "100": {
+      "seeds": {
+        "42": {
+          "avg_wait_time": 42.125,
+          "completion_rate": 1.0,
+          "qubit_utilization": 0.4301,
+          "classical_utilization": 0.4076,
+          "avg_execution_time": 1.0,
+          "ep_rewards": [
+            6311.010625305867,
+            6213.385499077317,
+            6417.730266226298,
+            6202.422581020108,
+            6399.831539449492
+          ],
+          "mean_reward": 6308.876102215817,
+          "std_reward": 100.71926855911374,
+          "avg_step_time_us": 3884.45,
+          "p50_step_time_us": 3751.25,
+          "p99_step_time_us": 6124.93,
+          "throughput_tasks_per_sec": 257.44,
+          "load_balance": {
+            "cv": 1.1904,
+            "max_min_ratio": -1.0,
+            "entropy": 0.846,
+            "n_machines": 100,
+            "total_allocated": 198,
+            "total_scheduled": 200,
+            "mean_load": 1.98,
+            "max_load": 9,
+            "min_load": 0
+          },
+          "avg_cv_across_episodes": 1.2535,
+          "load_balance_invariant_violations": [],
+          "load_balance_invariant_passed": true,
+          "memory_mb": -1.0,
+          "elapsed_seconds": 3.91,
+          "success": true
+        },
+        "179": {
+          "avg_wait_time": 40.101,
+          "completion_rate": 1.0,
+          "qubit_utilization": 0.4354,
+          "classical_utilization": 0.3523,
+          "avg_execution_time": 1.0,
+          "ep_rewards": [
+            6101.664074925168,
+            6209.153924080768,
+            6390.588734112651,
+            6263.139323407726,
+            6183.14190896949
+          ],
+          "mean_reward": 6229.53759309916,
+          "std_reward": 107.22200849193996,
+          "avg_step_time_us": 3884.53,
+          "p50_step_time_us": 3772.4,
+          "p99_step_time_us": 6226.86,
+          "throughput_tasks_per_sec": 257.43,
+          "load_balance": {
+            "cv": 1.2601,
+            "max_min_ratio": -1.0,
+            "entropy": 0.8418,
+            "n_machines": 100,
+            "total_allocated": 194,
+            "total_scheduled": 200,
+            "mean_load": 1.94,
+            "max_load": 10,
+            "min_load": 0
+          },
+          "avg_cv_across_episodes": 1.2458,
+          "load_balance_invariant_violations": [],
+          "load_balance_invariant_passed": true,
+          "memory_mb": -1.0,
+          "elapsed_seconds": 3.91,
+          "success": true
+        },
+        "316": {
+          "avg_wait_time": 34.1869,
+          "completion_rate": 1.0,
+          "qubit_utilization": 0.4383,
+          "classical_utilization": 0.5408,
+          "avg_execution_time": 1.0,
+          "ep_rewards": [
+            6008.163985619537,
+            6443.305629965982,
+            6248.863175348102,
+            6126.411039595713,
+            6080.190638426981
+          ],
+          "mean_reward": 6181.386893791264,
+          "std_reward": 170.6045687341442,
+          "avg_step_time_us": 3804.52,
+          "p50_step_time_us": 3703.1,
+          "p99_step_time_us": 5344.84,
+          "throughput_tasks_per_sec": 262.85,
+          "load_balance": {
+            "cv": 1.2968,
+            "max_min_ratio": -1.0,
+            "entropy": 0.8211,
+            "n_machines": 100,
+            "total_allocated": 154,
+            "total_scheduled": 191,
+            "mean_load": 1.54,
+            "max_load": 9,
+            "min_load": 0
+          },
+          "avg_cv_across_episodes": 1.2763,
+          "load_balance_invariant_violations": [],
+          "load_balance_invariant_passed": true,
+          "memory_mb": -1.0,
+          "elapsed_seconds": 3.83,
+          "success": true
+        },
+        "453": {
+          "avg_wait_time": 39.7922,
+          "completion_rate": 1.0,
+          "qubit_utilization": 0.439,
+          "classical_utilization": 0.4761,
+          "avg_execution_time": 1.0,
+          "ep_rewards": [
+            6568.720502073935,
+            6752.006382414408,
+            6127.0565545615145,
+            6312.854864561873,
+            6238.905476596664
+          ],
+          "mean_reward": 6399.908756041679,
+          "std_reward": 255.15627758403696,
+          "avg_step_time_us": 3970.89,
+          "p50_step_time_us": 3857.35,
+          "p99_step_time_us": 5877.92,
+          "throughput_tasks_per_sec": 251.83,
+          "load_balance": {
+            "cv": 1.3311,
+            "max_min_ratio": -1.0,
+            "entropy": 0.8194,
+            "n_machines": 100,
+            "total_allocated": 196,
+            "total_scheduled": 200,
+            "mean_load": 1.96,
+            "max_load": 10,
+            "min_load": 0
+          },
+          "avg_cv_across_episodes": 1.2537,
+          "load_balance_invariant_violations": [],
+          "load_balance_invariant_passed": true,
+          "memory_mb": -1.0,
+          "elapsed_seconds": 4.0,
+          "success": true
+        },
+        "590": {
+          "avg_wait_time": 39.618,
+          "completion_rate": 1.0,
+          "qubit_utilization": 0.4382,
+          "classical_utilization": 0.5341,
+          "avg_execution_time": 1.0,
+          "ep_rewards": [
+            5981.668949374619,
+            6815.0012669962125,
+            6453.659689752195,
+            6724.846560958478,
+            6034.592825720463
+          ],
+          "mean_reward": 6401.953858560393,
+          "std_reward": 383.7756132153379,
+          "avg_step_time_us": 3855.91,
+          "p50_step_time_us": 3726.1,
+          "p99_step_time_us": 5637.33,
+          "throughput_tasks_per_sec": 259.34,
+          "load_balance": {
+            "cv": 1.3082,
+            "max_min_ratio": -1.0,
+            "entropy": 0.8201,
+            "n_machines": 100,
+            "total_allocated": 194,
+            "total_scheduled": 200,
+            "mean_load": 1.94,
+            "max_load": 11,
+            "min_load": 0
+          },
+          "avg_cv_across_episodes": 1.2723,
+          "load_balance_invariant_violations": [],
+          "load_balance_invariant_passed": true,
+          "memory_mb": -1.0,
+          "elapsed_seconds": 3.88,
+          "success": true
+        }
+      },
+      "summary": {
+        "n_machines": 100,
+        "n_successful_seeds": 5,
+        "mean_reward": 6304.33,
+        "std_reward": 99.24,
+        "mean_step_time_us": 3880.06,
+        "mean_cv": 1.2603,
+        "throughput_tasks_per_sec": 257.73
+      }
+    }
+  },
+  "complexity_analysis": {
+    "fit_result": {
+      "linear_fit": {
+        "slope": 32.9278,
+        "intercept": 659.7586,
+        "model": "step_time(μs) = 32.9278 * n_machines + 659.7586",
+        "r_squared": 0.9961
+      }
+    },
+    "step_times": [
+      [
+        1,
+        646.62
+      ],
+      [
+        3,
+        714.18
+      ],
+      [
+        10,
+        1006.99
+      ],
+      [
+        50,
+        2451.11
+      ],
+      [
+        100,
+        3880.06
+      ]
+    ],
+    "rewards": [
+      [
+        1,
+        2827.88
+      ],
+      [
+        3,
+        5255.02
+      ],
+      [
+        10,
+        6259.66
+      ],
+      [
+        50,
+        6371.15
+      ],
+      [
+        100,
+        6304.33
+      ]
+    ],
+    "cvs": [
+      [
+        1,
+        0.0
+      ],
+      [
+        3,
+        0.3986
+      ],
+      [
+        10,
+        0.5243
+      ],
+      [
+        50,
+        1.0109
+      ],
+      [
+        100,
+        1.2603
+      ]
+    ],
+    "summary_lines": [
+      "测试规模: [1, 3, 10, 50, 100]",
+      "step_time 数据点: [(1, 646.62), (3, 714.18), (10, 1006.99), (50, 2451.11), (100, 3880.06)]",
+      "线性拟合: step_time(μs) = 32.9278 * n_machines + 659.7586",
+      "R² = 0.9961",
+      "✅ 实测数据与线性模型高度吻合 → O(n_machines) 复杂度",
+      "",
+      "理论复杂度: O(T * n_machines)，T = max_steps",
+      "  - PPO 推理: O(d_hidden * d_obs) ≈ 常数",
+      "  - 环境步进: O(n_machines)（遍历机器选择最优）",
+      "",
+      "奖励变化:",
+      "    1 台: reward = 2827.88",
+      "    3 台: reward = 5255.02",
+      "   10 台: reward = 6259.66",
+      "   50 台: reward = 6371.15",
+      "  100 台: reward = 6304.33",
+      "",
+      "负载均衡度（CV）变化:",
+      "    1 台: CV = 0.0000 (均衡)",
+      "    3 台: CV = 0.3986 (中等)",
+      "   10 台: CV = 0.5243 (中等)",
+      "   50 台: CV = 1.0109 (不均衡)",
+      "  100 台: CV = 1.2603 (不均衡)"
+    ]
+  },
+  "fairness_check": {
+    "passed": true,
+    "warnings": [],
+    "fairness_data": [
+      {
+        "n_machines": 1,
+        "n_successful_seeds": 5,
+        "episodes_per_seed": [
+          5,
+          5,
+          5,
+          5,
+          5
+        ]
+      },
+      {
+        "n_machines": 3,
+        "n_successful_seeds": 5,
+        "episodes_per_seed": [
+          5,
+          5,
+          5,
+          5,
+          5
+        ]
+      },
+      {
+        "n_machines": 10,
+        "n_successful_seeds": 5,
+        "episodes_per_seed": [
+          5,
+          5,
+          5,
+          5,
+          5
+        ]
+      },
+      {
+        "n_machines": 50,
+        "n_successful_seeds": 5,
+        "episodes_per_seed": [
+          5,
+          5,
+          5,
+          5,
+          5
+        ]
+      },
+      {
+        "n_machines": 100,
+        "n_successful_seeds": 5,
+        "episodes_per_seed": [
+          5,
+          5,
+          5,
+          5,
+          5
+        ]
+      }
+    ],
+    "summary_lines": [
+      "✅ 各规模 episode 数一致：5",
+      "✅ 各规模 seed 列表一致：5 seeds",
+      "✅ 任务到达分布由 SimulationTaskGenerator(seed) 决定，与机器数无关",
+      "\n公平性判定: 通过"
+    ]
+  },
+  "invariant_summary": {
+    "total_checks": 25,
+    "total_passed": 25,
+    "total_violations": 0,
+    "by_scale": {
+      "1": {
+        "n_passed": 5,
+        "n_violations": 0,
+        "violations": []
+      },
+      "3": {
+        "n_passed": 5,
+        "n_violations": 0,
+        "violations": []
+      },
+      "10": {
+        "n_passed": 5,
+        "n_violations": 0,
+        "violations": []
+      },
+      "50": {
+        "n_passed": 5,
+        "n_violations": 0,
+        "violations": []
+      },
+      "100": {
+        "n_passed": 5,
+        "n_violations": 0,
+        "violations": []
+      }
+    },
+    "summary_lines": [
+      "总校验次数: 25",
+      "通过次数: 25",
+      "违规次数: 0",
+      "判定: ✅ 所有规模/seed 的不变量校验全部通过"
+    ]
+  }
+}

@@ -1,0 +1,40 @@
+# 多租户资源配额配置
+# Multi-Tenant Resource Quota Configuration
+#
+# 每个租户可配置：
+#   tenant_id            : 租户唯一标识
+#   max_qubits           : 单次任务最大量子比特数
+#   max_concurrent_tasks : 最大并发任务数
+#   daily_limit          : 每日任务提交上限（0 表示不限）
+#   priority             : 租户优先级（1-5，影响排队权重）
+
+default_tenant: default
+
+tenants:
+  # 默认租户（未声明 tenant_id 的任务归属此租户）
+  - tenant_id: default
+    max_qubits: 287
+    max_concurrent_tasks: 10
+    daily_limit: 0
+    priority: 3
+
+  # 量子算法研究组
+  - tenant_id: quantum_lab
+    max_qubits: 128
+    max_concurrent_tasks: 5
+    daily_limit: 50
+    priority: 4
+
+  # 经典仿真组
+  - tenant_id: classical_team
+    max_qubits: 32
+    max_concurrent_tasks: 20
+    daily_limit: 100
+    priority: 2
+
+  # 教学演示租户（限额严格）
+  - tenant_id: education
+    max_qubits: 16
+    max_concurrent_tasks: 3
+    daily_limit: 20
+    priority: 1

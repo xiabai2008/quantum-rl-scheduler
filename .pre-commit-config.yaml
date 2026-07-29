@@ -1,0 +1,60 @@
+# =============================================================================
+# Pre-commit 配置 — Git commit 前自动检查
+#
+# 工具栈（与 pyproject.toml / CI 保持一致）：
+#   - ruff：代码格式化 + lint 检查（替代 black + isort + flake8）
+#   - bandit：安全扫描（检测 API 密钥泄露、不安全函数等）
+#
+# 安装：
+#   pip install pre-commit
+#   pre-commit install
+#
+# 手动运行所有检查：
+#   pre-commit run --all-files
+# =============================================================================
+
+repos:
+  # 通用文件清理
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+        args: ["--unsafe"]
+      - id: check-json
+      - id: check-toml
+      - id: check-added-large-files
+        args: ["--maxkb=5000"]
+      - id: check-merge-conflict
+      - id: detect-private-key
+      - id: mixed-line-ending
+        args: ["--fix=lf"]
+      - id: name-tests-test
+        args: ["--pytest-test-first"]
+
+  # ruff — 代码格式化 + lint 检查（Rust 实现，替代 black + isort + flake8）
+  # 配置统一读取 pyproject.toml 的 [tool.ruff] 段
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.15.16
+    hooks:
+      # lint 检查 + 自动修复（I 规则处理 import 排序，替代 isort）
+      - id: ruff-check
+        args: [--fix, --config, pyproject.toml]
+      # 代码格式化（替代 black）
+      - id: ruff-format
+        args: [--config, pyproject.toml]
+
+  # bandit — 安全扫描（与 CI 一致，配置读取 pyproject.toml 的 [tool.bandit] 段）
+  - repo: https://github.com/PyCQA/bandit
+    rev: 1.7.9
+    hooks:
+      - id: bandit
+        args: [-c, pyproject.toml, -ll]
+
+  # Commit 消息格式检查
+  - repo: https://github.com/commitizen-tools/commitizen
+    rev: v3.27.0
+    hooks:
+      - id: commitizen
+        stages: [commit-msg]

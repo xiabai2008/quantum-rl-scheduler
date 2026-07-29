@@ -1,0 +1,142 @@
+{
+  "title": "分层退火 vs head_only 退火对比报告",
+  "summary": {
+    "env_size": 4,
+    "hidden_dim": 32,
+    "total_params": 1381,
+    "num_tensors": 8,
+    "iterations": 5
+  },
+  "results": [
+    {
+      "mode": "head_only",
+      "iteration": 0,
+      "loss_before": 0.002966248337965731,
+      "loss_after": 0.0029661240022779037,
+      "improvement_pct": 0.0041916816685826025,
+      "accepted": true,
+      "duration_sec": 11.652068299998064,
+      "num_params": 1381,
+      "num_blocks": 1,
+      "peak_memory_mb": 0.0,
+      "param_coverage_pct": 0.0
+    },
+    {
+      "mode": "head_only",
+      "iteration": 1,
+      "loss_before": 0.0029661240022779037,
+      "loss_after": 0.002965999806206727,
+      "improvement_pct": 0.004187150337662694,
+      "accepted": true,
+      "duration_sec": 23.323834799997712,
+      "num_params": 1381,
+      "num_blocks": 1,
+      "peak_memory_mb": 0.0,
+      "param_coverage_pct": 0.0
+    },
+    {
+      "mode": "head_only",
+      "iteration": 2,
+      "loss_before": 0.002965999806206727,
+      "loss_after": 0.002965875823429339,
+      "improvement_pct": 0.004180134372515565,
+      "accepted": true,
+      "duration_sec": 35.74331769999844,
+      "num_params": 1381,
+      "num_blocks": 1,
+      "peak_memory_mb": 0.0,
+      "param_coverage_pct": 0.0
+    },
+    {
+      "mode": "head_only",
+      "iteration": 3,
+      "loss_before": 0.002965875823429339,
+      "loss_after": 0.002965751980026679,
+      "improvement_pct": 0.004175609837786745,
+      "accepted": true,
+      "duration_sec": 49.73651999999856,
+      "num_params": 1381,
+      "num_blocks": 1,
+      "peak_memory_mb": 0.0,
+      "param_coverage_pct": 0.0
+    },
+    {
+      "mode": "head_only",
+      "iteration": 4,
+      "loss_before": 0.002965751980026679,
+      "loss_after": 0.0029656283371324393,
+      "improvement_pct": 0.004169023406966701,
+      "accepted": true,
+      "duration_sec": 61.851302700000815,
+      "num_params": 1381,
+      "num_blocks": 1,
+      "peak_memory_mb": 0.0,
+      "param_coverage_pct": 0.0
+    },
+    {
+      "mode": "hierarchical",
+      "iteration": 0,
+      "loss_before": 0.002963562286758989,
+      "loss_after": 0.002962519360078437,
+      "improvement_pct": 0.03519165718944437,
+      "accepted": true,
+      "duration_sec": 106.71247969999968,
+      "num_params": 1381,
+      "num_blocks": 8,
+      "peak_memory_mb": 0.0,
+      "param_coverage_pct": 0.0
+    },
+    {
+      "mode": "hierarchical",
+      "iteration": 1,
+      "loss_before": 0.002962519360078437,
+      "loss_after": 0.0029614777072021563,
+      "improvement_pct": 0.035161048745113985,
+      "accepted": true,
+      "duration_sec": 213.02228340000147,
+      "num_params": 1381,
+      "num_blocks": 8,
+      "peak_memory_mb": 0.0,
+      "param_coverage_pct": 0.0
+    },
+    {
+      "mode": "hierarchical",
+      "iteration": 2,
+      "loss_before": 0.0029614777072021563,
+      "loss_after": 0.002960437275277681,
+      "improvement_pct": 0.035132188297246764,
+      "accepted": true,
+      "duration_sec": 318.41584760000114,
+      "num_params": 1381,
+      "num_blocks": 8,
+      "peak_memory_mb": 0.0,
+      "param_coverage_pct": 0.0
+    },
+    {
+      "mode": "hierarchical",
+      "iteration": 3,
+      "loss_before": 0.002960437275277681,
+      "loss_after": 0.0029593976928667274,
+      "improvement_pct": 0.03511583979958311,
+      "accepted": true,
+      "duration_sec": 424.7524384000026,
+      "num_params": 1381,
+      "num_blocks": 8,
+      "peak_memory_mb": 0.0,
+      "param_coverage_pct": 0.0
+    },
+    {
+      "mode": "hierarchical",
+      "iteration": 4,
+      "loss_before": 0.0029593976928667274,
+      "loss_after": 0.0029583595792337185,
+      "improvement_pct": 0.03507854437783564,
+      "accepted": true,
+      "duration_sec": 527.4195397000003,
+      "num_params": 1381,
+      "num_blocks": 8,
+      "peak_memory_mb": 0.0,
+      "param_coverage_pct": 0.0
+    }
+  ]
+}

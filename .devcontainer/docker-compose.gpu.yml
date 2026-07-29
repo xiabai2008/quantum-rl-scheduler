@@ -1,0 +1,57 @@
+# GPU 版本的 Docker Compose 配置
+# 使用方式：docker-compose -f .devcontainer/docker-compose.gpu.yml up
+#
+# 前提条件：
+# 1. 安装 NVIDIA 驱动（>= 450.80.02）
+# 2. 安装 NVIDIA Container Toolkit
+#    - Linux: https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html
+#    - Windows: Docker Desktop 4.15+ 已内置支持
+# 3. 验证 GPU 可用：nvidia-smi
+
+version: "3.8"
+
+services:
+  dev:
+    build:
+      context: ..
+      dockerfile: .devcontainer/Dockerfile.dev
+      args:
+        # 使用 CUDA 基础镜像
+        BASE_IMAGE: "nvidia/cuda:11.8.0-cudnn8-runtime-ubuntu22.04"
+    
+    # GPU 设备预留
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    
+    # 环境变量
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+      - PYTHONDONTWRITEBYTECODE=1
+      - PYTHONUNBUFFERED=1
+      - PYTHONPATH=/workspace
+    
+    # 卷挂载
+    volumes:
+      - ..:/workspace:cached
+      - vscode-extensions:/home/vscode/.vscode-server/extensions
+    
+    # 端口映射
+    ports:
+      - "8000:8000"  # Web 监控
+      - "6006:6006"  # TensorBoard
+    
+    # 保持容器运行
+    command: sleep infinity
+    
+    # 资源限制（可选）
+    # mem_limit: 16g
+    # cpus: 4
+
+volumes:
+  vscode-extensions:

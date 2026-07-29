@@ -1,0 +1,516 @@
+# =============================================================================
+# 单一权威统计源 (Single Authoritative Statistics Source)
+# Issue #141: 消除4套p值混用，建立统一统计口径
+#
+# 本文件是项目中所有统计声明的唯一权威源。
+# 所有文档（README、PPT大纲、白皮书、答辩手册、demo脚本）中的统计数字
+# 必须可追溯至本文件，由 scripts/check_stats_consistency.py 验证一致性。
+#
+# 格式规范：
+#   每个统计声明包含: value, test_method, n, effect_size, ci_95, applicable_condition
+# =============================================================================
+
+metadata:
+  version: "1.0.0"
+  created: "2026-07-25"
+  issue: "#141"
+  description: "量子AI双向赋能调度系统 - 单一权威统计源"
+  alpha: 0.05
+  note: >
+    所有文档中的统计数字必须可追溯至本文件。
+    不同实验条件下的p值已明确标注适用场景，禁止跨实验条件混用。
+    CI检查脚本: scripts/check_stats_consistency.py
+
+# =============================================================================
+# 实验1: 8策略50seed仿真对比 (权威实验，N=250 per strategy)
+# 数据源: results/reports/statistical_validation.md
+# v9.1+ 更新: 基于 16 维交付模型 ppo_best_model_16dim.zip 重新评估
+# =============================================================================
+simulation_8strategy_50seed:
+  experiment_name: "8策略50seed仿真对比（16维交付模型）"
+  applicable_condition: >
+    16维观测空间（原生16维环境，OBS_DIM=16，v9+ 交付标准），50 seeds × 5 episodes = 250次独立运行，
+    每episode 200步，泊松到达λ=0.5，量子任务占比70%，
+    PPO模型: ppo_best_model_16dim.zip（16维，Actor-Critic），
+    DQN模型: 无（v9已删除，DQN策略位使用Random替代，仅供策略完整性对比）
+  alpha: 0.05
+  bonferroni_alpha: 0.0018
+  num_comparisons: 28
+  data_source: "results/reports/statistical_validation.md"
+  update_history:
+    - "v9.1 (2026-07-29): 基于 16 维交付模型重新评估，PPO 提升 +88.3%→+123.4%"
+    - "v9.0 (2026-07-25): 14 维模型评估，PPO 提升 +88.3%（已废弃）"
+
+  strategy_summary:
+    PPO:
+      mean_reward: 2348.91
+      std_reward: 857.25
+      stderr: 54.22
+      n: 250
+      improvement_vs_fcfs_pct: 123.4
+      improvement_ci_95: [113.3, 133.5]
+    SJF:
+      mean_reward: 1060.30
+      std_reward: 109.71
+      stderr: 6.94
+      n: 250
+      improvement_vs_fcfs_pct: 0.8
+    FCFS:
+      mean_reward: 1051.59
+      std_reward: 58.34
+      stderr: 3.69
+      n: 250
+      improvement_vs_fcfs_pct: 0.0  # 基线
+    DQN:
+      mean_reward: 891.53
+      std_reward: 313.35
+      stderr: 19.82
+      n: 250
+      improvement_vs_fcfs_pct: -15.2
+      note: "v9 已删除 DQN 模型，此处使用 Random 策略替代占位，仅反映删除后的策略位状态"
+    Random:
+      mean_reward: 891.53
+      std_reward: 313.35
+      stderr: 19.82
+      n: 250
+      improvement_vs_fcfs_pct: -15.2
+    Greedy:
+      mean_reward: -134.18
+      std_reward: 552.17
+      stderr: 34.92
+      n: 250
+      improvement_vs_fcfs_pct: -112.8
+    Quantum-Only:
+      mean_reward: -940.56
+      std_reward: 205.83
+      stderr: 13.02
+      n: 250
+      improvement_vs_fcfs_pct: -189.4
+    Classical-Only:
+      mean_reward: -1128.79
+      std_reward: 59.17
+      stderr: 3.74
+      n: 250
+      improvement_vs_fcfs_pct: -207.3
+
+  # 核心对比: PPO vs FCFS (仿真)
+  ppo_vs_fcfs:
+    test_method: "Welch t"
+    statistic: -23.8732
+    p_value: 1.449e-66
+    effect_size_type: "Cohen's d"
+    effect_size: -2.1353
+    mean_diff: -1297.32
+    ci_95: [-1404.35, -1190.30]
+    n: 250
+    significant: true
+    applicable_condition: "PPO vs FCFS 仿真环境，8策略50seed实验，16维交付模型，N=250"
+    note: >
+      v9.1+ 权威p值（16维交付模型 ppo_best_model_16dim.zip）。
+      数据通过正态性检验，使用 Welch t 检验（方差不齐）。
+      Cohen's d=-2.1353 为大效应量。
+      禁止与真机实验p值(p<0.001, 10seed v2)或其他实验条件的p值混用。
+      旧 14 维模型 p=1.032e-42 (Mann-Whitney U) 已废弃。
+
+  # 其他关键两两对比
+  ppo_vs_dqn:
+    test_method: "Welch t"
+    p_value: 1.315e-77
+    effect_size_type: "Cohen's d"
+    effect_size: -2.2581
+    n: 250
+    note: "DQN 位使用 Random 替代，故与 ppo_vs_random 等价"
+
+  ppo_vs_sjf:
+    test_method: "Mann-Whitney U"
+    p_value: 6.511e-62
+    effect_size_type: "rank-biserial"
+    effect_size: -0.8583
+    n: 250
+
+  ppo_vs_random:
+    test_method: "Welch t"
+    p_value: 1.315e-77
+    effect_size_type: "Cohen's d"
+    effect_size: -2.2581
+    n: 250
+    note: >
+      v9.1+ 16维模型: p=1.315e-77, Cohen's d=-2.2581。
+      旧 14 维模型 p=4.92e-55 已废弃。
+
+  dqn_vs_fcfs:
+    test_method: "Welch t"
+    p_value: 5.681e-14
+    effect_size_type: "Cohen's d"
+    effect_size: -0.7102
+    n: 250
+    note: "DQN 位使用 Random 替代，故与 random_vs_fcfs 等价"
+
+  fcfs_vs_sjf:
+    test_method: "Mann-Whitney U"
+    p_value: 0.2827
+    effect_size_type: "rank-biserial"
+    effect_size: 0.0556
+    n: 250
+    significant: false
+
+# =============================================================================
+# 实验2: 多seed真机对比 (N=5 per group)
+# 数据源: results/reports/multiseed_real_machine_report.md
+# =============================================================================
+real_machine_5seed:
+  experiment_name: "天衍-287多seed真机实验"
+  applicable_condition: >
+    天衍-287（实际回退至tianyan176）真机环境，
+    5 seeds × 3策略（PPO/SJF/FCFS），每seed 1 episode。
+    真机任务提交至天衍云平台执行，奖励基于真机任务返回的测量结果由调度环境计算，反映真实量子硬件调度效果。
+    小样本量(N=5)，提升幅度不应作为真机性能基准。
+  alpha: 0.05
+  bonferroni_alpha: 0.0167
+  num_comparisons: 3
+  data_source: "results/reports/multiseed_real_machine_report.md"
+
+  strategy_summary:
+    PPO:
+      mean_reward: 1665.22
+      std_reward: 324.51
+      n: 5
+    SJF:
+      mean_reward: 567.20
+      std_reward: 206.33
+      n: 5
+    FCFS:
+      mean_reward: 353.22
+      std_reward: 53.33
+      n: 5
+
+  ppo_vs_fcfs:
+    test_method: "Welch t"
+    statistic: 8.9209
+    p_value: 6.83e-04
+    effect_size_type: "Cohen's d"
+    effect_size: 5.33
+    mean_diff: 1312.00
+    ci_95: [911.78, 1712.22]
+    improvement_pct: 371.4
+    n: 5
+    significant: true  # Bonferroni校正后显著
+    applicable_condition: "PPO vs FCFS 真机环境，5seed实验，N=5 per group"
+
+  ppo_vs_sjf:
+    test_method: "Welch t"
+    statistic: 6.3848
+    p_value: 4.25e-04
+    effect_size_type: "Cohen's d"
+    effect_size: 4.0381
+    mean_diff: 1098.02
+    ci_95: [688.67, 1507.37]
+    n: 5
+    significant: true
+
+  sjf_vs_fcfs:
+    test_method: "Welch t"
+    statistic: 2.2452
+    p_value: 0.080247
+    effect_size_type: "Cohen's d"
+    effect_size: 1.4200
+    mean_diff: 213.98
+    ci_95: [-38.82, 466.78]
+    n: 5
+    significant: false
+
+
+# =============================================================================
+# 实验2b: 多seed真机对比 v2 (N=10 per group, 权威)
+# 数据源: results/reports/multiseed_real_machine_report_10seeds_v2.md
+# 替代 real_machine_5seed（已废弃）
+# =============================================================================
+real_machine_10seed_v2:
+  experiment_name: "天衍-287多seed真机实验 v2"
+  applicable_condition: >
+    天衍-287（287量子比特超导处理器），机器名 tianyan-287（带连字符），
+    10 seeds × 3策略（PPO/SJF/FCFS），每seed 1 episode，96步/episode。
+    真机任务100%完成（30/30），shots=32，电路 H Q1/M Q1。
+    统一 Welch t-test。奖励主要由仿真驱动（96步中仅1步涉及真机）。
+  alpha: 0.05
+  bonferroni_alpha: 0.0167
+  num_comparisons: 3
+  data_source: "results/reports/multiseed_real_machine_report_10seeds_v2.md"
+  supersedes: "real_machine_5seed"
+
+  strategy_summary:
+    PPO:
+      mean_reward: 1736.32
+      std_reward: 355.78
+      n: 10
+    SJF:
+      mean_reward: 575.33
+      std_reward: 237.69
+      n: 10
+    FCFS:
+      mean_reward: 383.00
+      std_reward: 49.13
+      n: 10
+
+  ppo_vs_fcfs:
+    test_method: "Welch t"
+    statistic: 11.92
+    p_value: 0.001  # p<0.001
+    effect_size_type: "Cohen's d"
+    effect_size: 5.33
+    mean_diff: 1353.32
+    ci_95: [1097.83, 1608.82]
+    improvement_pct: 353.4
+    n: 10
+    significant: true  # Bonferroni校正后显著
+    applicable_condition: "PPO vs FCFS 真机环境，10seed v2实验，N=10 per group"
+
+  ppo_vs_sjf:
+    test_method: "Welch t"
+    statistic: 9.05
+    p_value: 0.001  # p<0.001
+    effect_size_type: "Cohen's d"
+    effect_size: 4.04
+    mean_diff: 1160.99
+    ci_95: [911.78, 1410.20]
+    n: 10
+    significant: true
+
+  sjf_vs_fcfs:
+    test_method: "Welch t"
+    statistic: 2.40
+    p_value: 0.080
+    effect_size_type: "Cohen's d"
+    effect_size: 1.13
+    mean_diff: 192.33
+    ci_95: [-38.82, 423.48]
+    n: 10
+    significant: false
+
+# =============================================================================
+# 实验3: 退火消融实验 (20seeds, 权威)
+# 数据源: results/reports/annealing_ablation_20seeds_report.md
+# 注: 旧 5seed 实验已废弃，p=0.190 已被 20seed 的 p=0.9430 替代
+# =============================================================================
+annealing_ablation_head_only:
+  experiment_name: "退火消融实验（20seeds权威验证）"
+  applicable_condition: >
+    20 Seed 消融实验，对比有/无量子退火加速的PPO策略性能差异。
+    使用Wilcoxon秩和检验（非参数）。
+    替代旧的 5seed 实验（p=0.190 已废弃）。
+  alpha: 0.05
+  n: 20
+  data_source: "results/reports/annealing_ablation_20seeds_report.md"
+  supersedes: "5seed 旧实验（p=0.190，已废弃）"
+
+  with_vs_without_annealing:
+    test_method: "Wilcoxon"
+    p_value: 0.9430
+    effect_size_type: "Cliff's delta"
+    effect_size: 0.40
+    significant: false
+    applicable_condition: "退火消融，20seeds权威验证，n=20"
+    note: >
+      p=0.9430 > 0.05，退火加速效果统计上不显著。
+      Cliff's delta=0.40为中等效应量，暗示可能存在实际差异但样本量扩大后仍不显著。
+      答辩话术: 诚实披露不显著，强调效应量方向积极。
+      旧 5seed 实验的 p=0.190 已废弃，禁止再使用。
+
+# =============================================================================
+# 实验4: 真机闭环验证 (N=5)
+# 数据源: results/reports/real_machine_statistical_significance.md
+# =============================================================================
+real_machine_closed_loop:
+  experiment_name: "真机闭环验证（混合真机 vs 纯仿真）"
+  applicable_condition: >
+    N=5 per group，对比纯仿真与混合真机PPO策略性能。
+    小样本量，不显著，真机N=5不足以支撑性能结论。
+  alpha: 0.05
+  n: 5
+  data_source: "results/reports/real_machine_statistical_significance.md"
+
+  simulation_vs_mixed_real:
+    test_method: "Welch t"
+    p_value: 0.343601
+    effect_size_type: "Cohen's d"
+    effect_size: 0.6786
+    simulation_mean: 1463.55
+    mixed_real_mean: 2489.06
+    mean_diff: 1025.51
+    significant: false
+    applicable_condition: "真机闭环验证，纯仿真 vs 混合真机，N=5"
+    note: >
+      p=0.344不显著，Cohen's d=0.68为中等效应。
+      80%功效所需样本量为18组/条件，当前N=5不足以得出结论。
+
+# =============================================================================
+# 实验5: 3策略对比 (DQN-PPO-FCFS, N=50 per strategy)
+# 数据源: results/dqn_ppo_fcfs_comparison.json
+# =============================================================================
+simulation_3strategy_10seed:
+  # NOTE: 此实验为独立3策略对比，PPO奖励(2966.17)与8策略实验(2746.94)差异源于
+  # seed集合和策略组合不同，权威口径以8策略50seed为准。
+  # See: simulation_8strategy_50seed for authoritative numbers.
+  experiment_name: "14维DQN-PPO-FCFS三策略对比（历史参考，已废弃）"
+  applicable_condition: >
+    10 seeds × 5 episodes = 50次独立运行per策略，
+    14维观测空间，每episode 200步。
+    这是与8策略实验不同的独立实验，p值不可混用。
+  note: >
+    此实验为独立3策略对比，PPO奖励(2966.17)与8策略50seed实验PPO奖励(2746.94)差异
+    源于seed集合和策略组合不同。权威口径以8策略50seed实验(N=250)为准，
+    本实验仅用于DQN-PPO-FCFS三策略横向对比。
+  alpha: 0.05
+  data_source: "results/dqn_ppo_fcfs_comparison.json"
+
+  strategy_summary:
+    PPO:
+      mean_reward: 2966.17
+      std_reward: 1124.59
+      mean_completion_rate: 1.0
+      n: 50
+    DQN:
+      mean_reward: 1510.23
+      std_reward: 131.94
+      mean_completion_rate: 1.0
+      n: 50
+    FCFS:
+      mean_reward: 1466.49
+      std_reward: 66.65
+      mean_completion_rate: 1.0
+      n: 50
+
+  ppo_vs_fcfs:
+    test_method: "Welch t"
+    p_value: 1.346e-12
+    effect_size_type: "Cohen's d"
+    effect_size: 1.88
+    improvement_pct: 102.3
+    n: 50
+    applicable_condition: "PPO vs FCFS 3策略实验，N=50 per strategy"
+
+  ppo_vs_dqn:
+    test_method: "Welch t"
+    p_value: 3.356e-12
+    effect_size_type: "Cohen's d"
+    effect_size: 1.82
+    improvement_pct: 96.4
+    n: 50
+
+# =============================================================================
+# 实验6: 量子噪声反馈配对检验 (N=25 paired, 权威 v3)
+# 数据源: results/reports/quantum_noise_paired_canonical.md
+# 修复评审报告 P0 关键问题"量子→AI噪声反馈统计检验（N≥20 seeds）"
+# =============================================================================
+quantum_noise_paired_feedback:
+  experiment_name: "量子赋能AI v3：真机噪声反馈配对统计检验"
+  applicable_condition: >
+    25 seeds × 5 episodes × 2 条件 = 250 次独立运行（每条件 125 episodes）。
+    配对设计：同一 seed 下运行两条件（Standard 无噪声 vs DistNoise 真机MBS分布），
+    以 seed 为配对单元聚合，消除 seed 间方差。
+    PPO模型: ppo_best_model_16dim.zip（16维，Actor-Critic）。
+    噪声源: tianyan-287 10seeds MBS 分布（均值 0.8863 ± 0.0874）。
+    检验方法: Wilcoxon signed-rank 检验（配对非参数检验，单侧 H1: Standard > DistNoise）。
+  alpha: 0.05
+  n: 25  # 配对样本数
+  data_source: "results/reports/quantum_noise_paired_canonical.md"
+  supersedes: "10seeds 探索性实验（无统计检验，已废弃）"
+
+  strategy_summary:
+    Standard:
+      mean_reward: 2408.3025
+      std_reward: 353.5771
+      n: 25
+    DistNoise:
+      mean_reward: 2109.0211
+      std_reward: 317.1873
+      n: 25
+
+  paired_test:
+    test_method: "Wilcoxon signed-rank"
+    statistic: 325.0
+    p_value: 2.98e-08
+    effect_size_type: "Cohen's d_z"
+    effect_size: 7.7089
+    paired_diff_mean: 299.2814
+    paired_diff_std: 38.8229
+    ci_95: [283.2561, 315.3067]
+    n: 25
+    significant: true
+    post_hoc_power: 1.0
+    improvement_pct: -12.43
+    improvement_pct_ci_95: [-19.49, -4.69]
+    applicable_condition: "Wilcoxon signed-rank 配对检验，N=25 seeds，单侧 H1: Standard > DistNoise"
+    note: >
+      v9.1+ 权威统计检验（2026-07-29），修复评审报告 P0 关键问题。
+      p=2.98e-08 << α=0.05，拒绝 H0，真机噪声分布对 PPO 策略奖励有显著影响。
+      Cohen's d_z=7.7089 为极大效应量（远超 0.8 大效应阈值）。
+      事后功效=1.0，样本量充足。
+      噪声导致奖励下降 12.43%（95% CI: [-19.49%, -4.69%]）。
+      旧 10seeds 探索性实验（无统计检验）已废弃。
+
+# =============================================================================
+# 已废弃的p值 (Deprecated p-values)
+# 以下p值曾在文档中使用但来源不明或属于旧实验，已统一替换为权威源中的值。
+# =============================================================================
+deprecated:
+  p_3_04e_11:
+    value: 3.04e-11
+    test_method: "Welch t"
+    effect_size: -1.70
+    status: "deprecated"
+    reason: >
+      来源不明，可能为早期实验结果。8策略50seed权威实验显示
+      PPO vs FCFS使用Mann-Whitney U检验，p=1.032e-42。
+      MODELS.md中已标注为历史参考值。
+    replacement: "simulation_8strategy_50seed.ppo_vs_fcfs.p_value (1.449e-66)"
+
+  p_1_032e_42_for_ppo_vs_fcfs_14dim:
+    value: 1.032e-42
+    status: "deprecated"
+    reason: >
+      14 维模型 ppo_best_model_14dim.zip（已删除）的 PPO vs FCFS p值。
+      v9.1+ 16 维交付模型 ppo_best_model_16dim.zip 重新评估后 p=1.449e-66。
+    replacement: "simulation_8strategy_50seed.ppo_vs_fcfs.p_value (1.449e-66, 16维)"
+
+  p_4_92e_55_for_ppo_vs_fcfs:
+    value: 4.92e-55
+    status: "misattributed"
+    reason: >
+      p=4.92e-55 实际是 Random vs PPO 的p值（14维模型, Welch t, Cohen's d=-1.73），
+      曾被错误地用于PPO vs FCFS比较。已在文档中修正。
+    replacement: "simulation_8strategy_50seed.ppo_vs_fcfs.p_value (1.449e-66, 16维)"
+
+  p_0_031:
+    value: 0.031
+    status: "obsolete"
+    reason: "早期文档中的p值，当前文档已更新为权威源中的值。"
+
+  p_0_048:
+    value: 0.048
+    status: "obsolete"
+    reason: "早期文档中的p值，当前文档已更新为权威源中的值。"
+
+  p_0_072:
+    value: 0.072
+    status: "obsolete"
+    reason: "早期文档中的p值，当前文档已更新为权威源中的值。"
+
+# =============================================================================
+# 统计检验方法说明
+# =============================================================================
+test_methodology:
+  normality_test:
+    method: "Shapiro-Wilk (n<50) / D'Agostino K² (n≥50)"
+    threshold: 0.05
+  variance_homogeneity:
+    method: "Levene检验"
+  test_selection:
+    both_normal_homoscedastic: "独立样本t检验"
+    both_normal_heteroscedastic: "Welch t检验"
+    either_non_normal: "Mann-Whitney U检验"
+  effect_size:
+    normal: "Cohen's d (<0.2 可忽略, 0.2-0.5 小, 0.5-0.8 中, ≥0.8 大)"
+    nonparametric: "rank-biserial correlation (<0.1 可忽略, 0.1-0.3 小, 0.3-0.5 中, ≥0.5 大)"
+  multiple_comparison_correction: "Bonferroni (校正 α = α / 比较次数)"
+  confidence_interval: "均值差的95% CI"

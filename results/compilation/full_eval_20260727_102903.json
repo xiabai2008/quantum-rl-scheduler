@@ -1,0 +1,6 @@
+{
+  "ppo_avg_swap": 6.5,
+  "sabre_avg_swap": 27.566666666666666,
+  "improvement_pct": 76.4,
+  "model": "ppo_compilation_agent.zip"
+}

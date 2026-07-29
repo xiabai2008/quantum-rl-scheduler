@@ -1,0 +1,34 @@
+# Dependabot 配置 — 自动更新依赖 + 安全漏洞通知
+# 同时管理 requirements.txt 和 requirements.lock
+version: 2
+updates:
+  # Python 依赖 (requirements.txt + requirements.lock)
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    open-pull-requests-limit: 3
+    labels:
+      - "dependencies"
+      - "security"
+    commit-message:
+      prefix: "deps"
+      include: "scope"
+    ignore:
+      - dependency-name: "numpy"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "black"
+        update-types: ["version-update:semver-major"]
+
+  # GitHub Actions 版本更新
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    open-pull-requests-limit: 3
+    labels:
+      - "dependencies"
+      - "ci"
+    commit-message:
+      prefix: "ci"
+      include: "scope"

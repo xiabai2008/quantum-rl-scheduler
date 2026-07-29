@@ -1,0 +1,966 @@
+"""
+量子RL调度系统 - 熔断器模块单元测试
+Unit Tests for src/api/circuit_breaker.py
+
+测试覆盖：
+- CircuitState 枚举（CLOSED / OPEN / HALF_OPEN 三态语义）
+- CircuitBreaker 初始化（默认参数与自定义参数）
+- CLOSED 状态：成功清零计数、失败累加计数、达阈值转 OPEN、alert_critical 触发
+- OPEN 状态：拒绝调用抛出 CircuitOpenError、超过 recovery_timeout 转 HALF_OPEN
+- HALF_OPEN 状态：试探成功回 CLOSED、试探失败回 OPEN
+- is_available() 在三态下的返回值（含 OPEN 超时与未超时分支）
+- reset() 从任意状态回到 CLOSED
+- call() 参数透传
+- 兼容方法 before_request / on_success / on_failure / get_state
+- 时间通过 unittest.mock 控制 time.monotonic，告警通过 mock 屏蔽
+"""
+
+import os
+import sys
+import unittest
+from typing import Any
+from unittest.mock import MagicMock, patch
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+
+from src.api.circuit_breaker import CircuitBreaker, CircuitState
+from src.exceptions import CircuitOpenError, TianyanAPIError
+from src.scheduler.env import QuantumSchedulingEnv
+from src.scheduler.env_real_machine import submit_to_real_machine
+from src.scheduler.env_types import (
+    REAL_MACHINE_DEGRADE_FAIL_THRESHOLD,
+    QuantumMachine,
+    Task,
+)
+
+
+class TestCircuitStateEnum(unittest.TestCase):
+    """测试 CircuitState 枚举的三态语义。"""
+
+    def test_closed_state_value(self):
+        """CLOSED 状态的字符串值应为 'closed'。"""
+        self.assertEqual(CircuitState.CLOSED.value, "closed")
+
+    def test_open_state_value(self):
+        """OPEN 状态的字符串值应为 'open'。"""
+        self.assertEqual(CircuitState.OPEN.value, "open")
+
+    def test_half_open_state_value(self):
+        """HALF_OPEN 状态的字符串值应为 'half_open'。"""
+        self.assertEqual(CircuitState.HALF_OPEN.value, "half_open")
+
+    def test_three_distinct_states(self):
+        """三态应互不相等。"""
+        states = {CircuitState.CLOSED, CircuitState.OPEN, CircuitState.HALF_OPEN}
+        self.assertEqual(len(states), 3)
+
+
+class TestCircuitBreakerInit(unittest.TestCase):
+    """测试 CircuitBreaker 初始化。"""
+
+    def test_default_init_values(self):
+        """默认初始化应使用 failure_threshold=5 与 recovery_timeout=60.0。"""
+        cb = CircuitBreaker()
+        self.assertEqual(cb.failure_threshold, 5)
+        self.assertEqual(cb.recovery_timeout, 60.0)
+        self.assertEqual(cb.state, CircuitState.CLOSED)
+        self.assertEqual(cb.failure_count, 0)
+        self.assertEqual(cb.last_failure_time, 0.0)
+
+    def test_custom_init_values(self):
+        """自定义参数应被正确存储。"""
+        cb = CircuitBreaker(failure_threshold=3, recovery_timeout=30.0)
+        self.assertEqual(cb.failure_threshold, 3)
+        self.assertEqual(cb.recovery_timeout, 30.0)
+        self.assertEqual(cb.state, CircuitState.CLOSED)
+
+
+class TestCircuitBreakerClosedState(unittest.TestCase):
+    """测试 CLOSED 状态下的行为。"""
+
+    @patch("src.api.circuit_breaker.alert_critical")
+    def test_successful_call_returns_result(self, _mock_alert):
+        """CLOSED 状态下成功调用应返回函数结果。"""
+        cb = CircuitBreaker(failure_threshold=3, recovery_timeout=60.0)
+        result = cb.call(lambda x: x + 1, 41)
+        self.assertEqual(result, 42)
+
+    @patch("src.api.circuit_breaker.alert_critical")
+    def test_successful_call_resets_failure_count(self, _mock_alert):
+        """CLOSED 状态下成功调用应清零 failure_count。"""
+        cb = CircuitBreaker(failure_threshold=3, recovery_timeout=60.0)
+        # 先制造一次失败，使 failure_count > 0
+        with self.assertRaises(ValueError):
+            cb.call(_raise_value_error)
+        self.assertEqual(cb.failure_count, 1)
+        # 成功调用后应清零
+        cb.call(lambda: "ok")
+        self.assertEqual(cb.failure_count, 0)
+
+    @patch("src.api.circuit_breaker.alert_critical")
+    def test_failed_call_increments_failure_count(self, _mock_alert):
+        """CLOSED 状态下失败调用应累加 failure_count。"""
+        cb = CircuitBreaker(failure_threshold=5, recovery_timeout=60.0)
+        with self.assertRaises(ValueError):
+            cb.call(_raise_value_error)
+        self.assertEqual(cb.failure_count, 1)
+        with self.assertRaises(ValueError):
+            cb.call(_raise_value_error)
+        self.assertEqual(cb.failure_count, 2)
+
+    @patch("src.api.circuit_breaker.alert_critical")
+    def test_failed_call_raises_original_exception(self, _mock_alert):
+        """CLOSED 状态下失败调用应抛出原始异常（而非包装异常）。"""
+        cb = CircuitBreaker(failure_threshold=5, recovery_timeout=60.0)
+        with self.assertRaises(RuntimeError) as ctx:
+            cb.call(_raise_runtime_error)
+        self.assertIn("boom", str(ctx.exception))
+
+    @patch("src.api.circuit_breaker.alert_critical")
+    def test_not_open_before_threshold(self, _mock_alert):
+        """未达到 failure_threshold 时应保持 CLOSED。"""
+        cb = CircuitBreaker(failure_threshold=3, recovery_timeout=60.0)
+        for _ in range(2):
+            with self.assertRaises(ValueError):
+                cb.call(_raise_value_error)
+        # 仅 2 次失败，未达阈值 3，仍应处于 CLOSED
+        self.assertEqual(cb.state, CircuitState.CLOSED)
+        self.assertEqual(cb.failure_count, 2)
+
+    @patch("src.api.circuit_breaker.alert_critical")
+    def test_closed_to_open_after_threshold(self, _mock_alert):
+        """连续失败达到 failure_threshold 时应转为 OPEN。"""
+        cb = CircuitBreaker(failure_threshold=3, recovery_timeout=60.0)
+        for _ in range(3):
+            with self.assertRaises(ValueError):
+                cb.call(_raise_value_error)
+        self.assertEqual(cb.state, CircuitState.OPEN)
+        self.assertEqual(cb.failure_count, 3)
+
+    @patch("src.api.circuit_breaker.alert_critical")
+    def test_alert_critical_called_on_closed_to_open(self, mock_alert):
+        """CLOSED→OPEN 转换时 alert_critical 应被调用一次。"""
+        cb = CircuitBreaker(failure_threshold=2, recovery_timeout=60.0)
+        # 第一次失败：未达阈值，不告警
+        with self.assertRaises(ValueError):
+            cb.call(_raise_value_error)
+        mock_alert.assert_not_called()
+        # 第二次失败：达到阈值，触发告警
+        with self.assertRaises(ValueError):
+            cb.call(_raise_value_error)
+        mock_alert.assert_called_once()
+        # 第一个参数应为类别 "circuit_breaker"
+        args, _ = mock_alert.call_args
+        self.assertEqual(args[0], "circuit_breaker")
+        # 第二个参数为消息，应包含失败计数信息
+        self.assertIn("CLOSED→OPEN", args[1])
+
+    @patch("src.api.circuit_breaker.alert_critical")
+    def test_partial_failures_then_success_resets_count(self, _mock_alert):
+        """部分失败后一次成功应清零 failure_count，避免累积误触发。"""
+        cb = CircuitBreaker(failure_threshold=3, recovery_timeout=60.0)
+        # 两次失败
+        with self.assertRaises(ValueError):
+            cb.call(_raise_value_error)
+        with self.assertRaises(ValueError):
+            cb.call(_raise_value_error)
+        self.assertEqual(cb.failure_count, 2)
+        # 一次成功，清零计数
+        cb.call(lambda: "ok")
+        self.assertEqual(cb.failure_count, 0)
+        # 再两次失败，仍未达阈值
+        with self.assertRaises(ValueError):
+            cb.call(_raise_value_error)
+        with self.assertRaises(ValueError):
+            cb.call(_raise_value_error)
+        self.assertEqual(cb.state, CircuitState.CLOSED)
+        self.assertEqual(cb.failure_count, 2)
+
+
+class TestCircuitBreakerOpenState(unittest.TestCase):
+    """测试 OPEN 状态下的行为，使用 mock 控制 time.monotonic。"""
+
+    @patch("src.api.circuit_breaker.alert_critical")
+    def test_open_state_rejects_call(self, _mock_alert):
+        """OPEN 状态下应直接拒绝调用并抛出 CircuitOpenError。"""
+        with patch("src.api.circuit_breaker.time.monotonic") as mock_time:
+            mock_time.return_value = 0.0
+            cb = CircuitBreaker(failure_threshold=2, recovery_timeout=60.0)
+            # 触发熔断
+            for _ in range(2):
+                with self.assertRaises(ValueError):
+                    cb.call(_raise_value_error)
+            self.assertEqual(cb.state, CircuitState.OPEN)
+            # 此时 time.monotonic() 仍为 0，未过恢复超时
+            with self.assertRaises(CircuitOpenError):
+                cb.call(lambda: "should be rejected")
+
+    @patch("src.api.circuit_breaker.alert_critical")
+    def test_circuit_open_error_has_correct_code(self, _mock_alert):
+        """CircuitOpenError 应携带 code='CIRCUIT_OPEN' 与 retryable=True。"""
+        with patch("src.api.circuit_breaker.time.monotonic") as mock_time:
+            mock_time.return_value = 0.0
+            cb = CircuitBreaker(failure_threshold=1, recovery_timeout=60.0)
+            with self.assertRaises(ValueError):
+                cb.call(_raise_value_error)
+            self.assertEqual(cb.state, CircuitState.OPEN)
+            with self.assertRaises(CircuitOpenError) as ctx:
+                cb.call(lambda: "rejected")
+            self.assertEqual(ctx.exception.code, "CIRCUIT_OPEN")
+            self.assertTrue(ctx.exception.retryable)
+
+    @patch("src.api.circuit_breaker.alert_critical")
+    def test_open_state_no_recovery_within_timeout(self, _mock_alert):
+        """OPEN 状态未超时时应保持 OPEN，调用被拒绝。"""
+        with patch("src.api.circuit_breaker.time.monotonic") as mock_time:
+            mock_time.return_value = 0.0
+            cb = CircuitBreaker(failure_threshold=1, recovery_timeout=60.0)
+            with self.assertRaises(ValueError):
+                cb.call(_raise_value_error)
+            self.assertEqual(cb.state, CircuitState.OPEN)
+            # 时间仅前进了 30 秒，未达 60 秒
+            mock_time.return_value = 30.0
+            with self.assertRaises(CircuitOpenError):
+                cb.call(lambda: "rejected")
+            # 状态应仍为 OPEN（未转 HALF_OPEN）
+            self.assertEqual(cb.state, CircuitState.OPEN)
+
+    @patch("src.api.circuit_breaker.alert_critical")
+    def test_open_to_half_open_after_recovery_timeout(self, _mock_alert):
+        """OPEN 状态超过 recovery_timeout 后，调用应转入 HALF_OPEN 并放行试探。"""
+        with patch("src.api.circuit_breaker.time.monotonic") as mock_time:
+            mock_time.return_value = 0.0
+            cb = CircuitBreaker(failure_threshold=1, recovery_timeout=60.0)
+            with self.assertRaises(ValueError):
+                cb.call(_raise_value_error)
+            self.assertEqual(cb.state, CircuitState.OPEN)
+            # 时间前进 100 秒，超过 60 秒恢复超时
+            mock_time.return_value = 100.0
+            # 调用应转入 HALF_OPEN 并放行（试探成功）
+            result = cb.call(lambda: "recovered")
+            self.assertEqual(result, "recovered")
+            # 试探成功后应回到 CLOSED
+            self.assertEqual(cb.state, CircuitState.CLOSED)
+
+
+class TestCircuitBreakerHalfOpenState(unittest.TestCase):
+    """测试 HALF_OPEN 状态下的试探行为。"""
+
+    @patch("src.api.circuit_breaker.alert_critical")
+    def test_half_open_success_transitions_to_closed(self, _mock_alert):
+        """HALF_OPEN 状态下试探成功应重置为 CLOSED。"""
+        with patch("src.api.circuit_breaker.time.monotonic") as mock_time:
+            mock_time.return_value = 0.0
+            cb = CircuitBreaker(failure_threshold=1, recovery_timeout=60.0)
+            # 触发熔断
+            with self.assertRaises(ValueError):
+                cb.call(_raise_value_error)
+            self.assertEqual(cb.state, CircuitState.OPEN)
+            # 超过恢复超时，进入 HALF_OPEN
+            mock_time.return_value = 100.0
+            # 手动设置 HALF_OPEN 以隔离测试
+            cb.state = CircuitState.HALF_OPEN
+            # 试探成功 → 回到 CLOSED
+            cb.call(lambda: "ok")
+            self.assertEqual(cb.state, CircuitState.CLOSED)
+            self.assertEqual(cb.failure_count, 0)
+
+    @patch("src.api.circuit_breaker.alert_critical")
+    def test_half_open_failure_transitions_to_open(self, _mock_alert):
+        """HALF_OPEN 状态下试探失败应回到 OPEN。"""
+        with patch("src.api.circuit_breaker.time.monotonic") as mock_time:
+            mock_time.return_value = 0.0
+            cb = CircuitBreaker(failure_threshold=1, recovery_timeout=60.0)
+            # 触发熔断
+            with self.assertRaises(ValueError):
+                cb.call(_raise_value_error)
+            self.assertEqual(cb.state, CircuitState.OPEN)
+            # 超过恢复超时，进入 HALF_OPEN
+            mock_time.return_value = 100.0
+            # 手动设置 HALF_OPEN 以隔离测试
+            cb.state = CircuitState.HALF_OPEN
+            # 试探失败 → 回到 OPEN
+            with self.assertRaises(ValueError):
+                cb.call(_raise_value_error)
+            self.assertEqual(cb.state, CircuitState.OPEN)
+
+    @patch("src.api.circuit_breaker.alert_critical")
+    def test_half_open_success_resets_last_failure_time(self, _mock_alert):
+        """HALF_OPEN 试探成功调用 reset() 应将 last_failure_time 清零。"""
+        with patch("src.api.circuit_breaker.time.monotonic") as mock_time:
+            mock_time.return_value = 0.0
+            cb = CircuitBreaker(failure_threshold=1, recovery_timeout=60.0)
+            with self.assertRaises(ValueError):
+                cb.call(_raise_value_error)
+            # last_failure_time 应已被设置为 0.0（mock 时间）
+            self.assertEqual(cb.last_failure_time, 0.0)
+            mock_time.return_value = 100.0
+            cb.state = CircuitState.HALF_OPEN
+            cb.call(lambda: "ok")
+            # reset() 应将 last_failure_time 清零
+            self.assertEqual(cb.last_failure_time, 0.0)
+
+
+class TestIsAvailable(unittest.TestCase):
+    """测试 is_available() 在三态下的判定逻辑。"""
+
+    @patch("src.api.circuit_breaker.alert_critical")
+    def test_is_available_closed_returns_true(self, _mock_alert):
+        """CLOSED 状态 is_available() 应返回 True。"""
+        cb = CircuitBreaker()
+        self.assertEqual(cb.state, CircuitState.CLOSED)
+        self.assertTrue(cb.is_available())
+
+    @patch("src.api.circuit_breaker.alert_critical")
+    def test_is_available_half_open_returns_true(self, _mock_alert):
+        """HALF_OPEN 状态 is_available() 应返回 True（放行试探）。"""
+        cb = CircuitBreaker()
+        cb.state = CircuitState.HALF_OPEN
+        self.assertTrue(cb.is_available())
+
+    @patch("src.api.circuit_breaker.alert_critical")
+    def test_is_available_open_not_expired_returns_false(self, _mock_alert):
+        """OPEN 状态未超时 is_available() 应返回 False。"""
+        with patch("src.api.circuit_breaker.time.monotonic") as mock_time:
+            mock_time.return_value = 100.0
+            cb = CircuitBreaker(failure_threshold=1, recovery_timeout=60.0)
+            cb.state = CircuitState.OPEN
+            cb.last_failure_time = 50.0  # 100 - 50 = 50 < 60，未超时
+            self.assertFalse(cb.is_available())
+
+    @patch("src.api.circuit_breaker.alert_critical")
+    def test_is_available_open_expired_returns_true(self, _mock_alert):
+        """OPEN 状态已超时 is_available() 应返回 True。"""
+        with patch("src.api.circuit_breaker.time.monotonic") as mock_time:
+            mock_time.return_value = 200.0
+            cb = CircuitBreaker(failure_threshold=1, recovery_timeout=60.0)
+            cb.state = CircuitState.OPEN
+            cb.last_failure_time = 100.0  # 200 - 100 = 100 >= 60，已超时
+            self.assertTrue(cb.is_available())
+
+    @patch("src.api.circuit_breaker.alert_critical")
+    def test_is_available_open_boundary_equal_timeout(self, _mock_alert):
+        """OPEN 状态恰好到达恢复超时（差值等于 recovery_timeout）应返回 True。"""
+        with patch("src.api.circuit_breaker.time.monotonic") as mock_time:
+            mock_time.return_value = 160.0
+            cb = CircuitBreaker(failure_threshold=1, recovery_timeout=60.0)
+            cb.state = CircuitState.OPEN
+            cb.last_failure_time = 100.0  # 160 - 100 = 60 == 60，边界值
+            self.assertTrue(cb.is_available())
+
+
+class TestReset(unittest.TestCase):
+    """测试 reset() 方法从任意状态回到 CLOSED。"""
+
+    @patch("src.api.circuit_breaker.alert_critical")
+    def test_reset_from_closed(self, _mock_alert):
+        """CLOSED 状态调用 reset 应保持 CLOSED 并清零计数。"""
+        cb = CircuitBreaker()
+        cb.failure_count = 2
+        cb.reset()
+        self.assertEqual(cb.state, CircuitState.CLOSED)
+        self.assertEqual(cb.failure_count, 0)
+        self.assertEqual(cb.last_failure_time, 0.0)
+
+    @patch("src.api.circuit_breaker.alert_critical")
+    def test_reset_from_open(self, _mock_alert):
+        """OPEN 状态调用 reset 应回到 CLOSED。"""
+        with patch("src.api.circuit_breaker.time.monotonic") as mock_time:
+            mock_time.return_value = 0.0
+            cb = CircuitBreaker(failure_threshold=1, recovery_timeout=60.0)
+            with self.assertRaises(ValueError):
+                cb.call(_raise_value_error)
+            self.assertEqual(cb.state, CircuitState.OPEN)
+            cb.reset()
+            self.assertEqual(cb.state, CircuitState.CLOSED)
+            self.assertEqual(cb.failure_count, 0)
+            self.assertEqual(cb.last_failure_time, 0.0)
+
+    @patch("src.api.circuit_breaker.alert_critical")
+    def test_reset_from_half_open(self, _mock_alert):
+        """HALF_OPEN 状态调用 reset 应回到 CLOSED。"""
+        cb = CircuitBreaker()
+        cb.state = CircuitState.HALF_OPEN
+        cb.failure_count = 1
+        cb.last_failure_time = 99.0
+        cb.reset()
+        self.assertEqual(cb.state, CircuitState.CLOSED)
+        self.assertEqual(cb.failure_count, 0)
+        self.assertEqual(cb.last_failure_time, 0.0)
+
+    @patch("src.api.circuit_breaker.alert_critical")
+    def test_reset_allows_call_again(self, _mock_alert):
+        """reset 后应能立即放行调用（验证实际可用性）。"""
+        with patch("src.api.circuit_breaker.time.monotonic") as mock_time:
+            mock_time.return_value = 0.0
+            cb = CircuitBreaker(failure_threshold=1, recovery_timeout=60.0)
+            with self.assertRaises(ValueError):
+                cb.call(_raise_value_error)
+            self.assertEqual(cb.state, CircuitState.OPEN)
+            # reset 后立即可调用，无需等待 recovery_timeout
+            cb.reset()
+            result = cb.call(lambda: "ok")
+            self.assertEqual(result, "ok")
+            self.assertEqual(cb.state, CircuitState.CLOSED)
+
+
+class TestCallArgumentPassThrough(unittest.TestCase):
+    """测试 call() 对位置参数与关键字参数的透传。"""
+
+    @patch("src.api.circuit_breaker.alert_critical")
+    def test_call_passes_positional_and_keyword_args(self, _mock_alert):
+        """call 应将 *args 与 **kwargs 透传给被包裹函数。"""
+        cb = CircuitBreaker()
+        mock_func = MagicMock(return_value="done")
+        result = cb.call(mock_func, 1, 2, key="value")
+        self.assertEqual(result, "done")
+        mock_func.assert_called_once_with(1, 2, key="value")
+
+    @patch("src.api.circuit_breaker.alert_critical")
+    def test_call_with_no_args(self, _mock_alert):
+        """call 应支持无参数函数调用。"""
+        cb = CircuitBreaker()
+        mock_func = MagicMock(return_value=42)
+        result = cb.call(mock_func)
+        self.assertEqual(result, 42)
+        mock_func.assert_called_once_with()
+
+
+class TestFullStateTransitionCycle(unittest.TestCase):
+    """测试完整的状态机循环：CLOSED → OPEN → HALF_OPEN → CLOSED/OPEN。"""
+
+    @patch("src.api.circuit_breaker.alert_critical")
+    def test_full_cycle_recover_via_half_open(self, _mock_alert):
+        """完整恢复路径：CLOSED → OPEN → HALF_OPEN → CLOSED。"""
+        with patch("src.api.circuit_breaker.time.monotonic") as mock_time:
+            mock_time.return_value = 0.0
+            cb = CircuitBreaker(failure_threshold=2, recovery_timeout=60.0)
+            # CLOSED：连续失败触发熔断
+            with self.assertRaises(ValueError):
+                cb.call(_raise_value_error)
+            with self.assertRaises(ValueError):
+                cb.call(_raise_value_error)
+            self.assertEqual(cb.state, CircuitState.OPEN)
+            # OPEN：未超时拒绝调用
+            with self.assertRaises(CircuitOpenError):
+                cb.call(lambda: "rejected")
+            # 时间前进 100 秒，超过 60 秒恢复超时
+            mock_time.return_value = 100.0
+            # 应转入 HALF_OPEN 并放行试探（成功 → CLOSED）
+            result = cb.call(lambda: "recovered")
+            self.assertEqual(result, "recovered")
+            self.assertEqual(cb.state, CircuitState.CLOSED)
+            self.assertEqual(cb.failure_count, 0)
+
+    @patch("src.api.circuit_breaker.alert_critical")
+    def test_full_cycle_reopen_via_half_open_failure(self, _mock_alert):
+        """完整重熔路径：CLOSED → OPEN → HALF_OPEN → OPEN。"""
+        with patch("src.api.circuit_breaker.time.monotonic") as mock_time:
+            mock_time.return_value = 0.0
+            cb = CircuitBreaker(failure_threshold=1, recovery_timeout=60.0)
+            # CLOSED → OPEN
+            with self.assertRaises(ValueError):
+                cb.call(_raise_value_error)
+            self.assertEqual(cb.state, CircuitState.OPEN)
+            # 时间前进，超过恢复超时
+            mock_time.return_value = 100.0
+            # HALF_OPEN 试探失败 → 回到 OPEN
+            with self.assertRaises(ValueError):
+                cb.call(_raise_value_error)
+            self.assertEqual(cb.state, CircuitState.OPEN)
+            # 再次未超时拒绝调用（last_failure_time 已更新为 100.0）
+            mock_time.return_value = 130.0
+            with self.assertRaises(CircuitOpenError):
+                cb.call(lambda: "rejected")
+
+
+# ── 兼容方法测试（与原 tianyan_client.py 行为对齐） ──
+
+
+class TestBeforeRequest(unittest.TestCase):
+    """测试 before_request() 兼容方法。"""
+
+    def test_closed_passes_through(self):
+        """CLOSED 状态 before_request 应直接放行。"""
+        cb = CircuitBreaker()
+        cb.before_request()  # 不应抛出异常
+        self.assertEqual(cb.state, CircuitState.CLOSED)
+
+    def test_half_open_passes_through(self):
+        """HALF_OPEN 状态 before_request 应直接放行。"""
+        cb = CircuitBreaker()
+        cb.state = CircuitState.HALF_OPEN
+        cb.before_request()  # 不应抛出异常
+        self.assertEqual(cb.state, CircuitState.HALF_OPEN)
+
+    def test_open_rejects_without_timeout(self):
+        """OPEN 状态未超时 before_request 应抛出 CircuitOpenError。"""
+        with patch("src.api.circuit_breaker.time.monotonic") as mock_time:
+            mock_time.return_value = 10.0
+            cb = CircuitBreaker(failure_threshold=1, recovery_timeout=60.0)
+            cb.state = CircuitState.OPEN
+            cb.last_failure_time = 5.0  # 10 - 5 = 5 < 60
+            with self.assertRaises(CircuitOpenError) as ctx:
+                cb.before_request()
+            self.assertEqual(ctx.exception.code, "CIRCUIT_OPEN")
+            self.assertTrue(ctx.exception.retryable)
+            # 状态应保持 OPEN
+            self.assertEqual(cb.state, CircuitState.OPEN)
+
+    def test_open_transitions_to_half_open_after_timeout(self):
+        """OPEN 状态超时后 before_request 应转为 HALF_OPEN 并放行。"""
+        with patch("src.api.circuit_breaker.time.monotonic") as mock_time:
+            mock_time.return_value = 100.0
+            cb = CircuitBreaker(failure_threshold=1, recovery_timeout=60.0)
+            cb.state = CircuitState.OPEN
+            cb.last_failure_time = 30.0  # 100 - 30 = 70 >= 60
+            cb.before_request()  # 不应抛出异常
+            self.assertEqual(cb.state, CircuitState.HALF_OPEN)
+
+    def test_open_boundary_equal_timeout(self):
+        """OPEN 状态恰好到达恢复超时（差值 == recovery_timeout）应转为 HALF_OPEN。"""
+        with patch("src.api.circuit_breaker.time.monotonic") as mock_time:
+            mock_time.return_value = 90.0
+            cb = CircuitBreaker(failure_threshold=1, recovery_timeout=60.0)
+            cb.state = CircuitState.OPEN
+            cb.last_failure_time = 30.0  # 90 - 30 = 60 == 60
+            cb.before_request()
+            self.assertEqual(cb.state, CircuitState.HALF_OPEN)
+
+
+class TestOnSuccess(unittest.TestCase):
+    """测试 on_success() 兼容方法。"""
+
+    def test_resets_failure_count_and_state(self):
+        """on_success 应清零 failure_count 并设为 CLOSED。"""
+        cb = CircuitBreaker(failure_threshold=3, recovery_timeout=60.0)
+        cb.failure_count = 2
+        cb.state = CircuitState.CLOSED
+        cb.on_success()
+        self.assertEqual(cb.failure_count, 0)
+        self.assertEqual(cb.state, CircuitState.CLOSED)
+
+    def test_resets_from_half_open(self):
+        """HALF_OPEN 状态下 on_success 应转为 CLOSED。"""
+        cb = CircuitBreaker()
+        cb.state = CircuitState.HALF_OPEN
+        cb.failure_count = 1
+        cb.on_success()
+        self.assertEqual(cb.state, CircuitState.CLOSED)
+        self.assertEqual(cb.failure_count, 0)
+
+    def test_resets_from_open(self):
+        """OPEN 状态下 on_success 也应强制转为 CLOSED（与原实现一致）。"""
+        cb = CircuitBreaker()
+        cb.state = CircuitState.OPEN
+        cb.failure_count = 5
+        cb.on_success()
+        self.assertEqual(cb.state, CircuitState.CLOSED)
+        self.assertEqual(cb.failure_count, 0)
+
+
+class TestOnFailure(unittest.TestCase):
+    """测试 on_failure() 兼容方法。"""
+
+    @patch("src.api.circuit_breaker.alert_error")
+    def test_increments_failure_count(self, mock_alert):
+        """on_failure 应累加 failure_count。"""
+        with patch("src.api.circuit_breaker.time.monotonic") as mock_time:
+            mock_time.return_value = 10.0
+            cb = CircuitBreaker(failure_threshold=3, recovery_timeout=60.0)
+            cb.on_failure()
+            self.assertEqual(cb.failure_count, 1)
+            self.assertEqual(cb.last_failure_time, 10.0)
+            cb.on_failure()
+            self.assertEqual(cb.failure_count, 2)
+
+    @patch("src.api.circuit_breaker.alert_error")
+    def test_opens_after_threshold(self, mock_alert):
+        """达阈值后 on_failure 应转为 OPEN 并发出 alert_error 告警。"""
+        with patch("src.api.circuit_breaker.time.monotonic") as mock_time:
+            mock_time.return_value = 0.0
+            cb = CircuitBreaker(failure_threshold=2, recovery_timeout=60.0)
+            cb.on_failure()  # count=1, 未达阈值
+            mock_alert.assert_not_called()
+            cb.on_failure()  # count=2, 达阈值
+            self.assertEqual(cb.state, CircuitState.OPEN)
+            mock_alert.assert_called_once()
+            args, _ = mock_alert.call_args
+            self.assertEqual(args[0], "api")
+            self.assertIn("2/2", args[1])
+
+    @patch("src.api.circuit_breaker.alert_error")
+    def test_does_not_alert_below_threshold(self, mock_alert):
+        """未达阈值时 on_failure 不应发出告警。"""
+        with patch("src.api.circuit_breaker.time.monotonic") as mock_time:
+            mock_time.return_value = 0.0
+            cb = CircuitBreaker(failure_threshold=5, recovery_timeout=60.0)
+            for _ in range(4):
+                cb.on_failure()
+            self.assertEqual(cb.state, CircuitState.CLOSED)
+            mock_alert.assert_not_called()
+
+
+class TestGetState(unittest.TestCase):
+    """测试 get_state() 兼容方法。"""
+
+    def test_closed_state_string(self):
+        """CLOSED 状态应返回 'closed'。"""
+        cb = CircuitBreaker()
+        self.assertEqual(cb.get_state(), "closed")
+
+    def test_open_state_string(self):
+        """OPEN 状态应返回 'open'。"""
+        cb = CircuitBreaker()
+        cb.state = CircuitState.OPEN
+        self.assertEqual(cb.get_state(), "open")
+
+    def test_half_open_state_string(self):
+        """HALF_OPEN 状态应返回 'half_open'。"""
+        cb = CircuitBreaker()
+        cb.state = CircuitState.HALF_OPEN
+        self.assertEqual(cb.get_state(), "half_open")
+
+
+class TestCompatibleMethodsIntegration(unittest.TestCase):
+    """测试兼容方法组合使用的完整流程。"""
+
+    @patch("src.api.circuit_breaker.alert_error")
+    def test_full_lifecycle_with_compatible_methods(self, mock_alert):
+        """模拟 TianyanClient 使用 before_request/on_success/on_failure 的完整生命周期。"""
+        with patch("src.api.circuit_breaker.time.monotonic") as mock_time:
+            mock_time.return_value = 0.0
+            cb = CircuitBreaker(failure_threshold=2, recovery_timeout=60.0)
+
+            # 初始状态
+            self.assertEqual(cb.get_state(), "closed")
+
+            # 请求 1：失败
+            cb.before_request()
+            cb.on_failure()
+            self.assertEqual(cb.get_state(), "closed")
+            self.assertEqual(cb.failure_count, 1)
+
+            # 请求 2：成功（重置计数）
+            cb.before_request()
+            cb.on_success()
+            self.assertEqual(cb.get_state(), "closed")
+            self.assertEqual(cb.failure_count, 0)
+
+            # 请求 3-4：连续失败达阈值
+            cb.before_request()
+            cb.on_failure()
+            self.assertEqual(cb.failure_count, 1)
+            cb.before_request()
+            cb.on_failure()
+            self.assertEqual(cb.get_state(), "open")
+            self.assertEqual(cb.failure_count, 2)
+            mock_alert.assert_called_once()
+
+            # 请求 5：被熔断器拒绝
+            with self.assertRaises(CircuitOpenError):
+                cb.before_request()
+
+            # 恢复超时后
+            mock_time.return_value = 100.0
+            cb.before_request()  # OPEN → HALF_OPEN
+            self.assertEqual(cb.get_state(), "half_open")
+
+            # 试探成功
+            cb.on_success()
+            self.assertEqual(cb.get_state(), "closed")
+            self.assertEqual(cb.failure_count, 0)
+
+
+# ── 测试辅助函数：定义在模块级以便 MagicMock 等正常使用 ──
+
+
+def _raise_value_error() -> None:
+    """总是抛出 ValueError 的辅助函数，用于触发熔断器失败计数。"""
+    raise ValueError("test failure")
+
+
+def _raise_runtime_error() -> None:
+    """总是抛出 RuntimeError 的辅助函数，用于验证原始异常透传。"""
+    raise RuntimeError("boom")
+
+
+class TestCircuitBreakerThreadSafety(unittest.TestCase):
+    """熔断器线程安全测试（Issue #213）
+
+    多线程并发调用 call() / on_success() / on_failure() / before_request() 时，
+    状态变量（state / failure_count / last_failure_time）的读写应有锁保护，
+    避免竞态条件导致状态不一致。
+    """
+
+    @patch("src.api.circuit_breaker.alert_critical")
+    def test_concurrent_call_no_state_corruption(self, _mock_alert):
+        """2 线程并发调用 call() 各 50 次，最终状态应一致且不出现非法状态。"""
+        import threading
+
+        cb = CircuitBreaker(failure_threshold=1000, recovery_timeout=0.0)
+        barrier = threading.Barrier(2)
+        errors: list[Exception] = []
+
+        def worker() -> None:
+            try:
+                barrier.wait()
+                for _ in range(50):
+                    cb.call(lambda: 1)
+            except Exception as e:
+                errors.append(e)
+
+        threads = [threading.Thread(target=worker) for _ in range(2)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        self.assertEqual(errors, [])
+        # 100 次成功调用后，state 仍为 CLOSED，failure_count=0
+        self.assertEqual(cb.state, CircuitState.CLOSED)
+        self.assertEqual(cb.failure_count, 0)
+
+    @patch("src.api.circuit_breaker.alert_error")
+    def test_concurrent_on_failure_failure_count_consistent(self, _mock_alert):
+        """2 线程并发调用 on_failure() 各 50 次，failure_count 应精确等于 100。"""
+        import threading
+
+        cb = CircuitBreaker(failure_threshold=1000, recovery_timeout=0.0)
+        barrier = threading.Barrier(2)
+
+        def worker() -> None:
+            barrier.wait()
+            for _ in range(50):
+                cb.on_failure()
+
+        threads = [threading.Thread(target=worker) for _ in range(2)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        # 没有锁保护时，并发 += 会导致 lost update，最终计数 < 100
+        self.assertEqual(cb.failure_count, 100)
+
+    def test_concurrent_on_success_no_corruption(self):
+        """2 线程并发调用 on_success() 各 50 次，state 应稳定为 CLOSED。"""
+        import threading
+
+        cb = CircuitBreaker(failure_threshold=1000, recovery_timeout=0.0)
+        barrier = threading.Barrier(2)
+
+        def worker() -> None:
+            barrier.wait()
+            for _ in range(50):
+                cb.on_success()
+
+        threads = [threading.Thread(target=worker) for _ in range(2)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        self.assertEqual(cb.state, CircuitState.CLOSED)
+        self.assertEqual(cb.failure_count, 0)
+
+    @patch("src.api.circuit_breaker.alert_critical")
+    def test_concurrent_reset_no_corruption(self, _mock_alert):
+        """2 线程并发调用 reset() 各 50 次，state 应稳定为 CLOSED。"""
+        import threading
+
+        cb = CircuitBreaker(failure_threshold=1000, recovery_timeout=0.0)
+        barrier = threading.Barrier(2)
+
+        def worker() -> None:
+            barrier.wait()
+            for _ in range(50):
+                cb.reset()
+
+        threads = [threading.Thread(target=worker) for _ in range(2)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        self.assertEqual(cb.state, CircuitState.CLOSED)
+        self.assertEqual(cb.failure_count, 0)
+
+    def test_lock_is_initialized(self):
+        """熔断器实例应包含 _lock 属性（threading.RLock）。"""
+        import threading
+
+        cb = CircuitBreaker()
+        self.assertTrue(hasattr(cb, "_lock"))
+        self.assertIsInstance(cb._lock, type(threading.RLock()))
+
+
+# ── 真机降级行为测试（Issue #264） ──
+#
+# 验证 src/scheduler/env_real_machine.py 中 submit_to_real_machine 的降级逻辑：
+# - 瞬态失败（网络抖动、超时、5xx）不触发降级（is_transient_exception 返回 True）
+# - 致命失败（认证失败、参数错误）3-5 次触发降级（REAL_MACHINE_DEGRADE_FAIL_THRESHOLD=3）
+# - 混合失败场景只有致命失败计数（瞬态失败被忽略）
+
+
+class _TransientFailingClient:
+    """submit_quantum_task 总是抛出瞬态异常（ConnectionError）的 mock 客户端。
+
+    ConnectionError 是 OSError 子类，is_transient_exception 判定为瞬态失败，
+    不计入连续失败计数，不触发降级。
+    """
+
+    def submit_quantum_task(self, **kwargs: Any) -> str:
+        raise ConnectionError("network timeout")
+
+    def get_task_status(self, task_id: str) -> dict[str, Any]:
+        return {"status": "running"}
+
+
+class _FatalFailingClient:
+    """submit_quantum_task 总是抛出致命异常（TianyanAPIError）的 mock 客户端。
+
+    TianyanAPIError(is_transient=False) 为永久性错误，is_transient_exception 判定为
+    致命失败，计入连续失败计数，达到阈值触发降级。
+    """
+
+    def submit_quantum_task(self, **kwargs: Any) -> str:
+        raise TianyanAPIError(
+            "authentication failed",
+            code="AUTH_ERROR",
+            is_transient=False,
+        )
+
+    def get_task_status(self, task_id: str) -> dict[str, Any]:
+        return {"status": "running"}
+
+
+class _MixedFailingClient:
+    """按预设序列抛出异常的 mock 客户端，用于混合失败场景测试。"""
+
+    def __init__(self, side_effects: list[Exception]) -> None:
+        self._side_effects = side_effects
+        self._index = 0
+
+    def submit_quantum_task(self, **kwargs: Any) -> str:
+        if self._index >= len(self._side_effects):
+            raise RuntimeError("no more side effects configured")
+        exc = self._side_effects[self._index]
+        self._index += 1
+        raise exc
+
+    def get_task_status(self, task_id: str) -> dict[str, Any]:
+        return {"status": "running"}
+
+
+class TestRealMachineDegradeBehavior(unittest.TestCase):
+    """真机降级行为测试（Issue #264）。
+
+    验证失败场景的降级逻辑：
+    - 瞬态失败（网络抖动、超时、5xx）不触发降级
+    - 致命失败（认证失败、参数错误）3-5 次触发降级
+    - 混合失败场景只有致命失败计数
+
+    降级阈值：REAL_MACHINE_DEGRADE_FAIL_THRESHOLD = 3
+    区分逻辑：is_transient_exception() 判断异常是否为瞬态（Issue #218）
+    """
+
+    @staticmethod
+    def _make_env(
+        client: object,
+    ) -> tuple[QuantumSchedulingEnv, QuantumMachine, Task]:
+        """构造带真机客户端的测试环境。
+
+        使用真实的 QuantumSchedulingEnv 实例以确保所有内部状态字段
+        （_real_machine_degraded / _real_consecutive_failures 等）正确初始化。
+        """
+        env = QuantumSchedulingEnv(
+            machine_configs=[
+                {
+                    "name": "tianyan176",
+                    "total_qubits": 287,
+                    "supported_gates": ("H", "M"),
+                    "is_real": True,
+                }
+            ],
+            use_real_machine=True,
+            max_real_submissions=None,  # 不限制提交次数，便于测试多次失败
+            real_machine_shots=64,
+        )
+        env.attach_real_clients({"tianyan176": client})
+        machine = QuantumMachine(name="tianyan176", total_qubits=287, is_real=True)
+        task = Task(task_id="t0", task_type="quantum", qubit_count=1, qcis="H Q0\nM Q0")
+        return env, machine, task
+
+    def test_transient_no_degrade(self) -> None:
+        """模拟 20 次瞬态失败，验证不触发降级。
+
+        瞬态失败（ConnectionError / TimeoutError / OSError / RateLimitError /
+        TianyanAPIError(is_transient=True)）仅记录日志，不计入连续失败计数，
+        即使发生 20 次（远超降级阈值 3）也不应触发降级。
+        """
+        client = _TransientFailingClient()
+        env, machine, task = self._make_env(client)
+
+        # 触发 20 次瞬态失败
+        for i in range(20):
+            task.task_id = f"t{i}"
+            submit_to_real_machine(env, machine, task)
+
+        # 瞬态失败不应触发降级
+        self.assertFalse(env._real_machine_degraded)
+        # 瞬态失败不应计入连续失败计数
+        self.assertEqual(env._real_consecutive_failures, 0)
+        # 提交尝试次数应累加（20 次都到达了 client.submit_quantum_task）
+        self.assertEqual(env._real_submission_attempts_total, 20)
+
+    def test_fatal_triggers_degrade(self) -> None:
+        """模拟 5 次致命失败，验证触发降级。
+
+        致命失败（TianyanAPIError(is_transient=False) / 其他非瞬态异常）计入
+        连续失败计数，达到 REAL_MACHINE_DEGRADE_FAIL_THRESHOLD=3 后触发降级。
+        降级后后续 submit_to_real_machine 调用被降级保护跳过。
+        """
+        client = _FatalFailingClient()
+        env, machine, task = self._make_env(client)
+
+        # 尝试触发 5 次致命失败（第 3 次后降级，后续调用被跳过）
+        for i in range(5):
+            task.task_id = f"t{i}"
+            submit_to_real_machine(env, machine, task)
+
+        # 致命失败应触发降级
+        self.assertTrue(env._real_machine_degraded)
+        # 连续失败计数应达到降级阈值（3 次后降级，后续提交被跳过）
+        self.assertEqual(env._real_consecutive_failures, REAL_MACHINE_DEGRADE_FAIL_THRESHOLD)
+        # 降级后后续调用被跳过，实际提交次数为 3
+        self.assertEqual(env._real_submission_attempts_total, REAL_MACHINE_DEGRADE_FAIL_THRESHOLD)
+
+    def test_mixed_failure_scenario(self) -> None:
+        """混合瞬态和致命失败，验证只有致命失败计数。
+
+        先触发 10 次瞬态失败（ConnectionError），再触发 3 次致命失败
+        （TianyanAPIError(is_transient=False)）。瞬态失败不计入连续失败计数，
+        致命失败累计达到阈值 3 后触发降级。
+        """
+        # 10 次瞬态失败 + 3 次致命失败
+        side_effects: list[Exception] = [ConnectionError("timeout")] * 10
+        side_effects += [TianyanAPIError("auth failed", code="AUTH_ERROR", is_transient=False)] * 3
+        client = _MixedFailingClient(side_effects)
+        env, machine, task = self._make_env(client)
+
+        # 触发 13 次混合失败
+        for i in range(13):
+            task.task_id = f"t{i}"
+            submit_to_real_machine(env, machine, task)
+
+        # 只有致命失败计入连续失败计数（10 次瞬态被忽略，3 次致命被计数）
+        self.assertEqual(env._real_consecutive_failures, 3)
+        # 3 次致命失败达到阈值，应触发降级
+        self.assertTrue(env._real_machine_degraded)
+        # 所有 13 次调用都到达了 client.submit_quantum_task（降级在第 13 次后触发）
+        self.assertEqual(env._real_submission_attempts_total, 13)
+
+
+if __name__ == "__main__":
+    unittest.main()

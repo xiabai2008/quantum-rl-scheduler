@@ -1,0 +1,33 @@
+# 开发依赖（不在生产环境中安装）
+# 安装：pip install -r requirements-dev.txt
+
+# === 测试依赖 ===
+pytest>=7.4.0
+pytest-asyncio>=0.21.0
+pytest-cov>=4.1.0
+pytest-timeout>=2.4.0
+pytest-xdist>=3.3.0
+pytest-benchmark>=4.0.0
+pytest-subtests>=0.12.0
+pytest-randomly>=3.15.0
+hypothesis>=6.100.0
+# Python 3.10 兼容：tomllib 自 3.11 起进入标准库，3.10 需 tomli 作为 fallback（Issue #592）
+tomli; python_version < '3.11'
+
+# === 代码质量工具 ===
+mypy>=1.5.0
+ruff>=0.4.0
+bandit>=1.7.0
+
+# === Mutation Testing — 评估测试质量 ===
+mutmut>=3.0.0
+
+# === 录制/回放测试 — HTTP 响应录制与回放（Issue #175） ===
+vcrpy>=6.0.0
+
+# === 编译层实验依赖（Issue #439） ===
+# scripts/evaluation/compilation_full.py 依赖 qiskit 和 ortools
+# 用于电路编译 AI 实验（PPO替代SABRE，公平对比v2 4×4 2D网格，Issue #451）
+# 非核心运行时依赖，仅编译层实验需要
+qiskit>=1.0
+ortools>=9.8

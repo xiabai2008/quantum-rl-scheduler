@@ -1,0 +1,1674 @@
+{
+  "config": {
+    "experiment": "D3 Reward Function Training Ablation (Issue #58 fix)",
+    "seeds": [
+      42,
+      179,
+      316,
+      453,
+      590,
+      727,
+      864,
+      1001,
+      1138,
+      1275
+    ],
+    "episodes_per_seed": 5,
+    "timesteps": 50000,
+    "tasks_per_episode": 200,
+    "obs_dim": 10,
+    "alpha": 0.05,
+    "total_elapsed_seconds": 2458.51,
+    "timestamp": "20260722_112000",
+    "quick_mode": false,
+    "multiple_comparison_correction": "Holm-Bonferroni",
+    "effect_size": "Cohen's d_z (paired)",
+    "n_comparisons": 3,
+    "note": "Issue #58 修复版：timesteps_actual 记录真实 num_timesteps，不再用 rollout × 1000 估算；统计为 seed 级配对设计 N=seeds"
+  },
+  "ablation_layers": {
+    "L1_basic": {
+      "classical_reward": 5.0,
+      "quantum_reward": 5.0,
+      "hybrid_reward": 5.0,
+      "success_bonus": 0.0,
+      "mismatch_penalty": 0.0,
+      "wait_penalty": 0.0,
+      "low_util_penalty": 0.0
+    },
+    "L2_execution": {
+      "classical_reward": 5.0,
+      "quantum_reward": 10.0,
+      "hybrid_reward": 7.0,
+      "success_bonus": 3.0,
+      "mismatch_penalty": -2.0,
+      "wait_penalty": 0.0,
+      "low_util_penalty": 0.0
+    },
+    "L3_wait_penalty": {
+      "classical_reward": 5.0,
+      "quantum_reward": 10.0,
+      "hybrid_reward": 7.0,
+      "success_bonus": 3.0,
+      "mismatch_penalty": -2.0,
+      "wait_penalty": -0.1,
+      "low_util_penalty": 0.0
+    },
+    "L4_full": {
+      "classical_reward": 5.0,
+      "quantum_reward": 10.0,
+      "hybrid_reward": 7.0,
+      "success_bonus": 3.0,
+      "mismatch_penalty": -2.0,
+      "wait_penalty": -0.1,
+      "low_util_penalty": -1.0
+    }
+  },
+  "default_rewards_verified": true,
+  "results": {
+    "L1_basic": {
+      "rewards": {
+        "classical_reward": 5.0,
+        "quantum_reward": 5.0,
+        "hybrid_reward": 5.0,
+        "success_bonus": 0.0,
+        "mismatch_penalty": 0.0,
+        "wait_penalty": 0.0,
+        "low_util_penalty": 0.0
+      },
+      "overrides": {
+        "REWARD_CLASSICAL": 5.0,
+        "REWARD_QUANTUM_BASE": 5.0,
+        "REWARD_HYBRID": 5.0,
+        "REWARD_SUCCESS_BONUS": 0.0,
+        "REWARD_MISMATCH": 0.0,
+        "REWARD_WAIT_OVER_THRESHOLD": 0.0,
+        "REWARD_LOW_QUBIT_UTIL": 0.0
+      },
+      "seeds": {
+        "42": {
+          "train": {
+            "seed": 42,
+            "timesteps_requested": 50000,
+            "timesteps_actual": 51200,
+            "train_time_seconds": 64.99,
+            "final_train_reward": 1441.254383,
+            "timestep_reward_pairs": [
+              {
+                "timestep": 51200,
+                "reward": 1441.254383
+              }
+            ],
+            "convergence_step": 51200,
+            "num_rollouts": 1
+          },
+          "eval": {
+            "avg_wait_time": 59.5192,
+            "completion_rate": 1.0,
+            "qubit_utilization": 0.3615,
+            "classical_utilization": 0.5278,
+            "avg_execution_time": 1.0,
+            "ep_rewards": [
+              1593.7216450015428,
+              1634.0643004141498,
+              925.2168470709178,
+              1380.1251244123275,
+              976.320206251164
+            ],
+            "mean_reward": 1301.8896246300203,
+            "std_reward": 335.2255077967068
+          },
+          "elapsed_seconds": 67.07
+        },
+        "179": {
+          "train": {
+            "seed": 179,
+            "timesteps_requested": 50000,
+            "timesteps_actual": 51200,
+            "train_time_seconds": 61.31,
+            "final_train_reward": 1031.881655,
+            "timestep_reward_pairs": [
+              {
+                "timestep": 51200,
+                "reward": 1031.881655
+              }
+            ],
+            "convergence_step": 51200,
+            "num_rollouts": 1
+          },
+          "eval": {
+            "avg_wait_time": 52.1542,
+            "completion_rate": 1.0,
+            "qubit_utilization": 0.4787,
+            "classical_utilization": 0.377,
+            "avg_execution_time": 1.0,
+            "ep_rewards": [
+              2218.6075154743858,
+              1706.0864953521739,
+              1715.9878552754253,
+              2069.1046690288636,
+              1275.5978841367776
+            ],
+            "mean_reward": 1797.0768838535253,
+            "std_reward": 366.906738083068
+          },
+          "elapsed_seconds": 61.85
+        },
+        "316": {
+          "train": {
+            "seed": 316,
+            "timesteps_requested": 50000,
+            "timesteps_actual": 51200,
+            "train_time_seconds": 60.62,
+            "final_train_reward": 918.812426,
+            "timestep_reward_pairs": [
+              {
+                "timestep": 51200,
+                "reward": 918.812426
+              }
+            ],
+            "convergence_step": 51200,
+            "num_rollouts": 1
+          },
+          "eval": {
+            "avg_wait_time": 57.677,
+            "completion_rate": 1.0,
+            "qubit_utilization": 0.4149,
+            "classical_utilization": 0.4351,
+            "avg_execution_time": 1.0,
+            "ep_rewards": [
+              1051.5970426855977,
+              2479.4841033306125,
+              1235.407972663073,
+              1451.1755254779798,
+              1858.7931354895961
+            ],
+            "mean_reward": 1615.291555929372,
+            "std_reward": 569.0164520423971
+          },
+          "elapsed_seconds": 61.15
+        },
+        "453": {
+          "train": {
+            "seed": 453,
+            "timesteps_requested": 50000,
+            "timesteps_actual": 51200,
+            "train_time_seconds": 61.45,
+            "final_train_reward": 1635.335723,
+            "timestep_reward_pairs": [
+              {
+                "timestep": 51200,
+                "reward": 1635.335723
+              }
+            ],
+            "convergence_step": 51200,
+            "num_rollouts": 1
+          },
+          "eval": {
+            "avg_wait_time": 50.4492,
+            "completion_rate": 1.0,
+            "qubit_utilization": 0.4542,
+            "classical_utilization": 0.3997,
+            "avg_execution_time": 1.0,
+            "ep_rewards": [
+              1765.5256032746236,
+              1364.1394012259418,
+              1753.396137089163,
+              1233.1323611490952,
+              1395.3099175619454
+            ],
+            "mean_reward": 1502.3006840601538,
+            "std_reward": 242.5507343198164
+          },
+          "elapsed_seconds": 62.07
+        },
+        "590": {
+          "train": {
+            "seed": 590,
+            "timesteps_requested": 50000,
+            "timesteps_actual": 51200,
+            "train_time_seconds": 60.91,
+            "final_train_reward": 2522.205473,
+            "timestep_reward_pairs": [
+              {
+                "timestep": 51200,
+                "reward": 2522.205473
+              }
+            ],
+            "convergence_step": 51200,
+            "num_rollouts": 1
+          },
+          "eval": {
+            "avg_wait_time": 59.9976,
+            "completion_rate": 1.0,
+            "qubit_utilization": 0.5229,
+            "classical_utilization": 0.4756,
+            "avg_execution_time": 1.0,
+            "ep_rewards": [
+              1734.8611456374242,
+              1947.699145382022,
+              1474.5335479190148,
+              1487.3723853437994,
+              1340.123444551878
+            ],
+            "mean_reward": 1596.9179337668277,
+            "std_reward": 242.38263288301786
+          },
+          "elapsed_seconds": 61.46
+        },
+        "727": {
+          "train": {
+            "seed": 727,
+            "timesteps_requested": 50000,
+            "timesteps_actual": 51200,
+            "train_time_seconds": 60.47,
+            "final_train_reward": 1145.687425,
+            "timestep_reward_pairs": [
+              {
+                "timestep": 51200,
+                "reward": 1145.687425
+              }
+            ],
+            "convergence_step": 51200,
+            "num_rollouts": 1
+          },
+          "eval": {
+            "avg_wait_time": 56.0224,
+            "completion_rate": 1.0,
+            "qubit_utilization": 0.3416,
+            "classical_utilization": 0.5357,
+            "avg_execution_time": 1.0,
+            "ep_rewards": [
+              1476.9019651521903,
+              1457.0759300427283,
+              1231.951895346041,
+              1776.8078644993102,
+              1162.7878381871947
+            ],
+            "mean_reward": 1421.1050986454927,
+            "std_reward": 241.57731165641061
+          },
+          "elapsed_seconds": 60.99
+        },
+        "864": {
+          "train": {
+            "seed": 864,
+            "timesteps_requested": 50000,
+            "timesteps_actual": 51200,
+            "train_time_seconds": 60.35,
+            "final_train_reward": 1286.574095,
+            "timestep_reward_pairs": [
+              {
+                "timestep": 51200,
+                "reward": 1286.574095
+              }
+            ],
+            "convergence_step": 51200,
+            "num_rollouts": 1
+          },
+          "eval": {
+            "avg_wait_time": 52.4078,
+            "completion_rate": 1.0,
+            "qubit_utilization": 0.337,
+            "classical_utilization": 0.5464,
+            "avg_execution_time": 1.0,
+            "ep_rewards": [
+              1626.3723591705484,
+              1454.5921258948092,
+              2139.9877991127937,
+              2395.305901939886,
+              2184.9456743285773
+            ],
+            "mean_reward": 1960.240772089323,
+            "std_reward": 399.7598105641882
+          },
+          "elapsed_seconds": 60.9
+        },
+        "1001": {
+          "train": {
+            "seed": 1001,
+            "timesteps_requested": 50000,
+            "timesteps_actual": 51200,
+            "train_time_seconds": 60.49,
+            "final_train_reward": 1268.470337,
+            "timestep_reward_pairs": [
+              {
+                "timestep": 51200,
+                "reward": 1268.470337
+              }
+            ],
+            "convergence_step": 51200,
+            "num_rollouts": 1
+          },
+          "eval": {
+            "avg_wait_time": 60.2147,
+            "completion_rate": 1.0,
+            "qubit_utilization": 0.5957,
+            "classical_utilization": 0.673,
+            "avg_execution_time": 1.0,
+            "ep_rewards": [
+              1603.0071388558379,
+              1252.5280014249909,
+              831.5789915082445,
+              1283.1612629110311,
+              1904.9845913472109
+            ],
+            "mean_reward": 1375.051997209463,
+            "std_reward": 403.612142239117
+          },
+          "elapsed_seconds": 61.0
+        },
+        "1138": {
+          "train": {
+            "seed": 1138,
+            "timesteps_requested": 50000,
+            "timesteps_actual": 51200,
+            "train_time_seconds": 60.93,
+            "final_train_reward": 1792.425383,
+            "timestep_reward_pairs": [
+              {
+                "timestep": 51200,
+                "reward": 1792.425383
+              }
+            ],
+            "convergence_step": 51200,
+            "num_rollouts": 1
+          },
+          "eval": {
+            "avg_wait_time": 59.835,
+            "completion_rate": 1.0,
+            "qubit_utilization": 0.6405,
+            "classical_utilization": 0.5292,
+            "avg_execution_time": 1.0,
+            "ep_rewards": [
+              1609.3472015715668,
+              2084.696089287055,
+              1731.5829115745619,
+              1691.0121602441943,
+              1495.2841284268172
+            ],
+            "mean_reward": 1722.3844982208389,
+            "std_reward": 221.7490314599124
+          },
+          "elapsed_seconds": 61.52
+        },
+        "1275": {
+          "train": {
+            "seed": 1275,
+            "timesteps_requested": 50000,
+            "timesteps_actual": 51200,
+            "train_time_seconds": 61.68,
+            "final_train_reward": 918.484646,
+            "timestep_reward_pairs": [
+              {
+                "timestep": 51200,
+                "reward": 918.484646
+              }
+            ],
+            "convergence_step": 51200,
+            "num_rollouts": 1
+          },
+          "eval": {
+            "avg_wait_time": 48.2081,
+            "completion_rate": 1.0,
+            "qubit_utilization": 0.3012,
+            "classical_utilization": 0.5401,
+            "avg_execution_time": 1.0,
+            "ep_rewards": [
+              1325.2131559877687,
+              1879.30296856078,
+              1778.4850230615168,
+              1416.5651331335039,
+              1937.589772631302
+            ],
+            "mean_reward": 1667.4312106749742,
+            "std_reward": 278.5027941729024
+          },
+          "elapsed_seconds": 62.22
+        }
+      },
+      "summary": {
+        "mean_reward": 1595.9690259079991,
+        "std_reward": 202.54997485529452,
+        "all_rewards": [
+          1301.8896246300203,
+          1797.0768838535253,
+          1615.291555929372,
+          1502.3006840601538,
+          1596.9179337668277,
+          1421.1050986454927,
+          1960.240772089323,
+          1375.051997209463,
+          1722.3844982208389,
+          1667.4312106749742
+        ],
+        "n_seeds": 10
+      }
+    },
+    "L2_execution": {
+      "rewards": {
+        "classical_reward": 5.0,
+        "quantum_reward": 10.0,
+        "hybrid_reward": 7.0,
+        "success_bonus": 3.0,
+        "mismatch_penalty": -2.0,
+        "wait_penalty": 0.0,
+        "low_util_penalty": 0.0
+      },
+      "overrides": {
+        "REWARD_CLASSICAL": 5.0,
+        "REWARD_QUANTUM_BASE": 10.0,
+        "REWARD_HYBRID": 7.0,
+        "REWARD_SUCCESS_BONUS": 3.0,
+        "REWARD_MISMATCH": -2.0,
+        "REWARD_WAIT_OVER_THRESHOLD": 0.0,
+        "REWARD_LOW_QUBIT_UTIL": 0.0
+      },
+      "seeds": {
+        "42": {
+          "train": {
+            "seed": 42,
+            "timesteps_requested": 50000,
+            "timesteps_actual": 51200,
+            "train_time_seconds": 60.53,
+            "final_train_reward": 2116.306149,
+            "timestep_reward_pairs": [
+              {
+                "timestep": 51200,
+                "reward": 2116.306149
+              }
+            ],
+            "convergence_step": 51200,
+            "num_rollouts": 1
+          },
+          "eval": {
+            "avg_wait_time": 51.545,
+            "completion_rate": 1.0,
+            "qubit_utilization": 0.3622,
+            "classical_utilization": 0.5456,
+            "avg_execution_time": 1.0,
+            "ep_rewards": [
+              2002.7281050003626,
+              3649.4616082936645,
+              4289.421727185481,
+              2568.2671608509354,
+              4681.700788276449
+            ],
+            "mean_reward": 3438.3158779213786,
+            "std_reward": 1132.791545832788
+          },
+          "elapsed_seconds": 61.05
+        },
+        "179": {
+          "train": {
+            "seed": 179,
+            "timesteps_requested": 50000,
+            "timesteps_actual": 51200,
+            "train_time_seconds": 60.3,
+            "final_train_reward": 2910.156751,
+            "timestep_reward_pairs": [
+              {
+                "timestep": 51200,
+                "reward": 2910.156751
+              }
+            ],
+            "convergence_step": 51200,
+            "num_rollouts": 1
+          },
+          "eval": {
+            "avg_wait_time": 67.7611,
+            "completion_rate": 1.0,
+            "qubit_utilization": 0.4064,
+            "classical_utilization": 0.4762,
+            "avg_execution_time": 1.0,
+            "ep_rewards": [
+              2878.72780347145,
+              843.9899270580903,
+              1789.812226474267,
+              3656.0150261029044,
+              3630.8881996401174
+            ],
+            "mean_reward": 2559.886636549366,
+            "std_reward": 1223.4702283819374
+          },
+          "elapsed_seconds": 60.81
+        },
+        "316": {
+          "train": {
+            "seed": 316,
+            "timesteps_requested": 50000,
+            "timesteps_actual": 51200,
+            "train_time_seconds": 60.6,
+            "final_train_reward": 1493.363728,
+            "timestep_reward_pairs": [
+              {
+                "timestep": 51200,
+                "reward": 1493.363728
+              }
+            ],
+            "convergence_step": 51200,
+            "num_rollouts": 1
+          },
+          "eval": {
+            "avg_wait_time": 57.677,
+            "completion_rate": 1.0,
+            "qubit_utilization": 0.4149,
+            "classical_utilization": 0.4351,
+            "avg_execution_time": 1.0,
+            "ep_rewards": [
+              2152.3401086863087,
+              5351.911688304197,
+              2562.567048029364,
+              3060.087918007465,
+              3965.232164232742
+            ],
+            "mean_reward": 3418.427785452015,
+            "std_reward": 1274.8762782091924
+          },
+          "elapsed_seconds": 61.12
+        },
+        "453": {
+          "train": {
+            "seed": 453,
+            "timesteps_requested": 50000,
+            "timesteps_actual": 51200,
+            "train_time_seconds": 60.6,
+            "final_train_reward": 2599.660232,
+            "timestep_reward_pairs": [
+              {
+                "timestep": 51200,
+                "reward": 2599.660232
+              }
+            ],
+            "convergence_step": 51200,
+            "num_rollouts": 1
+          },
+          "eval": {
+            "avg_wait_time": 57.464,
+            "completion_rate": 1.0,
+            "qubit_utilization": 0.3032,
+            "classical_utilization": 0.5958,
+            "avg_execution_time": 1.0,
+            "ep_rewards": [
+              3993.795229044274,
+              4248.219931626963,
+              3409.739360980248,
+              4635.733985568394,
+              1893.6964824886093
+            ],
+            "mean_reward": 3636.236997941697,
+            "std_reward": 1071.1108550904878
+          },
+          "elapsed_seconds": 61.14
+        },
+        "590": {
+          "train": {
+            "seed": 590,
+            "timesteps_requested": 50000,
+            "timesteps_actual": 51200,
+            "train_time_seconds": 60.52,
+            "final_train_reward": 3111.096563,
+            "timestep_reward_pairs": [
+              {
+                "timestep": 51200,
+                "reward": 3111.096563
+              }
+            ],
+            "convergence_step": 51200,
+            "num_rollouts": 1
+          },
+          "eval": {
+            "avg_wait_time": 53.5066,
+            "completion_rate": 1.0,
+            "qubit_utilization": 0.4182,
+            "classical_utilization": 0.4231,
+            "avg_execution_time": 1.0,
+            "ep_rewards": [
+              2541.819235877638,
+              5175.766458254983,
+              3752.176839349251,
+              2360.2282369886702,
+              3204.3489110553305
+            ],
+            "mean_reward": 3406.867936305175,
+            "std_reward": 1132.8082460596079
+          },
+          "elapsed_seconds": 61.07
+        },
+        "727": {
+          "train": {
+            "seed": 727,
+            "timesteps_requested": 50000,
+            "timesteps_actual": 51200,
+            "train_time_seconds": 60.53,
+            "final_train_reward": 2420.466385,
+            "timestep_reward_pairs": [
+              {
+                "timestep": 51200,
+                "reward": 2420.466385
+              }
+            ],
+            "convergence_step": 51200,
+            "num_rollouts": 1
+          },
+          "eval": {
+            "avg_wait_time": 59.0917,
+            "completion_rate": 1.0,
+            "qubit_utilization": 0.6084,
+            "classical_utilization": 0.5537,
+            "avg_execution_time": 1.0,
+            "ep_rewards": [
+              2868.889191096176,
+              1868.1825627215221,
+              2570.9448774274583,
+              4922.364390612131,
+              708.2343878649326
+            ],
+            "mean_reward": 2587.723081944444,
+            "std_reward": 1547.5870120284194
+          },
+          "elapsed_seconds": 61.04
+        },
+        "864": {
+          "train": {
+            "seed": 864,
+            "timesteps_requested": 50000,
+            "timesteps_actual": 51200,
+            "train_time_seconds": 60.54,
+            "final_train_reward": 3941.885654,
+            "timestep_reward_pairs": [
+              {
+                "timestep": 51200,
+                "reward": 3941.885654
+              }
+            ],
+            "convergence_step": 51200,
+            "num_rollouts": 1
+          },
+          "eval": {
+            "avg_wait_time": 63.6494,
+            "completion_rate": 1.0,
+            "qubit_utilization": 0.3704,
+            "classical_utilization": 0.4618,
+            "avg_execution_time": 1.0,
+            "ep_rewards": [
+              2241.774125018289,
+              4663.007958206554,
+              1449.2357568817986,
+              1496.7184571199098,
+              3689.929725006089
+            ],
+            "mean_reward": 2708.133204446528,
+            "std_reward": 1419.092929934624
+          },
+          "elapsed_seconds": 61.05
+        },
+        "1001": {
+          "train": {
+            "seed": 1001,
+            "timesteps_requested": 50000,
+            "timesteps_actual": 51200,
+            "train_time_seconds": 60.22,
+            "final_train_reward": 2998.858523,
+            "timestep_reward_pairs": [
+              {
+                "timestep": 51200,
+                "reward": 2998.858523
+              }
+            ],
+            "convergence_step": 51200,
+            "num_rollouts": 1
+          },
+          "eval": {
+            "avg_wait_time": 51.117,
+            "completion_rate": 1.0,
+            "qubit_utilization": 0.57,
+            "classical_utilization": 0.5445,
+            "avg_execution_time": 1.0,
+            "ep_rewards": [
+              2582.9447684081993,
+              4807.981737141261,
+              3340.7051817725105,
+              4493.788544052189,
+              3889.8007425242736
+            ],
+            "mean_reward": 3823.044194779686,
+            "std_reward": 893.7216977136471
+          },
+          "elapsed_seconds": 60.75
+        },
+        "1138": {
+          "train": {
+            "seed": 1138,
+            "timesteps_requested": 50000,
+            "timesteps_actual": 51200,
+            "train_time_seconds": 64.05,
+            "final_train_reward": 2937.728043,
+            "timestep_reward_pairs": [
+              {
+                "timestep": 51200,
+                "reward": 2937.728043
+              }
+            ],
+            "convergence_step": 51200,
+            "num_rollouts": 1
+          },
+          "eval": {
+            "avg_wait_time": 62.6651,
+            "completion_rate": 1.0,
+            "qubit_utilization": 0.3729,
+            "classical_utilization": 0.4748,
+            "avg_execution_time": 1.0,
+            "ep_rewards": [
+              2832.695539400101,
+              1833.1710561105194,
+              2540.39501875803,
+              3820.9044005845362,
+              1151.5631087605746
+            ],
+            "mean_reward": 2435.7458247227523,
+            "std_reward": 1012.3495455896383
+          },
+          "elapsed_seconds": 64.55
+        },
+        "1275": {
+          "train": {
+            "seed": 1275,
+            "timesteps_requested": 50000,
+            "timesteps_actual": 51200,
+            "train_time_seconds": 60.8,
+            "final_train_reward": 3981.973258,
+            "timestep_reward_pairs": [
+              {
+                "timestep": 51200,
+                "reward": 3981.973258
+              }
+            ],
+            "convergence_step": 51200,
+            "num_rollouts": 1
+          },
+          "eval": {
+            "avg_wait_time": 59.3399,
+            "completion_rate": 1.0,
+            "qubit_utilization": 0.3727,
+            "classical_utilization": 0.5921,
+            "avg_execution_time": 1.0,
+            "ep_rewards": [
+              3058.4733145971804,
+              4170.722736141277,
+              2191.032396970373,
+              3770.585027498295,
+              5017.626826795669
+            ],
+            "mean_reward": 3641.688060400559,
+            "std_reward": 1076.36435498122
+          },
+          "elapsed_seconds": 61.33
+        }
+      },
+      "summary": {
+        "mean_reward": 3165.60696004636,
+        "std_reward": 529.1178557431695,
+        "all_rewards": [
+          3438.3158779213786,
+          2559.886636549366,
+          3418.427785452015,
+          3636.236997941697,
+          3406.867936305175,
+          2587.723081944444,
+          2708.133204446528,
+          3823.044194779686,
+          2435.7458247227523,
+          3641.688060400559
+        ],
+        "n_seeds": 10
+      }
+    },
+    "L3_wait_penalty": {
+      "rewards": {
+        "classical_reward": 5.0,
+        "quantum_reward": 10.0,
+        "hybrid_reward": 7.0,
+        "success_bonus": 3.0,
+        "mismatch_penalty": -2.0,
+        "wait_penalty": -0.1,
+        "low_util_penalty": 0.0
+      },
+      "overrides": {
+        "REWARD_CLASSICAL": 5.0,
+        "REWARD_QUANTUM_BASE": 10.0,
+        "REWARD_HYBRID": 7.0,
+        "REWARD_SUCCESS_BONUS": 3.0,
+        "REWARD_MISMATCH": -2.0,
+        "REWARD_WAIT_OVER_THRESHOLD": -0.1,
+        "REWARD_LOW_QUBIT_UTIL": 0.0
+      },
+      "seeds": {
+        "42": {
+          "train": {
+            "seed": 42,
+            "timesteps_requested": 50000,
+            "timesteps_actual": 51200,
+            "train_time_seconds": 60.47,
+            "final_train_reward": 1075.355096,
+            "timestep_reward_pairs": [
+              {
+                "timestep": 51200,
+                "reward": 1075.355096
+              }
+            ],
+            "convergence_step": 51200,
+            "num_rollouts": 1
+          },
+          "eval": {
+            "avg_wait_time": 51.1358,
+            "completion_rate": 1.0,
+            "qubit_utilization": 0.3986,
+            "classical_utilization": 0.5526,
+            "avg_execution_time": 1.0,
+            "ep_rewards": [
+              1953.1495615958254,
+              2588.4499999537484,
+              4117.187727185479,
+              2723.035257745848,
+              4591.354788276447
+            ],
+            "mean_reward": 3194.6354669514694,
+            "std_reward": 1110.527168324141
+          },
+          "elapsed_seconds": 60.99
+        },
+        "179": {
+          "train": {
+            "seed": 179,
+            "timesteps_requested": 50000,
+            "timesteps_actual": 51200,
+            "train_time_seconds": 60.43,
+            "final_train_reward": 2751.693531,
+            "timestep_reward_pairs": [
+              {
+                "timestep": 51200,
+                "reward": 2751.693531
+              }
+            ],
+            "convergence_step": 51200,
+            "num_rollouts": 1
+          },
+          "eval": {
+            "avg_wait_time": 67.1499,
+            "completion_rate": 1.0,
+            "qubit_utilization": 0.4738,
+            "classical_utilization": 0.5175,
+            "avg_execution_time": 1.0,
+            "ep_rewards": [
+              2854.285236489061,
+              1049.5318583313328,
+              2146.310356914233,
+              3343.2230261029044,
+              1888.9943046566607
+            ],
+            "mean_reward": 2256.4689564988385,
+            "std_reward": 886.3250543909268
+          },
+          "elapsed_seconds": 60.95
+        },
+        "316": {
+          "train": {
+            "seed": 316,
+            "timesteps_requested": 50000,
+            "timesteps_actual": 51200,
+            "train_time_seconds": 60.61,
+            "final_train_reward": 2352.705298,
+            "timestep_reward_pairs": [
+              {
+                "timestep": 51200,
+                "reward": 2352.705298
+              }
+            ],
+            "convergence_step": 51200,
+            "num_rollouts": 1
+          },
+          "eval": {
+            "avg_wait_time": 56.5684,
+            "completion_rate": 1.0,
+            "qubit_utilization": 0.4117,
+            "classical_utilization": 0.3765,
+            "avg_execution_time": 1.0,
+            "ep_rewards": [
+              1480.7870369929099,
+              5240.059688304198,
+              2184.9012532790434,
+              2538.5928647650508,
+              3717.4641642327406
+            ],
+            "mean_reward": 3032.3610015147888,
+            "std_reward": 1475.8621717786746
+          },
+          "elapsed_seconds": 61.13
+        },
+        "453": {
+          "train": {
+            "seed": 453,
+            "timesteps_requested": 50000,
+            "timesteps_actual": 51200,
+            "train_time_seconds": 60.8,
+            "final_train_reward": 3607.981592,
+            "timestep_reward_pairs": [
+              {
+                "timestep": 51200,
+                "reward": 3607.981592
+              }
+            ],
+            "convergence_step": 51200,
+            "num_rollouts": 1
+          },
+          "eval": {
+            "avg_wait_time": 61.4074,
+            "completion_rate": 1.0,
+            "qubit_utilization": 0.459,
+            "classical_utilization": 0.6093,
+            "avg_execution_time": 1.0,
+            "ep_rewards": [
+              2636.8428668563297,
+              1971.0105155051413,
+              2393.6914708655727,
+              3044.7877629045292,
+              1087.0127664421989
+            ],
+            "mean_reward": 2226.669076514754,
+            "std_reward": 746.5981195435206
+          },
+          "elapsed_seconds": 61.34
+        },
+        "590": {
+          "train": {
+            "seed": 590,
+            "timesteps_requested": 50000,
+            "timesteps_actual": 51200,
+            "train_time_seconds": 60.87,
+            "final_train_reward": 2905.728706,
+            "timestep_reward_pairs": [
+              {
+                "timestep": 51200,
+                "reward": 2905.728706
+              }
+            ],
+            "convergence_step": 51200,
+            "num_rollouts": 1
+          },
+          "eval": {
+            "avg_wait_time": 58.9582,
+            "completion_rate": 1.0,
+            "qubit_utilization": 0.407,
+            "classical_utilization": 0.4246,
+            "avg_execution_time": 1.0,
+            "ep_rewards": [
+              3022.373589916877,
+              4699.892435865029,
+              4620.864975965979,
+              4.751649526553535,
+              2640.969738513158
+            ],
+            "mean_reward": 2997.7704779575197,
+            "std_reward": 1911.6569185646667
+          },
+          "elapsed_seconds": 61.38
+        },
+        "727": {
+          "train": {
+            "seed": 727,
+            "timesteps_requested": 50000,
+            "timesteps_actual": 51200,
+            "train_time_seconds": 60.87,
+            "final_train_reward": 2417.032258,
+            "timestep_reward_pairs": [
+              {
+                "timestep": 51200,
+                "reward": 2417.032258
+              }
+            ],
+            "convergence_step": 51200,
+            "num_rollouts": 1
+          },
+          "eval": {
+            "avg_wait_time": 61.8727,
+            "completion_rate": 1.0,
+            "qubit_utilization": 0.5112,
+            "classical_utilization": 0.4883,
+            "avg_execution_time": 1.0,
+            "ep_rewards": [
+              2679.767894411786,
+              1535.6645627215225,
+              2386.9788774274566,
+              2388.185891774395,
+              167.91438786493265
+            ],
+            "mean_reward": 1831.7023228400187,
+            "std_reward": 1023.8468972749811
+          },
+          "elapsed_seconds": 61.4
+        },
+        "864": {
+          "train": {
+            "seed": 864,
+            "timesteps_requested": 50000,
+            "timesteps_actual": 51200,
+            "train_time_seconds": 60.29,
+            "final_train_reward": 3567.660289,
+            "timestep_reward_pairs": [
+              {
+                "timestep": 51200,
+                "reward": 3567.660289
+              }
+            ],
+            "convergence_step": 51200,
+            "num_rollouts": 1
+          },
+          "eval": {
+            "avg_wait_time": 60.5803,
+            "completion_rate": 1.0,
+            "qubit_utilization": 0.2719,
+            "classical_utilization": 0.4819,
+            "avg_execution_time": 1.0,
+            "ep_rewards": [
+              1744.7385310783102,
+              4530.946888977146,
+              3123.043611575828,
+              1719.0650409422558,
+              3541.3179050677318
+            ],
+            "mean_reward": 2931.8223955282547,
+            "std_reward": 1208.8422123568814
+          },
+          "elapsed_seconds": 60.86
+        },
+        "1001": {
+          "train": {
+            "seed": 1001,
+            "timesteps_requested": 50000,
+            "timesteps_actual": 51200,
+            "train_time_seconds": 60.16,
+            "final_train_reward": 4571.810178,
+            "timestep_reward_pairs": [
+              {
+                "timestep": 51200,
+                "reward": 4571.810178
+              }
+            ],
+            "convergence_step": 51200,
+            "num_rollouts": 1
+          },
+          "eval": {
+            "avg_wait_time": 51.117,
+            "completion_rate": 1.0,
+            "qubit_utilization": 0.57,
+            "classical_utilization": 0.5445,
+            "avg_execution_time": 1.0,
+            "ep_rewards": [
+              2291.382768408199,
+              4698.78773714126,
+              3105.8331817725093,
+              4331.662544052193,
+              3620.4827425242747
+            ],
+            "mean_reward": 3609.6297947796875,
+            "std_reward": 961.6782661993602
+          },
+          "elapsed_seconds": 60.73
+        },
+        "1138": {
+          "train": {
+            "seed": 1138,
+            "timesteps_requested": 50000,
+            "timesteps_actual": 51200,
+            "train_time_seconds": 60.82,
+            "final_train_reward": 2949.878038,
+            "timestep_reward_pairs": [
+              {
+                "timestep": 51200,
+                "reward": 2949.878038
+              }
+            ],
+            "convergence_step": 51200,
+            "num_rollouts": 1
+          },
+          "eval": {
+            "avg_wait_time": 60.461,
+            "completion_rate": 1.0,
+            "qubit_utilization": 0.2657,
+            "classical_utilization": 0.5068,
+            "avg_execution_time": 1.0,
+            "ep_rewards": [
+              1132.2922998588435,
+              1547.0190561105198,
+              4727.5463511562975,
+              3498.8451218382133,
+              819.0631087605747
+            ],
+            "mean_reward": 2344.9531875448893,
+            "std_reward": 1691.4344961066952
+          },
+          "elapsed_seconds": 61.33
+        },
+        "1275": {
+          "train": {
+            "seed": 1275,
+            "timesteps_requested": 50000,
+            "timesteps_actual": 51200,
+            "train_time_seconds": 60.77,
+            "final_train_reward": 3043.015372,
+            "timestep_reward_pairs": [
+              {
+                "timestep": 51200,
+                "reward": 3043.015372
+              }
+            ],
+            "convergence_step": 51200,
+            "num_rollouts": 1
+          },
+          "eval": {
+            "avg_wait_time": 59.3399,
+            "completion_rate": 1.0,
+            "qubit_utilization": 0.3727,
+            "classical_utilization": 0.5921,
+            "avg_execution_time": 1.0,
+            "ep_rewards": [
+              2754.571314597182,
+              3849.6007361412762,
+              1845.9883969703712,
+              3488.1030274982936,
+              4851.838826795669
+            ],
+            "mean_reward": 3358.0204604005585,
+            "std_reward": 1133.6288839332724
+          },
+          "elapsed_seconds": 61.3
+        }
+      },
+      "summary": {
+        "mean_reward": 2778.403314053078,
+        "std_reward": 577.0850600975313,
+        "all_rewards": [
+          3194.6354669514694,
+          2256.4689564988385,
+          3032.3610015147888,
+          2226.669076514754,
+          2997.7704779575197,
+          1831.7023228400187,
+          2931.8223955282547,
+          3609.6297947796875,
+          2344.9531875448893,
+          3358.0204604005585
+        ],
+        "n_seeds": 10
+      }
+    },
+    "L4_full": {
+      "rewards": {
+        "classical_reward": 5.0,
+        "quantum_reward": 10.0,
+        "hybrid_reward": 7.0,
+        "success_bonus": 3.0,
+        "mismatch_penalty": -2.0,
+        "wait_penalty": -0.1,
+        "low_util_penalty": -1.0
+      },
+      "overrides": {
+        "REWARD_CLASSICAL": 5.0,
+        "REWARD_QUANTUM_BASE": 10.0,
+        "REWARD_HYBRID": 7.0,
+        "REWARD_SUCCESS_BONUS": 3.0,
+        "REWARD_MISMATCH": -2.0,
+        "REWARD_WAIT_OVER_THRESHOLD": -0.1,
+        "REWARD_LOW_QUBIT_UTIL": -1.0
+      },
+      "seeds": {
+        "42": {
+          "train": {
+            "seed": 42,
+            "timesteps_requested": 50000,
+            "timesteps_actual": 51200,
+            "train_time_seconds": 60.24,
+            "final_train_reward": 2471.737382,
+            "timestep_reward_pairs": [
+              {
+                "timestep": 51200,
+                "reward": 2471.737382
+              }
+            ],
+            "convergence_step": 51200,
+            "num_rollouts": 1
+          },
+          "eval": {
+            "avg_wait_time": 53.9226,
+            "completion_rate": 1.0,
+            "qubit_utilization": 0.3865,
+            "classical_utilization": 0.4342,
+            "avg_execution_time": 1.0,
+            "ep_rewards": [
+              2227.3832832966,
+              2402.259254557116,
+              3953.1877271854796,
+              3068.6588693953026,
+              3332.876370959308
+            ],
+            "mean_reward": 2996.873101078761,
+            "std_reward": 703.2548016463412
+          },
+          "elapsed_seconds": 60.79
+        },
+        "179": {
+          "train": {
+            "seed": 179,
+            "timesteps_requested": 50000,
+            "timesteps_actual": 51200,
+            "train_time_seconds": 60.62,
+            "final_train_reward": 3317.672494,
+            "timestep_reward_pairs": [
+              {
+                "timestep": 51200,
+                "reward": 3317.672494
+              }
+            ],
+            "convergence_step": 51200,
+            "num_rollouts": 1
+          },
+          "eval": {
+            "avg_wait_time": 66.7331,
+            "completion_rate": 1.0,
+            "qubit_utilization": 0.4107,
+            "classical_utilization": 0.4848,
+            "avg_execution_time": 1.0,
+            "ep_rewards": [
+              2489.859803471447,
+              1038.5318583313328,
+              1177.6182264742667,
+              3302.2230261029044,
+              3250.100199640115
+            ],
+            "mean_reward": 2251.666622804013,
+            "std_reward": 1093.4521331102233
+          },
+          "elapsed_seconds": 61.14
+        },
+        "316": {
+          "train": {
+            "seed": 316,
+            "timesteps_requested": 50000,
+            "timesteps_actual": 51200,
+            "train_time_seconds": 60.79,
+            "final_train_reward": 2883.403832,
+            "timestep_reward_pairs": [
+              {
+                "timestep": 51200,
+                "reward": 2883.403832
+              }
+            ],
+            "convergence_step": 51200,
+            "num_rollouts": 1
+          },
+          "eval": {
+            "avg_wait_time": 57.677,
+            "completion_rate": 1.0,
+            "qubit_utilization": 0.4149,
+            "classical_utilization": 0.4351,
+            "avg_execution_time": 1.0,
+            "ep_rewards": [
+              1834.5861086863094,
+              5109.059688304198,
+              2085.9170480293637,
+              2672.679918007464,
+              3607.4641642327406
+            ],
+            "mean_reward": 3061.941385452015,
+            "std_reward": 1332.1821779250088
+          },
+          "elapsed_seconds": 61.31
+        },
+        "453": {
+          "train": {
+            "seed": 453,
+            "timesteps_requested": 50000,
+            "timesteps_actual": 51200,
+            "train_time_seconds": 60.41,
+            "final_train_reward": 2283.782452,
+            "timestep_reward_pairs": [
+              {
+                "timestep": 51200,
+                "reward": 2283.782452
+              }
+            ],
+            "convergence_step": 51200,
+            "num_rollouts": 1
+          },
+          "eval": {
+            "avg_wait_time": 59.2521,
+            "completion_rate": 1.0,
+            "qubit_utilization": 0.337,
+            "classical_utilization": 0.6116,
+            "avg_execution_time": 1.0,
+            "ep_rewards": [
+              3586.2552290442745,
+              3863.279931626962,
+              1255.7121254253966,
+              4311.081985568394,
+              1421.0904824886086
+            ],
+            "mean_reward": 2887.4839508307277,
+            "std_reward": 1438.7563687162517
+          },
+          "elapsed_seconds": 60.92
+        },
+        "590": {
+          "train": {
+            "seed": 590,
+            "timesteps_requested": 50000,
+            "timesteps_actual": 51200,
+            "train_time_seconds": 60.92,
+            "final_train_reward": 2621.48434,
+            "timestep_reward_pairs": [
+              {
+                "timestep": 51200,
+                "reward": 2621.48434
+              }
+            ],
+            "convergence_step": 51200,
+            "num_rollouts": 1
+          },
+          "eval": {
+            "avg_wait_time": 54.5283,
+            "completion_rate": 1.0,
+            "qubit_utilization": 0.4697,
+            "classical_utilization": 0.3402,
+            "avg_execution_time": 1.0,
+            "ep_rewards": [
+              2746.099310677815,
+              3667.825535689229,
+              4234.750446290158,
+              2993.1136488902407,
+              2646.100224697453
+            ],
+            "mean_reward": 3257.5778332489795,
+            "std_reward": 676.1334821348586
+          },
+          "elapsed_seconds": 61.45
+        },
+        "727": {
+          "train": {
+            "seed": 727,
+            "timesteps_requested": 50000,
+            "timesteps_actual": 51200,
+            "train_time_seconds": 60.88,
+            "final_train_reward": 3542.277221,
+            "timestep_reward_pairs": [
+              {
+                "timestep": 51200,
+                "reward": 3542.277221
+              }
+            ],
+            "convergence_step": 51200,
+            "num_rollouts": 1
+          },
+          "eval": {
+            "avg_wait_time": 63.1647,
+            "completion_rate": 1.0,
+            "qubit_utilization": 0.5587,
+            "classical_utilization": 0.5411,
+            "avg_execution_time": 1.0,
+            "ep_rewards": [
+              2614.0137169668424,
+              1535.6645627215225,
+              3240.104860411776,
+              1928.0663395268355,
+              273.9292428306558
+            ],
+            "mean_reward": 1918.3557444915266,
+            "std_reward": 1127.1253363900462
+          },
+          "elapsed_seconds": 61.39
+        },
+        "864": {
+          "train": {
+            "seed": 864,
+            "timesteps_requested": 50000,
+            "timesteps_actual": 51200,
+            "train_time_seconds": 60.74,
+            "final_train_reward": 1895.300324,
+            "timestep_reward_pairs": [
+              {
+                "timestep": 51200,
+                "reward": 1895.300324
+              }
+            ],
+            "convergence_step": 51200,
+            "num_rollouts": 1
+          },
+          "eval": {
+            "avg_wait_time": 63.6494,
+            "completion_rate": 1.0,
+            "qubit_utilization": 0.3704,
+            "classical_utilization": 0.4618,
+            "avg_execution_time": 1.0,
+            "ep_rewards": [
+              1652.874125018291,
+              4353.847958206552,
+              1085.9977568817983,
+              986.8604571199097,
+              3403.011725006089
+            ],
+            "mean_reward": 2296.518404446528,
+            "std_reward": 1504.308354097851
+          },
+          "elapsed_seconds": 61.25
+        },
+        "1001": {
+          "train": {
+            "seed": 1001,
+            "timesteps_requested": 50000,
+            "timesteps_actual": 51200,
+            "train_time_seconds": 60.83,
+            "final_train_reward": 1789.772872,
+            "timestep_reward_pairs": [
+              {
+                "timestep": 51200,
+                "reward": 1789.772872
+              }
+            ],
+            "convergence_step": 51200,
+            "num_rollouts": 1
+          },
+          "eval": {
+            "avg_wait_time": 55.7329,
+            "completion_rate": 1.0,
+            "qubit_utilization": 0.5996,
+            "classical_utilization": 0.4706,
+            "avg_execution_time": 1.0,
+            "ep_rewards": [
+              2215.3827684082,
+              1486.5821081682186,
+              3105.8331817725093,
+              4266.662544052194,
+              1854.7382613987468
+            ],
+            "mean_reward": 2585.839772759974,
+            "std_reward": 1115.310893771622
+          },
+          "elapsed_seconds": 61.35
+        },
+        "1138": {
+          "train": {
+            "seed": 1138,
+            "timesteps_requested": 50000,
+            "timesteps_actual": 51200,
+            "train_time_seconds": 61.3,
+            "final_train_reward": 3611.012241,
+            "timestep_reward_pairs": [
+              {
+                "timestep": 51200,
+                "reward": 3611.012241
+              }
+            ],
+            "convergence_step": 51200,
+            "num_rollouts": 1
+          },
+          "eval": {
+            "avg_wait_time": 61.1313,
+            "completion_rate": 1.0,
+            "qubit_utilization": 0.2774,
+            "classical_utilization": 0.3909,
+            "avg_execution_time": 1.0,
+            "ep_rewards": [
+              2054.1064342793675,
+              1718.5406297585362,
+              4543.546351156298,
+              3899.997506949029,
+              680.0631087605747
+            ],
+            "mean_reward": 2579.250806180761,
+            "std_reward": 1598.9325630533706
+          },
+          "elapsed_seconds": 61.85
+        },
+        "1275": {
+          "train": {
+            "seed": 1275,
+            "timesteps_requested": 50000,
+            "timesteps_actual": 51200,
+            "train_time_seconds": 61.02,
+            "final_train_reward": 609.841142,
+            "timestep_reward_pairs": [
+              {
+                "timestep": 51200,
+                "reward": 609.841142
+              }
+            ],
+            "convergence_step": 51200,
+            "num_rollouts": 1
+          },
+          "eval": {
+            "avg_wait_time": 61.7041,
+            "completion_rate": 1.0,
+            "qubit_utilization": 0.4463,
+            "classical_utilization": 0.5507,
+            "avg_execution_time": 1.0,
+            "ep_rewards": [
+              2246.906870321323,
+              3098.0007456490866,
+              2120.750708786985,
+              2792.5523986656576,
+              3594.5541671395604
+            ],
+            "mean_reward": 2770.5529781125224,
+            "std_reward": 608.9195780053424
+          },
+          "elapsed_seconds": 61.54
+        }
+      },
+      "summary": {
+        "mean_reward": 2660.6060599405805,
+        "std_reward": 415.93512537714145,
+        "all_rewards": [
+          2996.873101078761,
+          2251.666622804013,
+          3061.941385452015,
+          2887.4839508307277,
+          3257.5778332489795,
+          1918.3557444915266,
+          2296.518404446528,
+          2585.839772759974,
+          2579.250806180761,
+          2770.5529781125224
+        ],
+        "n_seeds": 10
+      }
+    }
+  },
+  "significance": {
+    "L4_vs_L1_basic": {
+      "comparison": "L4_full vs L1_basic",
+      "test": "Wilcoxon signed-rank test (paired)",
+      "statistic": 0.0,
+      "p_value_raw": 0.001953125,
+      "mean_diff": 1064.6370340325816,
+      "effect_size_type": "Cohen's d_z",
+      "effect_size": 2.1097365847514133,
+      "n_pairs": 10,
+      "n_nonzero_diffs": 10,
+      "diffs": [
+        1694.9834764487407,
+        454.5897389504878,
+        1446.649829522643,
+        1385.183266770574,
+        1660.6598994821518,
+        497.2506458460339,
+        336.2776323572052,
+        1210.787775550511,
+        856.8663079599223,
+        1103.1217674375482
+      ],
+      "p_value_adjusted": 0.005859375,
+      "holm_significant": true,
+      "judgment": "支持"
+    },
+    "L4_vs_L2_execution": {
+      "comparison": "L4_full vs L2_execution",
+      "test": "Wilcoxon signed-rank test (paired)",
+      "statistic": 1.0,
+      "p_value_raw": 0.00390625,
+      "mean_diff": -505.00090010577924,
+      "effect_size_type": "Cohen's d_z",
+      "effect_size": -1.2909486640328076,
+      "n_pairs": 10,
+      "n_nonzero_diffs": 10,
+      "diffs": [
+        -441.4427768426176,
+        -308.22001374535284,
+        -356.48640000000023,
+        -748.7530471109694,
+        -149.29010305619568,
+        -669.3673374529174,
+        -411.61479999999983,
+        -1237.2044220197122,
+        143.50498145800884,
+        -871.1350822880368
+      ],
+      "p_value_adjusted": 0.0078125,
+      "holm_significant": true,
+      "judgment": "支持"
+    },
+    "L4_vs_L3_wait_penalty": {
+      "comparison": "L4_full vs L3_wait_penalty",
+      "test": "Wilcoxon signed-rank test (paired)",
+      "statistic": 25.0,
+      "p_value_raw": 0.845703125,
+      "mean_diff": -117.79725411249706,
+      "effect_size_type": "Cohen's d_z",
+      "effect_size": -0.23482856479260472,
+      "n_pairs": 10,
+      "n_nonzero_diffs": 10,
+      "diffs": [
+        -197.76236587270841,
+        -4.802333694825393,
+        29.580383937226088,
+        660.8148743159736,
+        259.80735529145977,
+        86.65342165150787,
+        -635.3039910817265,
+        -1023.7900220197134,
+        234.2976186358719,
+        -587.4674822880361
+      ],
+      "p_value_adjusted": 0.845703125,
+      "holm_significant": false,
+      "judgment": "不支持"
+    }
+  },
+  "statistical_design": {
+    "unit_of_analysis": "seed (5 episodes aggregated to seed mean)",
+    "n_seeds_per_config": 10,
+    "paired_design": "same seed across configs",
+    "main_test": "Wilcoxon signed-rank test (paired)",
+    "multiple_comparison": "Holm-Bonferroni step-down",
+    "effect_size": "Cohen's d_z"
+  }
+}

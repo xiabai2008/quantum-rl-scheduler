@@ -1,0 +1,211 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+# =============================================================================
+# 项目元数据
+# =============================================================================
+[project]
+name = "quantum-rl-scheduler"
+version = "9.1.0"
+description = "Quantum RL-driven Intelligent Scheduling System for TianYan Cloud Platform"
+readme = "README.md"
+license = { text = "MIT" }
+authors = [
+    { name = "胡展瑞" }
+]
+keywords = [
+    "quantum-computing",
+    "reinforcement-learning",
+    "scheduling",
+    "simulated-annealing",
+    "quantum-annealing",
+    "operations-research",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Scientific/Engineering :: Physics",
+]
+requires-python = ">=3.10"
+dynamic = ["dependencies"]
+
+# =============================================================================
+# 可选依赖（开发/测试）
+# =============================================================================
+[project.optional-dependencies]
+# Issue #592: Python 3.10 标准库无 tomllib（3.11+ 才引入），测试需要 tomli 替代
+test = [
+    "tomli; python_version < '3.11'",
+]
+dev = [
+    "tomli; python_version < '3.11'",
+]
+
+# 只追踪 src/ 下的包
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["src*"]
+
+# =============================================================================
+# ruff — 高速代码检查（Rust 实现，替代 black/isort/flake8，性能提升 100x）
+# 格式化：ruff format（替代 black）
+# Import 排序：ruff check --select I（替代 isort）
+# 代码检查：ruff check（替代 flake8）
+# =============================================================================
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+extend-exclude = [
+    ".git",
+    ".mypy_cache",
+    ".pytest_cache",
+    "__pycache__",
+    ".venv",
+    "htmlcov",
+    "dist",
+    "build",
+    "models",
+    "logs",
+    "data",
+]
+
+[tool.ruff.lint]
+# 规则集：覆盖 flake8 默认 + isort + naming + bugbear + simplify 等
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes
+    "I",    # isort
+    "N",    # pep8-naming
+    "B",    # flake8-bugbear
+    "SIM",  # flake8-simplify
+    "C4",   # flake8-comprehensions
+    "UP",   # pyupgrade
+    "RUF",  # ruff-specific rules
+]
+# 忽略：与 black 冲突或项目历史遗留
+ignore = [
+    "E501",   # line too long（由 black 处理）
+    "E402",   # module level import not at top（src/ 路径设置需要）
+    "B008",   # 函数默认值中调用函数（FastAPI Depends 等常见模式）
+    "RUF001", # 中文字符在字符串中（项目注释/文案规范为中文）
+    "RUF002", # 中文字符在文档字符串中（项目 docstring 规范为中文）
+    "RUF003", # 中文字符在注释中（项目注释规范为中文）
+    "N812",   # lowercase imported as non-lowercase（torch.nn.functional as F 是 PyTorch 通用约定）
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["F401", "F811", "SIM117", "N806"]  # 测试文件允许未使用 import、重定义、嵌套 with、数学公式大写变量
+"scripts/*" = ["E402", "N806"]            # 脚本文件允许顶部 import、数学公式大写变量
+
+# =============================================================================
+# bandit — 安全扫描（检测 API 密钥泄露、不安全函数等）
+# =============================================================================
+[tool.bandit]
+exclude_dirs = ["tests", "scripts", "docs", "models", "logs", "data"]
+skips = ["B101"]  # assert 在测试中有用，但 tests/ 已被排除，此处保留以防误扫
+
+# =============================================================================
+# mypy — 类型检查
+# 配置统一使用 mypy.ini（严格模式），pyproject.toml 中不再重复定义
+# mypy.ini 包含：disallow_untyped_defs=True, strict_equality=True 等 8 项严格配置
+# =============================================================================
+
+# =============================================================================
+# pytest — 测试配置
+# =============================================================================
+[tool.pytest.ini_options]
+minversion = "7.4"
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = [
+    "-v",
+    "--strict-markers",
+    "--tb=short",
+    "-W", "ignore::DeprecationWarning",
+    "--randomly-seed=42",
+]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "real_machine: marks tests requiring real quantum machine access",
+    "integration: marks integration tests",
+    "unit: marks unit tests",
+]
+timeout = 300
+timeout_method = "thread"
+
+# 覆盖率配置
+[tool.coverage.run]
+source = ["src"]
+omit = [
+    "*/__init__.py",
+    "*/tests/*",
+    "*/scripts/*",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if self.debug:",
+    "if settings.DEBUG",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if 0:",
+    "if __name__ == .__main__.:",
+    "class .*\\bProtocol\\):",
+    "@(abc\\.)?abstractmethod",
+]
+fail_under = 80
+show_missing = true
+skip_empty = true
+
+# =============================================================================
+# EditorConfig 补充 — 在非 VS Code 编辑器中生效
+# =============================================================================
+[tool.editorconfig]
+indent_style = "space"
+indent_size = 4
+end_of_line = "lf"
+charset = "utf-8"
+trim_trailing_whitespace = true
+insert_final_newline = true
+
+# =============================================================================
+# mutmut 配置 — Mutation Testing
+# =============================================================================
+[tool.mutmut]
+# 变异测试配置（mutmut 3.6.0）
+# 重要：mutmut 3.x 的 trampoline 机制禁止模块名以 "src." 开头（assert not name.startswith("src.")），
+# 而本项目用 src-layout（from src.utils.seeds import ...），直接跑会崩溃。
+# 跑变异测试前需临时将对应测试的 import 从 `from src.X import` 改为 `from X import`
+# （并 sys.path.insert 指向 src 子目录，使模块名变为 utils.X / scheduler.X / api.X），跑完 `git checkout` 恢复。
+# 单模块逐跑：每次只保留一个 source_path + 对应的 pytest_add_cli_args_test_selection 最稳。
+source_paths = [
+    "src/utils/seeds.py",
+    "src/utils/helpers.py",
+    "src/scheduler/parser.py",
+    "src/scheduler/env_reward.py",
+    "src/scheduler/env_observation.py",
+    "src/quantum/annealing.py",
+    "src/api/circuit_breaker.py",
+]
+# 测试选择：只收集/运行这些测试文件（mutmut 3.x 用 pytest_add_cli_args_test_selection，runner_command 已废弃）
+pytest_add_cli_args_test_selection = [
+    "tests/test_seeds.py",
+    "tests/test_helpers.py",
+    "tests/test_parser.py",
+    "tests/test_scheduler.py",
+    "tests/test_annealing.py",
+    "tests/test_circuit_breaker.py",
+]
+# 并行工作进程数
+workers = 4
+# 排除的变异类型（避免不实用的变异）
+# 参见 mutmut 文档

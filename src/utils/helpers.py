@@ -1,0 +1,559 @@
+"""
+工具函数模块
+Utility Functions Module
+
+提供通用的工具函数，包括：
+- 日志配置
+- 数据预处理
+- 性能评估
+- 配置加载
+"""
+
+import json
+import os
+import re
+import sys
+from datetime import datetime
+from typing import Any, cast
+
+import numpy as np
+import yaml
+from loguru import logger
+
+# ---------------------------------------------------------------------------
+# 环境变量展开
+# ---------------------------------------------------------------------------
+_UNRESOLVED_VAR_PATTERN = re.compile(r"\$\{[^}]+\}")
+
+
+def _expand_env_vars(value: Any) -> Any:
+    """
+    递归展开字典/列表/字符串中的 ${VAR} 环境变量引用。
+
+    对字符串：调用 os.path.expandvars() 展开 ${VAR}。
+    对字典/列表：递归处理每个值。
+    其他类型直接返回。
+
+    Args:
+        value: 待展开的值（dict / list / str / Any）
+
+    Returns:
+        展开后的值（类型与输入对应）
+    """
+    if isinstance(value, str):
+        expanded = os.path.expandvars(value)
+        return expanded
+    elif isinstance(value, dict):
+        return {k: _expand_env_vars(v) for k, v in value.items()}
+    elif isinstance(value, list):
+        return [_expand_env_vars(item) for item in value]
+    else:
+        return value
+
+
+def _warn_unresolved(data: dict[str, Any], source_path: str = "") -> None:
+    """
+    检查配置字典中是否存在未展开的 ${VAR} 引用并发出警告。
+
+    Args:
+        data: 配置字典
+        source_path: 配置来源标识（用于日志）
+    """
+    unresolved: list[str] = []
+
+    def _walk(prefix: str, value: Any) -> None:
+        if isinstance(value, str) and _UNRESOLVED_VAR_PATTERN.search(value):
+            unresolved.append(f"{prefix} = {value!r}")
+        elif isinstance(value, dict):
+            for k, v in value.items():
+                _walk(f"{prefix}.{k}" if prefix else str(k), v)
+        elif isinstance(value, list):
+            for i, v in enumerate(value):
+                _walk(f"{prefix}[{i}]", v)
+
+    for key, val in data.items():
+        _walk(key, val)
+
+    if unresolved:
+        logger.warning(f"配置文件 {source_path!r} 中存在 {len(unresolved)} 个未展开的环境变量引用:")
+        for entry in unresolved:
+            logger.warning(f"  {entry}")
+
+
+# 日志配置
+def _json_serializer(record: dict[str, Any]) -> str:
+    """将 loguru 日志记录序列化为 JSON 格式。
+
+    输出字段：timestamp（ISO 格式）、level、module、function、line、message，
+    以及 record["extra"] 中的所有自定义字段（不覆盖内置字段）。
+
+    Args:
+        record: loguru 日志记录字典
+
+    Returns:
+        JSON 格式的字符串（UTF-8，保留中文，非可序列化值用 str 兜底）
+    """
+    subset: dict[str, Any] = {
+        "timestamp": record["time"].isoformat(),
+        "level": record["level"].name,
+        "module": record["module"],
+        "function": record["function"],
+        "line": record["line"],
+        "message": record["message"],
+    }
+    # 合并 extra 上下文（不覆盖内置字段）
+    extra = record.get("extra")
+    if extra:
+        for key, value in extra.items():
+            if key not in subset:
+                subset[key] = value
+    return json.dumps(subset, ensure_ascii=False, default=str)
+
+
+def _json_console_sink(message: Any) -> None:
+    """loguru JSON 控制台 sink，将日志记录序列化为 JSON 并输出到 stdout。"""
+    sys.stdout.write(_json_serializer(message.record) + "\n")
+
+
+class _JsonFileSink:
+    """JSON 文件 sink，将日志以 JSON Lines 格式写入文件。
+
+    适用于 ELK/Loki/Graylog 等日志采集系统解析。
+    注意：不支持 loguru 内建的 rotation/retention，如需轮转请依赖外部工具（如 logrotate）。
+    """
+
+    def __init__(self, filepath: str) -> None:
+        # 文件句柄需在 sink 生命周期内保持打开，无法使用 with 语句
+        self._file = open(filepath, "a", encoding="utf-8")  # noqa: SIM115
+
+    def write(self, message: Any) -> None:
+        self._file.write(_json_serializer(message.record) + "\n")
+        self._file.flush()
+
+    def stop(self) -> None:
+        self._file.close()
+
+
+def setup_logging(
+    log_dir: str = "logs",
+    log_level: str = "INFO",
+    log_file: str = "scheduler.log",
+) -> Any:
+    """配置日志系统，支持文本和 JSON 两种格式。
+
+    通过环境变量 LOG_FORMAT 控制输出格式：
+    - "json": 结构化 JSON 输出（适合 ELK/Loki/Graylog 采集）
+    - "text"（默认）: 人类可读的文本格式
+
+    Args:
+        log_dir: 日志目录
+        log_level: 日志级别
+        log_file: 日志文件名
+
+    Returns:
+        配置后的 loguru logger
+    """
+    os.makedirs(log_dir, exist_ok=True)
+
+    logger.remove()  # 移除默认处理器
+
+    log_format = os.getenv("LOG_FORMAT", "text").lower()
+    use_json = log_format == "json"
+
+    if use_json:
+        # JSON 格式：结构化输出，便于 ELK/Loki/Graylog 采集
+        logger.add(sink=_json_console_sink, level=log_level)
+        logger.add(
+            sink=_JsonFileSink(os.path.join(log_dir, log_file)),
+            level=log_level,
+        )
+    else:
+        # 文本格式：人类可读（动态访问 sys.stderr，支持 redirect_stderr 测试）
+        logger.add(
+            sink=cast(Any, lambda message: sys.stderr.write(message)),
+            level=log_level,
+            format="{time:YYYY-MM-DD HH:mm:ss} | {level} | {message}",
+        )
+        logger.add(
+            sink=os.path.join(log_dir, log_file),
+            rotation="100 MB",
+            retention="30 days",
+            level=log_level,
+            format="{time:YYYY-MM-DD HH:mm:ss} | {level} | {file}:{function}:{line} | {message}",
+        )
+
+    return logger
+
+
+# 配置加载
+def load_config(
+    config_path: str = "config/config.yaml",
+    validate: bool = False,
+) -> dict[str, Any]:
+    """
+    加载配置文件，自动展开 ${VAR} 环境变量引用。
+
+    Args:
+        config_path: 配置文件路径
+        validate: 是否启用 Pydantic Schema 校验（默认 False）
+
+    Returns:
+        配置字典（环境变量已展开）
+    """
+    try:
+        with open(config_path, encoding="utf-8") as f:
+            config = yaml.safe_load(f)
+
+        # 递归展开环境变量引用
+        expanded = _expand_env_vars(config)
+
+        # 对字典根元素检查是否残留未展开的 ${}
+        if isinstance(expanded, dict):
+            _warn_unresolved(expanded, source_path=config_path)
+
+        # 可选：Pydantic Schema 校验
+        if validate and isinstance(expanded, dict):
+            try:
+                from src.config.schema import validate_and_print
+
+                validate_and_print(expanded)
+            except ImportError:
+                logger.debug("跳过 Pydantic 校验（schema 模块不可用）")
+
+        logger.info(f"配置文件加载成功：{config_path}")
+        return cast(dict[str, Any], expanded)
+    except (yaml.YAMLError, OSError, ValueError) as e:
+        # YAML 解析错误 / 文件 I/O 错误 / Pydantic 校验错误（ValidationError 为 ValueError 子类）
+        logger.error(f"配置文件加载失败：{e}")
+        return {}
+
+
+def load_annealing_config(config_path: str = "config/config.yaml") -> dict[str, Any]:
+    """
+    读取配置文件中的 ``annealing`` 配置节，返回退火优化器参数字典。
+
+    仅做轻量读取，不执行 schema 校验：``AnnealingConfig`` 为 ``extra="forbid"``，
+    而 config.yaml 的 ``annealing:`` 节包含若干该 schema 未收录的字段（如
+    ``max_delta_ratio``、``head_only`` 等）。此处透传原始 dict 以保证向后兼容，
+    由 ``QuantumAnnealingOptimizer.__init__`` 按 ``config.get(key, default)`` 自行取用。
+
+    Args:
+        config_path: 配置文件路径（默认 ``config/config.yaml``）。
+
+    Returns:
+        ``annealing`` 配置节的字典；若文件缺失或该节不存在则返回空字典 ``{}``。
+    """
+    cfg = load_config(config_path) or {}
+    annealing = cfg.get("annealing", {})
+    return dict(annealing) if isinstance(annealing, dict) else {}
+
+
+def save_config(config: dict[str, Any], config_path: str = "config/config.yaml") -> None:
+    """
+    保存配置文件
+
+    Args:
+        config: 配置字典
+        config_path: 配置文件路径
+    """
+    try:
+        os.makedirs(os.path.dirname(config_path), exist_ok=True)
+        with open(config_path, "w", encoding="utf-8") as f:
+            yaml.dump(config, f, allow_unicode=True, default_flow_style=False)
+        logger.info(f"配置文件保存成功：{config_path}")
+    except (OSError, yaml.YAMLError) as e:
+        # 文件 I/O 错误 / YAML 序列化错误
+        logger.error(f"配置文件保存失败：{e}")
+
+
+# 数据预处理
+def normalize_vector(
+    vector: list[float], min_val: float = 0.0, max_val: float = 1.0
+) -> list[float]:
+    """
+    归一化向量
+
+    Args:
+        vector: 输入向量
+        min_val: 最小值
+        max_val: 最大值
+
+    Returns:
+        归一化后的向量
+    """
+    if len(vector) == 0:
+        return []
+
+    vec_array = np.array(vector)
+    min_v: float = float(np.min(vec_array))
+    max_v: float = float(np.max(vec_array))
+
+    if max_v - min_v < 1e-10:
+        return [0.5] * len(vector)
+
+    normalized = (vec_array - min_v) / (max_v - min_v)
+    normalized = normalized * (max_val - min_val) + min_val
+
+    return cast(list[float], normalized.tolist())
+
+
+def one_hot_encode(category: str, categories: list[str]) -> list[int]:
+    """
+    独热编码
+
+    Args:
+        category: 类别
+        categories: 所有类别列表
+
+    Returns:
+        独热编码向量
+    """
+    encoding = [0] * len(categories)
+    if category in categories:
+        idx = categories.index(category)
+        encoding[idx] = 1
+    return encoding
+
+
+# 性能评估
+def calculate_completion_rate(completed: int, total: int) -> float:
+    """计算完成率"""
+    if total == 0:
+        return 0.0
+    return completed / total
+
+
+def calculate_average_wait_time(wait_times: list[float]) -> float:
+    """计算平均等待时间"""
+    if len(wait_times) == 0:
+        return 0.0
+    return float(np.mean(wait_times))
+
+
+def calculate_resource_utilization(
+    used: float,
+    total: float,
+) -> float:
+    """计算资源利用率"""
+    if total == 0:
+        return 0.0
+    return used / total
+
+
+# 时间工具
+def format_time(seconds: float) -> str:
+    """
+    格式化时间
+
+    Args:
+        seconds: 秒数
+
+    Returns:
+        格式化后的时间字符串
+    """
+    if seconds < 60:
+        return f"{seconds:.1f}秒"
+    elif seconds < 3600:
+        minutes = seconds / 60
+        return f"{minutes:.1f}分钟"
+    else:
+        hours = seconds / 3600
+        return f"{hours:.1f}小时"
+
+
+def get_current_timestamp() -> str:
+    """获取当前时间戳"""
+    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+
+# 数据保存/加载
+def save_json(data: Any, filepath: str) -> None:
+    """
+    保存为JSON文件
+
+    Args:
+        data: 数据
+        filepath: 文件路径
+    """
+    os.makedirs(os.path.dirname(filepath), exist_ok=True)
+    with open(filepath, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+    logger.info(f"JSON文件保存成功：{filepath}")
+
+
+def load_json(filepath: str) -> Any:
+    """
+    加载JSON文件
+
+    Args:
+        filepath: 文件路径
+
+    Returns:
+        加载的数据
+    """
+    try:
+        with open(filepath, encoding="utf-8") as f:
+            data = json.load(f)
+        logger.info(f"JSON文件加载成功：{filepath}")
+        return data
+    except (json.JSONDecodeError, OSError) as e:
+        # JSON 解析错误 / 文件 I/O 错误
+        logger.error(f"JSON文件加载失败：{e}")
+        return None
+
+
+# ---------------------------------------------------------------------------
+# 观测维度校验（Issue #182）
+# ---------------------------------------------------------------------------
+
+
+def validate_observation_dim(
+    model_obs_dim: int,
+    env_obs_dim: int,
+    model_name: str = "model",
+) -> bool:
+    """校验模型观测维度与环境观测维度是否匹配。
+
+    当维度不匹配时发出明确警告，防止模型静默退化为随机策略。
+
+    Args:
+        model_obs_dim: 模型期望的观测维度
+        env_obs_dim: 环境实际输出的观测维度
+        model_name: 模型名称（用于日志标识）
+
+    Returns:
+        True 如果维度匹配，False 如果不匹配
+
+    Raises:
+        ValueError: 当维度不匹配且 model_obs_dim < env_obs_dim 时
+                   （模型无法处理更高维度的输入，必须使用包装器）
+    """
+    if model_obs_dim == env_obs_dim:
+        return True
+
+    if model_obs_dim < env_obs_dim:
+        msg = (
+            f"观测维度不匹配：{model_name} 期望 {model_obs_dim} 维，"
+            f"但环境输出 {env_obs_dim} 维。"
+            f"请使用 Obs10Wrapper 截断观测空间，否则模型将静默退化为随机策略。"
+        )
+        logger.error(msg)
+        raise ValueError(msg)
+
+    # model_obs_dim > env_obs_dim：模型期望更高维度，环境输出较低维度
+    msg = (
+        f"观测维度不匹配：{model_name} 期望 {model_obs_dim} 维，"
+        f"但环境仅输出 {env_obs_dim} 维。"
+        f"模型可能无法正常工作，请检查环境配置。"
+    )
+    logger.warning(msg)
+    return False
+
+
+def check_model_env_compatibility(
+    model: Any,
+    env_obs_space: Any,
+    model_name: str = "model",
+) -> bool:
+    """检查模型与环境观测空间的兼容性。
+
+    Args:
+        model: SB3 模型对象（需有 observation_space 属性）
+        env_obs_space: 环境的观测空间（gym.spaces.Box）
+        model_name: 模型名称（用于日志标识）
+
+    Returns:
+        True 如果兼容，False 或 raise 如果不兼容
+    """
+    model_obs_space = getattr(model, "observation_space", None)
+    if model_obs_space is None:
+        logger.warning(f"{model_name} 无 observation_space 属性，跳过维度校验")
+        return True
+
+    model_dim = getattr(model_obs_space, "shape", None)
+    env_dim = getattr(env_obs_space, "shape", None)
+
+    if model_dim is None or env_dim is None:
+        logger.warning(f"{model_name} 或环境无 shape 属性，跳过维度校验")
+        return True
+
+    model_obs_dim = model_dim[0] if len(model_dim) > 0 else 0
+    env_obs_dim = env_dim[0] if len(env_dim) > 0 else 0
+
+    return validate_observation_dim(model_obs_dim, env_obs_dim, model_name)
+
+
+# 评估指标
+class MetricsCalculator:
+    """评估指标计算器"""
+
+    @staticmethod
+    def calculate_reward(
+        completion_rate: float,
+        avg_wait_time: float,
+        resource_utilization: float,
+        max_wait_time: float = 3600.0,
+    ) -> float:
+        """
+        计算综合奖励
+
+        Args:
+            completion_rate: 完成率
+            avg_wait_time: 平均等待时间
+            resource_utilization: 资源利用率
+            max_wait_time: 最大等待时间（用于归一化）
+
+        Returns:
+            综合奖励值
+        """
+        # 归一化等待时间（越小越好）
+        normalized_wait = 1.0 - min(avg_wait_time / max_wait_time, 1.0)
+
+        # 加权综合
+        reward = 0.4 * completion_rate + 0.3 * normalized_wait + 0.3 * resource_utilization
+
+        return reward
+
+    @staticmethod
+    def calculate_improvement(
+        new_value: float,
+        baseline_value: float,
+    ) -> float:
+        """
+        计算改进百分比
+
+        Args:
+            new_value: 新值
+            baseline_value: 基线值
+
+        Returns:
+            改进百分比（%）
+        """
+        if baseline_value == 0:
+            return 0.0 if new_value == 0 else 100.0
+
+        improvement = (new_value - baseline_value) / abs(baseline_value) * 100
+        return improvement
+
+
+if __name__ == "__main__":
+    # 测试代码
+    logger.info("工具函数模块测试")
+
+    # 测试归一化
+    vector = [1.0, 2.0, 3.0, 4.0, 5.0]
+    normalized = normalize_vector(vector)
+    logger.info(f"归一化结果：{normalized}")
+
+    # 测试独热编码
+    categories = ["quantum", "classical", "hybrid"]
+    encoding = one_hot_encode("quantum", categories)
+    logger.info(f"独热编码：{encoding}")
+
+    # 测试评估指标
+    reward = MetricsCalculator.calculate_reward(
+        completion_rate=0.85,
+        avg_wait_time=120.0,
+        resource_utilization=0.75,
+    )
+    logger.info(f"综合奖励：{reward:.3f}")

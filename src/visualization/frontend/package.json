@@ -1,0 +1,26 @@
+{
+  "name": "quantum-rl-scheduler-frontend",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "量子RL驱动的天衍云平台智能调度系统 - Vue3 监控面板前端",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "typecheck": "vue-tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "echarts": "^5.5.1",
+    "vue": "^3.4.38"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "@vitejs/plugin-vue": "^5.1.3",
+    "typescript": "^5.5.4",
+    "vite": "^5.4.2",
+    "vitest": "^2.1.1",
+    "vue-tsc": "^2.1.4"
+  }
+}

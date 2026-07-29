@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MAPPO多机器调度热力图</title>
+<style>
+  :root {
+    --bg: #0f1424;
+    --panel: #1a2138;
+    --panel2: #232b48;
+    --accent: #4ea8de;
+    --accent2: #9d4edd;
+    --text: #e6e9f2;
+    --muted: #8a93b2;
+    --border: #2e3760;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: "Segoe UI", "Microsoft YaHei", system-ui, sans-serif;
+    background: radial-gradient(1200px 600px at 70% -10%, #1b2547 0%, var(--bg) 55%);
+    color: var(--text);
+    min-height: 100vh;
+    padding: 32px 18px 56px;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; }
+  header { text-align: center; margin-bottom: 26px; }
+  header h1 {
+    font-size: 30px; font-weight: 700; letter-spacing: 1px;
+    background: linear-gradient(90deg, #4ea8de, #9d4edd 60%, #f72585);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  header .sub { color: var(--muted); font-size: 14px; margin-top: 8px; }
+  header .meta {
+    display: inline-flex; gap: 10px; flex-wrap: wrap; justify-content: center;
+    margin-top: 14px;
+  }
+  .chip {
+    background: var(--panel2); border: 1px solid var(--border);
+    border-radius: 999px; padding: 5px 13px; font-size: 12.5px; color: var(--text);
+  }
+  .chip b { color: var(--accent); }
+  .card {
+    background: linear-gradient(180deg, var(--panel) 0%, #161d36 100%);
+    border: 1px solid var(--border); border-radius: 16px;
+    padding: 26px 22px; margin-bottom: 22px;
+    box-shadow: 0 18px 40px rgba(0,0,0,.35);
+  }
+  .card h2 {
+    font-size: 16px; color: var(--accent); margin-bottom: 18px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .card h2::before { content:""; width:8px; height:18px; border-radius:3px;
+    background: linear-gradient(180deg, var(--accent), var(--accent2)); }
+  /* 热力图网格 */
+  .grid {
+    display: grid;
+    grid-template-columns: 120px repeat(4, 1fr);
+    gap: 6px;
+    align-items: stretch;
+  }
+  .cell {
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 10px; font-weight: 600; min-height: 78px;
+    transition: transform .15s ease, box-shadow .15s ease;
+    border: 1px solid var(--border);
+  }
+  .cell.head {
+    background: var(--panel2); color: var(--text); font-size: 14.5px;
+    letter-spacing: .5px;
+  }
+  .cell.y-label {
+    background: #11182f; color: var(--accent2); font-size: 14px;
+    justify-content: flex-start; padding-left: 14px;
+  }
+  .cell.y-label small { color: var(--muted); font-weight: 500; margin-left:6px; font-size:11px;}
+  .cell.corner { background: transparent; border: none; }
+  .cell.heat { cursor: default; position: relative; flex-direction: column; }
+  .cell.heat .val { font-size: 21px; }
+  .cell.heat .unit { font-size: 11px; opacity: .8; margin-top: 2px; }
+  .cell.heat:hover {
+    transform: translateY(-2px) scale(1.03);
+    box-shadow: 0 10px 24px rgba(0,0,0,.45);
+    z-index: 2;
+  }
+  /* 图例 */
+  .legend {
+    display: flex; align-items: center; gap: 12px;
+    margin-top: 18px; justify-content: center; flex-wrap: wrap;
+  }
+  .legend .bar {
+    width: 240px; height: 14px; border-radius: 7px;
+    background: linear-gradient(90deg, hsl(220,75%,58%), hsl(165,75%,52%), hsl(60,80%,55%), hsl(0,80%,52%));
+  }
+  .legend span { font-size: 12px; color: var(--muted); }
+  /* 表格 */
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th, td { padding: 11px 12px; text-align: center; border-bottom: 1px solid var(--border); }
+  th { color: var(--accent); font-weight: 600; font-size: 13px; }
+  td { color: var(--text); }
+  tbody tr:hover { background: rgba(78,168,222,.06); }
+  .note {
+    color: var(--muted); font-size: 12.5px; line-height: 1.7;
+    background: rgba(0,0,0,.18); border-left: 3px solid var(--accent2);
+    padding: 12px 15px; border-radius: 8px; margin-top: 16px;
+  }
+  .note code { color: #f7a8d4; background: rgba(255,255,255,.05); padding:1px 5px; border-radius:4px; }
+  footer { text-align: center; color: var(--muted); font-size: 12px; margin-top: 18px; }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>MAPPO多机器调度热力图</h1>
+      <div class="sub">量子RL调度系统 — 多智能体PPO多机器资源利用率对比</div>
+      <div class="meta">
+        <span class="chip">训练步数 <b>10000</b></span>
+        <span class="chip">训练耗时 <b>29.1s</b></span>
+        <span class="chip">评估回合 <b>5</b> × 4策略</span>
+        <span class="chip">机器数 <b>3</b></span>
+        <span class="chip">生成 <b>2026-07-24 17:39:25</b></span>
+      </div>
+    </header>
+
+    <div class="card">
+      <h2>资源利用率热力图（各机器 × 各策略）</h2>
+      <div class="grid" id="heatmap">
+        <div class="cell corner"></div>
+        <div class="cell head">PPO</div><div class="cell head">FCFS</div><div class="cell head">SJF</div><div class="cell head">Random</div>
+        <div class="cell label y-label">tianyan_s</div>
+<div class="cell heat" style="background:hsl(156, 75%, 54%);color:#1a1a2e;" title="tianyan_s / PPO: 20.0%"><span class="val">20.0</span><span class="unit">%</span></div>
+<div class="cell heat" style="background:hsl(11, 75%, 46%);color:#fff;" title="tianyan_s / FCFS: 33.3%"><span class="val">33.3</span><span class="unit">%</span></div>
+<div class="cell heat" style="background:hsl(104, 75%, 51%);color:#fff;" title="tianyan_s / SJF: 24.8%"><span class="val">24.8</span><span class="unit">%</span></div>
+<div class="cell heat" style="background:hsl(124, 75%, 52%);color:#1a1a2e;" title="tianyan_s / Random: 22.9%"><span class="val">22.9</span><span class="unit">%</span></div>
+<div class="cell label y-label">tianyan_176</div>
+<div class="cell heat" style="background:hsl(15, 75%, 46%);color:#fff;" title="tianyan_176 / PPO: 33.0%"><span class="val">33.0</span><span class="unit">%</span></div>
+<div class="cell heat" style="background:hsl(0, 75%, 46%);color:#fff;" title="tianyan_176 / FCFS: 34.4%"><span class="val">34.4</span><span class="unit">%</span></div>
+<div class="cell heat" style="background:hsl(46, 75%, 48%);color:#fff;" title="tianyan_176 / SJF: 30.1%"><span class="val">30.1</span><span class="unit">%</span></div>
+<div class="cell heat" style="background:hsl(187, 75%, 56%);color:#1a1a2e;" title="tianyan_176 / Random: 17.1%"><span class="val">17.1</span><span class="unit">%</span></div>
+<div class="cell label y-label">tianyan_287</div>
+<div class="cell heat" style="background:hsl(122, 75%, 52%);color:#1a1a2e;" title="tianyan_287 / PPO: 23.1%"><span class="val">23.1</span><span class="unit">%</span></div>
+<div class="cell heat" style="background:hsl(163, 75%, 54%);color:#1a1a2e;" title="tianyan_287 / FCFS: 19.3%"><span class="val">19.3</span><span class="unit">%</span></div>
+<div class="cell heat" style="background:hsl(80, 75%, 50%);color:#fff;" title="tianyan_287 / SJF: 27.0%"><span class="val">27.0</span><span class="unit">%</span></div>
+<div class="cell heat" style="background:hsl(220, 75%, 58%);color:#1a1a2e;" title="tianyan_287 / Random: 14.1%"><span class="val">14.1</span><span class="unit">%</span></div>
+
+      </div>
+      <div class="legend">
+        <span>低 14.1%</span>
+        <div class="bar"></div>
+        <span>34.4% 高</span>
+      </div>
+      <div class="note">
+        <b>指标说明：</b> 单元格数值 = 该机器在该策略下被选中执行量子任务的步数占比（调度利用率，%）。
+        数值越高表示该机器被该策略更充分地利用。<br>
+        <b>机器映射：</b>
+        <code>tianyan_s</code>(72比特仿真器) /
+        <code>tianyan_176</code>(天衍-176) /
+        <code>tianyan_287</code>(天衍-287)，分别对应环境三台机器。
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>策略综合表现</h2>
+      <table>
+        <thead>
+          <tr><th>策略</th><th>平均奖励</th><th>平均调度利用率</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>PPO</td><td>4255.01</td><td>25.37%</td></tr><tr><td>FCFS</td><td>1533.70</td><td>29.00%</td></tr><tr><td>SJF</td><td>1621.13</td><td>27.30%</td></tr><tr><td>Random</td><td>2059.99</td><td>18.03%</td></tr>
+        </tbody>
+      </table>
+      <div class="note">
+        MAPPO 训练配置：3 Agent（每台机器一个 Actor + 集中式 Critic），CTDE 架构，
+        局部观测维度 17，全局状态维度 51，学习率 3e-4，n_steps=512。
+        数据来源：基于真实训练后的环境交互测量，非凭空捏造。
+      </div>
+    </div>
+
+    <footer>量子RL驱动的天衍云平台智能调度系统 · 揭榜挂帅擂台赛 · Day4-7-12 任务产出</footer>
+  </div>
+</body>
+</html>

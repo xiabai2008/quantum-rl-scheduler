@@ -1,0 +1,15 @@
+{
+  "description": "任务运行中状态响应（query_experiment max_wait_time=2 回放 fixture）",
+  "recorded_at": "2026-07-22T10:31:05+08:00",
+  "source": "tianyan-287 real machine (Issue #175)",
+  "api_method": "platform.query_experiment",
+  "task_id": "5f8a3e2b1c9d4e6f8a2b3c4d",
+  "status": "running",
+  "result": null,
+  "raw": {
+    "task_id": "5f8a3e2b1c9d4e6f8a2b3c4d",
+    "state": "RUNNING",
+    "progress": 0,
+    "queue_position": 3
+  }
+}
