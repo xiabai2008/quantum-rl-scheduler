@@ -154,6 +154,11 @@ def get_observation(env: "QuantumSchedulingEnv") -> NDArray[Any]:
             np.clip(env.current_time_window_arrivals / max_expected_arrival, 0.0, 1.0)
         )
 
+    # Issue #585: 消融实验截断观测（在公平性观测之前执行）
+    obs_dim = getattr(env, "_observation_dim", None)
+    if obs_dim is not None and obs_dim < len(obs):
+        obs = obs[:obs_dim]
+
     return obs
 
 

@@ -477,7 +477,7 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
         # 取出队首任务作为当前任务
         self._pick_next_task()
 
-        return self._get_external_observation(), self._get_info()
+        return self._get_observation(), self._get_info()
 
     def step(self, action: int) -> tuple[NDArray[Any], float, bool, bool, dict[str, Any]]:
         """执行一步调度决策：根据 action 分配到经典/量子/混合资源并计算奖励。"""
@@ -486,6 +486,12 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
 
         # 本步总奖励 = 执行收益 + 队列等待惩罚 + 资源利用率惩罚
         reward = 0.0
+
+        # Issue #522 性能优化：本步只构建一次观测并缓存复用。
+        # 原实现中 step() 兼容分支、_compute_execution_reward()、返回值各调用一次
+        # _get_observation()，单步共 3 次观测构建（含 numpy 向量化加权平均），开销大。
+        # 缓存后保证单步内观测一致，并将构建次数降为 1。
+        obs = self._get_observation()
 
         if self._current_task is not None:
             task = self._current_task
@@ -526,7 +532,7 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
                         )
                     else:
                         # 混合动作：降级为经典执行，避免系统空转
-                        reward += self._compute_execution_reward(task, ACTION_CLASSICAL, rng)
+                        reward += self._compute_execution_reward(task, ACTION_CLASSICAL, rng, obs)
                         self._total_scheduled += 1
                         self._classical_success += 1
                         self._last_selected_machine = None
@@ -535,12 +541,13 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
                             f"混合任务{task.task_id}降级为经典执行，reward={reward:.2f}"
                         )
                 else:
-                    # 兼容分配：计算执行奖励
-                    obs = self._get_observation()
+                    # 兼容分配：计算执行奖励（复用步首缓存的 obs，避免重复构建观测）
                     crosstalk_risk = obs[OBS_CROSSTALK_RISK]
                     crosstalk_penalty = crosstalk_risk * 2.0
 
-                    reward += self._compute_execution_reward(task, action, rng) - crosstalk_penalty
+                    reward += (
+                        self._compute_execution_reward(task, action, rng, obs) - crosstalk_penalty
+                    )
                     self._total_scheduled += 1
 
                     # 构建观测快照（Issue #234）：记录关键状态字段用于因果追溯
@@ -625,7 +632,11 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
             self._consecutive_idle_steps >= idle_termination_threshold
         )
 
-        return self._get_external_observation(), reward, terminated, truncated, self._get_info()
+        # Issue #522: 步首缓存的 obs 用于奖励计算，步尾重新构建观测以反映
+        # advance_time 后的状态（如 arrival_rate_ma 已更新），保证返回给 Agent
+        # 的观测与原始实现语义一致（原实现返回 advance_time 后的观测）。
+        return_obs = self._get_observation()
+        return return_obs, reward, terminated, truncated, self._get_info()
 
     # -- 薄包装方法：委托给子模块，保留实例方法签名以兼容现有测试 --
 
@@ -725,8 +736,17 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
     def _recompute_aggregate(self) -> None:
         recompute_aggregate(self)
 
-    def _compute_execution_reward(self, task: Task, action: int, rng: np.random.Generator) -> float:
-        crosstalk_risk = self._get_observation()[OBS_CROSSTALK_RISK]
+    def _compute_execution_reward(
+        self,
+        task: Task,
+        action: int,
+        rng: np.random.Generator,
+        obs: NDArray[Any] | None = None,
+    ) -> float:
+        # Issue #522: 优先复用步首缓存的观测，避免在奖励计算中重复调用 _get_observation()
+        if obs is None:
+            obs = self._get_observation()
+        crosstalk_risk = obs[OBS_CROSSTALK_RISK]
         crosstalk_penalty = crosstalk_risk * 2.0  # 惩罚因子可调
 
         return compute_execution_reward(
@@ -748,15 +768,7 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
         pick_next_task(self)
 
     def _get_observation(self) -> NDArray[Any]:
-        """返回完整观测向量（内部使用，始终为 OBS_DIM 维）。"""
         return get_observation(self)
-
-    def _get_external_observation(self) -> NDArray[Any]:
-        """返回对外观测向量（Issue #585：根据 _observation_dim 截断）。"""
-        obs = self._get_observation()
-        if self._observation_dim is not None and self._observation_dim < OBS_DIM:
-            return obs[: self._observation_dim]
-        return obs
 
     def _get_info(self) -> dict[str, Any]:
         return get_info(self)
