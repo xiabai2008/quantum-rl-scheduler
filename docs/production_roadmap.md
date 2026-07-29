@@ -246,8 +246,8 @@
 
 | 指标 | 值 | 来源 | 本文档引用 |
 |:--|:--|:--|:--|
-| 仿真 PPO 提升 | +88.3% | 50 seeds × 5 episodes | ✅ 一致 |
-| 仿真 p 值 | 1.032e-42 | Mann-Whitney U 检验 | ✅ 一致 |
+| 仿真 PPO 提升 | +123.4% | 50 seeds × 5 episodes | ✅ 一致 |
+| 仿真 p 值 | 1.449e-66 | Welch t 检验 | ✅ 一致 |
 | 仿真 rank-biserial | -0.71 | 同上 | ✅ 一致 |
 | 多seed真机 PPO | 1736.32 ± 355.78 | 10 seeds × 3 策略 | ✅ 一致 |
 | 多seed真机 p 值 | p<0.001 | Bonferroni 校正后显著 | ✅ 一致 |

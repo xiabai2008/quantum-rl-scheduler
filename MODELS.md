@@ -1,6 +1,6 @@
 # 权威模型检查点归档（MODELS.md）
 
-> 本文件说明本项目**可提交的训练好的模型检查点**，用于保证评审在克隆仓库后能复现论文中的实验结果（PPO vs FCFS +88.3% 等）。
+> 本文件说明本项目**可提交的训练好的模型检查点**，用于保证评审在克隆仓库后能复现论文中的实验结果（PPO vs FCFS +123.4% 等）。
 > 最后更新：2026-07-28
 
 ## 为什么需要本目录
@@ -57,12 +57,12 @@ python scripts/evaluation/ablation_ppo_variants.py
 
 | 指标 | 数值 | 统计检验 |
 |:--|:--|:--|
-| PPO vs FCFS 提升 | **+88.3%** | Mann-Whitney U, p=1.032e-42, rank-biserial=-0.7081（14维权威实验, N=250, config/statistics.yaml） |
+| PPO vs FCFS 提升 | **+123.4%** | Welch t, p=1.449e-66, Cohen's d=-2.1353（16维权威实验, N=250, config/statistics.yaml） |
 | 编译层PPO vs SABRE | 公平对比v2（4×4 2D网格, 60电路同池配对, Issue #451） | 深电路SWAP减少~33%（n=20, p=0.29不显著）；整体p=0.86不显著 |
 | 2D网格拓扑优势 | SABRE在2D网格上SWAP比线性链少~62% | 拓扑消融实验（ablation_compilation_env.py） |
 | 真机验证 | 315次SDK调用100%成功率 | 可用性验证 |
 
-> **注意**：+88.3%权威数字基于14维模型+旧奖励参数的50seed实验（N=250）。16维模型需以相同protocol跑N=250多seed评估以更新权威口径，当前16维模型用于交付兼容性修复。
+> **注意**：+123.4% 权威数字基于16维交付模型 ppo_best_model_16dim.zip（v9.1+，OBS_DIM=16，50seed×5episodes=250次独立运行），已在 config/statistics.yaml 中锁定。
 
 ## 训练脚本索引
 

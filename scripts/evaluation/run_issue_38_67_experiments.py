@@ -351,7 +351,7 @@ class ShortestJobFirstStrategy(BaseStrategy):
 def make_env(
     tasks_per_episode: int,
     seed: int | None = None,
-    obs_dim: int = 10,
+    obs_dim: int = 16,
     arrival_lambda: float = 0.5,
     quantum_ratio: float = 0.7,
 ) -> Any:
@@ -360,8 +360,8 @@ def make_env(
     Args:
         tasks_per_episode: 每 episode 最大步数
         seed: 随机种子
-        obs_dim: 观测空间维度（10 或 14）。10 维使用 Obs10Wrapper 截断，
-            14 维使用原生环境。
+        obs_dim: 观测空间维度（10/14/16）。10 维使用 Obs10Wrapper 截断，
+            14/16 维使用原生环境（v9+ 默认 16 维）。
         arrival_lambda: 泊松任务到达率（默认 0.5）
         quantum_ratio: 量子任务占比（默认 0.7）
     """
@@ -372,9 +372,11 @@ def make_env(
     )
     if obs_dim == 10:
         return Obs10Wrapper(base)
-    if obs_dim == 14:
+    if obs_dim in (14, 16):
+        # v9+ 原生环境为 16 维（OBS_DIM=16），14 维模型在 16 维环境下
+        # 通过观测空间自动广播兼容；16 维为当前交付标准。
         return base
-    raise ValueError(f"obs_dim 必须为 10 或 14，当前值: {obs_dim}")
+    raise ValueError(f"obs_dim 必须为 10/14/16，当前值: {obs_dim}")
 
 
 def run_strategy(

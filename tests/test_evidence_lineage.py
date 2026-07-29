@@ -28,9 +28,9 @@ from scripts.ci.evidence_lineage import (
 # ---------------------------------------------------------------------------
 SAMPLE_METRIC_TEXT = """# 策略对比报告
 
-PPO 平均奖励：2746.94，标准差 1121.19
-FCFS 平均奖励：1458.77，标准差 55.85
-PPO 相对 FCFS 提升 +88.3%
+PPO 平均奖励：2348.91，标准差 1121.19
+FCFS 平均奖励：1051.59，标准差 55.85
+PPO 相对 FCFS 提升 +123.4%
 统计显著性 p=3.04e-11，Cohen's d=-1.70
 样本量 N=250
 """
@@ -44,7 +44,7 @@ Linux: /home/username/project/file.py
 
 SAMPLE_CLEAN_TEXT = """# 干净文档
 
-PPO 平均奖励 2746.94，相对 FCFS 提升 +88.3%。
+PPO 平均奖励 2348.91，相对 FCFS 提升 +123.4%。
 没有任何本机路径泄漏。
 """
 
@@ -60,7 +60,7 @@ class TestMetricOccurrence:
             metric_name="PPO 平均奖励",
             file_path="docs/test.md",
             line_number=1,
-            line_content="PPO: 2746.94",
+            line_content="PPO: 2348.91",
         )
         assert occ.commit == ""
         assert occ.author == ""
@@ -142,7 +142,7 @@ class TestFindMetricOccurrences:
 
     def test_line_numbers_correct(self) -> None:
         occurrences = find_metric_occurrences(SAMPLE_METRIC_TEXT, "docs/test.md")
-        # PPO 2746.94 在第 3 行
+        # PPO 2348.91 在第 3 行
         ppo_occs = [occ for occ in occurrences if occ.metric_name == "PPO 平均奖励"]
         assert ppo_occs[0].line_number == 3
 
@@ -158,8 +158,8 @@ class TestFindMetricOccurrences:
             assert occ.file_path == "custom/path.md"
 
     def test_line_content_stripped(self) -> None:
-        occurrences = find_metric_occurrences("  PPO: 2746.94  \n", "a.md")
-        assert occurrences[0].line_content == "PPO: 2746.94"
+        occurrences = find_metric_occurrences("  PPO: 2348.91  \n", "a.md")
+        assert occurrences[0].line_content == "PPO: 2348.91"
 
 
 # ---------------------------------------------------------------------------

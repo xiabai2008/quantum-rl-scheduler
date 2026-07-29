@@ -48,7 +48,7 @@
 | v5 | 多机器调度 + 真机验证 | 多机器 PPO 奖励 +4,294（+86.3%），17 个任务成功提交天衍云真机 |
 | v6 | MAPPO 多智能体 + 异步退火闭环 + 16维状态 + 多目标奖励 | 新增 ~3,600 行代码 + 71 测试用例 |
 | v7 | ruff 142→0 + mypy 26→0 + CI全严格阻断 + 覆盖率门槛提升至80%（实际91%） | 49个测试文件1663+用例，CI lint/typecheck从baseline升级为strict |
-| v8 | 50seed N=250验证 + 多seed真机实验 | PPO=2746.94±1160.72, +88.3%, p=1.032e-42, rank-biserial=-0.71；多seed真机PPO=1736.32±355.78 vs FCFS=383.00±49.13, d=5.33（效应量异常大，小样本探索性结果，需进一步验证）| | FCFS: 1458.77±60.47
+| v8 | 50seed N=250验证 + 多seed真机实验 | PPO=2348.91±857.25, +123.4%, p=1.449e-66, Cohen's d=-2.1353；多seed真机PPO=1736.32±355.78 vs FCFS=383.00±49.13, d=5.33（效应量异常大，小样本探索性结果，需进一步验证）| | FCFS: 1051.59±58.34
 | v9 | **Dynamic QEM + Crosstalk-Aware + Sequence-Aware (LSTM)** | 状态空间扩充至 **16维**（新增串扰风险、任务到达率MA），动作空间扩充至 **4维**（新增量子误差缓释动作）。实现空间并发与 LSTM 时序流量感知。 |
 
 ---
@@ -1105,9 +1105,9 @@ PYTHONUTF8=1 python -m mypy src
 # 退火性能基准
 pytest tests/benchmarks/test_annealing_benchmark.py --benchmark-only
 
-# 8 策略对比（多 Seed 权威结果）
-# 排名：PPO(2746.94) > SJF(1462.39) > FCFS(1458.77) > Random(1217.08)
-#       > Greedy(-71.87) > DQN(1527.65)/Quantum-Only(-920.54) > Classical-Only(-1134.35)
+# 8 策略对比（多 Seed 权威结果，16维交付模型）
+# 排名：PPO(2348.91) > SJF(1060.30) > FCFS(1051.59) > DQN/Random(891.53)
+#       > Greedy(-134.18) > Quantum-Only(-940.56) > Classical-Only(-1128.79)
 ```
 
 ---

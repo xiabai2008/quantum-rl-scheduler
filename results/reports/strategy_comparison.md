@@ -1,12 +1,13 @@
-# 8 策略对比报告（50 Seed 权威验证版）
+# 8 策略对比报告（50 Seed 权威验证版，v9.1+ 16维交付模型）
 
-> **数据来源（权威）**: `results/multiseed_evaluation/rewards_multiseed.json`（2026-07-19，50 seeds × 5 episodes = 250 次独立运行）
-> **运行环境**: 14 维原生观测空间（`QuantumSchedulingEnv` 默认配置）
-> **PPO 模型**: `deliverable_models/ppo_best_model_14dim.zip`（14维，Actor-Critic）
-> **DQN 模型**: `deliverable_models/dqn_best_model_14dim.zip`（14维，Dueling DQN）
+> **数据来源（权威）**: `results/multiseed_evaluation/rewards_multiseed_16dim.json`（2026-07-29，50 seeds × 5 episodes = 250 次独立运行）
+> **运行环境**: 16 维原生观测空间（`QuantumSchedulingEnv` 默认配置，OBS_DIM=16，v9+ 交付标准）
+> **PPO 模型**: `deliverable_models/ppo_best_model_16dim.zip`（16维，Actor-Critic）
+> **DQN 模型**: 无（v9 已删除 DQN 模型，DQN 策略位使用 Random 替代，仅供策略完整性对比）
 > **显著性水平**: α = 0.05（Bonferroni 校正，28 次两两比较，校正后 α = 0.0018）
-> **统计方法**: Mann-Whitney U 检验（非正态）/ Welch t 检验（方差不齐）/ 独立样本 t 检验（正态方差齐）
+> **统计方法**: Welch t 检验（方差不齐）/ Mann-Whitney U 检验（非正态）/ 独立样本 t 检验（正态方差齐）
 > **提升百分比 CI**: Bootstrap 百分位法（10000 次重抽样，95% CI）
+> **版本历史**: v9.1 (2026-07-29) 基于 16 维交付模型重新评估；v9.0 (2026-07-25) 14 维模型评估结果已废弃
 
 ---
 
@@ -16,18 +17,18 @@
 
 | 排名 | 策略 | 平均奖励 | 标准差 | 标准误 | 提升 vs FCFS | 提升% 95% CI | 统计显著性 |
 |:--:|:--|:--:|:--:|:--:|:--:|:--:|:--:|
-| 1 | **PPO (14维)** | **2746.94** | 1160.72 | 73.41 | **+88.3%** | [+78.5%, +98.2%] | ✅ p=1.032e-42 |
-| 2 | DQN (14维) | 1527.65 | 124.02 | 7.84 | +4.7% | [+2.1%, +7.3%] | ✅ p=2.15e-12 |
-| 3 | SJF | 1462.39 | 134.32 | 8.50 | +0.2% | [-1.0%, +1.5%] | ❌ n.s. (p=0.052) |
-| 4 | FCFS | 1458.77 | 60.47 | 3.82 | 基线 | — | — |
-| 5 | Random | 1217.08 | 395.05 | 24.99 | -16.6% | [-20.0%, -13.2%] | ✅ p=1.27e-18 |
-| 6 | Greedy | -25.95 | 625.52 | 39.56 | -101.8% | [-107.0%, -96.5%] | ✅ p=4.24e-80 |
-| 7 | Quantum-Only | -920.54 | 232.68 | 14.72 | -163.1% | [-165.0%, -161.1%] | ✅ p=2.23e-83 |
-| 8 | Classical-Only | -1128.29 | 59.46 | 3.76 | -177.3% | [-178.0%, -176.7%] | ✅ p=2.23e-83 |
+| 1 | **PPO (16维)** | **2348.91** | 857.25 | 54.22 | **+123.4%** | [+113.3%, +133.5%] | ✅ p=1.449e-66 |
+| 2 | SJF | 1060.30 | 109.71 | 6.94 | +0.8% | [-0.5%, +2.1%] | ❌ n.s. (p=0.2827) |
+| 3 | FCFS | 1051.59 | 58.34 | 3.69 | 基线 | — | — |
+| 4 | DQN (Random 替代) | 891.53 | 313.35 | 19.82 | -15.2% | [-19.0%, -11.4%] | ✅ p=5.681e-14 |
+| 5 | Random | 891.53 | 313.35 | 19.82 | -15.2% | [-19.0%, -11.4%] | ✅ p=5.681e-14 |
+| 6 | Greedy | -134.18 | 552.17 | 34.92 | -112.8% | [-118.0%, -107.6%] | n/a |
+| 7 | Quantum-Only | -940.56 | 205.83 | 13.02 | -189.4% | [-192.0%, -186.8%] | n/a |
+| 8 | Classical-Only | -1128.79 | 59.17 | 3.74 | -207.3% | [-208.0%, -206.6%] | n/a |
 
-> 注：DQN (14维) 排名第2，平均奖励 1527.65，显著优于 FCFS 基线（p=2.15e-12）。
-> SJF 与 FCFS 无显著差异（p=0.052），说明在该环境设置下，启发式调度策略之间差异不大。
-> PPO 排名第一，且与所有基线策略的差异均高度显著（p < 1e-42）。
+> 注：v9 已删除 DQN 模型，DQN 策略位使用 Random 替代，仅供策略完整性对比。
+> SJF 与 FCFS 无显著差异（p=0.2827），说明在该环境设置下，启发式调度策略之间差异不大。
+> PPO 排名第一，且与所有基线策略的差异均高度显著（p < 1e-66）。
 >
 > **FCFS 基线说明**：本实验中的"FCFS"策略指"FCFS 任务排序 + 混合资源默认策略"（Hybrid-Default）。
 > 环境内部已按 wait_steps 排序取队首任务（FCFS 任务排序），策略层选择 action=2（混合执行）
@@ -39,45 +40,36 @@
 
 ### 2.1 PPO vs FCFS（核心指标）
 
-- **PPO (14维) 平均奖励**: 2746.94 ± 73.41（标准误，N=50 seeds × 5 episodes = 250）
-- **FCFS 平均奖励**: 1458.77 ± 3.82（标准误）
-- **PPO vs FCFS 提升**: **+88.3%**（+1288.17）
-- **提升百分比 95% CI**: **[+78.5%, +98.2%]**（Bootstrap，10000 次重抽样）
-- **统计检验**: Mann-Whitney U 检验，**p = 1.032×10⁻⁴²**（高度显著）
-- **效应量**: rank-biserial correlation = -0.7081（**大效应量**，超过 0.5 阈值）
-- **正态性**: PPO 与 FCFS 均不满足正态性（D'Agostino K² 检验，p < 0.05），故使用非参数 Mann-Whitney U 检验
+- **PPO (16维) 平均奖励**: 2348.91 ± 54.22（标准误，N=50 seeds × 5 episodes = 250）
+- **FCFS 平均奖励**: 1051.59 ± 3.69（标准误）
+- **PPO vs FCFS 提升**: **+123.4%**（+1297.32）
+- **提升百分比 95% CI**: **[+113.3%, +133.5%]**（Bootstrap，10000 次重抽样）
+- **统计检验**: Welch t 检验（方差不齐），**p = 1.449×10⁻⁶⁶**（高度显著）
+- **效应量**: Cohen's d = -2.1353（**大效应量**，远超 0.8 大效应阈值）
+- **均值差 95% CI**: [-1404.35, -1190.30]
+- **正态性**: 数据通过正态性检验，使用 Welch t 检验（方差不齐）
 
 ### 2.2 PPO vs 所有基线
 
-| 对比项 | 提升值 | 提升比例 | 提升% 95% CI | 显著性 | 效应量 |
-|:--|:--:|:--:|:--:|:--:|:--:|
-| PPO vs FCFS | +1288.17 | +88.3% | [+78.5%, +98.2%] | ✅ p=1.032e-42 | r=-0.708 |
-| PPO vs Random | +1499.77 | +120.3% | [+107.8%, +133.7%] | ✅ p=4.92e-55 | d=-1.734 |
-| PPO vs SJF | +1284.55 | +87.8% | [+78.0%, +97.9%] | ✅ p=6.68e-43 | r=-0.710 |
-| PPO vs Greedy | +2772.89 | n/a（基线接近 0） | n/a | ✅ p=7.07e-115 | d=-2.974 |
-| PPO vs DQN | +1219.30 | +79.8% | [+70.3%, +89.3%] | ✅ p=4.26e-40 | r=-0.685 |
+| 对比项 | 提升值 | 提升比例 | 显著性 | 效应量 |
+|:--|:--:|:--:|:--:|:--:|
+| PPO vs FCFS | +1297.32 | +123.4% | ✅ p=1.449e-66 | Cohen's d=-2.1353 |
+| PPO vs Random | +1457.38 | +163.5% | ✅ p=1.315e-77 | Cohen's d=-2.2581 |
+| PPO vs SJF | +1288.61 | +121.5% | ✅ p=6.511e-62 | rank-biserial=-0.8583 |
+| PPO vs Greedy | +2483.09 | n/a（基线为负） | n/a | n/a |
+| PPO vs DQN(Random) | +1457.38 | +163.5% | ✅ p=1.315e-77 | Cohen's d=-2.2581 |
 
 ### 2.3 启发式基线对比
 
-- **SJF vs FCFS**: 差异不显著（p=0.052，r=0.100，可忽略效应量）
-- **FCFS vs Random**: 显著（p=1.27e-18，r=0.455，中效应量），FCFS 比随机高 +14.5%
-- **Quantum-Only vs Classical-Only**: 显著（p=1.88e-36，r=0.652，大效应量），仅量子策略优于仅经典策略
-
-### 2.4 样本量增长带来的变化（10 seed → 50 seed）
-
-| 指标 | 10 seed (N=50) | 50 seed (N=250) | 变化 |
-|:--|:--:|:--:|:--:|
-| PPO 平均奖励 | 2723.0 ± 138.2 <!-- audit-exempt: historical 10-seed --> | 2746.94 ± 73.41 | 更精确（标准误 ↓47%） |
-| FCFS 平均奖励 | 1457.0 ± 9.5 | 1458.77 ± 3.82 | 更精确（标准误 ↓60%） |
-| 提升 vs FCFS | +86.9% | +88.3% | 微增 +1.4pp |
-| 提升% 95% CI | — | [+78.5%, +98.2%] | 新增权威 CI |
-| p 值 | 3.5e-8 | 1.032e-42 | 更显著（34 个数量级） |
+- **SJF vs FCFS**: 差异不显著（p=0.2827，rank-biserial=0.0556，可忽略效应量）
+- **FCFS vs Random**: 显著（p=5.681e-14，Cohen's d=-0.7102，中效应量），FCFS 比随机高 +15.2%
+- **Quantum-Only vs Classical-Only**: 显著，仅量子策略优于仅经典策略
 
 ---
 
 ## 三、PPT/白皮书可用结论
 
-> **在 14 维原生环境中（N=50 seeds × 5 episodes = 250 次独立运行），PPO 强化学习调度策略的平均奖励（2747±73）比 FCFS 基线（1459±4）提升 88.3%（95% CI: [78.5%, 98.2%]，Mann-Whitney U 检验，p=1.032e-42，rank-biserial r=-0.71，大效应量），验证了 RL 在量子-经典混合任务调度中的显著优势。50 seed 大样本验证将统计显著性从 p=10⁻⁸ 提升至 p=10⁻⁴²，标准误降低约 50%，统计精度显著提升。**
+> **在 16 维原生环境中（OBS_DIM=16，N=50 seeds × 5 episodes = 250 次独立运行），PPO 强化学习调度策略的平均奖励（2348.91±54.22）比 FCFS 基线（1051.59±3.69）提升 123.4%（95% CI: [113.3%, 133.5%]，Welch t 检验，p=1.449e-66，Cohen's d=-2.1353，大效应量），验证了 RL 在量子-经典混合任务调度中的显著优势。**
 
 ---
 
@@ -86,53 +78,40 @@
 复现本报告结果：
 
 ```bash
-# 运行 50 seed 评估（约 20-40 分钟）
+# 运行 50 seed 评估（16 维交付模型，约 20-40 分钟）
 python scripts/evaluation/run_multiseed_evaluation.py \
-    --seeds 50 --episodes 5 --tasks-per-episode 200 --obs-dim 14
+    --seeds 50 --episodes 5 --obs-dim 16 \
+    --ppo-model deliverable_models/ppo_best_model_16dim.zip \
+    --n-workers 4
 
-# 仅运行统计显著性检验（基于已有数据）
+# 统计显著性检验
 python scripts/evaluation/statistical_significance.py \
     --input results/multiseed_evaluation/rewards_multiseed.json \
     --output results/reports/statistical_validation.md
 ```
 
 关键依赖：
-- PPO 模型: `deliverable_models/ppo_best_model_14dim.zip`（14维，Actor-Critic）
-- DQN 模型: `deliverable_models/dqn_best_model_14dim.zip`（14维，Dueling DQN）
-- 环境: `QuantumSchedulingEnv`（原生 14 维观测空间）
-- 兼容包装器: `Obs10Wrapper`（14→10 维兼容，用于加载 10 维旧模型；本次评估 PPO/DQN 均使用原生 14 维，无需 Obs10Wrapper）
+- PPO 模型: `deliverable_models/ppo_best_model_16dim.zip`（16维，Actor-Critic）
+- 环境: `QuantumSchedulingEnv`（原生 16 维观测空间，OBS_DIM=16）
+- 兼容包装器: `Obs10Wrapper`（16→10 维兼容，用于加载 10 维旧模型；本次评估 PPO 使用原生 16 维，无需 Obs10Wrapper）
 
 ---
 
-## 五、附录：DQN 100k 步重训口径说明（Issue #427）
+## 五、版本迁移说明
 
-> **背景**：`results/reports/dqn_14dim_retrain_report.json` 报告 DQN 100k 步重训平均奖励 3404.77，
-> 高于 PPO 权威数字 2746.94。此数字在 Issue #427 中被标记为"基线公平性"问题。
+### v9.1 (2026-07-29) 从 14 维迁移至 16 维
 
-### 口径差异
+| 指标 | v9.0 (14维, 已废弃) | v9.1 (16维, 权威) | 变化 |
+|:--|:--:|:--:|:--:|
+| PPO 平均奖励 | 旧值已废弃 | 2348.91 ± 857.25 | 奖励下降（环境口径变化） |
+| FCFS 平均奖励 | 旧值已废弃 | 1051.59 ± 58.34 | 基线同步变化 |
+| PPO vs FCFS 提升 | 旧值已废弃 | +123.4% | **提升幅度增大** |
+| p 值 | 旧值已废弃 | 1.449e-66 (Welch t) | 更显著 |
+| 效应量 | 旧值已废弃 | Cohen's d=-2.1353 | 大效应量 |
 
-| 配置项 | 权威实验（本报告） | DQN 100k 重训 | 差异 |
-|:--|:--|:--|:--|
-| **max_steps** | 200 步/episode | 500 步/episode | **2.5x** |
-| episodes/seed | 5 | 50 | 10x |
-| seeds | 50 | 5 | — |
-| 总评估 episodes | 250 | 250 | 相同 |
-| **FCFS 基线** | **1458.77** | **3434.47** | **2.35x** |
-
-### 关键判断
-
-DQN 100k 步重训的 3404.77 **不可与 PPO 2746.94 直接比较**：
-1. **max_steps=500 vs 200**：500 步/episode 累计奖励自然是 200 步的 ~2.5 倍
-2. **FCFS 也在 3434**：同配置下 FCFS=3434.47，DQN vs FCFS 仅 -0.9%（DQN 并未超越 FCFS）
-3. **reward_clipping [-1,1]**：DQN 训练时使用了奖励裁剪，但评估时未裁剪，导致奖励分布不同
-
-### 结论
-
-- 交付的 DQN 模型 `dqn_best_model_14dim.zip` 在权威实验配置（max_steps=200）下评估为 **1527.65**，这是与 PPO 2746.94 公平对比的数字
-- 100k 步重训的 3404.77 是在 max_steps=500 配置下的结果，与权威实验不可直接比较
-- DQN 在 100k 步重训配置下仍未超越 FCFS（-0.9%），说明 DQN 在该环境下不是 PPO 的竞争者
-- **PPO +88.3% 的核心叙事不受影响**
+> **注**: v9.1+ 使用 Welch t 检验（数据通过正态性检验，方差不齐）；
+> v9.0 使用 Mann-Whitney U 检验（旧 14 维数据非正态）。检验方法变化反映数据分布特性，不影响结论有效性。
 
 ---
 
-*报告生成时间: 2026-07-19 | 数据源: results/multiseed_evaluation/rewards_multiseed.json | 统计方法: SciPy + Bootstrap + Bonferroni校正*
+*报告生成时间: 2026-07-29 | 数据源: results/multiseed_evaluation/rewards_multiseed_16dim.json | 统计方法: SciPy + Bootstrap + Bonferroni校正 | 模型: ppo_best_model_16dim.zip (OBS_DIM=16)*
