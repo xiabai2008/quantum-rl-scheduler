@@ -10,13 +10,15 @@ Decision Explainability Tracking Module
 - DecisionExplainer : 决策解释器（贡献度计算、文本格式化、异常检测、会话汇总）
 - DecisionLogger    : 决策日志记录器（JSONL 持久化，UTF-8 编码）
 
-贡献度算法（简化方法，不依赖 shap/lime 等外部库）：
-- 有 q_values 时：contribution[i] = |state[i] * advantage| 归一化
-                  advantage = q_values[action] - mean(q_values)
-                  （选中动作相对平均的优势越大，整体贡献度越集中）
-- 无 q_values 时：contribution[i] = |z_score[i]| 归一化
-                  z_score[i] = (state[i] - mean(state)) / std(state)
-                  （状态偏离均值越远，对该决策的解释力越强）
+贡献度算法（两种模式）：
+- heuristic（默认）：取绝对值，贡献度恒非负
+    - 有 q_values 时：contribution[i] = |state[i] * advantage| 归一化
+                      advantage = q_values[action] - mean(q_values)
+    - 无 q_values 时：contribution[i] = |z_score[i]| 归一化
+                      z_score[i] = (state[i] - mean(state)) / std(state)
+- shap（Issue #596）：保留正/负方向，可区分特征对决策的推动/抑制
+    - shap 库可用且提供 predict_fn 时：使用 SHAP Explainer 精确计算
+    - 否则回退到方向感知启发式（不取绝对值），仍能区分正/负方向
 
 使用示例：
     from src.scheduler.explainability import DecisionExplainer, DecisionLogger
@@ -24,7 +26,7 @@ Decision Explainability Tracking Module
 
     explainer = DecisionExplainer()
     record = explainer.explain(
-        state=np.random.rand(16), action=1, q_values=np.array([1.0, 3.0, 2.0]),
+        state=np.random.rand(17), action=1, q_values=np.array([1.0, 3.0, 2.0]),
         action_prob=0.85, step=10,
     )
     print(explainer.format_explanation(record, top_k=5))
@@ -46,7 +48,7 @@ from numpy.typing import NDArray
 # 常量定义
 # ---------------------------------------------------------------------------
 
-# 状态空间 16 维特征名（与 env_types.py 的 OBS_* 常量严格对应）
+# 状态空间 17 维特征名（与 env_types.py 的 OBS_* 常量严格对应）
 STATE_FEATURE_NAMES: list[str] = [
     "量子比特可用率",  # OBS_QUBIT_AVAILABILITY = 0
     "队列长度",  # OBS_QUEUE_LENGTH = 1
@@ -64,26 +66,8 @@ STATE_FEATURE_NAMES: list[str] = [
     "平均连通度",  # OBS_AVG_CONNECTIVITY = 13
     "串扰风险",  # OBS_CROSSTALK_RISK = 14
     "到达率MA",  # OBS_ARRIVAL_RATE_MA = 15
+    "公平性指数",  # OBS_FAIRNESS_INDEX = 16（Issue #588，Jain 多租户等待公平性）
 ]
-
-# Issue #588: 公平性观测特征名（可选第17维，仅在 include_fairness_obs=True 时使用）
-STATE_FEATURE_NAME_FAIRNESS: str = "公平性指数"
-
-
-def get_state_feature_names(include_fairness: bool = False) -> list[str]:
-    """返回状态空间特征名列表（Issue #588）。
-
-    Args:
-        include_fairness: 是否包含公平性指数特征（第17维）
-
-    Returns:
-        特征名列表，默认 16 维，``include_fairness=True`` 时返回 17 维
-    """
-    names = list(STATE_FEATURE_NAMES)
-    if include_fairness:
-        names.append(STATE_FEATURE_NAME_FAIRNESS)
-    return names
-
 
 # 异常决策检测：低置信度阈值（action_prob 低于此值视为异常）
 _LOW_CONFIDENCE_THRESHOLD: float = 0.3
@@ -104,7 +88,7 @@ class DecisionRecord:
 
     Attributes:
         step                 : 决策步序号
-        state                : 决策时的状态向量（16维）
+        state                : 决策时的状态向量（17维）
         action               : 选择的动作编号
         action_prob          : 动作概率/置信度（0-1）
         q_values             : 各动作的 Q 值（DQN 可用，PPO 可为 None）
@@ -181,26 +165,46 @@ class DecisionExplainer:
     基于状态向量与（可选）Q 值，计算各特征对决策的贡献度，
     并提供文本格式化、特征重要性聚合、异常检测、会话汇总等能力。
 
-    贡献度算法（简化方法）：
-        - 有 q_values : contribution[i] = |state[i] * advantage| 归一化
-                        advantage = q_values[action] - mean(q_values)
-        - 无 q_values : contribution[i] = |z_score[i]| 归一化
-                        z_score[i] = (state[i] - mean) / std
+    贡献度算法（两种模式）：
+        - heuristic（默认）：取绝对值，贡献度恒非负
+            - 有 q_values : contribution[i] = |state[i] * advantage| 归一化
+            - 无 q_values : contribution[i] = |z_score[i]| 归一化
+        - shap（Issue #596）：保留正/负方向
+            - shap 库 + predict_fn 可用时：SHAP Explainer 精确计算
+            - 否则回退到方向感知启发式（不取绝对值）
 
     Attributes:
         feature_names: 状态空间各维度的特征名列表
+        method        : 贡献度计算方法，"heuristic" 或 "shap"
     """
 
-    def __init__(self, feature_names: list[str] | None = None) -> None:
+    def __init__(
+        self,
+        feature_names: list[str] | None = None,
+        method: str = "heuristic",
+    ) -> None:
         """
         初始化决策解释器。
 
         Args:
-            feature_names: 状态空间特征名列表，为 None 时使用默认 16 维特征名
+            feature_names: 状态空间特征名列表，为 None 时使用默认 17 维特征名
+            method        : 贡献度计算方法，"heuristic"（默认）或 "shap"
         """
         self.feature_names: list[str] = (
             list(feature_names) if feature_names is not None else list(STATE_FEATURE_NAMES)
         )
+        self.method: str = method
+        self._shap_available: bool = self._check_shap_available()
+
+    @staticmethod
+    def _check_shap_available() -> bool:
+        """检查 shap 库是否已安装。"""
+        try:
+            import shap  # noqa: F401
+
+            return True
+        except ImportError:
+            return False
 
     def explain(
         self,
@@ -209,6 +213,7 @@ class DecisionExplainer:
         q_values: NDArray[Any] | None = None,
         action_prob: float = 1.0,
         step: int = 0,
+        predict_fn: Any | None = None,
     ) -> DecisionRecord:
         """
         计算单步决策的特征贡献度并生成决策记录。
@@ -219,6 +224,7 @@ class DecisionExplainer:
             q_values    : 各动作 Q 值（可选，提供则使用 q_values 差分计算权重）
             action_prob : 动作概率/置信度，默认 1.0
             step        : 决策步序号，默认 0
+            predict_fn  : 预测函数（method="shap" 时使用），接受状态数组返回 Q 值/概率
 
         Returns:
             DecisionRecord 包含状态、动作、贡献度等完整信息
@@ -231,33 +237,11 @@ class DecisionExplainer:
         if q_values is not None:
             q_arr = np.asarray(q_values, dtype=np.float64).flatten()
 
-        # 计算原始贡献度
-        if q_arr is not None and len(q_arr) > 0:
-            # 有 q_values：用选中动作相对平均的优势作为权重
-            advantage = float(q_arr[action] - q_arr.mean())
-            weight = abs(advantage)
-            raw = np.abs(state_arr) * weight
+        # 根据 method 选择贡献度计算方式
+        if self.method == "shap":
+            contributions = self._compute_shap_values(state_arr, action, q_arr, predict_fn)
         else:
-            # 无 q_values：用 z-score 近似（偏离均值越远贡献越大）
-            mean = float(state_arr.mean()) if n > 0 else 0.0
-            std = float(state_arr.std()) if n > 0 else 0.0
-            if std > 1e-12:
-                raw = np.abs((state_arr - mean) / std)
-            else:
-                # 状态无方差（如全零/常量），退化为绝对值
-                raw = np.abs(state_arr)
-                if float(raw.sum()) <= 1e-12:
-                    # 全零状态：均匀分布
-                    raw = np.ones(n, dtype=np.float64)
-
-        # 归一化（和为 1）
-        total = float(raw.sum())
-        if total > 1e-12:
-            contributions = raw / total
-        elif n > 0:
-            contributions = np.full(n, 1.0 / n, dtype=np.float64)
-        else:
-            contributions = np.zeros(0, dtype=np.float64)
+            contributions = self._compute_heuristic_contributions(state_arr, action, q_arr)
 
         # 对齐特征名（长度不一致时补齐或截断）
         names = list(self.feature_names)
@@ -280,6 +264,137 @@ class DecisionExplainer:
             timestamp=datetime.now().isoformat(timespec="seconds"),
         )
 
+    def _compute_heuristic_contributions(
+        self,
+        state_arr: NDArray[Any],
+        action: int,
+        q_arr: NDArray[Any] | None,
+    ) -> NDArray[Any]:
+        """
+        启发式贡献度计算（取绝对值，贡献度恒非负）。
+
+        Args:
+            state_arr: 状态向量
+            action   : 选择的动作
+            q_arr    : Q 值数组（可选）
+
+        Returns:
+            归一化贡献度数组（非负，和为 1）
+        """
+        n = len(state_arr)
+
+        if q_arr is not None and len(q_arr) > 0:
+            advantage = float(q_arr[action] - q_arr.mean())
+            weight = abs(advantage)
+            raw = np.abs(state_arr) * weight
+        else:
+            mean = float(state_arr.mean()) if n > 0 else 0.0
+            std = float(state_arr.std()) if n > 0 else 0.0
+            if std > 1e-12:
+                raw = np.abs((state_arr - mean) / std)
+            else:
+                raw = np.abs(state_arr)
+                if float(raw.sum()) <= 1e-12:
+                    raw = np.ones(n, dtype=np.float64)
+
+        total = float(raw.sum())
+        if total > 1e-12:
+            return np.asarray(raw / total, dtype=np.float64)
+        elif n > 0:
+            return np.full(n, 1.0 / n, dtype=np.float64)
+        else:
+            return np.zeros(0, dtype=np.float64)
+
+    def _compute_shap_values(
+        self,
+        state_arr: NDArray[Any],
+        action: int,
+        q_arr: NDArray[Any] | None,
+        predict_fn: Any | None = None,
+    ) -> NDArray[Any]:
+        """
+        SHAP 贡献度计算（保留正/负方向，Issue #596）。
+
+        当 shap 库可用且提供 predict_fn 时，使用 SHAP Explainer 精确计算。
+        否则回退到方向感知启发式（不取绝对值），仍能区分正/负方向。
+
+        Args:
+            state_arr : 状态向量
+            action    : 选择的动作
+            q_arr     : Q 值数组（可选）
+            predict_fn: 预测函数，接受状态数组返回 Q 值/概率
+
+        Returns:
+            贡献度数组（可正可负），绝对值之和为 1
+        """
+        n = len(state_arr)
+
+        # 尝试使用 SHAP 库精确计算
+        if self._shap_available and predict_fn is not None:
+            try:
+                import shap
+
+                background = np.zeros((1, n))
+                explainer = shap.Explainer(predict_fn, background)
+                shap_values = explainer(np.array([state_arr]))
+                vals = np.asarray(shap_values.values)
+
+                if vals.ndim == 3:
+                    # 多输出：取选中动作的 SHAP 值
+                    raw = vals[0, :, action]
+                elif vals.ndim == 2:
+                    raw = vals[0]
+                else:
+                    raw = np.zeros(n, dtype=np.float64)
+            except Exception:
+                # SHAP 计算失败时回退到方向感知启发式
+                raw = self._directional_raw(state_arr, action, q_arr)
+        else:
+            # shap 库不可用或无 predict_fn：方向感知启发式
+            raw = self._directional_raw(state_arr, action, q_arr)
+
+        # 归一化：绝对值之和为 1，保留正/负方向
+        abs_sum = float(np.abs(raw).sum())
+        if abs_sum > 1e-12:
+            return raw / abs_sum
+        elif n > 0:
+            return np.full(n, 1.0 / n, dtype=np.float64)
+        else:
+            return np.zeros(0, dtype=np.float64)
+
+    @staticmethod
+    def _directional_raw(
+        state_arr: NDArray[Any],
+        action: int,
+        q_arr: NDArray[Any] | None,
+    ) -> NDArray[Any]:
+        """
+        方向感知原始贡献度（不取绝对值，保留正/负方向）。
+
+        Args:
+            state_arr: 状态向量
+            action   : 选择的动作
+            q_arr    : Q 值数组（可选）
+
+        Returns:
+            原始贡献度数组（可正可负，未归一化）
+        """
+        n = len(state_arr)
+
+        if q_arr is not None and len(q_arr) > 0:
+            advantage = float(q_arr[action] - q_arr.mean())
+            return state_arr * advantage
+        else:
+            mean = float(state_arr.mean()) if n > 0 else 0.0
+            std = float(state_arr.std()) if n > 0 else 0.0
+            if std > 1e-12:
+                return (state_arr - mean) / std
+            else:
+                raw = state_arr.copy()
+                if float(np.abs(raw).sum()) <= 1e-12:
+                    return np.ones(n, dtype=np.float64)
+                return raw
+
     def format_explanation(
         self,
         record: DecisionRecord,
@@ -289,6 +404,9 @@ class DecisionExplainer:
         """
         将决策记录格式化为可读文本。
 
+        SHAP 模式下始终标注正/负方向并按绝对值降序排序。
+        heuristic 模式下贡献度恒非负，不标注方向，按值降序排序。
+
         Args:
             record : 决策记录
             top_k  : 显示前 k 个影响因素，默认 5
@@ -296,12 +414,23 @@ class DecisionExplainer:
 
         Returns:
             格式化文本，例如：
-            "第N步选择动作A，主要影响因素：1.队列长度(高,值=0.850) 2.最大等待时间(中,值=0.620) ..."
+            "第N步选择动作A，主要影响因素：1.队列长度(高,正向,值=0.850) 2.最大等待时间(中,负向,值=0.620) ..."
         """
-        # 按贡献度降序排序后取前 top_k
-        sorted_items = sorted(
-            record.feature_contributions.items(), key=lambda kv: kv[1], reverse=True
-        )
+        # SHAP 模式始终显示方向标注并按绝对值排序
+        show_direction = self.method == "shap"
+
+        if show_direction:
+            # SHAP 模式：按绝对值降序排序
+            sorted_items = sorted(
+                record.feature_contributions.items(),
+                key=lambda kv: abs(kv[1]),
+                reverse=True,
+            )
+        else:
+            # heuristic 模式：按值降序排序
+            sorted_items = sorted(
+                record.feature_contributions.items(), key=lambda kv: kv[1], reverse=True
+            )
         top_items = sorted_items[: max(0, top_k)]
 
         # 均匀分布参考值，用于判定贡献等级
@@ -311,17 +440,25 @@ class DecisionExplainer:
         if lang == "en":
             parts: list[str] = []
             for idx, (name, contrib) in enumerate(top_items, start=1):
-                level = self._contribution_level(contrib, uniform)
+                level = self._contribution_level(abs(contrib), uniform)
                 state_value = self._state_value_by_name(record, name)
-                parts.append(f"{idx}.{name}({level},val={state_value:.3f})")
+                if show_direction:
+                    direction = "+" if contrib >= 0 else "-"
+                    parts.append(f"{idx}.{name}({level},{direction},val={state_value:.3f})")
+                else:
+                    parts.append(f"{idx}.{name}({level},val={state_value:.3f})")
             factors = " ".join(parts)
             return f"Step {record.step} chose action {record.action}. Key factors: {factors}"
 
         parts_zh: list[str] = []
         for idx, (name, contrib) in enumerate(top_items, start=1):
-            level = self._contribution_level(contrib, uniform)
+            level = self._contribution_level(abs(contrib), uniform)
             state_value = self._state_value_by_name(record, name)
-            parts_zh.append(f"{idx}.{name}({level},值={state_value:.3f})")
+            if show_direction:
+                direction = "正向" if contrib >= 0 else "负向"
+                parts_zh.append(f"{idx}.{name}({level},{direction},值={state_value:.3f})")
+            else:
+                parts_zh.append(f"{idx}.{name}({level},值={state_value:.3f})")
         factors = " ".join(parts_zh)
         return f"第{record.step}步选择动作{record.action}，主要影响因素：{factors}"
 
