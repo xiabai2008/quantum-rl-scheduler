@@ -154,6 +154,17 @@ def get_observation(env: "QuantumSchedulingEnv") -> NDArray[Any]:
             np.clip(env.current_time_window_arrivals / max_expected_arrival, 0.0, 1.0)
         )
 
+    # Issue #585: 消融实验截断观测（在公平性观测之前执行）
+    obs_dim = getattr(env, "_observation_dim", None)
+    if obs_dim is not None and obs_dim < len(obs):
+        obs = obs[:obs_dim]
+
+    # Issue #588: 可选公平性观测（仅在未截断模式下追加，保持与 observation_space 一致）
+    if getattr(env, "_include_fairness_obs", False) and (obs_dim is None or obs_dim >= OBS_DIM):
+        tracker = getattr(env, "_fairness_tracker", None)
+        jain_idx = tracker.jain_completion_fairness() if tracker is not None else 0.0
+        obs = np.append(obs, np.float32(jain_idx))
+
     return obs
 
 

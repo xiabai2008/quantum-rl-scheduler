@@ -35,7 +35,11 @@ from src.scheduler.env_real_machine import (
     submit_to_real_machine,
 )
 from src.scheduler.env_render import close_env, render_env
-from src.scheduler.env_reward import compute_execution_reward, compute_wait_penalty
+from src.scheduler.env_reward import (
+    compute_execution_reward,
+    compute_fairness_penalty,
+    compute_wait_penalty,
+)
 from src.scheduler.env_types import (
     ACTION_CLASSICAL,
     ACTION_HYBRID,
@@ -52,6 +56,7 @@ from src.scheduler.env_types import (
     OBS_COUPLING_DENSITY,
     OBS_CROSSTALK_RISK,
     OBS_DIM,
+    OBS_DIM_WITH_FAIRNESS,
     OBS_FIDELITY,
     OBS_QUANTUM_QUEUE_RATIO,
     OBS_QUBIT_AVAILABILITY,
@@ -101,6 +106,7 @@ __all__ = [
     "OBS_COUPLING_DENSITY",
     "OBS_CROSSTALK_RISK",
     "OBS_DIM",
+    "OBS_DIM_WITH_FAIRNESS",
     "OBS_FIDELITY",
     "OBS_QUANTUM_QUEUE_RATIO",
     "OBS_QUBIT_AVAILABILITY",
@@ -164,6 +170,8 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
         quantum_task_ratio: float | None = None,
         real_machine_max_qubits: int = FREE_TIER_MAX_QUBITS,
         noise_profile: str | dict[str, Any] | None = None,
+        include_fairness_obs: bool = False,
+        observation_dim: int | None = None,
     ):
         """初始化量子任务调度环境（参数详见子模块文档）。"""
         super().__init__()
@@ -208,8 +216,21 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
         )
         self.noise_profile = self._resolve_noise_profile(noise_profile)
 
+        # Issue #588: 公平性观测开关（不影响默认 OBS_DIM=16，保持向后兼容）
+        self._include_fairness_obs = bool(include_fairness_obs)
+        # Issue #585: 消融实验支持截断观测空间
+        self._observation_dim = observation_dim
+
         # Gymnasium 标准空间定义（16 维 obs + Discrete(4)，确保 PPO 模型可复用）
-        self.observation_space = spaces.Box(low=0.0, high=1.0, shape=(OBS_DIM,), dtype=np.float32)
+        # Issue #585: observation_dim 截断优先级最高
+        # Issue #588: include_fairness_obs 扩展到 17 维
+        if observation_dim is not None and observation_dim < OBS_DIM:
+            eff_dim = observation_dim
+        elif self._include_fairness_obs:
+            eff_dim = OBS_DIM_WITH_FAIRNESS
+        else:
+            eff_dim = OBS_DIM
+        self.observation_space = spaces.Box(low=0.0, high=1.0, shape=(eff_dim,), dtype=np.float32)
         self.action_space = spaces.Discrete(4)  # 0: classical, 1: quantum, 2: hybrid, 3: qem
 
         # ---- 多机器调度扩展 ----
@@ -289,6 +310,11 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
 
         # 多租户配额管理器（Issue #97）
         self._tenant_manager: Any | None = tenant_manager
+
+        # Issue #588: 公平性观测跟踪器（用于观测第17维 Jain 公平性指数）
+        from src.scheduler.fairness import MultiTenantFairnessTracker
+
+        self._fairness_tracker: MultiTenantFairnessTracker = MultiTenantFairnessTracker()
 
         # LSTM 时序流量感知 (Superpower)
         self.max_arrival_history_length = 10
@@ -729,6 +755,7 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
         action: int,
         rng: np.random.Generator,
         obs: NDArray[Any] | None = None,
+        fairness_penalty: float | None = None,
     ) -> float:
         """计算执行奖励（委托给 env_reward.compute_execution_reward）。
 
@@ -738,6 +765,8 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
             rng: 随机数生成器。
             obs: 步首缓存的全局观测向量。若提供则直接读取串扰风险，避免重复构建观测
                 （Issue #522 性能优化）；若为 None 则回退到即时构建。
+            fairness_penalty: 公平性惩罚值（Issue #587）。为 None 时自动从
+                ``_fairness_tracker`` 计算；非 None 时直接使用传入值。
 
         Returns:
             执行奖励标量。
@@ -748,6 +777,11 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
         crosstalk_risk = obs[OBS_CROSSTALK_RISK]
         crosstalk_penalty = crosstalk_risk * 2.0  # 惩罚因子可调
 
+        # Issue #587: 公平性惩罚嵌入奖励函数
+        # 若未显式传入 fairness_penalty，则根据 tenant_manager 是否存在决定是否计算
+        if fairness_penalty is None:
+            fairness_penalty = self._compute_fairness_penalty_for_task(task)
+
         return compute_execution_reward(
             task=task,
             action=action,
@@ -755,6 +789,33 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
             quantum_fidelity=self._quantum.fidelity,
             quantum_available_ratio=self._quantum.available_ratio,
             crosstalk_penalty=crosstalk_penalty,
+            fairness_penalty=fairness_penalty,
+        )
+
+    def _compute_fairness_penalty_for_task(self, task: Task) -> float:
+        """计算单个任务的公平性惩罚（Issue #587）。
+
+        当 ``tenant_manager`` 为 None 时（单租户模式），返回 0.0。
+        否则从 ``_fairness_tracker`` 提取各租户的平均等待时间字典，
+        调用 ``compute_fairness_penalty`` 计算惩罚。
+
+        Args:
+            task: 待执行任务（使用 tenant_id 字段）
+
+        Returns:
+            公平性惩罚值（非正数）
+        """
+        # Issue #587: tenant_manager 为 None 时无多租户公平性考量
+        if self._tenant_manager is None:
+            return 0.0
+        # 从 fairness_tracker 提取各租户的平均等待时间字典
+        fairness_wait_times: dict[str, float] = {
+            stats.tenant_id: float(stats.avg_wait_steps)
+            for stats in self._fairness_tracker._stats.values()
+        }
+        return compute_fairness_penalty(
+            tenant_id=task.tenant_id,
+            fairness_wait_times=fairness_wait_times,
         )
 
     def _compute_wait_penalty(self) -> float:

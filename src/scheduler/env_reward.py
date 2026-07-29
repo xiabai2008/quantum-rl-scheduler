@@ -15,6 +15,8 @@ from src.scheduler.env_types import (
     ACTION_CLASSICAL,
     ACTION_QUANTUM,
     ACTION_QUANTUM_QEM,
+    FAIRNESS_PENALTY_FACTOR,
+    FAIRNESS_PENALTY_THRESHOLD,
     MAX_WAIT_STEPS,
     QUANTUM_SPEEDUP_RANGE,
     REWARD_CLASSICAL,
@@ -88,6 +90,34 @@ def _compute_task_weighting(task: Task) -> float:
     return float(urgency_factor * priority_factor)
 
 
+def compute_fairness_penalty(
+    tenant_id: str | None,
+    fairness_wait_times: dict[str, float] | None,
+) -> float:
+    """计算公平性惩罚（Issue #587）。
+
+    当租户等待时间偏离均值超过阈值时施加惩罚。
+
+    Args:
+        tenant_id            : 当前任务的租户 ID（None 时视为 "unknown"）
+        fairness_wait_times  : 各租户的平均等待时间字典 {tenant_id: wait_time}
+
+    Returns:
+        公平性惩罚值（非正数），无足够数据时返回 0.0
+    """
+    if not fairness_wait_times or len(fairness_wait_times) < 2:
+        return 0.0
+    mean_wait = float(np.mean(list(fairness_wait_times.values())))
+    if mean_wait < 1e-6:
+        return 0.0
+    tid = tenant_id or "unknown"
+    tenant_wait = fairness_wait_times.get(tid, 0.0)
+    deviation = abs(tenant_wait - mean_wait) / mean_wait
+    if deviation > FAIRNESS_PENALTY_THRESHOLD:
+        return -FAIRNESS_PENALTY_FACTOR * deviation
+    return 0.0
+
+
 def compute_execution_reward(
     task: Task,
     action: int,
@@ -95,6 +125,7 @@ def compute_execution_reward(
     quantum_fidelity: float,
     quantum_available_ratio: float,
     crosstalk_penalty: float = 0.0,
+    fairness_penalty: float = 0.0,
 ) -> float:
     """
     计算任务执行成功后的即时奖励。
@@ -105,6 +136,9 @@ def compute_execution_reward(
     **Issue #401 改进**：
         - 量子加速比基于任务 ``qubit_count`` 对数缩放（而非纯随机）
         - 引入 ``urgency`` / ``priority`` 加权，紧急高优先级任务获得更高奖励
+
+    **Issue #587 改进**：
+        - 新增 ``fairness_penalty`` 参数，将公平性惩罚嵌入奖励函数
 
     奖励规则：
         - 经典执行 (action=0):
@@ -128,6 +162,7 @@ def compute_execution_reward(
         quantum_fidelity        : 当前量子资源聚合保真度（0-1）
         quantum_available_ratio : 当前量子资源聚合可用比率（0-1）
         crosstalk_penalty       : 串扰惩罚值
+        fairness_penalty        : 公平性惩罚值（Issue #587，非正数）
 
     Returns:
         float: 计算得到的即时奖励
@@ -137,7 +172,10 @@ def compute_execution_reward(
 
     if action == ACTION_CLASSICAL:
         # 经典执行不依赖量子机器状态，奖励最稳定，用作所有策略的基准线。
-        return float((REWARD_CLASSICAL + REWARD_SUCCESS_BONUS) * task_weight)
+        reward = float((REWARD_CLASSICAL + REWARD_SUCCESS_BONUS) * task_weight)
+        # Issue #587: 累加公平性惩罚
+        reward += fairness_penalty
+        return reward
 
     elif action == ACTION_QUANTUM:
         # Issue #401: 加速比基于任务比特数对数缩放（而非纯随机）
@@ -156,6 +194,8 @@ def compute_execution_reward(
         # Issue #401: 应用 urgency/priority 加权
         reward *= task_weight
 
+        # Issue #587: 累加公平性惩罚
+        reward += fairness_penalty
         return float(reward + REWARD_SUCCESS_BONUS)
 
     elif action == ACTION_QUANTUM_QEM:
@@ -178,6 +218,8 @@ def compute_execution_reward(
         # 应用 urgency/priority 加权
         reward *= task_weight
 
+        # Issue #587: 累加公平性惩罚
+        reward += fairness_penalty
         return float(reward + REWARD_SUCCESS_BONUS)
 
     else:  # ACTION_HYBRID
@@ -186,7 +228,10 @@ def compute_execution_reward(
         # available_ratio=0 时 factor=0.5，available_ratio=1 时 factor=1.0。
         hybrid_factor = 0.5 + 0.5 * quantum_available_ratio
         # Issue #401: 应用 urgency/priority 加权
-        return float(base * hybrid_factor * task_weight + REWARD_SUCCESS_BONUS)
+        reward = float(base * hybrid_factor * task_weight + REWARD_SUCCESS_BONUS)
+        # Issue #587: 累加公平性惩罚
+        reward += fairness_penalty
+        return reward
 
 
 def compute_wait_penalty(task_queue: list[Task]) -> float:

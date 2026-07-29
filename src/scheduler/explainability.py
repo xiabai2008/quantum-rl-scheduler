@@ -66,6 +66,25 @@ STATE_FEATURE_NAMES: list[str] = [
     "到达率MA",  # OBS_ARRIVAL_RATE_MA = 15
 ]
 
+# Issue #588: 公平性观测特征名（可选第17维，仅在 include_fairness_obs=True 时使用）
+STATE_FEATURE_NAME_FAIRNESS: str = "公平性指数"
+
+
+def get_state_feature_names(include_fairness: bool = False) -> list[str]:
+    """返回状态空间特征名列表（Issue #588）。
+
+    Args:
+        include_fairness: 是否包含公平性指数特征（第17维）
+
+    Returns:
+        特征名列表，默认 16 维，``include_fairness=True`` 时返回 17 维
+    """
+    names = list(STATE_FEATURE_NAMES)
+    if include_fairness:
+        names.append(STATE_FEATURE_NAME_FAIRNESS)
+    return names
+
+
 # 异常决策检测：低置信度阈值（action_prob 低于此值视为异常）
 _LOW_CONFIDENCE_THRESHOLD: float = 0.3
 
