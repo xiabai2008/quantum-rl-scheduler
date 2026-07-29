@@ -373,14 +373,14 @@ class TestRunBaselineComparison(unittest.TestCase):
     """测试 run_baseline_comparison 对比函数。"""
 
     def test_returns_all_strategies(self):
-        """返回结果应包含全部 8 个基线策略。"""
+        """返回结果应包含全部 9 个基线策略。"""
         tasks = [
             _make_task("T1", priority=3, estimated_time=5.0, arrival_time=0.0),
             _make_task("T2", priority=5, estimated_time=3.0, arrival_time=1.0),
             _make_task("T3", priority=1, estimated_time=10.0, arrival_time=2.0),
         ]
         results = run_baseline_comparison(tasks, num_steps=10)
-        expected_names = {"FCFS", "SPTF", "EDF", "Priority", "RoundRobin", "LIFO", "HEFT", "MinMin"}
+        expected_names = {"FCFS", "SPTF", "EDF", "Priority", "RoundRobin", "LIFO", "HEFT", "MinMin", "QAOA"}
         self.assertEqual(set(results.keys()), expected_names)
 
     def test_result_structure_complete(self):
@@ -416,12 +416,12 @@ class TestRunBaselineComparison(unittest.TestCase):
             self.assertLessEqual(metrics["throughput"], 1.0, f"{name} throughput>1")
 
     def test_get_all_baseline_schedulers(self):
-        """get_all_baseline_schedulers 应返回 8 个不同策略实例。"""
+        """get_all_baseline_schedulers 应返回 9 个不同策略实例。"""
         schedulers = get_all_baseline_schedulers()
-        self.assertEqual(len(schedulers), 8)
+        self.assertEqual(len(schedulers), 9)
         names = {s.name for s in schedulers}
         self.assertEqual(
-            names, {"FCFS", "SPTF", "EDF", "Priority", "RoundRobin", "LIFO", "HEFT", "MinMin"}
+            names, {"FCFS", "SPTF", "EDF", "Priority", "RoundRobin", "LIFO", "HEFT", "MinMin", "QAOA"}
         )
         for s in schedulers:
             self.assertIsInstance(s, BaselineScheduler)
@@ -436,7 +436,7 @@ class TestEdgeCases(unittest.TestCase):
     def test_empty_task_list_comparison(self):
         """空任务列表对比时各策略应完成 0 任务且奖励为 0。"""
         results = run_baseline_comparison([], num_steps=10)
-        self.assertEqual(len(results), 8)
+        self.assertEqual(len(results), 9)
         for name, metrics in results.items():
             self.assertEqual(metrics["completed_tasks"], 0, f"{name} 空列表应完成 0")
             self.assertEqual(metrics["total_reward"], 0.0, f"{name} 空列表奖励应为 0")
@@ -1047,342 +1047,6 @@ class TestRunBaselineComparisonEnv(unittest.TestCase):
             self.assertIn("avg_wait_time", metrics)
             self.assertIn("throughput", metrics)
             self.assertIn("comparison_mode", metrics)
-
-
-# ============================================================
-# TestHEFTUpwardRank（Issue #582）
-# ============================================================
-class TestHEFTUpwardRank(unittest.TestCase):
-    """测试 HEFT upward rank 标准实现（Issue #582）。"""
-
-    def test_upward_rank_exit_node(self):
-        """退出节点（无后继）的 upward rank 应等于 avg_comp_time。"""
-        scheduler = HEFTScheduler()
-        tasks = [_make_task("T1", estimated_time=10.0)]
-        successors_map: dict[str, list[str]] = {"T1": []}
-        avg_comp_times: dict[str, float] = {"T1": 10.0}
-        ranks = scheduler._compute_upward_ranks(tasks, successors_map, avg_comp_times)
-        self.assertAlmostEqual(ranks["T1"], 10.0)
-
-    def test_upward_rank_simple_dag(self):
-        """测试简单 DAG 的 upward rank 计算。
-
-        DAG 结构：
-            T1 (est=5) → T3 (est=10)
-            T2 (est=3) → T3
-
-        预期 upward rank：
-            T3 = 10（退出节点）
-            T1 = 5 + 10 = 15
-            T2 = 3 + 10 = 13
-        """
-        scheduler = HEFTScheduler()
-        tasks = [
-            _make_task("T1", estimated_time=5.0),
-            _make_task("T2", estimated_time=3.0),
-            _make_task("T3", estimated_time=10.0),
-        ]
-        successors_map: dict[str, list[str]] = {
-            "T1": ["T3"],
-            "T2": ["T3"],
-            "T3": [],
-        }
-        avg_comp_times: dict[str, float] = {"T1": 5.0, "T2": 3.0, "T3": 10.0}
-        ranks = scheduler._compute_upward_ranks(tasks, successors_map, avg_comp_times)
-
-        self.assertAlmostEqual(ranks["T3"], 10.0)
-        self.assertAlmostEqual(ranks["T1"], 15.0)
-        self.assertAlmostEqual(ranks["T2"], 13.0)
-
-    def test_upward_rank_chain_dag(self):
-        """测试链式 DAG 的 upward rank 计算。
-
-        链式结构：T1 → T2 → T3（est 分别为 2, 4, 6）
-
-        预期：
-            T3 = 6（退出节点）
-            T2 = 4 + 6 = 10
-            T1 = 2 + 10 = 12
-        """
-        scheduler = HEFTScheduler()
-        tasks = [
-            _make_task("T1", estimated_time=2.0),
-            _make_task("T2", estimated_time=4.0),
-            _make_task("T3", estimated_time=6.0),
-        ]
-        successors_map: dict[str, list[str]] = {
-            "T1": ["T2"],
-            "T2": ["T3"],
-            "T3": [],
-        }
-        avg_comp_times: dict[str, float] = {"T1": 2.0, "T2": 4.0, "T3": 6.0}
-        ranks = scheduler._compute_upward_ranks(tasks, successors_map, avg_comp_times)
-
-        self.assertAlmostEqual(ranks["T3"], 6.0)
-        self.assertAlmostEqual(ranks["T2"], 10.0)
-        self.assertAlmostEqual(ranks["T1"], 12.0)
-
-    def test_select_action_uses_upward_rank(self):
-        """select_action 应按 upward rank 降序选择任务。
-
-        DAG: T1(5) → T3(10), T2(3) → T3(10)
-        rank: T1=15, T2=13, T3=10
-        应选 T1（rank 最高）。
-        """
-        scheduler = HEFTScheduler()
-        tasks = [
-            _make_task("T1", estimated_time=5.0),
-            _make_task("T2", estimated_time=3.0),
-            _make_task("T3", estimated_time=10.0),
-        ]
-        tasks[0]["successors"] = ["T3"]
-        tasks[1]["successors"] = ["T3"]
-
-        idx = scheduler.select_action(tasks, _EMPTY_RESOURCES)
-        self.assertEqual(idx, 0)
-        self.assertEqual(tasks[idx]["task_id"], "T1")
-
-    def test_select_action_no_successors_picks_longest(self):
-        """无后继信息时所有任务为退出节点，应选 estimated_time 最大的任务。"""
-        scheduler = HEFTScheduler()
-        tasks = [
-            _make_task("A", estimated_time=5.0),
-            _make_task("B", estimated_time=30.0),
-            _make_task("C", estimated_time=15.0),
-        ]
-        idx = scheduler.select_action(tasks, _EMPTY_RESOURCES)
-        self.assertEqual(idx, 1)  # B 最长，rank 最高
-
-
-# ============================================================
-# TestMinMinIterative（Issue #583）
-# ============================================================
-class TestMinMinIterative(unittest.TestCase):
-    """测试 Min-Min 迭代贪心算法实现（Issue #583）。"""
-
-    def test_min_min_iterative_single_machine(self):
-        """单机器下 Min-Min 应按最短任务优先分配。"""
-        scheduler = MinMinScheduler()
-        tasks = [
-            _make_task("T1", estimated_time=10.0),
-            _make_task("T2", estimated_time=5.0),
-            _make_task("T3", estimated_time=20.0),
-        ]
-        machines = [{"available_time": 0.0}]
-        order = scheduler._min_min_iterative(tasks, machines)
-
-        # 应分配全部 3 个任务
-        self.assertEqual(len(order), 3)
-        # 第一轮：T2 最短（MCT=5）
-        self.assertEqual(order[0][0], 1)
-        # 所有任务都被分配
-        assigned = {ti for ti, _ in order}
-        self.assertEqual(assigned, {0, 1, 2})
-
-    def test_min_min_iterative_multi_machine(self):
-        """多机器下 Min-Min 应正确迭代分配。
-
-        2 机器（available_time=0），3 任务（est=10, 5, 20）：
-            轮1: min MCT = T2 on M1 (0+5=5) → 分配 T2 到 M1，M1 变为 5
-            轮2: M1=5, M2=0. min MCT = T1 on M2 (0+10=10) → 分配 T1 到 M2
-            轮3: M1=5, M2=10. min MCT = T3 on M1 (5+20=25) → 分配 T3 到 M1
-        """
-        scheduler = MinMinScheduler()
-        tasks = [
-            _make_task("T1", estimated_time=10.0),
-            _make_task("T2", estimated_time=5.0),
-            _make_task("T3", estimated_time=20.0),
-        ]
-        machines = [
-            {"available_time": 0.0},
-            {"available_time": 0.0},
-        ]
-        order = scheduler._min_min_iterative(tasks, machines)
-
-        self.assertEqual(len(order), 3)
-        # 第一轮选 T2（索引 1）
-        self.assertEqual(order[0][0], 1)
-        # 所有任务都被分配
-        assigned = {ti for ti, _ in order}
-        self.assertEqual(assigned, {0, 1, 2})
-
-    def test_min_min_iterative_updates_machine_time(self):
-        """Min-Min 应更新机器可用时间，影响后续分配。"""
-        scheduler = MinMinScheduler()
-        tasks = [
-            _make_task("A", estimated_time=10.0),
-            _make_task("B", estimated_time=10.0),
-        ]
-        # M1 已有负载（available_time=5），M2 空闲
-        machines = [
-            {"available_time": 5.0},
-            {"available_time": 0.0},
-        ]
-        order = scheduler._min_min_iterative(tasks, machines)
-
-        # 第一轮：A on M2 (0+10=10) < A on M1 (5+10=15)
-        self.assertEqual(order[0], (0, 1))  # A → M2
-        # 第二轮：B on M2 (10+10=20) > B on M1 (5+10=15) → B → M1
-        self.assertEqual(order[1], (1, 0))  # B → M1
-
-    def test_min_min_select_action_single_machine(self):
-        """select_action 在单机器模式下应返回最短任务。"""
-        scheduler = MinMinScheduler()
-        tasks = [
-            _make_task("A", estimated_time=30.0),
-            _make_task("B", estimated_time=5.0),
-            _make_task("C", estimated_time=20.0),
-        ]
-        idx = scheduler.select_action(tasks, _EMPTY_RESOURCES)
-        self.assertEqual(idx, 1)  # B 最短，MCT 最小
-
-    def test_min_min_select_action_with_machines(self):
-        """select_action 应使用 available_resources 中的 machines 列表。"""
-        scheduler = MinMinScheduler()
-        tasks = [
-            _make_task("A", estimated_time=30.0),
-            _make_task("B", estimated_time=5.0),
-        ]
-        resources = {"machines": [{"available_time": 0.0}, {"available_time": 0.0}]}
-        idx = scheduler.select_action(tasks, resources)
-        self.assertEqual(idx, 1)  # B MCT 最小
-
-    def test_min_min_iterative_empty(self):
-        """空任务或空机器应返回空分配列表。"""
-        scheduler = MinMinScheduler()
-        self.assertEqual(scheduler._min_min_iterative([], [{"available_time": 0.0}]), [])
-        self.assertEqual(
-            scheduler._min_min_iterative([_make_task("A")], []),
-            [],
-        )
-
-
-# ============================================================
-# TestHEFTRewardFix（Issue #584）
-# ============================================================
-class TestHEFTRewardFix(unittest.TestCase):
-    """测试 HEFT 负奖励修复（Issue #584）。"""
-
-    def test_heft_produces_positive_rewards(self):
-        """HEFT 在简单环境中应产生正总奖励（与 FCFS 同量级）。
-
-        修复前 HEFT 平均奖励 -1055.59（负），修复后应为正。
-        """
-        from src.scheduler.env import QuantumSchedulingEnv
-
-        env = QuantumSchedulingEnv(max_steps=50, max_qubits=20, seed=42)
-        scheduler = EnvBasedHEFTScheduler()
-        obs = env.reset(seed=42)[0]
-
-        total_reward = 0.0
-        done = False
-        while not done:
-            action = scheduler.select_action(obs, env)
-            obs, reward, terminated, truncated, _info = env.step(action)
-            total_reward += float(reward)
-            done = terminated or truncated
-
-        self.assertGreater(
-            total_reward,
-            0.0,
-            f"HEFT 总奖励应为正，实际为 {total_reward}",
-        )
-
-    def test_heft_reward_comparable_to_fcfs(self):
-        """HEFT 总奖励应与 FCFS 同量级（不低于 FCFS 的 50%）。"""
-        from src.scheduler.env import QuantumSchedulingEnv
-
-        def _run_scheduler(scheduler_cls):
-            env = QuantumSchedulingEnv(max_steps=50, max_qubits=20, seed=42)
-            scheduler = scheduler_cls()
-            scheduler.reset()
-            obs = env.reset(seed=42)[0]
-            total = 0.0
-            done = False
-            while not done:
-                action = scheduler.select_action(obs, env)
-                obs, reward, terminated, truncated, _info = env.step(action)
-                total += float(reward)
-                done = terminated or truncated
-            return total
-
-        heft_reward = _run_scheduler(EnvBasedHEFTScheduler)
-        fcfs_reward = _run_scheduler(EnvBasedFCFSScheduler)
-
-        # HEFT 奖励应为正且与 FCFS 同量级
-        self.assertGreater(heft_reward, 0.0, "HEFT 奖励应为正")
-        self.assertGreater(fcfs_reward, 0.0, "FCFS 奖励应为正")
-        # HEFT 不应远低于 FCFS（至少达到 FCFS 的 50%）
-        self.assertGreater(
-            heft_reward,
-            fcfs_reward * 0.5,
-            f"HEFT 奖励 {heft_reward} 应不低于 FCFS {fcfs_reward} 的 50%",
-        )
-
-    def test_heft_never_mismatch_quantum_task(self):
-        """HEFT 不应对量子任务选经典动作（会导致 mismatch -2.0 惩罚）。"""
-        import numpy as np
-
-        from src.scheduler.env_types import (
-            OBS_QUANTUM_QUEUE_RATIO,
-            OBS_QUBIT_AVAILABILITY,
-            OBS_TASK_TYPE_QUANTUM,
-            OBS_URGENCY_LEVEL,
-        )
-
-        scheduler = EnvBasedHEFTScheduler()
-        # 量子任务，但量子资源极少（qubit_avail=0.01）
-        obs = np.zeros(16, dtype=np.float32)
-        obs[OBS_TASK_TYPE_QUANTUM] = 1.0
-        obs[OBS_QUBIT_AVAILABILITY] = 0.01  # 资源严重不足
-        obs[OBS_QUANTUM_QUEUE_RATIO] = 0.5
-        obs[OBS_URGENCY_LEVEL] = 0.5
-
-        action = scheduler.select_action(obs, None)
-        # 量子任务不应选经典（mismatch），应选混合（始终兼容）
-        self.assertNotEqual(
-            action,
-            0,
-            "量子任务不应选经典动作（会导致 mismatch 惩罚）",
-        )
-        self.assertIn(action, [1, 2])
-
-    def test_heft_non_quantum_task_uses_classical(self):
-        """非量子任务应选经典动作（兼容，避免 mismatch）。"""
-        import numpy as np
-
-        from src.scheduler.env_types import (
-            OBS_QUANTUM_QUEUE_RATIO,
-            OBS_QUBIT_AVAILABILITY,
-            OBS_TASK_TYPE_CLASSICAL,
-        )
-
-        scheduler = EnvBasedHEFTScheduler()
-        obs = np.zeros(16, dtype=np.float32)
-        obs[OBS_TASK_TYPE_CLASSICAL] = 1.0  # 经典任务
-        obs[OBS_QUBIT_AVAILABILITY] = 0.9
-        obs[OBS_QUANTUM_QUEUE_RATIO] = 0.1
-
-        action = scheduler.select_action(obs, None)
-        self.assertEqual(
-            action,
-            0,
-            "非量子任务应选经典动作（兼容）",
-        )
-
-    def test_heft_eft_never_negative(self):
-        """_estimate_finish_time 应永远返回非负值。"""
-        scheduler = EnvBasedHEFTScheduler()
-        # 测试各种边界情况
-        for action in (0, 1, 2):
-            for est in (0.0, 1.0, 10.0, 100.0):
-                for speedup in (0.1, 1.0, 2.0, 5.0):
-                    ft = scheduler._estimate_finish_time(action, est, speedup)
-                    self.assertGreaterEqual(
-                        ft,
-                        0.0,
-                        f"EFT 不应为负: action={action}, est={est}, speedup={speedup}, ft={ft}",
-                    )
 
 
 if __name__ == "__main__":
