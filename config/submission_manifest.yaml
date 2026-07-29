@@ -105,20 +105,22 @@ items:
 
   # 训练好的权威模型检查点（换机复现所必需）
   - id: MODEL_PPO
-    name: PPO 权威模型（14维观测）
+    name: PPO 权威模型（16维观测）
     type: zip
-    path: "deliverable_models/ppo_best_model_14dim.zip"
+    path: "deliverable_models/ppo_best_model_16dim.zip"
     requirements:
       max_size_mb: 50
       must_exist: true
 
   - id: MODEL_DQN
-    name: DQN 权威模型（14维观测）
+    name: DQN 权威模型（已归档·历史基线）
     type: zip
     path: "deliverable_models/dqn_best_model_14dim.zip"
+    status: deprecated
     requirements:
       max_size_mb: 50
-      must_exist: true
+      must_exist: false
+    note: "DQN 10维模型已清理归档（详见 docs/observation_dim_standard.md 第2.2节），不再作为交付物，保留条目用于历史追溯"
 
   # 其他
   - id: REQUIREMENTS_MATRIX
@@ -126,3 +128,25 @@ items:
     type: md
     path: "docs/requirements_traceability.md"
     must_exist: true
+
+  # 评审标准对齐（Issue #625 新增）
+  - id: AWARD_ALIGNMENT
+    name: 评审标准逐项对齐表
+    type: md
+    path: "docs/award_roadmap.md"
+    must_exist: true
+
+  # 跨硬件兼容性证据（Issue #625 新增）
+  - id: CROSS_HARDWARE_DOC
+    name: 跨硬件兼容性文档
+    type: md
+    path: "docs/cross_hardware.md"
+    must_exist: true
+
+  # 真机验证闭环证据包（Issue #625 新增）
+  - id: EXP_REAL_AUDIT
+    name: 真机验证审计报告
+    type: md
+    path: "results/reports/real_machine_audit_trail.md"
+    must_exist: true
+    related_raw_data: "results/real_machine/"

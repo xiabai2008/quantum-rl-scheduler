@@ -316,7 +316,7 @@ bash scripts/ci/pre_freeze_check.sh --quick
 - [ ] 技术白皮书 v3 已导出 PDF
 - [ ] 答辩 PPT 终稿已保存
 - [ ] 演示视频已就位 (1080p, 4-5min, ≤500MB)
-- [ ] PPO/DQN 权威模型在 `deliverable_models/`
+- [x] PPO 权威模型在 `deliverable_models/`（DQN 已归档）
 - [ ] `README.md` 包含复现步骤
 - [ ] `.env.example` 与实际配置一致
 - [ ] 没有提交 `.env`、`models/`、`logs/` 等
@@ -559,7 +559,7 @@ git push origin v8.0-submission
 
 ### 3.4 提交校验通过
 
-- [ ] **提交清单校验脚本通过**（13 项检查中通过项 >= 12）
+- [ ] **提交清单校验脚本通过**（17 项检查中通过项 >= 15，含 Issue #625 新增的 AWARD_ALIGNMENT / CROSS_HARDWARE_DOC / EXP_REAL_AUDIT 三项）
   - 负责人：瑞哥
   - 验证命令：`python scripts/ci/validate_submission.py --check`
 
@@ -639,9 +639,14 @@ git push origin v8.0-submission
 
 ### 6.3 权威模型已入库
 
-- [ ] **权威模型文件已入库**（deliverable_models/ppo_best_model_14dim.zip 和 dqn_best_model_10dim.zip 存在）
+- [x] **PPO 权威模型文件已入库**（deliverable_models/ppo_best_model_16dim.zip 存在）
   - 负责人：算法组
-  - 验证命令：`ls -la deliverable_models/ppo_best_model_14dim.zip deliverable_models/dqn_best_model_10dim.zip`
+  - 验证命令：`ls -la deliverable_models/ppo_best_model_16dim.zip`
+  - 维度口径：16维（调度层当前标准，详见 docs/observation_dim_standard.md 第2.2节）
+- [~] **DQN 权威模型已归档**（dqn_best_model_14dim.zip 已清理，保留条目用于历史追溯）
+  - 负责人：算法组
+  - 状态：deprecated（DQN 10维模型已归档，详见 docs/observation_dim_standard.md 第2.2节）
+  - 验证命令：`ls -la deliverable_models/`（确认目录存在，DQN 模型不再作为交付物）
 
 ### 6.4 版本标签已打
 

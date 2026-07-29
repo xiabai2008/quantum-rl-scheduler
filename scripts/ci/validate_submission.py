@@ -88,6 +88,26 @@ class SubmissionValidator:
 
         print(f"[{item_id}] {item_name} ({item_type})")
 
+        # 检查 must_exist 标志：若明确为 false 则跳过存在性检查（用于已归档条目）
+        reqs = item.get("requirements", {})
+        if not reqs.get("must_exist", True) and not path.exists():
+            msg = f"文件不存在但标记为非必需: {path}"
+            self.warnings.append(f"[{item_id}] {msg}")
+            print(f"  ⚠️  {msg}")
+            messages.append(msg)
+            self.results.append(
+                ItemResult(
+                    item_id=item_id,
+                    name=item_name,
+                    item_type=item_type,
+                    path=str(item["path"]),
+                    passed=True,
+                    messages=messages,
+                    severity="info",
+                )
+            )
+            return
+
         # 检查文件存在性
         if not path.exists():
             # 对白皮书特殊处理：manifest 要求 pdf，但可能存在 docx 源文件
