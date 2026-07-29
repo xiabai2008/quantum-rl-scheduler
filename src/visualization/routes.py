@@ -64,6 +64,28 @@ async def verify_api_key(request: Request, x_api_key: str | None = Header(None))
         raise HTTPException(status_code=401, detail="无效的 API 密钥")
 
 
+async def verify_api_key_strict(x_api_key: str | None = Header(None)) -> None:
+    """严格 API 密钥认证：对所有 HTTP 方法（含 GET）均要求有效密钥。
+
+    与 :func:`verify_api_key` 不同，此函数**不豁免 GET 请求**，用于保护
+    暴露敏感运行时指标的端点（如 ``/metrics``），防止内部系统状态泄露
+    给未授权方（Issue #513）。
+
+    认证逻辑：
+    - 未配置 ``VIZ_API_KEY`` 时：放行所有请求（开发环境向后兼容）。
+    - 已配置 ``VIZ_API_KEY`` 时：所有请求（含 GET）须通过 ``X-API-Key``
+      请求头恒定时间比较与配置值完全匹配，否则返回 401。
+    """
+    expected_key = os.getenv("VIZ_API_KEY")
+    # 开发环境未配置密钥时放行，保持向后兼容。
+    if not expected_key:
+        return
+    # 已配置密钥时，所有请求（含 GET）均须通过恒定时间比较。
+    if not hmac.compare_digest(x_api_key or "", expected_key):
+        logger.warning("[Web] 严格认证失败：X-API-Key 缺失或不匹配")
+        raise HTTPException(status_code=401, detail="无效的 API 密钥")
+
+
 # ============================================================
 # 页面路由：返回监控面板 HTML
 # ============================================================
@@ -181,11 +203,15 @@ async def get_metrics(_auth: None = Depends(verify_api_key)) -> str:
 
 
 @router.get("/metrics", tags=["监控"])
-async def metrics() -> Response:
+async def metrics(_auth: None = Depends(verify_api_key_strict)) -> Response:
     """Prometheus 指标端点，供 Prometheus 采集器抓取。
 
     返回 prometheus_client 默认注册表中所有指标的 Prometheus 文本格式输出，
     采集器（Prometheus server）可通过该端点定期拉取监控数据。
+
+    安全：此端点暴露内部运行时指标（API 调用计数、错误率、熔断器状态等），
+    需通过 ``X-API-Key`` 严格认证（Issue #513）。未配置 ``VIZ_API_KEY`` 时
+    放行（开发环境）；已配置时所有请求均须携带有效密钥。
     """
     return Response(content=generate_latest(), media_type=CONTENT_TYPE_LATEST)
 

@@ -40,6 +40,7 @@ from src.visualization.app import (
     simulate_scheduler,
     start_web_server,
     verify_api_key,
+    verify_api_key_strict,
 )
 
 # 注意：src/visualization/__init__.py 执行了 `from src.visualization.app import app`，
@@ -188,6 +189,7 @@ def test_metrics_endpoint():
     """GET /metrics 应返回 Prometheus 文本格式指标，content-type 含 text/plain。
 
     使用 FastAPI TestClient 测试标准 Prometheus 采集端点。
+    /metrics 端点需要严格认证（Issue #513），TestClient 须携带有效 X-API-Key。
     """
 
     async def _noop_simulate():
@@ -198,7 +200,7 @@ def test_metrics_endpoint():
         patch.object(app_module, "simulate_scheduler", _noop_simulate),
         TestClient(app) as client,
     ):
-        resp = client.get("/metrics")
+        resp = client.get("/metrics", headers={"X-API-Key": TEST_VIZ_KEY})
         assert resp.status_code == 200
         content_type = resp.headers.get("content-type", "")
         assert "text/plain" in content_type
@@ -255,14 +257,17 @@ async def test_api_key_not_configured_blocks_write(async_client, monkeypatch):
     """未配置 VIZ_API_KEY 时，写操作（POST）必须返回 401；GET 监控端点仍放行。"""
     monkeypatch.delenv("VIZ_API_KEY", raising=False)
     # 写操作应被拒绝（零认证放行的安全漏洞已修复）
-    resp_post = await async_client.post("/api/tasks", json={
-        "user_id": "u",
-        "task_type": "quantum",
-        "priority": 3,
-        "qubit_count": 4,
-        "circuit_depth": 10,
-        "estimated_time": 5.0,
-    })
+    resp_post = await async_client.post(
+        "/api/tasks",
+        json={
+            "user_id": "u",
+            "task_type": "quantum",
+            "priority": 3,
+            "qubit_count": 4,
+            "circuit_depth": 10,
+            "estimated_time": 5.0,
+        },
+    )
     assert resp_post.status_code == 401
     # GET 监控端点不受影响，仍返回 200
     resp_get = await async_client.get("/api/status")
@@ -273,14 +278,17 @@ async def test_api_key_not_configured_blocks_write(async_client, monkeypatch):
 async def test_write_request_401_without_key(async_client, monkeypatch):
     """未配置 VIZ_API_KEY 时，POST /api/tasks 必须返回 401（写操作零认证已修复）。"""
     monkeypatch.delenv("VIZ_API_KEY", raising=False)
-    resp = await async_client.post("/api/tasks", json={
-        "user_id": "u",
-        "task_type": "quantum",
-        "priority": 3,
-        "qubit_count": 4,
-        "circuit_depth": 10,
-        "estimated_time": 5.0,
-    })
+    resp = await async_client.post(
+        "/api/tasks",
+        json={
+            "user_id": "u",
+            "task_type": "quantum",
+            "priority": 3,
+            "qubit_count": 4,
+            "circuit_depth": 10,
+            "estimated_time": 5.0,
+        },
+    )
     assert resp.status_code == 401
 
 
@@ -1333,26 +1341,72 @@ class TestMetricsEndpoints:
         assert "quantum_scheduler_completed_tasks " in text
 
     def test_prometheus_metrics_content_type(self):
-        """GET /metrics 应返回 text/plain; version=... 格式。"""
+        """GET /metrics 应返回 text/plain; version=... 格式。
+
+        /metrics 需严格认证（Issue #513），请求须携带有效 X-API-Key。
+        """
         with (
             patch.object(app_module, "simulate_scheduler", _noop_simulate_scheduler),
             TestClient(app) as client,
         ):
-            resp = client.get("/metrics")
+            resp = client.get("/metrics", headers={"X-API-Key": TEST_VIZ_KEY})
             assert resp.status_code == 200
             content_type = resp.headers.get("content-type", "")
             assert "text/plain" in content_type
             assert "version=" in content_type
 
     def test_prometheus_metrics_body_contains_process_info(self):
-        """GET /metrics body 应包含 prometheus_client 默认进程指标。"""
+        """GET /metrics body 应包含 prometheus_client 默认进程指标。
+
+        /metrics 需严格认证（Issue #513），请求须携带有效 X-API-Key。
+        """
         with (
             patch.object(app_module, "simulate_scheduler", _noop_simulate_scheduler),
             TestClient(app) as client,
         ):
-            body = client.get("/metrics").text
+            body = client.get("/metrics", headers={"X-API-Key": TEST_VIZ_KEY}).text
             # prometheus_client 默认暴露 python_ 或 process_ 指标
             assert "python_info" in body or "process_" in body or "scheduler_" in body
+
+    @pytest.mark.asyncio
+    async def test_metrics_strict_auth_valid_key(self, async_client):
+        """配置 VIZ_API_KEY 后，携带有效 X-API-Key 访问 /metrics 应返回 200。"""
+        resp = await async_client.get("/metrics")
+        assert resp.status_code == 200
+        assert "text/plain" in resp.headers.get("content-type", "")
+
+    @pytest.mark.asyncio
+    async def test_metrics_strict_auth_missing_key(self, async_client):
+        """配置 VIZ_API_KEY 后，无 X-API-Key 访问 /metrics 应返回 401（Issue #513）。"""
+        # async_client 默认携带 TEST_VIZ_KEY，此处覆盖为无头请求
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://testserver") as raw_client:
+            resp = await raw_client.get("/metrics")
+            assert resp.status_code == 401
+
+    @pytest.mark.asyncio
+    async def test_metrics_strict_auth_invalid_key(self, async_client):
+        """配置 VIZ_API_KEY 后，携带错误 X-API-Key 访问 /metrics 应返回 401。"""
+        resp = await async_client.get("/metrics", headers={"X-API-Key": "wrong-key"})
+        assert resp.status_code == 401
+
+    @pytest.mark.asyncio
+    async def test_metrics_no_auth_when_key_unconfigured(self, monkeypatch):
+        """未配置 VIZ_API_KEY 时，/metrics 无须认证即可访问（开发环境向后兼容）。"""
+        monkeypatch.delenv("VIZ_API_KEY", raising=False)
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://testserver") as raw_client:
+            resp = await raw_client.get("/metrics")
+            assert resp.status_code == 200
+
+    @pytest.mark.asyncio
+    async def test_metrics_strict_auth_does_not_affect_api_metrics(self, async_client):
+        """/metrics 严格认证不影响 /api/metrics（使用普通 verify_api_key，GET 豁免）。"""
+        # /api/metrics 使用 verify_api_key（GET 豁免），即使无头也应 200
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://testserver") as raw_client:
+            resp = await raw_client.get("/api/metrics")
+            assert resp.status_code == 200
 
 
 class TestHealthEndpoints:

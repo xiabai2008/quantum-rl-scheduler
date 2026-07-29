@@ -90,6 +90,7 @@ __all__ = [
     "system_status",
     "task_queue",
     "verify_api_key",
+    "verify_api_key_strict",
     "websocket_endpoint",
 ]
 
@@ -323,7 +324,7 @@ if os.path.isdir(_dist_assets):
 # 的全局状态与辅助函数，故须在本模块完成上述定义后再导入。
 # ============================================================
 
-from src.visualization.routes import router, verify_api_key
+from src.visualization.routes import router, verify_api_key, verify_api_key_strict
 from src.visualization.simulator import simulate_scheduler
 from src.visualization.websocket_handler import websocket_endpoint
 

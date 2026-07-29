@@ -12,6 +12,7 @@ Integration Tests for End-to-End Pipelines
 """
 
 import copy
+import os
 import sys
 import unittest
 from pathlib import Path
@@ -319,6 +320,8 @@ class TestMockClientIntegration(unittest.TestCase):
 class TestWebAPIIntegration(unittest.TestCase):
     """Web API 端到端集成测试：FastAPI TestClient 完整流程"""
 
+    _TEST_VIZ_KEY = "integration-test-key"
+
     @staticmethod
     async def _noop_simulate() -> None:
         """空操作后台任务，替代 simulate_scheduler 避免后台任务干扰测试。"""
@@ -331,12 +334,17 @@ class TestWebAPIIntegration(unittest.TestCase):
         self._saved_queue = copy.deepcopy(app_module.task_queue)
         self._saved_strategy = app_module.system_status.get("current_strategy")
 
+        # 设置 VIZ_API_KEY 使写操作和 /metrics 严格认证生效
+        self._saved_viz_key = os.environ.get("VIZ_API_KEY")
+        os.environ["VIZ_API_KEY"] = self._TEST_VIZ_KEY
+
         # 补丁 simulate_scheduler 为空操作，避免后台任务修改全局状态
         self._patcher = patch.object(app_module, "simulate_scheduler", self._noop_simulate)
         self._patcher.start()
 
         # 使用 TestClient 的 context manager 触发 lifespan（已补丁为 noop）
-        self._client_ctx = TestClient(app)
+        # 携带 X-API-Key 头使写操作和 /metrics 严格认证通过
+        self._client_ctx = TestClient(app, headers={"X-API-Key": self._TEST_VIZ_KEY})
         self.client = self._client_ctx.__enter__()
 
     def tearDown(self) -> None:
@@ -345,6 +353,11 @@ class TestWebAPIIntegration(unittest.TestCase):
             self._client_ctx.__exit__(None, None, None)
         finally:
             self._patcher.stop()
+            # 还原 VIZ_API_KEY
+            if self._saved_viz_key is None:
+                os.environ.pop("VIZ_API_KEY", None)
+            else:
+                os.environ["VIZ_API_KEY"] = self._saved_viz_key
             # 还原全局状态
             app_module.system_status.clear()
             app_module.system_status.update(copy.deepcopy(self._saved_status))
