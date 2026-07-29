@@ -179,7 +179,7 @@ real_machine_5seed:
     statistic: 8.9209
     p_value: 6.83e-04
     effect_size_type: "Cohen's d"
-    effect_size: 5.6421
+    effect_size: 5.33
     mean_diff: 1312.00
     ci_95: [911.78, 1712.22]
     improvement_pct: 371.4

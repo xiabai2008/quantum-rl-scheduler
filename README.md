@@ -18,7 +18,10 @@
 | **AI赋能调度层** | PPO Agent 实时最优分流 | +88.3% vs FCFS（p=1.032e-42，14维权威实验N=250；16维交付模型需重新验证，见下表脚注） |
 | **量子赋能AI** | 真机噪声反馈优化鲁棒性 | 探索性研究：单seed -5.7%，10seeds +6.1%（方向相反，未做统计检验，不构成统计成立证据链，Issue #532） |
 
-**最新硬核突破（v9.0）：**
+**最新硬核突破（v9.1）：**
+- **公平性感知调度**：Jain公平性指数观测(可选第17维) + 租户等待时间偏差惩罚(#587/#588)
+- **观测维度消融配置**：支持observation_dim参数截断观测空间，用于D2消融实验(#585)
+- **编译环境可配置规模**：支持自定义物理比特数和耦合图，天衍-287预设10x11网格拓扑(#594/#616)
 - **16维观测空间**：新增串扰风险和任务到达率滑动平均，覆盖从基础资源到物理噪声到并发时序的完整特征集
 - **4×4 2D网格耦合图**：匹配天衍-287真机nearest-neighbor拓扑，SWAP门减少62%（vs 线性链）
 - **Dynamic QEM**：在执行时间与保真度之间智能权衡。
@@ -27,7 +30,7 @@
 
 **量化目标：** 综合调度收益+88.3%（核心目标，已达成）；资源利用率+7.9%（p=0.0046，多目标权衡维度，高负载场景PPO显著优于FCFS）
 
-## 项目状态（v9.0）
+## 项目状态（v9.1）
 
 | 指标 | 数值 |
 |------|------|
@@ -41,7 +44,9 @@
 | PPO vs FCFS（仿真） | 综合奖励提升 88.3%（14维权威实验N=250，Mann-Whitney U 检验 p=1.032e-42，rank-biserial=-0.71；16维为交付兼容模型） |
 | PPO vs FCFS（真机参与率） | +353%（N=10, PPO=1736 vs FCFS=383；注：混合评估环境，性能提升主要由仿真驱动，权威仿真结论为+88.3%） |
 | 多机器 MAPPO | 奖励 4,294（vs 单机 2,305，提升 +86.3%） |
+| 公平性调度 | Jain Fairness Index观测 + 等待时间偏差惩罚（#587/#588） |
 | 电路编译 AI | PPO替代SABRE，公平对比v2（4×4 2D网格，同池配对60电路，Issue #451）；深电路(14-16q)SWAP减少约33%（n=20, p=0.29不显著）；原76.4%为不公平对比已废弃 |
+| 编译环境可配置 | 支持天衍-287(10x11网格)等多种拓扑（#594/#616） |
 | VQE 行业场景 | 10分子×100任务，PPO +97.5% vs FCFS |
 | OR-Tools 对比 | 20/50/100任务，OR-Tools静态最优，PPO动态优势 |
 | 消融实验 | 六维度全量完成（D1-D5+架构消融MLP/LSTM），MLP=LSTM收敛等价 |
@@ -321,7 +326,7 @@ python scripts/ci/validate_submission.py --check
 # 生成缺失项清单报告
 python scripts/ci/validate_submission.py --check --report results/reports/submission_validation_report.md
 
-# 打包（校验通过后生成 dist/submission_v9.0_YYYYMMDD.zip）
+# 打包（校验通过后生成 dist/submission_v9.1_YYYYMMDD.zip）
 python scripts/ci/validate_submission.py --pack
 ```
 
@@ -329,7 +334,7 @@ python scripts/ci/validate_submission.py --pack
 
 | 编号 | 名称 | 类型 | 状态 |
 |:--:|:--|:--:|:--:|
-| CODE_REPO | 代码仓库（Git 标签 v8.0-submission） | git_tag | 8/15 冻结后创建 |
+| CODE_REPO | 代码仓库（Git 标签 v9.1-submission） | git_tag | 8/15 冻结后创建 |
 | CODE_ARCHIVE | 代码压缩包 | zip | 冻结后 --pack 生成 |
 | WHITEPAPER | 技术白皮书（20-50页 PDF） | pdf | docx→PDF 转换 |
 | PRESENTATION | 答辩 PPT（15-20页） | pptx | 人工制作 |
@@ -348,7 +353,7 @@ python scripts/ci/validate_submission.py --pack
 1. 确认所有 CI 检查全绿
 2. 运行 `python scripts/ci/pre_freeze_check.sh` 执行冻结前检查
 3. 运行 `python scripts/ci/validate_submission.py --check` 确认通过
-4. 创建标签：`git tag -a v9.0-submission -m "v9.0 提交版本" && git push origin v9.0-submission`
+4. 创建标签：`git tag -a v9.1-submission -m "v9.1 提交版本" && git push origin v9.1-submission`
 5. 打包：`python scripts/ci/validate_submission.py --pack`
 6. 提交压缩包至比赛平台
 
