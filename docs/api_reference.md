@@ -611,7 +611,7 @@ MockClient 实现与 TianyanClient 相同的接口：
 
 本节覆盖 Web 可视化监控面板提供的全部 **27 个 HTTP 端点**，源文件为 `src/visualization/routes.py`（约 760 行）。所有端点通过 `APIRouter` 定义并在 `app.py` 中通过 `app.include_router(router)` 注册，路由路径与原 app.py 完全一致，保持向后兼容。
 
-> **权威实验数字**（文档引用须与此一致）：50seed 仿真 PPO=2746.94±1160.72 vs FCFS=1458.77±60.47，提升 +88.3%，Mann-Whitney U 检验，p=1.032e-42，rank-biserial=-0.7081；多 seed 真机 PPO=1736.32±355.78 vs FCFS=383.00±49.13，d=5.33，p<0.001（Bonferroni 校正后显著）。
+> **权威实验数字**（文档引用须与此一致）：50seed 仿真 PPO=2348.91±857.25 vs FCFS=1051.59±58.34，提升 +123.4%，Welch t 检验，p=1.449e-66，Cohen's d=-2.1353；多 seed 真机 PPO=1736.32±355.78 vs FCFS=383.00±49.13，d=5.33，p<0.001（Bonferroni 校正后显著）。
 
 ### 6.1 认证机制
 
@@ -936,7 +936,7 @@ Prometheus 指标端点，供 Prometheus 采集器抓取。
     {
       "rank": 1,
       "name": "PPO",
-      "avg_reward": 2746.94,
+      "avg_reward": 2348.91,
       "avg_wait_time": 45.2,
       "completion_rate": 0.95,
       "qubit_utilization": 0.78,
@@ -989,7 +989,7 @@ Prometheus 指标端点，供 Prometheus 采集器抓取。
 ```json
 {
   "ppo": {
-    "reward": 2746.94,
+    "reward": 2348.91,
     "wait_time": 45.2,
     "completion_rate": 0.95,
     "qubit_util": 0.78,
@@ -998,7 +998,7 @@ Prometheus 指标端点，供 Prometheus 采集器抓取。
   "ppo_rank": 1,
   "total": 4,
   "best_strategy": "PPO",
-  "best_reward": 2746.94,
+  "best_reward": 2348.91,
   "vs_random": 1200.5
 }
 ```

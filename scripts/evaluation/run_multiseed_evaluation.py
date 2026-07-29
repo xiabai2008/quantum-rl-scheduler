@@ -58,6 +58,24 @@ def _compute_config_hash(config: dict[str, Any]) -> str:
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
+def _get_env_description(obs_dim: int) -> str:
+    """根据观测维度返回环境描述文本。
+
+    Args:
+        obs_dim: 观测空间维度
+
+    Returns:
+        环境描述字符串
+    """
+    if obs_dim == 16:
+        return "原生 16 维环境（v9+ 交付标准，OBS_DIM=16）"
+    if obs_dim == 14:
+        return "原生 14 维环境"
+    if obs_dim == 10:
+        return "10 维公平对比环境，Obs10Wrapper 截断 14 维原生环境，兼容所有已训练模型"
+    return f"未知环境（obs_dim={obs_dim}）"
+
+
 class CachedPPOStrategy(BaseStrategy):
     """带决策缓存的 PPO 策略包装器。
 
@@ -407,7 +425,7 @@ def run_multiseed(
         "ppo_model": ppo_model,
         "dqn_model": dqn_model,
         "observation_dim": obs_dim,
-        "wrapper": "原生 14 维环境" if obs_dim == 14 else "Obs10Wrapper (14→10，公平对比)",
+        "wrapper": _get_env_description(obs_dim),
         "arrival_lambda": 0.5,
         "quantum_ratio": 0.7,
         "n_workers": n_workers,
@@ -508,7 +526,7 @@ def run_multiseed(
         "## 零、权威实验数字（多 Seed 验证）",
         "",
         f"> **实验配置**: {seeds} seeds × {episodes_per_seed} episodes = {n_total} 次独立运行",
-        f"> **环境**: {obs_dim} 维观测空间（{'原生 14 维环境' if obs_dim == 14 else '10 维公平对比环境，Obs10Wrapper 截断 14 维原生环境，兼容所有已训练模型'}）",
+        f"> **环境**: {obs_dim} 维观测空间（{_get_env_description(obs_dim)}）",
         f"> **任务规模**: 每 episode {tasks_per_episode} 步，泊松到达 λ=0.5，量子任务占比 70%",
         f"> **PPO 模型**: `{ppo_model}`（{obs_dim}维，Actor-Critic）",
         f"> **DQN 模型**: `{dqn_model}`（{obs_dim}维，Double DQN + reward clip）",

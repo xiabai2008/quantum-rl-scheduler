@@ -17,8 +17,8 @@ if hasattr(sys.stdout, "reconfigure"):
 # 注意：这些是仿真环境下的episode平均奖励（200步/episode）
 strategies_data = {
     "PPO (14-dim)": {
-        "avg_reward": 2746.94,
-        "std_reward": 1160.72,
+        "avg_reward": 2348.91,
+        "std_reward": 857.25,
         "avg_wait_time": 28.4,  # PPO等待时间较高（trade-off）
         "completion_rate": 0.43,
         "qubit_utilization": 0.82,
@@ -44,8 +44,8 @@ strategies_data = {
         "rank": 3,
     },
     "FCFS": {
-        "avg_reward": 1458.77,
-        "std_reward": 60.47,
+        "avg_reward": 1051.59,
+        "std_reward": 58.34,
         "avg_wait_time": 18.8,
         "completion_rate": 0.92,
         "qubit_utilization": 0.57,

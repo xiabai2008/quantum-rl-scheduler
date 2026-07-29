@@ -2441,10 +2441,10 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             desc: "任务到达率稳定，量子/经典任务比例均衡（日常科研计算、稳态运行）",
             params: "arrival_rate=0.5, quantum_ratio=0.7, max_steps=200",
             strategies: [
-                {rank:1, name:"PPO", reward:2746.94, lift:"+88.3%", note:"综合最优"},
+                {rank:1, name:"PPO", reward:2348.91, lift:"+123.4%", note:"综合最优"},
                 {rank:2, name:"DQN", reward:1527.65, lift:"+4.7%", note:""},
                 {rank:3, name:"SJF", reward:1462.39, lift:"+0.2%", note:""},
-                {rank:4, name:"FCFS", reward:1458.77, lift:"基线", note:"工业界默认"},
+                {rank:4, name:"FCFS", reward:1051.59, lift:"基线", note:"工业界默认"},
                 {rank:5, name:"Random", reward:1217.08, lift:"-16.6%", note:""},
                 {rank:6, name:"Greedy", reward:-25.95, lift:"-101.8%", note:"此场景崩溃"}
             ],

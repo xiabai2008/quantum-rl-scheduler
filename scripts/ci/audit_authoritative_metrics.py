@@ -74,10 +74,12 @@ FORBIDDEN_PATTERNS = (
 AUDIT_EXEMPT_MARKER = "<!-- audit-exempt:"
 
 CANONICAL_RANKING = (
+    # v9.1+ 排名顺序：DQN 模型已删除，策略位使用 Random 替代，奖励与 Random 相同，
+    # 排名第 4（与 Random 并列）。顺序与 strategy_comparison.md 权威报告一致。
     "PPO",
-    "DQN",
     "SJF",
     "FCFS",
+    "DQN",
     "Random",
     "Greedy",
     "Quantum-Only",
@@ -143,17 +145,17 @@ def find_forbidden(text: str, require_context: bool = True) -> list[tuple[int, s
 
 
 def validate_canonical_report(text: str) -> list[str]:
-    """验证权威报告包含锁定数字、排名和 14→10 维说明。
+    """验证权威报告包含锁定数字、排名和 16 维交付说明。
 
-    权威数字（2026-07-19 更新，50 seed × 5 episodes = N=250 验证）：
-        - PPO 平均奖励 2746.94
-        - FCFS 平均奖励 1458.77
-        - PPO vs FCFS 提升 +88.3%
-        - Obs10Wrapper（14→10 维兼容）
-        - 14 维说明
+    权威数字（2026-07-29 更新，v9.1+ 16维交付模型，50 seed × 5 episodes = N=250 验证）：
+        - PPO 平均奖励 2348.91
+        - FCFS 平均奖励 1051.59
+        - PPO vs FCFS 提升 +123.4%
+        - OBS_DIM=16（16维交付标准）
+        - 16 维说明
     """
     errors: list[str] = []
-    for expected in ("2746.94", "1458.77", "+88.3%", "Obs10Wrapper", "14 维"):
+    for expected in ("2348.91", "1051.59", "+123.4%", "OBS_DIM=16", "16 维"):
         if expected not in text:
             errors.append(f"权威报告缺少：{expected}")
 
@@ -255,8 +257,8 @@ def audit_repository(root: Path) -> list[str]:
         errors.extend(validate_canonical_report(report_text))
 
     agent_text = (root / "src/scheduler/agent.py").read_text(encoding="utf-8")
-    if "原生输出 14 维" not in agent_text or "Obs10Wrapper" not in agent_text:
-        errors.append("agent.py 未说明原生 14 维与 Obs10Wrapper 兼容关系")
+    if "原生输出 16 维" not in agent_text or "Obs10Wrapper" not in agent_text:
+        errors.append("agent.py 未说明原生 16 维与 Obs10Wrapper 兼容关系")
     return errors
 
 
@@ -276,7 +278,7 @@ def main() -> int:
         for error in errors:
             print(f"- {error}")
         return 1
-    print("权威数字审计通过：八策略排名、核心数字和 14→10 维口径一致。")
+    print("权威数字审计通过：八策略排名、核心数字和 16 维交付口径一致。")
     return 0
 
 

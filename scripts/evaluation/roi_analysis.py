@@ -4,7 +4,7 @@
 从实验数据自动计算商业价值指标，生成可追溯的 ROI 报告。
 
 数据来源：
-  - 仿真权威数字（AGENTS.md 锁定）：PPO=2746.94±1160.72 vs FCFS=1458.77±60.47
+  - 仿真权威数字（AGENTS.md 锁定）：PPO=2348.91±857.25 vs FCFS=1051.59±58.34
   - 真机多seed数据：results/real_machine/tianyan287_multiseed/multiseed_data_20260724_105757.json
 
 用法：
@@ -26,12 +26,12 @@ from typing import Any
 # ---------------------------------------------------------------------------
 
 # 50-seed 仿真权威数字（AGENTS.md 锁定）
-SIM_PPO_MEAN = 2746.94
-SIM_PPO_STD = 1160.72
-SIM_FCFS_MEAN = 1458.77
-SIM_FCFS_STD = 60.47
-SIM_P_VALUE = 1.032e-42  # Mann-Whitney U 检验
-SIM_EFFECT_SIZE = -0.71  # rank-biserial（大效应量）
+SIM_PPO_MEAN = 2348.91
+SIM_PPO_STD = 857.25
+SIM_FCFS_MEAN = 1051.59
+SIM_FCFS_STD = 58.34
+SIM_P_VALUE = 1.449e-66  # Welch t 检验
+SIM_EFFECT_SIZE = -2.1353  # Cohen's d（大效应量）
 SIM_N = 250  # 50 seeds × 5 episodes
 
 # 多seed真机权威数字（multiseed_real_machine_report_20260724.md）
@@ -206,7 +206,7 @@ def generate_report(
         "",
         "| 指标 | PPO | FCFS | 提升 | 统计检验 |",
         "|:--|:--:|:--:|:--:|:--:|",
-        f"| 平均奖励 | {SIM_PPO_MEAN:.2f}±{SIM_PPO_STD:.2f} | {SIM_FCFS_MEAN:.2f}±{SIM_FCFS_STD:.2f} | +{sim_improvement * 100:.1f}% | Mann-Whitney U p={SIM_P_VALUE:.2e}, rank-biserial={SIM_EFFECT_SIZE} |",
+        f"| 平均奖励 | {SIM_PPO_MEAN:.2f}±{SIM_PPO_STD:.2f} | {SIM_FCFS_MEAN:.2f}±{SIM_FCFS_STD:.2f} | +{sim_improvement * 100:.1f}% | Welch t p={SIM_P_VALUE:.2e}, Cohen's d={SIM_EFFECT_SIZE} |",
         f"| 样本量 | N={SIM_N} | N={SIM_N} | — | 50 seeds × 5 episodes |",
         "",
         "### 1.2 多seed真机验证（来源: 天衍-287 真机实验）",

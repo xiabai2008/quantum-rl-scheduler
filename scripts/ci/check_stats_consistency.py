@@ -78,11 +78,11 @@ AUTHORITATIVE_P_VALUES: dict[str, str] = {}
 
 # 已知废弃/错误p值 → 应替换为的权威值
 DEPRECATED_P_VALUES: dict[str, str] = {
-    "4.92e-55": "MISATTRIBUTED: p=4.92e-55 是 Random vs PPO 的p值，不是 PPO vs FCFS。应使用 p=1.032e-42 (Mann-Whitney U)",
+    "4.92e-55": "MISATTRIBUTED: p=4.92e-55 是 Random vs PPO 的p值，不是 PPO vs FCFS。应使用 p=1.449e-66 (Welch t)",
 }
 
 # 检验方法混用检查
-WELCH_T_FOR_1032E42 = "ERROR: p=1.032e-42 对应 Mann-Whitney U 检验，不是 Welch t 检验"
+WELCH_T_FOR_1032E42 = "ERROR: p=1.449e-66 对应 Welch t 检验，不是 Mann-Whitney U 检验"
 
 # Issue #446: 严禁表述黑名单（来自 docs/authoritative_numbers.md 第六节）
 # 注意：黑名单匹配后，若行内包含以下"诚实披露"关键词则豁免（避免对已修正的诚实标注误报）

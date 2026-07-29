@@ -220,7 +220,7 @@ PPO（Proximal Policy Optimization）和 DQN（Deep Q-Network）在调度问题�
 | 数据源 | PPO 均值 | FCFS 均值 | PPO 提升 | p 值 |
 |--------|--------:|--------:|--------:|-----:|
 | 本报告（14维, {total_runs} runs） | {ppo["mean_reward"]:.2f} | {fcfs["mean_reward"]:.2f} | {ppo_fcfs["improvement_pct"]:+.1f}% | {ppo_fcfs["p_value"]:.2e} |
-| 权威8策略（14维, 250 runs） | 2746.94 | 1458.77 | +88.3% | 1.032e-42 |
+| 权威8策略（16维, 250 runs） | 2348.91 | 1051.59 | +123.4% | 1.449e-66 |
 
 > **⚠️ 数据一致性说明**：本报告 PPO 提升 {ppo_fcfs["improvement_pct"]:+.1f}% 与权威数字 +88.3% 存在差异，原因如下：
 > 1. **观测维度相同**：本报告与主对比实验均使用 14 维原生观测（不使用 10 维截断包装）
