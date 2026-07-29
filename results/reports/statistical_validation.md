@@ -12,10 +12,10 @@
 ## 零、权威实验数字（多 Seed 验证）
 
 > **实验配置**: 50 seeds × 5 episodes = 250 次独立运行
-> **环境**: 16 维观测空间（10 维公平对比环境，Obs10Wrapper 截断 14 维原生环境，兼容所有已训练模型）
+> **环境**: 16 维观测空间（原生 16 维环境，v9+ 交付标准，OBS_DIM=16）
 > **任务规模**: 每 episode 200 步，泊松到达 λ=0.5，量子任务占比 70%
 > **PPO 模型**: `deliverable_models/ppo_best_model_16dim.zip`（16维，Actor-Critic）
-> **DQN 模型**: `None`（16维，Double DQN + reward clip）
+> **DQN 模型**: `None`（DQN 模型已于 v9 删除，下表 DQN 行为 Random 策略数据占位）
 > **显著性水平**: α = 0.05（Bonferroni 校正）
 
 | 排名 | 策略 | 平均奖励 | 标准差 | 标准误 | 提升 vs FCFS | 提升% 95% CI |
@@ -31,6 +31,8 @@
 
 **核心结论：PPO 平均奖励 2348.91 vs FCFS 1051.59，提升 +123.4%，95% CI: [+113.3%, +133.5%]**
 （N=250 次独立episode，α=0.05，Bonferroni多重比较校正）
+
+> ⚠️ **DQN 行说明**：DQN 模型已于 v9 删除，本报告中 DQN 行使用 Random 策略数据占位（与 Random 行完全相同），不代表 DQN 实测结果，仅用于保持 8 策略表结构兼容。
 
 ---
 

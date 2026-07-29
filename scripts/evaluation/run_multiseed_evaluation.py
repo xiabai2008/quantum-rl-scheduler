@@ -529,7 +529,11 @@ def run_multiseed(
         f"> **环境**: {obs_dim} 维观测空间（{_get_env_description(obs_dim)}）",
         f"> **任务规模**: 每 episode {tasks_per_episode} 步，泊松到达 λ=0.5，量子任务占比 70%",
         f"> **PPO 模型**: `{ppo_model}`（{obs_dim}维，Actor-Critic）",
-        f"> **DQN 模型**: `{dqn_model}`（{obs_dim}维，Double DQN + reward clip）",
+        (
+            f"> **DQN 模型**: `{dqn_model}`（{obs_dim}维，Double DQN + reward clip）"
+            if dqn_model
+            else "> **DQN 模型**: `None`（DQN 模型已删除，下表 DQN 行为 Random 策略数据占位，不代表 DQN 实测结果）"
+        ),
         f"> **显著性水平**: α = {alpha}（Bonferroni 校正）",
         "",
         "| 排名 | 策略 | 平均奖励 | 标准差 | 标准误 | 提升 vs FCFS | 提升% 95% CI |",
