@@ -4,7 +4,7 @@ Observation Builder Module for Quantum-Classical Hybrid Task Scheduling Environm
 
 本模块封装环境的观测向量与信息字典构建逻辑，将依赖环境内部状态的方法
 抽离为独立函数：
-    - get_observation : 构建并返回当前 14 维状态向量（含物理噪声和拓扑特征）
+    - get_observation : 构建并返回当前 16 维状态向量（含物理噪声、拓扑特征、串扰风险、时序流量）
     - get_info        : 构建环境信息字典，供调试和监控使用
 
 依赖关系：仅依赖 env_types.py 中的常量与数据类，不依赖 env.py。
@@ -26,6 +26,7 @@ from src.scheduler.env_types import (
     OBS_COUPLING_DENSITY,
     OBS_CROSSTALK_RISK,
     OBS_DIM,
+    OBS_FAIRNESS_INDEX,
     OBS_FIDELITY,
     OBS_QUANTUM_QUEUE_RATIO,
     OBS_QUBIT_AVAILABILITY,
@@ -64,12 +65,13 @@ def get_observation(env: "QuantumSchedulingEnv") -> NDArray[Any]:
         [13] avg_connectivity  : 量子比特平均连通度（所有机器加权平均）
         [14] crosstalk_risk    : 串扰风险（基于空间并发的任务密度）
         [15] arrival_rate_ma   : 任务到达率滑动平均（流量突发感知）
+        [16] fairness_index    : Jain 公平性指数（仅 include_fairness_obs=True 时追加，Issue #588）
 
     Args:
         env: 调度环境实例
 
     Returns:
-        NDArray[Any]: 形状 (16,)，dtype=float32，值域 [0, 1]
+        NDArray[Any]: 形状 (16,) 或 (17,)（开启公平性时），dtype=float32，值域 [0, 1]
     """
     obs: NDArray[Any] = np.zeros(OBS_DIM, dtype=np.float32)
 
@@ -154,16 +156,17 @@ def get_observation(env: "QuantumSchedulingEnv") -> NDArray[Any]:
             np.clip(env.current_time_window_arrivals / max_expected_arrival, 0.0, 1.0)
         )
 
-    # Issue #585: 消融实验截断观测（在公平性观测之前执行）
-    obs_dim = getattr(env, "_observation_dim", None)
-    if obs_dim is not None and obs_dim < len(obs):
-        obs = obs[:obs_dim]
-
-    # Issue #588: 可选公平性观测（仅在未截断模式下追加，保持与 observation_space 一致）
-    if getattr(env, "_include_fairness_obs", False) and (obs_dim is None or obs_dim >= OBS_DIM):
+    # Issue #588: 可选公平性观测（仅在 include_fairness_obs=True 时追加，保持与 observation_space 一致）
+    if getattr(env, "_include_fairness_obs", False):
         tracker = getattr(env, "_fairness_tracker", None)
-        jain_idx = tracker.jain_completion_fairness() if tracker is not None else 0.0
-        obs = np.append(obs, np.float32(jain_idx))
+        if tracker is not None:
+            try:
+                jain_index = tracker.jain_wait_fairness()
+                obs = np.append(obs, np.float32(np.clip(jain_index, 0.0, 1.0)))
+            except (ValueError, AttributeError):
+                obs = np.append(obs, np.float32(0.0))
+        else:
+            obs = np.append(obs, np.float32(0.0))
 
     return obs
 

@@ -137,7 +137,7 @@ class TestDecisionExplainerExplain(unittest.TestCase):
     def setUp(self):
         self.explainer = DecisionExplainer()
         self.state = np.array(
-            [0.8, 0.3, 0.6, 0.5, 0.4, 0.2, 0.1, 0.05, 0.3, 0.7, 0.5, 0.2, 0.9, 0.1, 0.4, 0.6],
+            [0.8, 0.3, 0.6, 0.5, 0.4, 0.2, 0.1, 0.05, 0.3, 0.7, 0.5, 0.2, 0.9, 0.1, 0.4, 0.6, 0.85],
             dtype=np.float64,
         )
 
@@ -159,7 +159,7 @@ class TestDecisionExplainerExplain(unittest.TestCase):
         self.assertEqual(rec.action, 1)
         self.assertAlmostEqual(rec.action_prob, 0.7)
         self.assertIsNotNone(rec.q_values)
-        self.assertEqual(len(rec.feature_contributions), 16)
+        self.assertEqual(len(rec.feature_contributions), 17)
         self.assertTrue(rec.timestamp)
 
     def test_contributions_normalized_with_q_values(self):
@@ -175,11 +175,11 @@ class TestDecisionExplainerExplain(unittest.TestCase):
         self.assertAlmostEqual(total, 1.0, places=6)
 
     def test_contributions_keys_are_feature_names(self):
-        """贡献度字典的键应为标准 16 个特征名。"""
+        """贡献度字典的键应为标准 17 个特征名。"""
         rec = self.explainer.explain(self.state, action=0)
         for name in STATE_FEATURE_NAMES:
             self.assertIn(name, rec.feature_contributions)
-        self.assertEqual(len(rec.feature_contributions), 16)
+        self.assertEqual(len(rec.feature_contributions), 17)
 
     def test_q_values_stored_correctly(self):
         """q_values 应被正确存储（一维数组）。"""
@@ -225,7 +225,7 @@ class TestFormatExplanation(unittest.TestCase):
     def setUp(self):
         self.explainer = DecisionExplainer()
         self.state = np.array(
-            [0.9, 0.1, 0.8, 0.2, 0.3, 0.1, 0.1, 0.1, 0.2, 0.6, 0.4, 0.1, 0.7, 0.1, 0.3, 0.5],
+            [0.9, 0.1, 0.8, 0.2, 0.3, 0.1, 0.1, 0.1, 0.2, 0.6, 0.4, 0.1, 0.7, 0.1, 0.3, 0.5, 0.75],
             dtype=np.float64,
         )
 
