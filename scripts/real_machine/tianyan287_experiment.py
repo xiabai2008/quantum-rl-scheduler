@@ -98,7 +98,7 @@ REAL_SHOTS = 1024
 MAX_STEPS_BASE = 500  # 每 episode 最大步数
 
 # 预训练模型路径
-PPO_MODEL_PATH = str(_PROJECT_ROOT / "deliverable_models" / "ppo_best_model_14dim.zip")
+PPO_MODEL_PATH = str(_PROJECT_ROOT / "deliverable_models" / "ppo_best_model_16dim.zip")
 
 # 动作含义
 ACTION_MEANINGS: dict[int, str] = {0: "classical", 1: "quantum", 2: "hybrid"}

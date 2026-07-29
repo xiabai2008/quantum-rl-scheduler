@@ -277,7 +277,7 @@ def main(
     episodes: int = 20,
     seeds_count: int = 5,
     tasks_per_episode: int = 200,
-    ppo_model: str = "deliverable_models/ppo_best_model_14dim.zip",
+    ppo_model: str = "deliverable_models/ppo_best_model_16dim.zip",
     obs_dim: int = 14,
 ) -> None:
     output_dir = Path("results/ablation_d3")
@@ -585,7 +585,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--ppo-model",
         type=str,
-        default="deliverable_models/ppo_best_model_14dim.zip",
+        default="deliverable_models/ppo_best_model_16dim.zip",
     )
     parser.add_argument("--obs-dim", type=int, default=14, choices=[10, 14])
     args = parser.parse_args()

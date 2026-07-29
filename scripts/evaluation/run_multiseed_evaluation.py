@@ -253,7 +253,7 @@ def run_multiseed(
 
     # 构建策略列表（加载模型）
     # 根据观测维度选择合适的 DQN 模型
-    dqn_path = "deliverable_models/dqn_best_model_10dim.zip" if obs_dim == 10 else dqn_model
+    dqn_path = None  # DELETED: DQN 模型已在 v9 删除，原 dqn_best_model_10dim.zip 不再提供
     strategies = build_strategies(dqn_path=dqn_path, ppo_path=ppo_model, obs_dim=obs_dim)
     strategy_names = [s.name for s in strategies]
     print(f"\n已加载 {len(strategies)} 个策略: {strategy_names}")

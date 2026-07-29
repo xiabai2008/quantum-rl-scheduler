@@ -19,7 +19,7 @@ Simulation Benchmark for Quantum-Classical Hybrid Task Scheduling Strategies
     - 平均任务执行时间
 
 用法示例：
-    python scripts/run_simulation.py --episodes 50 --model-path deliverable_models/dqn_best_model_10dim.zip
+    python scripts/run_simulation.py --episodes 50 --ppo-model-path deliverable_models/ppo_best_model_16dim.zip
     python scripts/run_simulation.py --episodes 100 --tasks-per-episode 200 --output-dir ./results/
 """
 
@@ -785,7 +785,7 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 示例用法:
-  python scripts/run_simulation.py --episodes 50 --model-path deliverable_models/dqn_best_model_10dim.zip
+  python scripts/run_simulation.py --episodes 50 --ppo-model-path deliverable_models/ppo_best_model_16dim.zip
   python scripts/run_simulation.py --episodes 100 --tasks-per-episode 200 --output-dir ./results/
   python scripts/run_simulation.py --episodes 20 --verbose
   python scripts/run_simulation.py --real-prob 0.05 --tasks-per-episode 200   # 8 策略对比 + 真机抽样

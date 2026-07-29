@@ -39,7 +39,7 @@ print(f"  范围: [{min(mbs_values):.4f}, {max(mbs_values):.4f}]")
 print("  比单H门保真度0.976更全面：含10次独立真机运行的真实波动")
 
 # ── 2. 三条件对比 ──
-ppo = PPO.load("deliverable_models/ppo_best_model_14dim.zip")
+ppo = PPO.load("deliverable_models/ppo_best_model_16dim.zip")
 results = {}
 
 for label, noise_type in [

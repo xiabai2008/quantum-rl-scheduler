@@ -447,7 +447,7 @@ def run_holdout_evaluation(
     episodes_per_seed: int = 3,
     max_steps: int = 200,
     trace_length: int = 500,
-    ppo_model: str = "deliverable_models/ppo_best_model_14dim.zip",
+    ppo_model: str = "deliverable_models/ppo_best_model_16dim.zip",
     dqn_model: str = "",
     distributions: tuple[HoldoutDistribution, ...] = HOLDOUT_DISTRIBUTIONS,
     trace_seed: int = 20260722,
@@ -646,7 +646,7 @@ def main() -> None:
     parser.add_argument("--max-steps", type=int, default=200)
     parser.add_argument("--trace-length", type=int, default=500)
     parser.add_argument("--trace-seed", type=int, default=20260722)
-    parser.add_argument("--ppo-model", default="deliverable_models/ppo_best_model_14dim.zip")
+    parser.add_argument("--ppo-model", default="deliverable_models/ppo_best_model_16dim.zip")
     parser.add_argument(
         "--dqn-model",
         default="",

@@ -312,7 +312,7 @@ bash scripts/ci/pre_freeze_check.sh --quick
 ### 3. 手动确认以下事项
 
 - [ ] 所有 open PR 已合并或关闭
-- [ ] `config/submission_manifest.yaml` 版本号正确 (`v9.0`)
+- [ ] `config/submission_manifest.yaml` 版本号正确 (`v9.1`)
 - [ ] 技术白皮书 v3 已导出 PDF
 - [ ] 答辩 PPT 终稿已保存
 - [ ] 演示视频已就位 (1080p, 4-5min, ≤500MB)
@@ -336,7 +336,7 @@ bash scripts/ci/pre_freeze_check.sh
 
 ```bash
 # 创建 annotated tag（推荐，可包含详细说明）
-git tag -a v9.0-submission -m "v9.0 提交版本 (2026-08-15)
+git tag -a v9.1-submission -m "v9.1 提交版本 (2026-08-15)
 
 八策略对比权威数字: PPO (16维) vs FCFS +88.3%
 量子占比敏感性: 50% 时 PPO 提升最高 +94.1%
@@ -356,7 +356,7 @@ git tag -a v9.0-submission -m "v9.0 提交版本 (2026-08-15)
 
 ```bash
 # 只推送标签（不推送其他未提交的更改）
-git push origin v9.0-submission
+git push origin v9.1-submission
 ```
 
 ### Step 4: 等待自动发布
@@ -364,7 +364,7 @@ git push origin v9.0-submission
 推送标签后，GitHub Actions 自动执行 `release.yml` 流水线：
 
 ```
-git push origin v9.0-submission
+git push origin v9.1-submission
         │
         ▼
 ┌─────────────────────────────────┐
@@ -389,8 +389,8 @@ git push origin v9.0-submission
 ### Step 5: 下载最终提交物
 
 1. 打开 https://github.com/xiabai2008/quantum-rl-scheduler/releases
-2. 找到 `v9.0-submission` Release
-3. 下载 `submission_v9.0_*.zip` 附件
+2. 找到 `v9.1-submission` Release
+3. 下载 `submission_v9.1_*.zip` 附件
 4. 将 zip 中的内容与仓库文件一起打包提交
 
 ---
@@ -401,7 +401,7 @@ git push origin v9.0-submission
 
 1. **创建 hotfix 分支**:
    ```bash
-   git checkout -b hotfix/<简短描述> v9.0-submission
+   git checkout -b hotfix/<简短描述> v9.1-submission
    ```
 
 2. **修复 + 提交**:
@@ -416,8 +416,8 @@ git push origin v9.0-submission
    ```bash
    git checkout main
    git pull origin main
-   git tag -a v9.0-submission-hotfix1 -m "v9.0 提交版本 (hotfix 1)"
-   git push origin v9.0-submission-hotfix1
+   git tag -a v9.1-submission-hotfix1 -m "v9.1 提交版本 (hotfix 1)"
+   git push origin v9.1-submission-hotfix1
    ```
 
 5. **通知团队**：在新标签的 Release 中说明变更内容。
@@ -432,12 +432,12 @@ git push origin v9.0-submission
 
 ```bash
 # 删除本地和远程旧标签
-git tag -d v9.0-submission
-git push origin :refs/tags/v9.0-submission
+git tag -d v9.1-submission
+git push origin :refs/tags/v9.1-submission
 
 # 修复代码后重新打标签
-git tag -a v9.0-submission -m "v9.0 提交版本"
-git push origin v9.0-submission
+git tag -a v9.1-submission -m "v9.1 提交版本"
+git push origin v9.1-submission
 ```
 
 ### Q: 冻结日期可以推迟吗？
@@ -467,7 +467,7 @@ git push origin v9.0-submission
 
 > **冻结日期**: 2026-08-15
 > **提交截止**: 2026-09-15
-> **版本标签**: v9.0-submission
+> **版本标签**: v9.1-submission
 > **负责人**: 瑞哥（xiabai2008）
 > **最后更新**: 2026-07-25
 
@@ -639,19 +639,19 @@ git push origin v9.0-submission
 
 ### 6.3 权威模型已入库
 
-- [ ] **权威模型文件已入库**（deliverable_models/ppo_best_model_16dim.zip 和 dqn_best_model_10dim.zip 存在）
+- [ ] **权威模型文件已入库**（deliverable_models/ppo_best_model_16dim.zip 和 ppo_compilation_agent.zip 存在）
   - 负责人：算法组
-  - 验证命令：`ls -la deliverable_models/ppo_best_model_16dim.zip deliverable_models/dqn_best_model_10dim.zip`
+  - 验证命令：`ls -la deliverable_models/ppo_best_model_16dim.zip deliverable_models/ppo_compilation_agent.zip`
 
 ### 6.4 版本标签已打
 
-- [ ] **已打 v9.0-submission 标签并推送**（annotated tag，含提交版本说明）
+- [ ] **已打 v9.1-submission 标签并推送**（annotated tag，含提交版本说明）
   - 负责人：瑞哥
   - 验证命令：
     ```bash
-    git tag -a v9.0-submission -m "v9.0 提交版本"
-    git push origin v9.0-submission
-    git tag -l v9.0-submission
+    git tag -a v9.1-submission -m "v9.1 提交版本"
+    git push origin v9.1-submission
+    git tag -l v9.1-submission
     ```
 
 ---

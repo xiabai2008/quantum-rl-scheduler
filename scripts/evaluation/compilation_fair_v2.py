@@ -35,6 +35,11 @@ _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(_PROJECT_ROOT))
 os.chdir(str(_PROJECT_ROOT))
 
+# 修复 Windows GBK 终端下 emoji 字符导致的 UnicodeEncodeError 崩溃
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8")
+    sys.stderr.reconfigure(encoding="utf-8")
+
 from qiskit.circuit.random import random_circuit
 from qiskit.transpiler import CouplingMap, PassManager
 from qiskit.transpiler.passes import SabreLayout, SabreSwap
@@ -433,7 +438,7 @@ def generate_report(
 | 配对数 | {stats_summary["n_pairs"]} |
 | rank-biserial 效应量 | {stats_summary["rank_biserial"]:.3f} |
 | Cohen's d（配对） | {stats_summary["cohen_d"]:.3f} |
-| 显著性 (α=0.05) | {"✅ 显著" if stats_summary["significant"] else "❌ 不显著"} |
+| 显著性 (α=0.05) | {"[PASS] 显著" if stats_summary["significant"] else "[FAIL] 不显著"} |
 
 **结论**: {sig_text}
 
@@ -471,7 +476,7 @@ def generate_report(
 | rank-biserial 效应量 | {subset_stats["rank_biserial"]:.3f} |
 | Cohen's d（配对） | {subset_stats["cohen_d"]:.3f} |
 | Bootstrap 95% CI | [{subset_stats["bootstrap_ci_low"]:.1f}%, {subset_stats["bootstrap_ci_high"]:.1f}%] |
-| 显著性 (α=0.05) | {"✅ 显著" if subset_stats["significant"] else "❌ 不显著"} |
+| 显著性 (α=0.05) | {"[PASS] 显著" if subset_stats["significant"] else "[FAIL] 不显著"} |
 
 **子集结论**: {subset_sig_text}
 
@@ -491,9 +496,9 @@ def generate_report(
 
 | 来源 | SABRE avg | PPO avg | 改进率 | 配对设计 | 固定种子 | 显著性 |
 |:--|:--:|:--:|:--:|:--:|:--:|:--:|
-| 原 `compilation_full.py` (Issue #451) | 27.6 | 6.5 | -76.4% | ❌ 非配对 (60 vs 20) | ❌ | 未检验 |
-| 本公平对比 v2（全 60 电路） | {stats_summary["sabre_mean"]:.2f} | {stats_summary["ppo_mean"]:.2f} | {stats_summary["improvement_pct"]:+.1f}% | ✅ 同池配对 | ✅ seed={config["seed"]} | p={stats_summary["p_value"]:.2e} |
-| 本公平对比 v2（中+深 40 电路） | {subset_stats["sabre_mean"]:.2f} | {subset_stats["ppo_mean"]:.2f} | {subset_stats["improvement_pct"]:+.1f}% | ✅ 同池配对 | ✅ seed={config["seed"]} | p={subset_stats["p_value"]:.2e} |
+| 原 `compilation_full.py` (Issue #451) | 27.6 | 6.5 | -76.4% | [FAIL] 非配对 (60 vs 20) | [FAIL] | 未检验 |
+| 本公平对比 v2（全 60 电路） | {stats_summary["sabre_mean"]:.2f} | {stats_summary["ppo_mean"]:.2f} | {stats_summary["improvement_pct"]:+.1f}% | [PASS] 同池配对 | [PASS] seed={config["seed"]} | p={stats_summary["p_value"]:.2e} |
+| 本公平对比 v2（中+深 40 电路） | {subset_stats["sabre_mean"]:.2f} | {subset_stats["ppo_mean"]:.2f} | {subset_stats["improvement_pct"]:+.1f}% | [PASS] 同池配对 | [PASS] seed={config["seed"]} | p={subset_stats["p_value"]:.2e} |
 
 ### 数字差异说明
 
@@ -610,11 +615,11 @@ def main() -> None:
         f"  Bootstrap 95% CI: [{stats_summary['bootstrap_ci_low']:.1f}%, "
         f"{stats_summary['bootstrap_ci_high']:.1f}%]"
     )
-    print(f"  显著性 (α=0.05): {'✅ 显著' if stats_summary['significant'] else '❌ 不显著'}")
+    print(f"  显著性 (α=0.05): {'[PASS] 显著' if stats_summary['significant'] else '[FAIL] 不显著'}")
     print(
         f"  子集（中+深 n={subset_analysis['n_pairs']}）: "
         f"{subset_stats['improvement_pct']:+.1f}%, p={subset_stats['p_value']:.2e}, "
-        f"{'✅ 显著' if subset_stats['significant'] else '❌ 不显著'}"
+        f"{'[PASS] 显著' if subset_stats['significant'] else '[FAIL] 不显著'}"
     )
 
     # 5. 生成报告与 JSON

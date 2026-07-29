@@ -32,6 +32,11 @@ _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 
+# 修复 Windows GBK 终端下 emoji 字符导致的 UnicodeEncodeError 崩溃
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8")
+    sys.stderr.reconfigure(encoding="utf-8")
+
 OUTPUT_DIR = _PROJECT_ROOT / "results" / "reports"
 FIGURE_DIR = _PROJECT_ROOT / "results"
 

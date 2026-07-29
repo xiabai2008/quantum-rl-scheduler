@@ -94,7 +94,7 @@ QCIS_CIRCUIT = "H Q1\nM Q1"
 TASK_TIMEOUT_SECONDS = 180
 TASK_POLL_INTERVAL = 5
 
-PPO_MODEL_PATH = _PROJECT_ROOT / "deliverable_models" / "ppo_best_model_14dim.zip"
+PPO_MODEL_PATH = _PROJECT_ROOT / "deliverable_models" / "ppo_best_model_16dim.zip"
 
 DEFAULT_MACHINE_CONFIGS = [
     {

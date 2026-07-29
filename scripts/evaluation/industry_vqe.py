@@ -107,7 +107,7 @@ for _i, mol in enumerate(MOLECULES.keys()):
 
 # 运行对比
 print("\n[2/3] PPO vs FCFS vs SJF...")
-ppo = PPO.load("deliverable_models/ppo_best_model_14dim.zip")
+ppo = PPO.load("deliverable_models/ppo_best_model_16dim.zip")
 
 results = {}
 for strategy_name, strategy in [

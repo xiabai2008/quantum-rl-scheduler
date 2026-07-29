@@ -266,7 +266,7 @@ class ModelExporter:
 
     def export_onnx(
         self,
-        input_shape: tuple[int, ...] = (14,),
+        input_shape: tuple[int, ...] = (16,),
         opset_version: int = 14,
     ) -> str:
         """

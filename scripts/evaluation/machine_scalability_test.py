@@ -43,6 +43,11 @@ if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 os.chdir(str(_PROJECT_ROOT))
 
+# 修复 Windows GBK 终端下 emoji 字符导致的 UnicodeEncodeError 崩溃
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8")
+    sys.stderr.reconfigure(encoding="utf-8")
+
 # 复用现有基础设施
 sys.path.insert(0, str(_PROJECT_ROOT / "scripts" / "evaluation"))
 from run_issue_38_67_experiments import (  # noqa: I001
@@ -254,7 +259,7 @@ def evaluate_single_run(
     tasks_per_episode: int = 200,
     obs_dim: int = 10,
     ppo_model: Any = None,
-    ppo_model_path: str = "deliverable_models/ppo_best_model_14dim.zip",
+    ppo_model_path: str = "deliverable_models/ppo_best_model_16dim.zip",
 ) -> dict[str, Any]:
     """评估单次运行（指定机器数 + seed）。
 
@@ -365,7 +370,7 @@ def run_machine_scalability_test(
     obs_dim: int = 10,
     machine_scales: list[int] | None = None,
     output_dir: Path | None = None,
-    ppo_model_path: str = "deliverable_models/ppo_best_model_14dim.zip",
+    ppo_model_path: str = "deliverable_models/ppo_best_model_16dim.zip",
 ) -> dict[str, Any]:
     """运行机器规模扩展性测试主实验。
 
@@ -1018,7 +1023,7 @@ def main() -> None:
     parser.add_argument(
         "--ppo-model",
         type=str,
-        default="deliverable_models/ppo_best_model_14dim.zip",
+        default="deliverable_models/ppo_best_model_16dim.zip",
         help="PPO 模型路径",
     )
     parser.add_argument(

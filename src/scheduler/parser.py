@@ -616,7 +616,7 @@ class TaskFeatures:
 
         # 量子特征（归一化）
         # Issue #457: 287.0 为历史归一化常数（天衍-287 含耦合比特命名规模），
-        # 保持不变以兼容已训练的 PPO 模型（ppo_best_model_14dim.zip）。
+        # 保持不变以兼容已训练的 PPO 模型（ppo_best_model_16dim.zip）。
         # 真实数据比特为 105，调用方应显式传 env.max_qubits=105 对齐仿真规模。
         vector.append(min(self.qubit_count / 287.0, 1.0))  # 天衍-287
         vector.append(min(self.circuit_depth / 1000.0, 1.0))

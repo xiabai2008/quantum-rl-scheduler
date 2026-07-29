@@ -20,6 +20,11 @@ import sys
 from pathlib import Path
 from typing import Any
 
+# 修复 Windows GBK 终端下 emoji 字符导致的 UnicodeEncodeError 崩溃
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8")
+    sys.stderr.reconfigure(encoding="utf-8")
+
 
 def load_history(history_path: str) -> list[dict[str, Any]]:
     """加载 benchmark 历史记录。

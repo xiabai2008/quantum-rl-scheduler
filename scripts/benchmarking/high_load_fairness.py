@@ -455,7 +455,7 @@ def main() -> None:
     # 加载 PPO 模型
     from stable_baselines3 import PPO
 
-    ppo_path = str(_PROJECT_ROOT / "deliverable_models" / "ppo_best_model_14dim.zip")
+    ppo_path = str(_PROJECT_ROOT / "deliverable_models" / "ppo_best_model_16dim.zip")
     print(f"[PPO] 加载模型: {ppo_path}")
     ppo_env = QuantumSchedulingEnv(
         max_steps=MAX_STEPS, max_qubits=287, arrival_lambda=ARRIVAL_LAMBDA

@@ -38,9 +38,9 @@
 | 14 | OBS_CROSSTALK_RISK | 串扰风险（基于空间并发） | 并发特征（v9新增） |
 | 15 | OBS_ARRIVAL_RATE_MA | 任务到达率滑动平均 | 时序特征（v9新增） |
 
-### 1.3 16维观测空间（编译层专用）
+### 1.3 14维观测空间（编译层专用）
 
-编译层PPO Agent（`ppo_compilation_agent.zip`）使用独立的16维观测空间，定义在`src/quantum/compilation_env.py`：
+编译层PPO Agent（`ppo_compilation_agent.zip`）使用独立的14维观测空间，定义在`src/quantum/compilation_env.py`：
 - 包含：电路特征（深度、两比特门比例）、当前映射状态、耦合图拓扑特征、SWAP候选动作评估
 - 这与调度层的16维观测空间完全不同，是量子比特映射任务专用
 
@@ -75,7 +75,7 @@
 | 模型 | 文件 | 观测维度 | 架构 | 用途 |
 |:--|:--|:--|:--|:--|
 | **PPO 权威交付模型** | `deliverable_models/ppo_best_model_16dim.zip` | 16维（调度层） | MLP (use_lstm=False) | ✅ 答辩/提交/官方评估 |
-| PPO编译优化Agent | `deliverable_models/ppo_compilation_agent.zip` | 16维（编译层专用） | MLP | 量子比特映射（公平对比v2） |
+| PPO编译优化Agent | `deliverable_models/ppo_compilation_agent.zip` | 14维（编译层专用） | MLP | 量子比特映射（公平对比v2） |
 | PPO-LSTM（消融用） | `models/` 目录（不入库） | 16维 | LSTM | 消融实验参考，非交付 |
 | DQN 10维（旧·已删除） | — | 10维 | MLP | 历史归档，已清理 |
 
@@ -89,7 +89,7 @@
 | 数据表格 | 必须在表头或脚注标注维度 |
 | 跨维度引用 | 必须注明"不同维度结果不可直接比较" |
 | 调度vs编译 | 调度层和编译层是独立任务，指标不可跨任务比较 |
-| 答辩口径 | +88.3%基于16维调度模型N=250实验（config/statistics.yaml）；16维为交付兼容模型 |
+| 答辩口径 | +88.3% 基于 14 维旧模型（已删除）N=250 实验（config/statistics.yaml）；16维交付模型待验证 |
 
 ---
 
@@ -115,7 +115,7 @@
 | 仿真 PPO 均值 | 2746.94 ± 1160.72 | **14维调度（旧奖励参数）** | 50 seeds × 5 episodes = N=250 |
 | 仿真 FCFS 均值 | 1458.77 ± 60.47 | **14维调度（旧奖励参数）** | 同上 |
 | 仿真 PPO 提升 | +88.3% | **14维调度（旧奖励参数）** | 同上（Mann-Whitney U, p=1.032e-42） |
-| 编译PPO vs SABRE | 深电路SWAP减少~33%(n=20, p=0.29不显著) | 编译层16维, 4×4 2D网格 | 公平对比v2, 60电路同池配对, p=0.86不显著 |
+| 编译PPO vs SABRE | 深电路SWAP减少~33%(n=20, p=0.29不显著) | 编译层14维, 4×4 2D网格 | 公平对比v2, 60电路同池配对, p=0.86不显著 |
 | 2D网格拓扑优势 | SWAP减少~62% vs 线性链 | 编译环境 | 拓扑消融（BFS验证） |
 | 交付模型 | `ppo_best_model_16dim.zip` | 16维调度 | PPO-MLP, 100K steps |
 
@@ -135,7 +135,7 @@
 | 环境类型定义 | `src/scheduler/env_types.py` | OBS_DIM=16（调度层） |
 | 观测构建 | `src/scheduler/env_observation.py` | 16维观测实现 |
 | 2D网格耦合图 | `src/quantum/compilation_env.py` | 4×4网格+BFS距离 |
-| 编译环境 | `src/quantum/compilation_env.py` | 编译层16维观测 |
+| 编译环境 | `src/quantum/compilation_env.py` | 编译层14维观测 |
 | 权威评估脚本 | `scripts/evaluation/run_simulation.py` | 官方仿真入口 |
 | 公平对比v2 | `scripts/evaluation/compilation_fair_v2.py` | PPO vs SABRE公平评估 |
 | 模型登记 | `MODELS.md` | 模型维度与架构记录 |

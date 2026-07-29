@@ -168,7 +168,7 @@ def _get_ppo_model() -> Any:
             _ppo_env = QuantumSchedulingEnv(max_qubits=287, seed=42)
             # 优先使用 deliverable_models/ 下的权威模型（入库模型，所有环境都有）
             deliverable_dir = os.path.join(_PROJECT_ROOT, "deliverable_models")
-            model_path = os.path.join(deliverable_dir, "ppo_best_model_14dim.zip")
+            model_path = os.path.join(deliverable_dir, "ppo_best_model_16dim.zip")
 
             if not os.path.exists(model_path):
                 # 回退：自动发现 deliverable_models/ 或 models/ 下的 PPO 模型

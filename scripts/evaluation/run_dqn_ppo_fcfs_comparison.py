@@ -38,7 +38,8 @@ EPISODES_PER_SEED = 5
 TASKS_PER_EPISODE = 200
 ARRIVAL_LAMBDA = 0.5
 QUANTUM_RATIO = 0.7
-PPO_MODEL_PATH = PROJECT_ROOT / "deliverable_models" / "ppo_best_model_14dim.zip"
+PPO_MODEL_PATH = PROJECT_ROOT / "deliverable_models" / "ppo_best_model_16dim.zip"
+# DELETED: DQN 模型已在 v9 删除，原 dqn_best_model_14dim.zip 不再提供；脚本检测到缺失会优雅退出
 DQN_MODEL_PATH = PROJECT_ROOT / "deliverable_models" / "dqn_best_model_14dim.zip"
 REPORT_DIR = PROJECT_ROOT / "results" / "reports"
 JSON_DIR = PROJECT_ROOT / "results"

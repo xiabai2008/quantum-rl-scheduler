@@ -30,7 +30,7 @@ simulation_8strategy_50seed:
   applicable_condition: >
     14维观测空间（原生14维环境），50 seeds × 5 episodes = 250次独立运行，
     每episode 200步，泊松到达λ=0.5，量子任务占比70%，
-    PPO模型: ppo_best_model_14dim.zip，DQN模型: dqn_best_model_14dim.zip
+    PPO模型: ppo_best_model_16dim.zip（v9 由 14 维 ppo_best_model_14dim.zip 迁移），DQN模型: dqn_best_model_14dim.zip（v9 已删除，无替代）
   alpha: 0.05
   bonferroni_alpha: 0.0018
   num_comparisons: 28

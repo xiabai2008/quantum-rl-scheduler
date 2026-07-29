@@ -3,7 +3,7 @@
 
 submission:
   deadline: "2026-09-15"
-  version: "9.0.0"
+  version: "9.1.0"
 
 items:
   # 代码部分
@@ -12,14 +12,14 @@ items:
     type: git_tag
     path: "."
     requirements:
-      tag: "v9.0-submission"
+      tag: "v9.1-submission"
       must_pass_ci: true
       must_have_readme: true
 
   - id: CODE_ARCHIVE
     name: 代码压缩包
     type: zip
-    path: "dist/quantum-rl-scheduler-v9.0.zip"
+    path: "dist/quantum-rl-scheduler-v9.1.zip"
     requirements:
       max_size_mb: 100
       exclude:

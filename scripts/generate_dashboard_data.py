@@ -5,7 +5,13 @@
 
 import json
 import os
+import sys
 from datetime import datetime
+
+# 修复 Windows GBK 终端下 emoji 字符导致的 UnicodeEncodeError 崩溃
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8")
+    sys.stderr.reconfigure(encoding="utf-8")
 
 # 基于 statistical_validation.md 的50-seed权威数据
 # 注意：这些是仿真环境下的episode平均奖励（200步/episode）

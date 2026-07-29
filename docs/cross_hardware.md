@@ -572,4 +572,4 @@ A: 主要挑战在电路格式转换（不同硬件门集不同）和硬件噪�
 - 架构设计：`src/api/`（三客户端实现）、`src/scheduler/env_types.py`（QuantumMachine）
 - 真机闭环：`src/scheduler/env_real_machine.py`、`results/reports/real_machine_closed_loop.md`
 - 真机性能：`results/reports/real_machine_performance.md`
-- 技术白皮书：`docs/technical_whitepaper.pdf`（v9.0，7章）
+- 技术白皮书：`docs/technical_whitepaper.pdf`（v9.1，7章）

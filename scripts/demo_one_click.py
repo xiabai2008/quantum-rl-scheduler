@@ -24,6 +24,11 @@ from pathlib import Path
 
 from loguru import logger
 
+# 修复 Windows GBK 终端下 emoji 字符导致的 UnicodeEncodeError 崩溃
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8")
+    sys.stderr.reconfigure(encoding="utf-8")
+
 
 def print_banner():
     """打印启动横幅"""
@@ -121,7 +126,7 @@ def check_model():
     print("\n[3/5] 检查PPO模型文件...")
     project_root = Path(__file__).parent.parent
     model_dir = project_root / "deliverable_models"
-    model_path = model_dir / "ppo_best_model_14dim.zip"
+    model_path = model_dir / "ppo_best_model_16dim.zip"
 
     if model_path.exists():
         size_mb = model_path.stat().st_size / (1024 * 1024)

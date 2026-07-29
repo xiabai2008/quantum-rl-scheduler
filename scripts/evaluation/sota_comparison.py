@@ -22,7 +22,7 @@ Issue #271
 
 用法：
     python scripts/evaluation/sota_comparison.py --seeds 10 --episodes 5
-    python scripts/evaluation/sota_comparison.py --seeds 10 --episodes 5 --ppo-model deliverable_models/ppo_best_model_14dim.zip
+    python scripts/evaluation/sota_comparison.py --seeds 10 --episodes 5 --ppo-model deliverable_models/ppo_best_model_16dim.zip
 """
 
 import argparse
@@ -214,7 +214,7 @@ def run_sota_comparison(
     seeds: int = 10,
     episodes_per_seed: int = 5,
     tasks_per_episode: int = 200,
-    ppo_model: str = "deliverable_models/ppo_best_model_14dim.zip",
+    ppo_model: str = "deliverable_models/ppo_best_model_16dim.zip",
     obs_dim: int = 14,
     alpha: float = 0.05,
 ) -> dict[str, Any]:
@@ -626,7 +626,7 @@ def main() -> None:
     parser.add_argument(
         "--ppo-model",
         type=str,
-        default="deliverable_models/ppo_best_model_14dim.zip",
+        default="deliverable_models/ppo_best_model_16dim.zip",
         help="PPO 模型路径（14 维）",
     )
     parser.add_argument(

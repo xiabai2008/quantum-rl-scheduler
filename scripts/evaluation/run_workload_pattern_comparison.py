@@ -114,8 +114,8 @@ def run_comparison(
     seeds: int = 10,
     episodes_per_seed: int = 5,
     max_steps: int = 200,
-    ppo_model: str = "deliverable_models/ppo_best_model_14dim.zip",
-    dqn_model: str = "deliverable_models/dqn_best_model_10dim.zip",
+    ppo_model: str = "deliverable_models/ppo_best_model_16dim.zip",
+    dqn_model: str | None = None,  # DELETED: DQN 模型已在 v9 删除，原 dqn_best_model_10dim.zip 不再提供
     patterns: Sequence[WorkloadPattern] = WORKLOAD_PATTERNS,
 ) -> dict[str, Any]:
     """执行 3×8 对比并返回可复现的完整结果。"""
@@ -257,8 +257,8 @@ def main() -> None:
     parser.add_argument("--seeds", type=int, default=10)
     parser.add_argument("--episodes", type=int, default=5)
     parser.add_argument("--max-steps", type=int, default=200)
-    parser.add_argument("--ppo-model", default="deliverable_models/ppo_best_model_14dim.zip")
-    parser.add_argument("--dqn-model", default="deliverable_models/dqn_best_model_10dim.zip")
+    parser.add_argument("--ppo-model", default="deliverable_models/ppo_best_model_16dim.zip")
+    parser.add_argument("--dqn-model", default=None, help="DELETED: DQN 模型已在 v9 删除")
     parser.add_argument(
         "--output-data",
         type=Path,

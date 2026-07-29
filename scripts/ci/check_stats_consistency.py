@@ -26,6 +26,11 @@ _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 STATS_YAML = _PROJECT_ROOT / "config" / "statistics.yaml"
 AUTHORITATIVE_NUMBERS_MD = _PROJECT_ROOT / "docs" / "authoritative_numbers.md"
 
+# 修复 Windows GBK 终端下 emoji 字符导致的 UnicodeEncodeError 崩溃
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8")
+    sys.stderr.reconfigure(encoding="utf-8")
+
 # 需要扫描的文件模式
 SCAN_GLOBS = ["*.md", "**/*.md"]
 

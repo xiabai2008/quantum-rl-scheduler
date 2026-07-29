@@ -9,6 +9,11 @@ import sys
 # 添加 src 到 Python 路径
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
+# 修复 Windows GBK 终端下 emoji 字符导致的 UnicodeEncodeError 崩溃
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8")
+    sys.stderr.reconfigure(encoding="utf-8")
+
 
 # 测试 1: 导入 Mock 客户端
 print("=" * 60)

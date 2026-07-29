@@ -44,7 +44,7 @@ NUM_SEEDS = 10
 EPISODES_PER_SEED = 5
 TASKS_PER_EPISODE = 200
 ARRIVAL_LAMBDA = 0.5
-PPO_MODEL_PATH = PROJECT_ROOT / "deliverable_models" / "ppo_best_model_14dim.zip"
+PPO_MODEL_PATH = PROJECT_ROOT / "deliverable_models" / "ppo_best_model_16dim.zip"
 OUTPUT_DIR = PROJECT_ROOT / "results"
 REPORT_DIR = OUTPUT_DIR / "reports"
 

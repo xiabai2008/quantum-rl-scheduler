@@ -14,7 +14,7 @@
     python scripts/demo_multi_machine.py --episodes 20
 
     # 加载训练好的 PPO 模型做多机器调度
-    python scripts/demo_multi_machine.py --ppo-model deliverable_models/ppo_best_model_14dim.zip
+    python scripts/demo_multi_machine.py --ppo-model deliverable_models/ppo_best_model_16dim.zip
 
     # 真机验证模式（5% 量子任务上真机）
     python scripts/demo_multi_machine.py --real --real-prob 0.05 --episodes 5
@@ -32,6 +32,11 @@ import numpy as np
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
+
+# 修复 Windows GBK 终端下 emoji 字符导致的 UnicodeEncodeError 崩溃
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8")
+    sys.stderr.reconfigure(encoding="utf-8")
 
 from src.scheduler.env import (
     DEFAULT_MACHINE_CONFIGS,
@@ -327,7 +332,7 @@ def main():
     parser.add_argument(
         "--ppo-model",
         type=str,
-        default="deliverable_models/ppo_best_model_14dim.zip",
+        default="deliverable_models/ppo_best_model_16dim.zip",
         help="PPO 模型路径（不存在则用启发式策略）",
     )
     parser.add_argument(

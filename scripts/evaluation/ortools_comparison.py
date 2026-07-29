@@ -41,8 +41,8 @@ from src.scheduler.env import QuantumSchedulingEnv
 class _CompatPPOStrategy(BaseStrategy):
     """PPO 策略（观测维度兼容层）。
 
-    Issue #441：当前环境 OBS_DIM=16，但权威 PPO 模型 ppo_best_model_14dim.zip
-    训练于 14 维观测空间。此处从 model.observation_space.shape 推断模型期望维度，
+    Issue #441：原权威 PPO 模型 ppo_best_model_14dim.zip 训练于 14 维观测空间
+    （v9 已迁移至 ppo_best_model_16dim.zip）。此处从 model.observation_space.shape 推断模型期望维度，
     当环境维度 > 模型维度时自动截断前 N 维，保证 predict() 维度匹配。
     """
 
@@ -206,7 +206,7 @@ def run_comparison(tasks_per_scale: list[int] | None = None, episodes: int = 3):
     """
     if tasks_per_scale is None:
         tasks_per_scale = [20, 50, 100, 200]
-    ppo = PPO.load("deliverable_models/ppo_best_model_14dim.zip")
+    ppo = PPO.load("deliverable_models/ppo_best_model_16dim.zip")
     results: dict[int, dict] = {}
 
     for n_tasks in tasks_per_scale:

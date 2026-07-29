@@ -33,6 +33,11 @@ from torch import nn
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
+# 修复 Windows GBK 终端下 emoji 字符导致的 UnicodeEncodeError 崩溃
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8")
+    sys.stderr.reconfigure(encoding="utf-8")
+
 from src.quantum.annealing import QuantumAnnealingOptimizer
 
 
@@ -341,7 +346,7 @@ def compare_modes(
 
 
 def run_real_env_comparison(
-    ppo_model_path: str = "deliverable_models/ppo_best_model_14dim.zip",
+    ppo_model_path: str = "deliverable_models/ppo_best_model_16dim.zip",
     num_iterations: int = 5,
     collect_steps: int = 200,
     modes: list[str] | None = None,
@@ -585,7 +590,7 @@ def main() -> int:
     parser.add_argument(
         "--ppo-model",
         type=str,
-        default="deliverable_models/ppo_best_model_14dim.zip",
+        default="deliverable_models/ppo_best_model_16dim.zip",
         help="PPO 模型路径（仅 --real-env 模式使用）",
     )
     args = parser.parse_args()

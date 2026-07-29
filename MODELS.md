@@ -76,7 +76,7 @@ python scripts/evaluation/ablation_ppo_variants.py
 
 ## 注意事项
 
-- PPO 权威调度模型为**16维标准MLP**（`ppo_best_model_16dim.zip`），是v9.0交付版本
+- PPO 权威调度模型为**16维标准MLP**（`ppo_best_model_16dim.zip`），是v9.1交付版本
 - 旧的10维/14维调度模型已清理，仅保留当前最优16维模型和编译优化Agent
 - 编译层Agent（`ppo_compilation_agent.zip`）为独立模型，使用14维观测空间（量子编译环境专用）
 - 如需重新训练并替换权威模型：使用对应训练脚本训练后将模型复制至 `deliverable_models/` 并同步更新本文件

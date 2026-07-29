@@ -92,8 +92,9 @@ REAL_SHOTS = 1024  # 真机 shots 数
 QCIS_CIRCUIT = "H Q0\nM Q0"  # H 门（阶段 0 验证高保真度）
 
 # 预训练模型路径
-PPO_MODEL_PATH = str(_PROJECT_ROOT / "deliverable_models" / "ppo_best_model_14dim.zip")
-DQN_MODEL_PATH = str(_PROJECT_ROOT / "deliverable_models" / "dqn_best_model_10dim.zip")
+PPO_MODEL_PATH = str(_PROJECT_ROOT / "deliverable_models" / "ppo_best_model_16dim.zip")
+# DELETED: DQN 模型已在 v9 删除，原 dqn_best_model_10dim.zip 不再提供
+# DQN_MODEL_PATH = str(_PROJECT_ROOT / "deliverable_models" / "dqn_best_model_10dim.zip")
 
 # 动作含义
 ACTION_MEANINGS: dict[int, str] = {0: "classical", 1: "quantum", 2: "hybrid"}
@@ -191,18 +192,18 @@ def create_strategies() -> tuple[list[BaseStrategy], list[str]]:
         skipped.append(skip_reason)
         logger.warning(f"[Strategy] {skip_reason}，跳过 PPO 策略")
 
-    # DQN 策略（加载预训练模型，使用兼容包装器）
-    try:
-        from stable_baselines3 import DQN
-
-        dqn_model = DQN.load(DQN_MODEL_PATH)
-        strategies.append(CompatModelStrategy(dqn_model, name="DQN"))
-        logger.info(f"[Strategy] DQN 模型已加载: {DQN_MODEL_PATH}")
-    except Exception as e:
-        # Issue #133: 加载失败时跳过而非用 SJF 替代
-        skip_reason = f"DQN 加载失败: {str(e)[:100]}"
-        skipped.append(skip_reason)
-        logger.warning(f"[Strategy] {skip_reason}，跳过 DQN 策略")
+    # DELETED: DQN 模型已在 v9 删除，跳过 DQN 策略加载
+    # try:
+    #     from stable_baselines3 import DQN
+    #
+    #     dqn_model = DQN.load(DQN_MODEL_PATH)
+    #     strategies.append(CompatModelStrategy(dqn_model, name="DQN"))
+    #     logger.info(f"[Strategy] DQN 模型已加载: {DQN_MODEL_PATH}")
+    # except Exception as e:
+    #     # Issue #133: 加载失败时跳过而非用 SJF 替代
+    #     skip_reason = f"DQN 加载失败: {str(e)[:100]}"
+    #     skipped.append(skip_reason)
+    #     logger.warning(f"[Strategy] {skip_reason}，跳过 DQN 策略")
 
     return strategies, skipped
 

@@ -135,7 +135,7 @@ def _load_ppo_model() -> Any:
     """加载 PPO 模型，失败时抛出异常。"""
     from stable_baselines3 import PPO
 
-    return PPO.load("deliverable_models/ppo_best_model_14dim.zip")
+    return PPO.load("deliverable_models/ppo_best_model_16dim.zip")
 
 
 def _run_single_seed(
@@ -248,7 +248,7 @@ def run_vqe_multiseed(
     # 加载 PPO 模型
     print("[1/4] 加载 PPO 模型...")
     ppo_model = _load_ppo_model()
-    print("      PPO 模型已加载: deliverable_models/ppo_best_model_14dim.zip")
+    print("      PPO 模型已加载: deliverable_models/ppo_best_model_16dim.zip")
     print()
 
     # 运行多 seed 评估
@@ -617,7 +617,7 @@ def generate_report(
             f"- **Episodes/Seed**: {cfg['episodes']}",
             f"- **Max Steps/Episode**: {cfg['tasks_per_episode']}",
             f"- **总运行数**: {cfg['total_runs']}（3 策略 × {len(cfg['seeds'])} seeds × {cfg['episodes']} episodes）",
-            "- **PPO 模型**: ``deliverable_models/ppo_best_model_14dim.zip``（14 维原生环境）",
+            "- **PPO 模型**: ``deliverable_models/ppo_best_model_16dim.zip``（14 维原生环境）",
             f"- **总耗时**: {cfg['elapsed_seconds']:.1f}s",
             "",
             "## 4. 实验结果",

@@ -44,7 +44,7 @@ ARRIVAL_LAMBDA = 1.2
 # max_steps 留 10% 缓冲，确保任务都能进入队列
 STEPS_BUFFER_RATIO = 1.1
 PPO_MODEL_CANDIDATES = [
-    "deliverable_models/ppo_best_model_14dim.zip",
+    "deliverable_models/ppo_best_model_16dim.zip",
     "models/ppo_seed_42/best_model.zip",
 ]
 RESULTS_DIR = os.path.join(PROJECT_ROOT, "results")

@@ -41,6 +41,11 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 
+# 修复 Windows GBK 终端下 emoji 字符导致的 UnicodeEncodeError 崩溃
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8")
+    sys.stderr.reconfigure(encoding="utf-8")
+
 # ---------------------------------------------------------------------------
 # 权威数字定义（与 audit_authoritative_metrics.py 保持一致）
 # ---------------------------------------------------------------------------

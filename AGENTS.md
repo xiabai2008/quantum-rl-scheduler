@@ -178,7 +178,7 @@ quantum-rl-scheduler/
 ├── models/                       # 训练模型（PPO/DQN 检查点）
 ├── results/
 │   ├── reports/                  # 实验报告（18份，含statistical_validation.md, multiseed_real_machine_report.md, fair_scheduling_report.md, d3_reward_ablation_report.md, high_load_fairness_report.md）
-│   ├── models/                   # 归档的权威模型（ppo_best_model_14dim.zip等）
+│   ├── models/                   # 归档的权威模型（ppo_best_model_16dim.zip等）
 │   ├── multiseed_evaluation/     # 多seed评估数据
 │   ├── fair_comparison/          # 公平对比数据
 │   ├── issue_experiments/        # Issue实验数据
@@ -204,7 +204,7 @@ quantum-rl-scheduler/
 ├── config/
 │   ├── .env.example
 │   ├── config.yaml
-│   └── submission_manifest.yaml  # 提交清单（v9.0）
+│   └── submission_manifest.yaml  # 提交清单（v9.1）
 
 └── .github/
     └── workflows/
@@ -326,7 +326,7 @@ quantum-rl-scheduler/
 | 材料                | 路径                                                  | 状态                                                |
 | ----------------- | --------------------------------------------------- | ------------------------------------------------- |
 | 答辩PPT（制作中）.pptx\` | ✅ 制作中（+88.3%，p=1.032e-42，N=250，284真机调用，新增2页应用价值）    | <br />                                            |
-| 技术白皮书（7章）         | `docs/technical_whitepaper.pdf`                     | ✅ 已完成（+88.3%，315真机调用，100%成功率，2026-07-27 v9.0 口径） |
+| 技术白皮书（7章）         | `docs/technical_whitepaper.pdf`                     | ✅ 已完成（+88.3%，315真机调用，100%成功率，2026-07-27 v9.1 口径） |
 | 价值量化报告            | `docs/value_quantification.md`                      | ✅ 已完成（6节，10项指标，ROI分析，VQE场景案例）                     |
 | 技术瓶颈分析            | `docs/technical_bottlenecks.md`                     | ✅ 已完成（7项瓶颈+缓解策略，2026-07-24）                       |
 | 公平调度实验报告          | `results/reports/fair_scheduling_report.md`         | ✅ 已完成（5租户Jain's指数=0.9875，PPO总奖励+57.6%，2026-07-24） |
@@ -376,13 +376,13 @@ PR审查        ████████████████░░░░  80
 - **P1**：处理7个待修改PR（#614/#615/#613/#604/#603/#602/#600）— 需作者按审查意见修订后重新提交
 - **P2**：演示视频录制（4-5分钟，1080p）— 需瑞哥人工录制
 - **P2**：PPT/白皮书 .pptx/.docx 源文件数字更新 — 需瑞哥手动更新
-- **P3**：8/15代码冻结，9/15前打v9.0-submission标签
+- **P3**：8/15代码冻结，9/15前打v9.1-submission标签
   - 冻结前检查清单:
     1. 所有 CI 检查全绿（lint/test/typecheck/security）
     2. `python scripts/ci/validate_submission.py --check` 通过
     3. PPT/白皮书数字与代码权威数字一致（+88.3%，14维权威实验N=250，16维需重新验证）
     4. 演示视频已就位
-    5. 打标签: `git tag -a v9.0-submission -m "v9.0 提交版本" && git push origin v9.0-submission`
+    5. 打标签: `git tag -a v9.1-submission -m "v9.1 提交版本" && git push origin v9.1-submission`
     6. 打包: `python scripts/ci/validate_submission.py --pack`
 
 详见 workspace 根目录 `项目状态审查与下一步工作建议_2026-07-09.md`。
@@ -400,7 +400,7 @@ PR审查        ████████████████░░░░  80
 
 - 10维和14维结果不可直接比较
 - 报告/表格必须标注观测维度
-- PPO +88.3% 为14维原生环境权威对比结果（50 seeds × 5 episodes = 250次独立运行），PPO 模型文件为 ppo_best_model_14dim.zip。10维 Obs10Wrapper 仅用于与旧版 10维 DQN 模型的公平对比
+- PPO +88.3% 为14维原生环境权威对比结果（50 seeds × 5 episodes = 250次独立运行），PPO 模型文件为 ppo_best_model_16dim.zip（v9 已由 14 维迁移至 16 维，旧版 dqn_best_model_10dim.zip / dqn_best_model_14dim.zip 已删除）。10维 Obs10Wrapper 仅用于与旧版 10维 DQN 模型的公平对比
 
 详见 `docs/observation_dim_standard.md`
 
@@ -470,8 +470,8 @@ docker-compose up -d
 
 | 用途           | 路径                                                    |
 | ------------ | ----------------------------------------------------- |
-| 权威PPO模型（14维） | `deliverable_models/ppo_best_model_14dim.zip`         |
-| 权威DQN模型（10维） | `deliverable_models/dqn_best_model_10dim.zip`         |
+| 权威PPO模型（16维） | `deliverable_models/ppo_best_model_16dim.zip`         |
+| 编译层PPO模型       | `deliverable_models/ppo_compilation_agent.zip`         |
 | 归档模型目录       | `deliverable_models/`（已入库，详见 MODELS.md）               |
 | 多seed评估数据    | `results/multiseed_evaluation/rewards_multiseed.json` |
 | 统计显著性报告      | `results/reports/statistical_validation.md`           |

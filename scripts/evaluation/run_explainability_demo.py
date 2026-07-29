@@ -38,7 +38,7 @@ from src.scheduler.explainability import (
 # 常量
 # ---------------------------------------------------------------------------
 
-MODEL_PATH = os.path.join(PROJECT_ROOT, "deliverable_models", "ppo_best_model_14dim.zip")
+MODEL_PATH = os.path.join(PROJECT_ROOT, "deliverable_models", "ppo_best_model_16dim.zip")
 REPORT_DIR = os.path.join(PROJECT_ROOT, "results", "reports")
 LOG_DIR = os.path.join(PROJECT_ROOT, "results", "explainability_logs")
 
@@ -133,7 +133,7 @@ def main() -> None:
         "title": "可解释性模块深度应用报告",
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "issue": "#31",
-        "model": "ppo_best_model_14dim.zip",
+        "model": "ppo_best_model_16dim.zip",
         "explainability": {
             "feature_importance": {k: round(v, 4) for k, v in sorted_importance},
             "anomaly_count": len(anomalies),
@@ -222,7 +222,7 @@ def _write_markdown_report(
         "",
         f"> 生成时间: {datetime.now(timezone.utc).isoformat()}",
         "> Issue: #31",
-        "> 模型: ppo_best_model_14dim.zip",
+        "> 模型: ppo_best_model_16dim.zip",
         f"> 推理步数: {len(records)}",
         "",
         "## 实验目的",

@@ -1,9 +1,15 @@
 """查询天衍云真机任务结果"""
 
 import os
+import sys
 import time
 
 import cqlib
+
+# 修复 Windows GBK 终端下 emoji 字符导致的 UnicodeEncodeError 崩溃
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8")
+    sys.stderr.reconfigure(encoding="utf-8")
 
 API_KEY = os.environ.get("TIANYAN_API_KEY", "")
 TASK_ID = os.environ.get("TIANYAN_TASK_ID", "")

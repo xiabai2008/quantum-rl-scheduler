@@ -78,7 +78,7 @@ for label in ["Standard", "QuantumNoise"]:
 
         env.step = noisy_step
 
-    ppo = PPO.load("deliverable_models/ppo_best_model_14dim.zip")
+    ppo = PPO.load("deliverable_models/ppo_best_model_16dim.zip")
 
     r = run_strategy(
         sim_env,

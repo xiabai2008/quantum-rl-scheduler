@@ -133,7 +133,7 @@ def cp_sat(tasks, tl=60):
     return sol.ObjectiveValue()
 
 
-ppo_load = PPO.load("deliverable_models/ppo_best_model_14dim.zip")
+ppo_load = PPO.load("deliverable_models/ppo_best_model_16dim.zip")
 for n in [20, 50, 100]:
     tg = SimulationTaskGenerator(seed=42)
     tks = tg.generate_batch(n)[:n]

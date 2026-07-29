@@ -25,6 +25,11 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
+# 修复 Windows GBK 终端下 emoji 字符导致的 UnicodeEncodeError 崩溃
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8")
+    sys.stderr.reconfigure(encoding="utf-8")
+
 
 def print_banner():
     print("\n" + "=" * 60)
@@ -77,7 +82,7 @@ def demo_train(args):
 def demo_simulation(args):
     """步骤2: 8种策略仿真对比"""
     step("2/4 8种策略仿真对比（200任务）")
-    cmd = "python scripts/evaluation/run_simulation.py --episodes 50 --tasks-per-episode 200 --ppo-model-path deliverable_models/ppo_best_model_14dim.zip --model-path deliverable_models/dqn_best_model_14dim.zip --output-dir ./results"
+    cmd = "python scripts/evaluation/run_simulation.py --episodes 50 --tasks-per-episode 200 --ppo-model-path deliverable_models/ppo_best_model_16dim.zip --output-dir ./results"
     success = run_command(cmd)
     if success:
         print("  ✅ 仿真对比完成")

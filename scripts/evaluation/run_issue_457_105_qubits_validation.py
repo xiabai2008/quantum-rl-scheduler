@@ -2,7 +2,7 @@
 """Issue #457: 105 数据比特规模稳健性复跑验证。
 
 在天衍-287 真实数据比特规模（105 数据比特+182 耦合比特）下，
-用已训练的 PPO 模型（ppo_best_model_14dim.zip，287 规模训练）跑 10 seeds × 5 episodes = N=50，
+用已训练的 PPO 模型（ppo_best_model_16dim.zip，287 规模训练）跑 10 seeds × 5 episodes = N=50，
 对比 PPO vs FCFS 提升幅度，验证 +88.3% 权威数字的稳健性。
 
 验收标准（Issue #457）：
@@ -124,7 +124,7 @@ def run_validation() -> dict:
     print(f"  Max Steps/Ep:    {TASKS_PER_EPISODE}")
     print(f"  Max Qubits:      {MAX_QUBITS_105}（天衍-287 真实数据比特）")
     print(f"  Obs Dim:         {OBS_DIM}（原生环境）")
-    print("  PPO Model:       deliverable_models/ppo_best_model_14dim.zip")
+    print("  PPO Model:       deliverable_models/ppo_best_model_16dim.zip")
     print(f"  Alpha:           {ALPHA}")
     print(
         f"  权威基准:        PPO vs FCFS +{AUTHORITATIVE_IMPROVEMENT_PCT}%（N=250, max_qubits=287）"
@@ -133,8 +133,8 @@ def run_validation() -> dict:
     print("=" * 70)
 
     # 加载策略模型（复用权威评估的模型）
-    ppo_path = "deliverable_models/ppo_best_model_14dim.zip"
-    dqn_path = "deliverable_models/dqn_best_model_14dim.zip"
+    ppo_path = "deliverable_models/ppo_best_model_16dim.zip"
+    dqn_path = None  # DELETED: DQN 模型已在 v9 删除，原 dqn_best_model_14dim.zip 不再提供
     strategies = build_strategies(dqn_path=dqn_path, ppo_path=ppo_path, obs_dim=OBS_DIM)
     strategy_names = [s.name for s in strategies]
     print(f"\n已加载 {len(strategies)} 个策略: {strategy_names}")
@@ -350,7 +350,7 @@ def _generate_report(
         "",
         f"> **实验配置**: {SEEDS} seeds × {EPISODES_PER_SEED} episodes = {n_total} 次独立运行",
         f"> **仿真规模**: max_qubits={MAX_QUBITS_105}（天衍-287 真实数据比特数）",
-        "> **PPO 模型**: deliverable_models/ppo_best_model_14dim.zip（287 规模训练，验证跨规模泛化）",
+        "> **PPO 模型**: deliverable_models/ppo_best_model_16dim.zip（287 规模训练，验证跨规模泛化）",
         f"> **观测维度**: {OBS_DIM} 维（原生环境）",
         f"> **生成时间**: {datetime.now().astimezone().isoformat()}",
         f"> **数据文件**: `{data_path}`",

@@ -6,7 +6,7 @@
 
 | 项目信息 | |
 |:--|:--|
-| 版本 | v9.0 |
+| 版本 | v9.1 |
 | 日期 | 2026年7月27日 |
 | 团队 | 量子RL调度团队 |
 | 代码仓库 | https://github.com/xiabai2008/quantum-rl-scheduler |
