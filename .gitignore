@@ -138,3 +138,6 @@ project-review/
 docs/teammate_*.md
 docs/pr_patrol_*.md
 docs/project_dashboard_*.html
+# 归档的临时文件（从 docs/ 移入 archive/ 的临时文件，不纳入版本控制）
+archive/pr_patrol/
+archive/project_dashboard/

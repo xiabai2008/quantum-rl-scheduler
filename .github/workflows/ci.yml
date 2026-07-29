@@ -187,6 +187,56 @@ jobs:
         run: python scripts/ci/post_coverage_comment.py
 
   # ---------------------------------------------------------------------------
+  # Job 2b: Linux 跨平台冒烟测试（Issue #185: 跨平台兼容性验证）
+  # ---------------------------------------------------------------------------
+  # 完整测试套件（1658 测试）只在 Windows runner 上跑（资源限制）。
+  # Linux 冒烟测试仅运行核心 CI 验证脚本和快速单元测试，确保跨平台兼容性。
+  linux-smoke:
+    name: "Linux Smoke Test (Python ${{ matrix.python-version }})"
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: lint
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Cache pip packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-smoke-${{ matrix.python-version }}-${{ hashFiles('requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-smoke-${{ matrix.python-version }}-
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
+
+      - name: Run core CI validation scripts
+        run: |
+          # 权威数字一致性校验（纯 Python，无平台依赖）
+          python scripts/ci/validate_authoritative_numbers.py --strict
+          # 权威指标审计（纯 Python，无平台依赖）
+          python scripts/ci/audit_authoritative_metrics.py
+          # 统计一致性检查
+          python scripts/ci/check_stats_consistency.py --strict
+
+      - name: Run metric audit tests (fast, platform-independent)
+        run: |
+          python -m pytest tests/test_metric_audit.py tests/test_evidence_lineage.py \
+            -v --timeout=60 -W ignore::DeprecationWarning
+
+  # ---------------------------------------------------------------------------
   # Job 3: 类型检查（mypy）
   # ---------------------------------------------------------------------------
   typecheck:
