@@ -31,8 +31,8 @@ _PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(
 
 __all__ = ["ModelExporter", "export_model"]
 
-# 默认输入形状（对应 14 维调度状态空间）
-_DEFAULT_INPUT_SHAPE: tuple[int, ...] = (14,)
+# 默认输入形状（对应 16 维调度状态空间，v9+ 交付标准）
+_DEFAULT_INPUT_SHAPE: tuple[int, ...] = (16,)
 # 验证阈值：max_diff < 1e-4 视为导出有效
 _VALIDATION_THRESHOLD: float = 1e-4
 
@@ -205,7 +205,7 @@ class ModelExporter:
 
     def _resolve_shape(self, input_shape: tuple[int, ...]) -> tuple[int, ...]:
         """
-        解析输入形状：若传入默认值 (14,) 且模型观测空间不同，则自动推断。
+        解析输入形状：若传入默认值 (16,) 且模型观测空间不同，则自动推断。
 
         这样 export_torchscript() / export_onnx() / export_all() 在使用默认
         参数时能自动适配模型的实际观测维度，避免形状不匹配。
@@ -276,7 +276,7 @@ class ModelExporter:
         支持 dynamic_axes（batch 维度动态），便于批量推理。
 
         Args:
-            input_shape: 输入形状，默认 (14,)
+            input_shape: 输入形状，默认 (16,)
             opset_version: ONNX opset 版本，默认 14
 
         Returns:
@@ -322,7 +322,7 @@ class ModelExporter:
             logger.error(f"ONNX 导出失败: {e}")
             raise RuntimeError(f"ONNX 导出失败: {e}") from e
 
-    def export_torchscript(self, input_shape: tuple[int, ...] = (14,)) -> str:
+    def export_torchscript(self, input_shape: tuple[int, ...] = (16,)) -> str:
         """
         将模型导出为 TorchScript 格式。
 
@@ -330,7 +330,7 @@ class ModelExporter:
         TorchScript 为主要导出格式，不依赖额外包。
 
         Args:
-            input_shape: 输入形状，默认 (14,)
+            input_shape: 输入形状，默认 (16,)
 
         Returns:
             导出的 TorchScript 文件路径 (.pt)
@@ -477,7 +477,7 @@ class ModelExporter:
             "details": details,
         }
 
-    def export_all(self, input_shape: tuple[int, ...] = (14,)) -> dict[str, Any]:
+    def export_all(self, input_shape: tuple[int, ...] = (16,)) -> dict[str, Any]:
         """
         同时导出 ONNX + TorchScript 并验证。
 
@@ -485,7 +485,7 @@ class ModelExporter:
         TorchScript 为主要格式必须成功。
 
         Args:
-            input_shape: 输入形状，默认 (14,)
+            input_shape: 输入形状，默认 (16,)
 
         Returns:
             结果字典：{onnx_path, torchscript_path, validation}

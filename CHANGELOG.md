@@ -2,6 +2,20 @@
 
 本文件记录项目的所有重要变更，按日期倒序排列。
 
+## [2026-07-29] - v9.1.0 权威数字更新 + 评审报告P0/P1修复
+
+### 变更 (v9.0.0 → 9.1.0)
+- **权威数字更新**：基于16维交付模型 `ppo_best_model_16dim.zip` 重跑 N=250 多seed评估，PPO vs FCFS 提升 +88.3% → **+123.4%**（Welch t p=1.449e-66，Cohen's d=-2.14，CI[+113.3%, +133.5%]）；旧14维数字移入 `config/statistics.yaml` deprecated 段留痕
+- **量子→AI 统计证据**：新增 N=25 配对检验（Wilcoxon signed-rank p=2.98e-08，d_z=7.71，事后功效 1.0），真机噪声分布对PPO策略奖励显著影响，噪声感知闭环统计成立（`results/reports/quantum_noise_paired_canonical.md`），取代旧10seeds探索性实验
+
+### 修复 (fix，对应外部评审报告)
+- **P0**：`pre_freeze_check.sh` 模型清单改为现存交付模型；`compilation_fair_v2.py` Windows GBK 编码崩溃（stdout 强制 UTF-8）
+- **P1/P2**：43%/v8.0 旧数字清除；编译层观测维度文档统一为14维（与 `compilation_env.py` shape=(14,) 一致）；`export.py` 默认输入形状 14→16 维；`statistical_validation.md` 环境描述修正并标注 DQN 行为 Random 占位；失效脚本加 DELETED 注释+优雅退出
+
+### 工程 (chore)
+- CI 新增 Linux 冒烟测试矩阵（#618）；真机密钥+CI验证、teammate 临时文档归档 `archive/`（#617）
+- 版本号 `pyproject.toml` 9.0.0 → 9.1.0
+
 ## [2026-07-29] - 公平性特性 + PR审查 + 文档更新
 
 ### 新增 (feat)

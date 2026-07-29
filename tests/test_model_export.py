@@ -597,13 +597,13 @@ class TestExportEdgeCases(_ExportTestBase):
         self.assertFalse(result["validation"]["valid"])
 
     def test_export_torchscript_default_input_shape_param(self) -> None:
-        """export_torchscript 默认 input_shape 参数为 (14,)。"""
+        """export_torchscript 默认 input_shape 参数为 (16,)（v9+ 交付标准）。"""
         # 验证默认参数值（不实际调用，因为模型是 4 维）
         import inspect
 
         sig = inspect.signature(ModelExporter.export_torchscript)
         default = sig.parameters["input_shape"].default
-        self.assertEqual(default, (14,))
+        self.assertEqual(default, (16,))
 
     def test_export_onnx_default_opset_version(self) -> None:
         """export_onnx 默认 opset_version 参数为 14。"""
