@@ -543,5 +543,38 @@ class TestHybridCoverageFiller(unittest.TestCase):
         self.assertEqual(result["action"], ACTION_CLASSICAL)
 
 
+# ============================================================
+# TestActionConstantsConsistency: Issue #725 跨模块常量一致性
+# ============================================================
+class TestActionConstantsConsistency(unittest.TestCase):
+    """验证动作常量在 env_types / hybrid_scheduler / baselines 间保持一致。"""
+
+    def test_hybrid_scheduler_constants_match_env_types(self) -> None:
+        """hybrid_scheduler 的 ACTION_* 应与 env_types 完全一致。"""
+        from src.scheduler import env_types as et
+
+        self.assertEqual(ACTION_CLASSICAL, et.ACTION_CLASSICAL)
+        self.assertEqual(ACTION_QUANTUM, et.ACTION_QUANTUM)
+        self.assertEqual(ACTION_HYBRID, et.ACTION_HYBRID)
+
+    def test_baselines_constants_match_env_types(self) -> None:
+        """baselines 的 _ACTION_* 应与 env_types 完全一致。"""
+        from src.scheduler import env_types as et
+        from src.scheduler.baselines import (
+            _ACTION_CLASSICAL,
+            _ACTION_HYBRID,
+            _ACTION_QUANTUM,
+        )
+
+        self.assertEqual(_ACTION_CLASSICAL, et.ACTION_CLASSICAL)
+        self.assertEqual(_ACTION_QUANTUM, et.ACTION_QUANTUM)
+        self.assertEqual(_ACTION_HYBRID, et.ACTION_HYBRID)
+
+    def test_action_values_are_distinct(self) -> None:
+        """三个动作常量值应互不相同。"""
+        values = {ACTION_CLASSICAL, ACTION_QUANTUM, ACTION_HYBRID}
+        self.assertEqual(len(values), 3)
+
+
 if __name__ == "__main__":
     unittest.main()

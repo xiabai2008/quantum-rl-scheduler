@@ -27,6 +27,9 @@ import numpy as np
 from loguru import logger
 
 from src.scheduler.env_types import (
+    ACTION_CLASSICAL,
+    ACTION_HYBRID,
+    ACTION_QUANTUM,
     OBS_FIDELITY,
     OBS_QUANTUM_QUEUE_RATIO,
     OBS_QUBIT_AVAILABILITY,
@@ -812,10 +815,10 @@ def run_baseline_comparison(
 # 在 Gymnasium 环境中运行时，reward 由 env.step(action) 返回（env_reward.py 计算），
 # 而非独立公式，确保基线与 PPO 在相同奖励函数下对比。
 
-# 动作常量（与 env_types.py 保持一致）
-_ACTION_CLASSICAL = 0
-_ACTION_QUANTUM = 1
-_ACTION_HYBRID = 2
+# 动作常量：统一从 env_types 导入（Issue #725），消除重复定义
+_ACTION_CLASSICAL = ACTION_CLASSICAL
+_ACTION_QUANTUM = ACTION_QUANTUM
+_ACTION_HYBRID = ACTION_HYBRID
 
 
 class EnvBasedScheduler:
