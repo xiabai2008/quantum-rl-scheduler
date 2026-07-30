@@ -1642,6 +1642,12 @@ class QuantumAnnealingOptimizer:
         """
         if quality_fn is not None:
             return quality_fn(network)
+        # Issue #700: 未提供 quality_fn 时发出警告，L2范数不等于RL策略性能
+        logger.warning(
+            "[Annealing] 未提供 quality_fn，使用权重L2范数作为质量代理指标。"
+            "这不等价于RL策略性能（如TD误差/episode reward），退火优化方向"
+            "可能偏离RL目标。建议传入基于rollout reward的质量评估函数。"
+        )
         total_norm = 0.0
         num_params = 0
         for param in network.parameters():

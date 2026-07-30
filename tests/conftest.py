@@ -7,6 +7,7 @@ Issue #175 改进：将"CI 下跳过所有 cqlib 测试"改为"有 fixtures 则�
 from __future__ import annotations
 
 import importlib
+import os
 import warnings
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -122,3 +123,17 @@ def cqlib_replay_client() -> CqlibReplayClient:
     from src.api.cqlib_recorder import CqlibReplayClient as _ReplayClient
 
     return _ReplayClient(str(_FIXTURES_DIR))
+
+
+@pytest.fixture(autouse=True)
+def _restore_environ() -> Any:
+    """Issue #692: 每个测试前后保护环境变量，防止 os.environ 直接操作导致泄漏。
+
+    快照所有环境变量，测试结束后恢复到原始状态。
+    即使测试被中断（超时/KeyboardInterrupt），yield 之后的恢复逻辑也能执行。
+    """
+    saved_environ = dict(os.environ)
+    yield
+    # 恢复环境变量到测试前状态
+    os.environ.clear()
+    os.environ.update(saved_environ)

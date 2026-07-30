@@ -52,6 +52,8 @@ if str(_PROJECT_ROOT) not in sys.path:
 
 from loguru import logger
 
+# Issue #690: 真机任务提交/轮询重试工具
+from scripts.real_machine import with_retry
 from src.api.tianyan_cqlib import CqlibTianyanClient
 from src.scheduler.env import QuantumSchedulingEnv
 
@@ -324,10 +326,14 @@ def _submit_and_poll_one_task(
 
     # 提交任务
     try:
-        task_id = client.submit_quantum_task(
+        # Issue #690: 添加网络错误重试，避免网络抖动浪费真机机时
+        task_id = with_retry(
+            client.submit_quantum_task,
             qcis=qcis,
             shots=shots,
             task_name=task_name,
+            max_retries=3,
+            base_delay=2.0,
         )
     except Exception as e:
         record["status"] = "failed"
@@ -351,8 +357,14 @@ def _submit_and_poll_one_task(
 
     # 轮询等待结果
     try:
-        poll_result = client.wait_for_task(
-            task_id, timeout=TASK_TIMEOUT_SECONDS, poll_interval=TASK_POLL_INTERVAL
+        # Issue #690: 添加网络错误重试
+        poll_result = with_retry(
+            client.wait_for_task,
+            task_id,
+            timeout=TASK_TIMEOUT_SECONDS,
+            poll_interval=TASK_POLL_INTERVAL,
+            max_retries=2,
+            base_delay=3.0,
         )
     except Exception as e:
         # 轮询异常：保留 task_id，标记 query_error

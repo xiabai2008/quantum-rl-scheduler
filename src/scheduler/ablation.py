@@ -24,6 +24,7 @@ from typing import Any, cast
 
 import gymnasium as gym
 import numpy as np
+from loguru import logger
 
 from src.scheduler.env import (
     DEFAULT_MACHINE_CONFIGS,
@@ -347,6 +348,12 @@ class AblationRunner:
         # 选择策略
         use_rl = bool(config.components.get("rl", True))
         rng = np.random.default_rng(seed)
+        # Issue #699: D1消融实验使用随机策略代理而非真实PPO模型，需明确标注
+        if use_rl:
+            logger.warning(
+                "[Ablation] D1消融实验使用随机策略代理，非真实PPO模型。"
+                "结果反映框架结构贡献，非RL算法本身的性能。"
+            )
         policy = self._make_random_policy(rng) if use_rl else self._fcfs_action
 
         # 运行多个回合并收集指标

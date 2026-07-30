@@ -592,7 +592,9 @@ class TianyanClient:
             return retry_after
         return backoff
 
-    def _call_with_retry(self, func: Callable[..., T], *args: Any, **kwargs: Any) -> T:
+    def _call_with_retry(
+        self, func: Callable[..., T], *args: Any, max_retries: int | None = None, **kwargs: Any
+    ) -> T:
         """带重试与限流的 API 调用包装器
 
         集成令牌桶限流、配额追踪、429 自适应退避与常规重试：
@@ -605,6 +607,9 @@ class TianyanClient:
         Args:
             func: 待调用的可调用对象。
             *args: 透传给 ``func`` 的位置参数。
+            max_retries: 本次调用的最大重试次数，为 None 时使用 ``self.max_retries``。
+                Issue #672: 对 cqlib 委托的调用设为 0，避免外层重试 × 内层机器切换导致
+                实际提交尝试次数放大。
             **kwargs: 透传给 ``func`` 的关键字参数。
 
         Returns:
@@ -615,7 +620,8 @@ class TianyanClient:
             RateLimitError: 429 限流重试耗尽后抛出。
         """
         last_exc: Exception | None = None
-        total_attempts = max(1, self.max_retries + 1)
+        effective_retries = self.max_retries if max_retries is None else max_retries
+        total_attempts = max(1, effective_retries + 1)
         for attempt in range(total_attempts):
             try:
                 # 限流：获取令牌（必要时阻塞等待）
@@ -771,11 +777,13 @@ class TianyanClient:
                 if not qcis_str:
                     raise ValueError("真实模式需提供 qcis 或 circuit_qasm")
                 with self._observe_api_call("submit_quantum_task", "quantum_task"):
+                    # Issue #672: cqlib 内部已有 9 台机器切换重试，外层不重试避免 3×9=27 次
                     real_task_id: str | None = self._call_with_retry(
                         self._cqlib.submit_quantum_task,
                         qcis=qcis_str,
                         shots=shots,
                         task_name=task_name,
+                        max_retries=0,
                     )
                     if real_task_id is None:
                         raise TianyanAPIError(500, "cqlib did not return a task_id")
@@ -1079,15 +1087,16 @@ class TianyanClient:
                 task_id, timeout=int(timeout), poll_interval=int(poll_interval)
             )
 
-        elapsed = 0.0
-        while elapsed < timeout:
+        # Issue #704: 使用 monotonic 时钟计算实际经过时间，而非累加固定间隔
+        start = monotonic()
+        while monotonic() - start < timeout:
             status_info = self.get_task_status(task_id)
-            status = status_info.get("status", "UNKNOWN")
+            status = status_info.get("status", "unknown")
 
-            if status == "COMPLETED":
+            if status == "completed":
                 logger.info(f"任务 {task_id} 已完成")
                 return self.get_task_result(task_id)
-            elif status == "FAILED":
+            elif status in ("failed", "error", "query_error"):
                 error_msg = status_info.get("error", "未知错误")
                 raise TianyanAPIError(
                     status_code=400,
@@ -1101,7 +1110,6 @@ class TianyanClient:
 
             logger.debug(f"任务 {task_id} 状态={status}，{poll_interval}s 后再次查询")
             time.sleep(poll_interval)
-            elapsed += poll_interval
 
         raise TianyanAPIError(
             status_code=408,
