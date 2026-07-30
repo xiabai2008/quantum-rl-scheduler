@@ -290,7 +290,7 @@ class ModelExporter:
         logger.info(f"开始导出 ONNX，input_shape={input_shape}, opset={opset_version}")
 
         try:
-            import onnx  # noqa: F401
+            import onnx
         except ImportError as e:
             logger.warning("onnx 包未安装，ONNX 导出不可用。请执行: pip install onnx")
             raise ImportError("onnx 包未安装，无法导出 ONNX。请执行: pip install onnx") from e
@@ -316,6 +316,19 @@ class ModelExporter:
                     "output": {0: "batch_size"},
                 },
             )
+            # Issue #695: 导出后校验 ONNX 图结构完整性，避免部署时才发现损坏文件
+            try:
+                import onnx
+
+                onnx_model = onnx.load(onnx_path)
+                onnx.checker.check_model(onnx_model)
+                logger.info(f"ONNX 完整性校验通过: {onnx_path}")
+            except Exception as check_err:
+                # 校验失败则删除损坏文件并抛出，避免下游误用
+                if os.path.exists(onnx_path):
+                    os.remove(onnx_path)
+                logger.error(f"ONNX 完整性校验失败: {check_err}")
+                raise RuntimeError(f"ONNX 完整性校验失败: {check_err}") from check_err
             logger.info(f"ONNX 导出成功: {onnx_path}")
             return onnx_path
         except Exception as e:
@@ -380,7 +393,9 @@ class ModelExporter:
         """
         input_shape = self._get_input_shape()
         if test_input is None:
-            test_input = np.random.randn(1, *input_shape).astype(np.float32)
+            # Issue #695: 使用固定种子 RNG，保证验证结果可复现
+            rng = np.random.default_rng(42)
+            test_input = rng.standard_normal((1, *input_shape)).astype(np.float32)
         else:
             test_input = np.asarray(test_input, dtype=np.float32)
 
