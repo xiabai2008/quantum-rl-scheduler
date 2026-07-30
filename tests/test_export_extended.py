@@ -237,6 +237,41 @@ class TestExportOnnxWithMock(_ExportExtendedTestBase):
                 exporter.export_onnx(input_shape=self.input_shape)
             self.assertIn("ONNX 导出失败", str(cm.exception))
 
+    def test_export_onnx_raises_when_integrity_check_fails(self) -> None:
+        """onnx.checker.check_model 抛异常时应抛 RuntimeError 并删除损坏文件（Issue #695）。"""
+        model_path = self._create_ppo_model()
+        exporter = ModelExporter(model_path, output_dir=self.tmpdir)
+
+        mock_onnx = mock.MagicMock()
+        # check_model 抛异常模拟损坏文件
+        mock_onnx.checker.check_model.side_effect = RuntimeError("invalid graph")
+        with (
+            mock.patch.dict(sys.modules, {"onnx": mock_onnx}),
+            mock.patch("torch.onnx.export", side_effect=_fake_onnx_export),
+        ):
+            with self.assertRaises(RuntimeError) as cm:
+                exporter.export_onnx(input_shape=self.input_shape)
+            self.assertIn("完整性校验失败", str(cm.exception))
+            # 损坏文件应被删除
+            onnx_files = [f for f in os.listdir(self.tmpdir) if f.endswith(".onnx")]
+            self.assertEqual(onnx_files, [], "corrupted onnx file should be removed")
+
+    def test_export_onnx_calls_checker_on_success(self) -> None:
+        """导出成功后应调用 onnx.checker.check_model 校验完整性（Issue #695）。"""
+        model_path = self._create_ppo_model()
+        exporter = ModelExporter(model_path, output_dir=self.tmpdir)
+
+        mock_onnx = mock.MagicMock()
+        with (
+            mock.patch.dict(sys.modules, {"onnx": mock_onnx}),
+            mock.patch("torch.onnx.export", side_effect=_fake_onnx_export),
+        ):
+            onnx_path = exporter.export_onnx(input_shape=self.input_shape)
+
+        # check_model 应被调用至少一次
+        mock_onnx.checker.check_model.assert_called_once()
+        self.assertTrue(os.path.exists(onnx_path))
+
 
 # ---------------------------------------------------------------------------
 # TestValidateExportEdgeCases: 覆盖 410-412, 416-448 行
@@ -261,6 +296,18 @@ class TestValidateExportEdgeCases(_ExportExtendedTestBase):
         self.assertIn("torchscript", result["details"])
         self.assertFalse(result["details"]["torchscript"]["valid"])
         self.assertIn("error", result["details"]["torchscript"])
+
+    def test_validate_export_default_input_is_reproducible(self) -> None:
+        """不传 test_input 时两次调用应产生相同结果（Issue #695 固定种子 RNG）。"""
+        model_path = self._create_ppo_model()
+        # 两次独立的 exporter 实例，避免模型内部状态干扰
+        exporter1 = ModelExporter(model_path, output_dir=self.tmpdir)
+        result1 = exporter1.validate_export()
+        exporter2 = ModelExporter(model_path, output_dir=self.tmpdir)
+        result2 = exporter2.validate_export()
+        # 均无导出文件，valid 应为 True（无 diff 可比），但 max_diff/mean_diff 应一致
+        self.assertEqual(result1["max_diff"], result2["max_diff"])
+        self.assertEqual(result1["mean_diff"], result2["mean_diff"])
 
     def test_validate_onnx_nonexistent_path(self) -> None:
         """ONNX 文件不存在时验证应标记 invalid 并记录 '文件不存在'。"""
