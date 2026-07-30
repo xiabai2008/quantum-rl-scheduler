@@ -35,7 +35,8 @@ class TestAppConfigValidation(unittest.TestCase):
     def test_default_values(self):
         """空配置应使用所有默认值。"""
         cfg = AppConfig()
-        self.assertEqual(cfg.scheduler.algorithm, "DQN")
+        # Issue #687: v9 主线为 PPO，DQN 模型已删除
+        self.assertEqual(cfg.scheduler.algorithm, "PPO")
         self.assertEqual(cfg.quantum.backend, "tianyan-287")
         self.assertEqual(cfg.quantum.max_qubits, 287)
         self.assertEqual(cfg.tianyan.mock_mode, True)

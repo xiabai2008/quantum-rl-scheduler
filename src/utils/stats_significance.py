@@ -783,11 +783,11 @@ def cliffs_delta(x: list[float], y: list[float]) -> float:
     n1, n2 = len(arr_x), len(arr_y)
     if n1 == 0 or n2 == 0:
         return float("nan")
-    # 利用广播向量化计算：x_i > y_j 和 x_i < y_j 的次数
-    # 通过差分矩阵比较，避免 O(n*m) 内存开销过大时仍高效
-    diff = arr_x[:, np.newaxis] - arr_y[np.newaxis, :]
-    n_greater = float(np.sum(diff > 0))
-    n_less = float(np.sum(diff < 0))
+    # Issue #689: 使用排序法 O(n log n) 替代矩阵法，避免 n1×n2 矩阵内存爆炸
+    # 对每个 x_i，用 searchsorted 统计 y 中小于/大于 x_i 的数量
+    arr_y_sorted = np.sort(arr_y)
+    n_greater = float(np.sum(np.searchsorted(arr_y_sorted, arr_x, side="right")))
+    n_less = float(np.sum(n2 - np.searchsorted(arr_y_sorted, arr_x, side="left")))
     return (n_greater - n_less) / (n1 * n2)
 
 

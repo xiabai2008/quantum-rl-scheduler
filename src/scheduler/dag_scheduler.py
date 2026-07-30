@@ -656,6 +656,9 @@ class DAGScheduler:
         for task_id, task in self.tasks.items():
             start = float(by_id[task_id]["start_time"])
             for dependency in task.dependencies:
+                # Issue #684: 前驱未在调度方案中分配时跳过，避免 KeyError 崩溃
+                if dependency not in by_id:
+                    continue
                 dependency_finish = float(by_id[dependency]["estimated_finish"])
                 if start + 1e-12 < dependency_finish:
                     return False

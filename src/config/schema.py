@@ -49,7 +49,9 @@ class TianyanConfig(BaseModel):
 class SchedulerConfig(BaseModel):
     """调度引擎配置。"""
 
-    algorithm: Literal["DQN", "PPO", "MAPPO"] = Field(default="DQN", description="RL 算法")
+    algorithm: Literal["DQN", "PPO", "MAPPO"] = Field(
+        default="PPO", description="RL 算法"
+    )  # Issue #687: v9 主线为 PPO
     batch_size: int = Field(default=64, ge=1, description="训练批量大小")
     epsilon_decay: float = Field(default=0.995, gt=0, le=1, description="Epsilon 衰减系数")
     epsilon_end: float = Field(default=0.01, ge=0, le=1, description="Epsilon 终值")

@@ -276,7 +276,7 @@ class Settings:
     # ── 调度器配置 ──
     max_qubits: int = 287
     max_steps: int = 1000
-    algorithm: str = "DQN"
+    algorithm: str = "PPO"  # Issue #687: v9 主线为 PPO，DQN 模型已删除
     # ── 量子配置 ──
     # 退火已降级为探索性功能（2026-07-27），默认关闭
     # 量子赋能AI主方向为真机噪声反馈优化PPO鲁棒性

@@ -101,7 +101,8 @@ class TestDefaults(unittest.TestCase, TestEnvVarsMixin):
             self.assertEqual(s.api_retries, 3)
             self.assertEqual(s.max_qubits, 287)
             self.assertEqual(s.max_steps, 1000)
-            self.assertEqual(s.algorithm, "DQN")
+            # Issue #687: v9 主线为 PPO，DQN 模型已删除
+            self.assertEqual(s.algorithm, "PPO")
             # 退火已降级为探索性功能（2026-07-27），默认关闭
             self.assertFalse(s.annealing_enabled)
             self.assertEqual(s.quantum_shots, 1024)
@@ -499,7 +500,8 @@ class TestMissingConfigFallback(unittest.TestCase, TestEnvVarsMixin):
             )
             # 应得到默认值
             self.assertEqual(s.max_qubits, 287)
-            self.assertEqual(s.algorithm, "DQN")
+            # Issue #687: v9 主线为 PPO
+            self.assertEqual(s.algorithm, "PPO")
 
     def test_empty_yaml_uses_defaults(self):
         """空 YAML 文件应使用默认值。"""
@@ -641,7 +643,8 @@ class TestAppEnvSelection(unittest.TestCase, TestEnvVarsMixin):
                 s = load_settings(env_path=os.path.join(tmp, "no.env"))
                 # 应回退到默认值
                 self.assertEqual(s.max_qubits, 287)
-                self.assertEqual(s.algorithm, "DQN")
+                # Issue #687: v9 主线为 PPO
+                self.assertEqual(s.algorithm, "PPO")
             finally:
                 os.chdir(saved_cwd)
 
