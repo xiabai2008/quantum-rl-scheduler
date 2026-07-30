@@ -463,5 +463,105 @@ class TestMultiObjectiveWrapper(unittest.TestCase):
         self.assertIsInstance(info["original_reward"], float)
 
 
+# ============================================================
+# TestGetMetricsEncapsulation (Issue #696)
+# ============================================================
+class TestGetMetricsEncapsulation(unittest.TestCase):
+    """测试 QuantumSchedulingEnv.get_metrics() 公开接口（Issue #696）。
+
+    确保 MultiObjectiveRewardWrapper 通过 get_metrics() 读取环境状态，
+    不再直接访问私有属性，且计算结果与原私有访问方式一致。
+    """
+
+    def setUp(self):
+        """测试初始化：创建基础环境并执行若干步以产生非平凡状态。"""
+        self.base_env = QuantumSchedulingEnv(
+            max_qubits=20,
+            max_steps=100,
+            seed=42,
+        )
+        self.base_env.reset(seed=42)
+        # 执行若干步，使 total_scheduled / task_queue 等状态非零
+        for _ in range(5):
+            self.base_env.step(0)
+
+    def test_get_metrics_keys_and_types(self):
+        """get_metrics() 应返回全部约定键且类型正确。"""
+        metrics = self.base_env.get_metrics()
+        expected_keys = {
+            "total_scheduled",
+            "has_current_task",
+            "quantum_available_ratio",
+            "classical_load",
+            "task_queue_length",
+            "avg_wait_steps",
+        }
+        self.assertEqual(set(metrics.keys()), expected_keys)
+        self.assertIsInstance(metrics["total_scheduled"], int)
+        self.assertIsInstance(metrics["has_current_task"], bool)
+        self.assertIsInstance(metrics["quantum_available_ratio"], float)
+        self.assertIsInstance(metrics["classical_load"], float)
+        self.assertIsInstance(metrics["task_queue_length"], int)
+        self.assertIsInstance(metrics["avg_wait_steps"], float)
+
+    def test_get_metrics_matches_private_attributes(self):
+        """get_metrics() 返回值应与对应私有属性一致（封装不改变语义）。"""
+        metrics = self.base_env.get_metrics()
+        self.assertEqual(metrics["total_scheduled"], self.base_env._total_scheduled)
+        self.assertEqual(metrics["has_current_task"], self.base_env._current_task is not None)
+        self.assertEqual(
+            metrics["quantum_available_ratio"],
+            self.base_env._quantum.available_ratio,
+        )
+        self.assertEqual(metrics["classical_load"], self.base_env._classical.load)
+        self.assertEqual(metrics["task_queue_length"], len(self.base_env._task_queue))
+        expected_avg = (
+            sum(t.wait_steps for t in self.base_env._task_queue) / len(self.base_env._task_queue)
+            if self.base_env._task_queue
+            else 0.0
+        )
+        self.assertAlmostEqual(metrics["avg_wait_steps"], expected_avg)
+
+    def test_wrapper_balance_uses_metrics(self):
+        """wrapper._compute_balance 应基于 get_metrics() 计算且结果与私有访问一致。"""
+        mo_env = MultiObjectiveRewardWrapper(self.base_env, weights=[1.0, 1.0, 1.0])
+        metrics = self.base_env.get_metrics()
+        expected = float(
+            np.clip(
+                -abs((1.0 - metrics["quantum_available_ratio"]) - metrics["classical_load"]),
+                -1.0,
+                0.0,
+            )
+        )
+        self.assertAlmostEqual(mo_env._compute_balance(), expected)
+        # 结果落在合法区间
+        self.assertGreaterEqual(mo_env._compute_balance(), -1.0)
+        self.assertLessEqual(mo_env._compute_balance(), 0.0)
+
+    def test_wrapper_quality_uses_metrics(self):
+        """wrapper._compute_quality 应基于 get_metrics() 计算且结果与私有访问一致。"""
+        mo_env = MultiObjectiveRewardWrapper(self.base_env, weights=[1.0, 1.0, 1.0])
+        metrics = self.base_env.get_metrics()
+        if metrics["task_queue_length"] == 0:
+            expected = 0.0
+        else:
+            expected = float(np.clip(-metrics["avg_wait_steps"] / MAX_WAIT_STEPS, -1.0, 0.0))
+        self.assertAlmostEqual(mo_env._compute_quality(), expected)
+
+    def test_wrapper_step_produces_consistent_objectives(self):
+        """wrapper.step() 通过 get_metrics() 计算的目标值应合法且稳定。"""
+        mo_env = MultiObjectiveRewardWrapper(self.base_env, weights=[1.0, 0.5, 0.5])
+        mo_env.reset(seed=42)
+        _obs, _reward, _terminated, _truncated, info = mo_env.step(1)
+        obj = info["objectives"]
+        # 三个目标均落在声明区间
+        self.assertGreaterEqual(obj["throughput"], 0.0)
+        self.assertLessEqual(obj["throughput"], 1.0)
+        self.assertGreaterEqual(obj["balance"], -1.0)
+        self.assertLessEqual(obj["balance"], 0.0)
+        self.assertGreaterEqual(obj["quality"], -1.0)
+        self.assertLessEqual(obj["quality"], 0.0)
+
+
 if __name__ == "__main__":
     unittest.main()

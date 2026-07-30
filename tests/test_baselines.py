@@ -261,6 +261,60 @@ class TestRoundRobinScheduler(unittest.TestCase):
         self.assertEqual(scheduler.select_action([], _EMPTY_RESOURCES), -1)
         self.assertEqual(scheduler._pointer, 0)
 
+    # ------------------------------------------------------------------
+    # 动态队列修正测试（Issue #693）
+    # ------------------------------------------------------------------
+
+    def test_dynamic_queue_maintains_rotation_order(self):
+        """动态队列（pop 选中任务）下应维持轮询顺序，不跳过/重复任务（Issue #693）。
+
+        复现 run_baseline_comparison legacy 模式：每次 select_action 后 pop(idx)，
+        队列逐个缩小。修复前指针用新 n 取模导致跳过任务（A,C,B,D 之类），
+        修复后应严格按入队顺序 A,B,C,D 调度。
+        """
+        tasks = [_make_task("A"), _make_task("B"), _make_task("C"), _make_task("D")]
+        scheduler = RoundRobinScheduler()
+        queue = list(tasks)
+        selected_ids: list[str] = []
+        while queue:
+            idx = scheduler.select_action(queue, _EMPTY_RESOURCES)
+            self.assertGreaterEqual(idx, 0)
+            selected_ids.append(queue[idx]["task_id"])
+            queue.pop(idx)
+        # 轮询语义：按入队顺序逐个调度，无跳过无重复
+        self.assertEqual(selected_ids, ["A", "B", "C", "D"])
+
+    def test_dynamic_queue_pointer_no_skip_after_wrap(self):
+        """指针回绕后 pop 仍不应跳过任务（Issue #693 回归用例）。"""
+        tasks = [_make_task("A"), _make_task("B"), _make_task("C")]
+        scheduler = RoundRobinScheduler()
+        queue = list(tasks)
+        selected_ids: list[str] = []
+        while queue:
+            idx = scheduler.select_action(queue, _EMPTY_RESOURCES)
+            selected_ids.append(queue[idx]["task_id"])
+            queue.pop(idx)
+        self.assertEqual(selected_ids, ["A", "B", "C"])
+        # 队列清空后指针状态合法
+        self.assertEqual(scheduler.select_action([], _EMPTY_RESOURCES), -1)
+
+    def test_reset_clears_dynamic_queue_state(self):
+        """reset 应同时清空指针与动态队列跟踪状态（Issue #693）。"""
+        tasks = [_make_task("A"), _make_task("B"), _make_task("C")]
+        scheduler = RoundRobinScheduler()
+        queue = list(tasks)
+        for _ in range(len(queue)):
+            idx = scheduler.select_action(queue, _EMPTY_RESOURCES)
+            queue.pop(idx)
+        scheduler.reset()
+        self.assertEqual(scheduler._pointer, 0)
+        self.assertEqual(scheduler._last_n, 0)
+        self.assertEqual(scheduler._last_idx, -1)
+        # reset 后对新队列应从 0 开始正确轮询
+        stable = [_make_task("X"), _make_task("Y"), _make_task("Z")]
+        order = [scheduler.select_action(stable, _EMPTY_RESOURCES) for _ in range(4)]
+        self.assertEqual(order, [0, 1, 2, 0])
+
 
 # ============================================================
 # TestLIFOScheduler

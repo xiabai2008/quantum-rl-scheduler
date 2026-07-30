@@ -513,6 +513,36 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
         result: list[dict[str, Any]] = self._tenant_manager.get_all_tenants_info()
         return result
 
+    def get_metrics(self) -> dict[str, Any]:
+        """返回环境内部状态的只读指标字典（Issue #696）。
+
+        为多目标奖励包装器等外部组件提供公开访问接口，避免直接读取
+        ``_current_task`` / ``_total_scheduled`` / ``_quantum`` /
+        ``_classical`` / ``_task_queue`` 等私有属性，降低 env 内部重构
+        对 wrapper 的破坏性影响。
+
+        Returns:
+            包含以下键的字典：
+                - total_scheduled        : 累计已调度任务数
+                - has_current_task       : 当前是否存在待处理任务
+                - quantum_available_ratio: 量子比特可用比率（0-1）
+                - classical_load         : 经典计算负载（0-1）
+                - task_queue_length      : 等待队列长度
+                - avg_wait_steps         : 队列任务平均等待步数（空队列时为 0）
+        """
+        return {
+            "total_scheduled": self._total_scheduled,
+            "has_current_task": self._current_task is not None,
+            "quantum_available_ratio": self._quantum.available_ratio,
+            "classical_load": self._classical.load,
+            "task_queue_length": len(self._task_queue),
+            "avg_wait_steps": (
+                sum(t.wait_steps for t in self._task_queue) / len(self._task_queue)
+                if self._task_queue
+                else 0.0
+            ),
+        }
+
     def reset(
         self,
         *,

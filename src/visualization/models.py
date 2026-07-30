@@ -8,6 +8,8 @@ Pydantic 数据模型定义
 
 from pydantic import BaseModel, Field
 
+from src.visualization.security import MAX_CIRCUIT_QUBITS
+
 
 class TaskSubmit(BaseModel):
     """提交新任务的请求体"""
@@ -20,7 +22,14 @@ class TaskSubmit(BaseModel):
         description="任务类型: quantum/classical/hybrid",
     )
     priority: int = Field(default=3, ge=1, le=5, description="优先级 1-5")
-    qubit_count: int = Field(default=10, ge=1, le=287, description="所需量子比特数")
+    # Issue #732: qubit_count 上限与 validate_quantum_circuit 的 MAX_CIRCUIT_QUBITS 保持一致，
+    # 统一"任务请求比特数"与"电路实际使用比特数"的语义，避免用户提交后在校验阶段被拒。
+    qubit_count: int = Field(
+        default=10,
+        ge=1,
+        le=MAX_CIRCUIT_QUBITS,
+        description="所需量子比特数",
+    )
     circuit_depth: int = Field(default=100, ge=1, le=10000, description="电路深度")
     estimated_time: float = Field(default=60.0, ge=0.1, le=86400.0, description="预计执行时间(秒)")
 

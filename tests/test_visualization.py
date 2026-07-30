@@ -42,7 +42,7 @@ from src.visualization.app import (
     start_web_server,
     verify_api_key,
 )
-from src.visualization.security import rate_limiter
+from src.visualization.security import MAX_CIRCUIT_QUBITS, rate_limiter
 
 # 注意：src/visualization/__init__.py 执行了 `from src.visualization.app import app`，
 # 这会覆盖 src.visualization 包的 app 属性为 FastAPI 实例，从而遮蔽 app 子模块。
@@ -480,12 +480,12 @@ async def test_input_validation_empty_task_type(async_client):
 
 @pytest.mark.asyncio
 async def test_input_validation_qubit_count_exceeds_limit(async_client):
-    """POST /api/tasks qubit_count 超过 287 上限应被拒绝（422）。"""
+    """POST /api/tasks qubit_count 超过 MAX_CIRCUIT_QUBITS 上限应被拒绝（422，Issue #732）。"""
     payload = {
         "user_id": "user_001",
         "task_type": "quantum",
         "priority": 3,
-        "qubit_count": 999,
+        "qubit_count": MAX_CIRCUIT_QUBITS + 1,
         "circuit_depth": 10,
         "estimated_time": 5.0,
     }
@@ -1544,15 +1544,15 @@ class TestUpdateEndpoint:
 class TestPydanticValidation:
     """TaskSubmit / SystemStatusUpdate Pydantic 字段边界值测试。"""
 
-    def test_task_submit_qubit_count_exceeds_287(self):
-        """qubit_count=288 超过 287 上限应抛 ValidationError。"""
+    def test_task_submit_qubit_count_exceeds_max(self):
+        """qubit_count 超过 MAX_CIRCUIT_QUBITS 上限应抛 ValidationError（Issue #732）。"""
         with pytest.raises(ValidationError):
-            TaskSubmit(qubit_count=288)
+            TaskSubmit(qubit_count=MAX_CIRCUIT_QUBITS + 1)
 
     def test_task_submit_qubit_count_at_max(self):
-        """qubit_count=287 应通过（边界值）。"""
-        t = TaskSubmit(qubit_count=287)
-        assert t.qubit_count == 287
+        """qubit_count=MAX_CIRCUIT_QUBITS 应通过（边界值，Issue #732）。"""
+        t = TaskSubmit(qubit_count=MAX_CIRCUIT_QUBITS)
+        assert t.qubit_count == MAX_CIRCUIT_QUBITS
 
     def test_task_submit_qubit_count_below_min(self):
         """qubit_count=0 低于下限应抛 ValidationError。"""
