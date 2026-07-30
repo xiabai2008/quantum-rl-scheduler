@@ -22,6 +22,48 @@ from src.api.types import TaskResult
 if TYPE_CHECKING:
     from src.api.quota_tracker import QuotaTracker
 
+# Issue #515: QCIS 电路内容验证常量
+MAX_QCIS_LENGTH = 100_000
+MAX_GATE_COUNT = 10_000
+MAX_QUBITS_REFERENCED = 287
+_QCIS_VALID_INSTRUCTIONS = frozenset(
+    {"H", "X", "Y", "Z", "S", "T", "RX", "RY", "RZ", "CZ", "CNOT", "M", "B", "ISWAP", "I"}
+)
+
+
+def _validate_qcis(qcis_str: str) -> None:
+    """验证 QCIS 电路内容，防止提交超深/非法电路（Issue #515）。
+
+    Args:
+        qcis_str: QCIS 指令字符串
+
+    Raises:
+        ValueError: 电路超过长度/门数/比特数上限，或包含非法指令
+    """
+    if len(qcis_str) > MAX_QCIS_LENGTH:
+        raise ValueError(f"QCIS 电路超过最大长度 {MAX_QCIS_LENGTH} 字符")
+
+    lines = [ln.strip() for ln in qcis_str.strip().split("\n") if ln.strip()]
+    if len(lines) > MAX_GATE_COUNT:
+        raise ValueError(f"QCIS 门数量超过上限 {MAX_GATE_COUNT}")
+
+    referenced_qubits: set[str] = set()
+    for line in lines:
+        parts = line.split()
+        if not parts:
+            continue
+        op = parts[0].upper()
+        if op not in _QCIS_VALID_INSTRUCTIONS:
+            raise ValueError(f"QCIS 非法指令: {parts[0]}")
+        for token in parts[1:]:
+            token = token.strip(",")
+            if token.upper().startswith("Q") and token[1:].isdigit():
+                referenced_qubits.add(token)
+    if len(referenced_qubits) > MAX_QUBITS_REFERENCED:
+        raise ValueError(
+            f"QCIS 引用比特数 {len(referenced_qubits)} 超过上限 {MAX_QUBITS_REFERENCED}"
+        )
+
 
 class CqlibTianyanClient(QuantumHardwareBackend):
     """基于 cqlib SDK 的天衍云真机客户端
@@ -275,6 +317,9 @@ class CqlibTianyanClient(QuantumHardwareBackend):
             qcis_str = circuit.qcis if hasattr(circuit, "qcis") else str(circuit)
         else:
             raise ValueError("必须提供 qcis 或 circuit")
+
+        # Issue #515: 验证 QCIS 电路内容，防止提交超深/非法电路
+        _validate_qcis(qcis_str)
 
         # 配额预检查：配额不足时跳过提交，保持"全部不可用返回 None"语义
         if self._quota_tracker is not None and not self._quota_tracker.can_consume(
