@@ -25,6 +25,8 @@ from typing import Any
 from loguru import logger
 from numpy.typing import NDArray
 
+from src.scheduler.env_types import ACTION_CLASSICAL, ACTION_HYBRID, ACTION_QUANTUM
+
 __all__ = [
     "ACTION_CLASSICAL",
     "ACTION_HYBRID",
@@ -34,11 +36,8 @@ __all__ = [
 ]
 
 # ---------------------------------------------------------------------------
-# 动作常量（本模块内定义，避免 import env 的私有常量）
+# 动作常量：统一从 env_types 导入（Issue #725），消除重复定义
 # ---------------------------------------------------------------------------
-ACTION_CLASSICAL = 0  # 分配到经典计算资源
-ACTION_QUANTUM = 1  # 分配到量子计算资源
-ACTION_HYBRID = 2  # 混合执行
 
 # 决策置信度常量（简化模型）
 _RULE_CONFIDENCE = 1.0  # 规则决策
