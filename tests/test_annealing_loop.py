@@ -781,5 +781,88 @@ def test_worker_loop_reuses_eval_policy_for_multiple_snapshots():
     assert {h["step"] for h in history} == {10, 20}
 
 
+# ============================================================
+# Issue #715: _worker_loop 致命异常 vs 可恢复异常
+# ============================================================
+def test_fatal_error_is_none_by_default():
+    """Issue #715: 初始化后 fatal_error 应为 None。"""
+    optimizer = FakeOptimizer()
+    env = FakeEnv()
+    loop = AsyncAnnealingLoop(optimizer, env)
+    assert loop.fatal_error is None
+
+
+def test_worker_loop_memory_error_terminates_worker():
+    """Issue #715: MemoryError 应终止 worker 线程而非继续循环。"""
+    optimizer = FakeOptimizer(weight_boost=1.0)
+    env = FakeEnv()
+    loop = AsyncAnnealingLoop(optimizer, env, initial_interval=10, retry_delays=[0.0, 0.0])
+
+    with patch.object(loop, "_evaluate_policy", side_effect=MemoryError("OOM")):
+        loop.start()
+        model = FakeModel(weight=0.0)
+        loop.submit(model.policy, step=10)
+        loop.shutdown()
+
+    assert loop.fatal_error is not None
+    assert isinstance(loop.fatal_error, MemoryError)
+    # worker 终止前未记录历史
+    assert len(loop.get_history()) == 0
+
+
+def test_worker_loop_runtime_error_terminates_worker():
+    """Issue #715: RuntimeError（如 CUDA 错误）应终止 worker 线程。"""
+    optimizer = FakeOptimizer(weight_boost=1.0)
+    env = FakeEnv()
+    loop = AsyncAnnealingLoop(optimizer, env, initial_interval=10, retry_delays=[0.0, 0.0])
+
+    with patch.object(loop, "_evaluate_policy", side_effect=RuntimeError("CUDA error")):
+        loop.start()
+        model = FakeModel(weight=0.0)
+        loop.submit(model.policy, step=10)
+        loop.shutdown()
+
+    assert loop.fatal_error is not None
+    assert isinstance(loop.fatal_error, RuntimeError)
+    assert len(loop.get_history()) == 0
+
+
+def test_worker_loop_recoverable_exception_does_not_terminate():
+    """Issue #715: 普通异常（如 ValueError）不应设置 fatal_error 或终止 worker。"""
+    optimizer = FakeOptimizer(weight_boost=1.0)
+    env = FakeEnv()
+    loop = AsyncAnnealingLoop(optimizer, env, initial_interval=10, retry_delays=[0.0, 0.0])
+
+    with patch.object(loop, "_evaluate_policy", side_effect=ValueError("recoverable")):
+        loop.start()
+        model = FakeModel(weight=0.0)
+        loop.submit(model.policy, step=10)
+        loop.shutdown()
+
+    # 普通异常不设置 fatal_error
+    assert loop.fatal_error is None
+
+
+def test_start_clears_fatal_error():
+    """Issue #715: start() 应清除上次的致命错误，允许重启。"""
+    optimizer = FakeOptimizer(weight_boost=1.0)
+    env = FakeEnv()
+    loop = AsyncAnnealingLoop(optimizer, env, initial_interval=10, retry_delays=[0.0, 0.0])
+
+    # 第一次运行：MemoryError 终止 worker
+    with patch.object(loop, "_evaluate_policy", side_effect=MemoryError("OOM")):
+        loop.start()
+        model = FakeModel(weight=0.0)
+        loop.submit(model.policy, step=10)
+        loop.shutdown()
+
+    assert loop.fatal_error is not None
+
+    # 第二次运行：start() 应清除 fatal_error
+    loop.start()
+    assert loop.fatal_error is None
+    loop.shutdown()
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
