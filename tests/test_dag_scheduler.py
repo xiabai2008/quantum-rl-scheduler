@@ -1239,5 +1239,71 @@ class TestAnnealingSeedReproducibility(unittest.TestCase):
         self.assertEqual(scheduler._annealing_seed, 42)
 
 
+# ============================================================
+# Issue #684: _is_scheduling_solution_feasible 未分配前驱 KeyError 防御
+# ============================================================
+class TestFeasibilityMissingDependency(unittest.TestCase):
+    """Issue #684: 校验函数遇到未分配的依赖/任务节点应返回 False 而非 KeyError。"""
+
+    def test_dangling_dependency_returns_false(self) -> None:
+        """依赖指向不存在的任务（悬空引用）时应返回 False，不崩溃。"""
+        scheduler = DAGScheduler(
+            [
+                DAGTask(task_id="a", estimated_time=1.0),
+                # b 依赖 "ghost"，但 "ghost" 不在 tasks 中（悬空依赖）
+                DAGTask(
+                    task_id="b",
+                    estimated_time=1.0,
+                    dependencies=["ghost"],
+                ),
+            ]
+        )
+        # 构造覆盖全部真实任务的 schedule（len==len(tasks)==2），通过长度校验
+        schedule = [
+            {"task_id": "a", "start_time": 0.0, "machine_id": 0, "estimated_finish": 1.0},
+            {"task_id": "b", "start_time": 1.0, "machine_id": 0, "estimated_finish": 2.0},
+        ]
+        # 原 bug：by_id["ghost"] 抛 KeyError；修复后应返回 False
+        self.assertFalse(scheduler._is_scheduling_solution_feasible(schedule, 4))
+
+    def test_dependency_not_in_schedule_returns_false(self) -> None:
+        """依赖任务未被分配到 schedule 时应返回 False。"""
+        scheduler = DAGScheduler(
+            [
+                DAGTask(task_id="a", estimated_time=1.0),
+                DAGTask(
+                    task_id="b",
+                    estimated_time=1.0,
+                    dependencies=["a"],
+                ),
+            ]
+        )
+        # schedule 只含 b（缺 a），但通过伪造长度会先被长度校验拦截；
+        # 这里直接构造 len 不匹配以确认长度校验仍生效
+        schedule = [
+            {"task_id": "b", "start_time": 0.0, "machine_id": 0, "estimated_finish": 1.0},
+        ]
+        self.assertFalse(scheduler._is_scheduling_solution_feasible(schedule, 4))
+
+    def test_feasible_schedule_still_returns_true(self) -> None:
+        """回归：合法解（前驱先完成）仍应返回 True。"""
+        scheduler = DAGScheduler(
+            [
+                DAGTask(task_id="a", estimated_time=1.0),
+                DAGTask(
+                    task_id="b",
+                    estimated_time=1.0,
+                    dependencies=["a"],
+                ),
+            ],
+            max_qubits=10,
+        )
+        schedule = [
+            {"task_id": "a", "start_time": 0.0, "machine_id": 0, "estimated_finish": 1.0},
+            {"task_id": "b", "start_time": 1.0, "machine_id": 0, "estimated_finish": 2.0},
+        ]
+        self.assertTrue(scheduler._is_scheduling_solution_feasible(schedule, 4))
+
+
 if __name__ == "__main__":
     unittest.main()

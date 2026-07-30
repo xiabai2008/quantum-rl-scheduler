@@ -654,8 +654,14 @@ class DAGScheduler:
             by_id[task_id] = item
 
         for task_id, task in self.tasks.items():
+            # Issue #684: 防御未分配节点导致的 KeyError。该函数职责是校验
+            # 可能不合法的退火解，应在节点缺失时返回 False 而非崩溃。
+            if task_id not in by_id:
+                return False
             start = float(by_id[task_id]["start_time"])
             for dependency in task.dependencies:
+                if dependency not in by_id:
+                    return False  # 依赖未分配，解不可行
                 dependency_finish = float(by_id[dependency]["estimated_finish"])
                 if start + 1e-12 < dependency_finish:
                     return False
