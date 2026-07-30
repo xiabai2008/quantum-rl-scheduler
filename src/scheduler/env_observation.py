@@ -4,7 +4,7 @@ Observation Builder Module for Quantum-Classical Hybrid Task Scheduling Environm
 
 本模块封装环境的观测向量与信息字典构建逻辑，将依赖环境内部状态的方法
 抽离为独立函数：
-    - get_observation : 构建并返回当前 14 维状态向量（含物理噪声和拓扑特征）
+    - get_observation : 构建并返回当前 17 维状态向量（含物理噪声、拓扑特征、串扰风险、公平性指数）
     - get_info        : 构建环境信息字典，供调试和监控使用
 
 依赖关系：仅依赖 env_types.py 中的常量与数据类，不依赖 env.py。
@@ -26,6 +26,7 @@ from src.scheduler.env_types import (
     OBS_COUPLING_DENSITY,
     OBS_CROSSTALK_RISK,
     OBS_DIM,
+    OBS_FAIRNESS_INDEX,
     OBS_FIDELITY,
     OBS_QUANTUM_QUEUE_RATIO,
     OBS_QUBIT_AVAILABILITY,
@@ -45,7 +46,7 @@ if TYPE_CHECKING:
 
 def get_observation(env: "QuantumSchedulingEnv") -> NDArray[Any]:
     """
-    构建并返回当前 16 维状态向量（扩展版：包含物理噪声、拓扑特征、串扰风险、时序流量）。
+    构建并返回当前 17 维状态向量（扩展版：包含物理噪声、拓扑特征、串扰风险、时序流量、公平性指数）。
 
     各维度含义及计算方式：
         [0] qubit_availability  : 量子比特可用比率（直接取值）
@@ -64,12 +65,13 @@ def get_observation(env: "QuantumSchedulingEnv") -> NDArray[Any]:
         [13] avg_connectivity  : 量子比特平均连通度（所有机器加权平均）
         [14] crosstalk_risk    : 串扰风险（基于空间并发的任务密度）
         [15] arrival_rate_ma   : 任务到达率滑动平均（流量突发感知）
+        [16] fairness_index    : Jain 公平性指数（基于多租户等待时间，Issue #588）
 
     Args:
         env: 调度环境实例
 
     Returns:
-        NDArray[Any]: 形状 (16,)，dtype=float32，值域 [0, 1]
+        NDArray[Any]: 形状 (17,)，dtype=float32，值域 [0, 1]
     """
     obs: NDArray[Any] = np.zeros(OBS_DIM, dtype=np.float32)
 
@@ -111,30 +113,55 @@ def get_observation(env: "QuantumSchedulingEnv") -> NDArray[Any]:
     # 性能优化（Issue #219）：
     # - total_qubits 是机器静态属性，初始化后不变，使用 env._total_qubits_cache 缓存值
     # - 加权平均改用 numpy 向量化（np.average + weights），替代 Python for 循环
+    # Issue #746：coupling_density / avg_connectivity / qubits_arr 在 episode 内不变，
+    # 缓存到 env._obs_static_cache，reset() 时置脏重建
     if env._machines:
         total_q = getattr(env, "_total_qubits_cache", None) or sum(
             m.total_qubits for m in env._machines
         )
         if total_q > 0:
-            # 构建一次 numpy 数组，4 个特征共用，避免重复循环
-            qubits_arr = np.array([m.total_qubits for m in env._machines], dtype=np.float64)
+            # 惰性构建 episode 级静态缓存（首次调用、reset 后、或机器列表变更时重建）
+            static_cache: dict[str, Any] | None = getattr(env, "_obs_static_cache", None)
+            if static_cache is None or len(static_cache["qubits_arr"]) != len(env._machines):
+                qubits_arr = np.array([m.total_qubits for m in env._machines], dtype=np.float64)
+                coupling_arr = np.array(
+                    [m.coupling_density for m in env._machines], dtype=np.float64
+                )
+                conn_arr = np.array([m.avg_connectivity for m in env._machines], dtype=np.float64)
+                static_cache = {
+                    "qubits_arr": qubits_arr,
+                    "coupling_density": float(
+                        np.clip(np.average(coupling_arr, weights=qubits_arr), 0.0, 1.0)
+                    ),
+                    "avg_connectivity": float(
+                        np.clip(np.average(conn_arr, weights=qubits_arr), 0.0, 1.0)
+                    ),
+                }
+                env._obs_static_cache = static_cache
+                # Issue #746: 机器列表变更时同步 _total_qubits_cache
+                total_q = int(qubits_arr.sum())
+                env._total_qubits_cache = total_q
+
+            # 动态特征仍每步重算（fidelity / used_qubits 随时间变化）
             single_arr = np.array([m.single_gate_fidelity for m in env._machines], dtype=np.float64)
             two_arr = np.array([m.two_gate_fidelity for m in env._machines], dtype=np.float64)
-            coupling_arr = np.array([m.coupling_density for m in env._machines], dtype=np.float64)
-            conn_arr = np.array([m.avg_connectivity for m in env._machines], dtype=np.float64)
             obs[OBS_SINGLE_GATE_FIDELITY] = float(
-                np.clip(np.average(single_arr, weights=qubits_arr), 0.0, 1.0)
+                np.clip(
+                    np.average(single_arr, weights=static_cache["qubits_arr"]),
+                    0.0,
+                    1.0,
+                )
             )
             obs[OBS_TWO_GATE_FIDELITY] = float(
-                np.clip(np.average(two_arr, weights=qubits_arr), 0.0, 1.0)
+                np.clip(
+                    np.average(two_arr, weights=static_cache["qubits_arr"]),
+                    0.0,
+                    1.0,
+                )
             )
-            # 阶段2：拓扑特征（所有机器加权平均）
-            obs[OBS_COUPLING_DENSITY] = float(
-                np.clip(np.average(coupling_arr, weights=qubits_arr), 0.0, 1.0)
-            )
-            obs[OBS_AVG_CONNECTIVITY] = float(
-                np.clip(np.average(conn_arr, weights=qubits_arr), 0.0, 1.0)
-            )
+            # 阶段2：拓扑特征（episode 内静态，直接读缓存）
+            obs[OBS_COUPLING_DENSITY] = static_cache["coupling_density"]
+            obs[OBS_AVG_CONNECTIVITY] = static_cache["avg_connectivity"]
 
             # 计算串扰风险 (Crosstalk Risk): 所有机器中 (used_qubits / total_qubits) 的最大值或加权平均
             # 这里我们使用所有机器使用的 qubits 总和 / 所有机器的总 qubits
@@ -154,16 +181,15 @@ def get_observation(env: "QuantumSchedulingEnv") -> NDArray[Any]:
             np.clip(env.current_time_window_arrivals / max_expected_arrival, 0.0, 1.0)
         )
 
-    # Issue #585: 消融实验截断观测（在公平性观测之前执行）
-    obs_dim = getattr(env, "_observation_dim", None)
-    if obs_dim is not None and obs_dim < len(obs):
-        obs = obs[:obs_dim]
-
-    # Issue #588: 可选公平性观测（仅在未截断模式下追加，保持与 observation_space 一致）
-    if getattr(env, "_include_fairness_obs", False) and (obs_dim is None or obs_dim >= OBS_DIM):
-        tracker = getattr(env, "_fairness_tracker", None)
-        jain_idx = tracker.jain_completion_fairness() if tracker is not None else 0.0
-        obs = np.append(obs, np.float32(jain_idx))
+    # Issue #588: Jain 公平性指数（基于多租户等待时间）
+    # 从公平性跟踪器获取实时 Jain 指数，无跟踪器或无数据时为 0.0
+    fairness_tracker = getattr(env, "_fairness_tracker", None)
+    if fairness_tracker is not None:
+        try:
+            jain_index = fairness_tracker.jain_wait_fairness()
+            obs[OBS_FAIRNESS_INDEX] = float(np.clip(jain_index, 0.0, 1.0))
+        except (ValueError, AttributeError):
+            obs[OBS_FAIRNESS_INDEX] = 0.0
 
     return obs
 
