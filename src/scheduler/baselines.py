@@ -300,15 +300,29 @@ class RoundRobinScheduler(BaselineScheduler):
     """轮询调度（Round Robin）。
 
     维护内部指针，每次调用按指针返回当前任务索引并推进指针。
+
+    动态队列修正（Issue #693）：当调用方在选中任务后将其从队列中移除
+    （如 ``run_baseline_comparison`` 的 legacy 模式 ``queue.pop(idx)``），
+    队列缩小会使指针语义错乱——被 pop 位置之后的元素前移，指针若仍按
+    原长度推进会跳过任务、破坏轮询顺序。本实现通过跟踪上次队列长度与
+    选中索引，在检测到队列缩小时回调指针，维持正确的轮询位置。
     """
 
     def __init__(self) -> None:
         """初始化 RoundRobin 策略，指针归零。"""
         super().__init__("RoundRobin")
         self._pointer = 0
+        # 跟踪上次调用的队列长度与选中索引，用于检测队列变化并修正指针（Issue #693）
+        self._last_n = 0
+        self._last_idx = -1
 
     def select_action(self, tasks: list[dict], available_resources: dict) -> int:
         """按内部指针轮转选择任务，并推进指针。
+
+        动态队列修正（Issue #693）：若队列相对上次调用缩小，说明外部 pop 了
+        上次选中的任务。当该位置位于当前指针之前时，其后继元素前移一位，
+        指针需回调一位以避免跳过任务、破坏轮询语义。指针始终对当前队列
+        长度取模，保证合法。
 
         Args:
             tasks               : 待调度任务列表
@@ -318,15 +332,27 @@ class RoundRobinScheduler(BaselineScheduler):
             指针当前位置对应的任务索引；空列表返回 -1。
         """
         if not tasks:
+            self._last_n = 0
+            self._last_idx = -1
             return -1
         n = len(tasks)
-        idx = self._pointer % n
+        # 队列缩小修正：外部 pop 了上次选中的任务（位于指针之前），其后继元素前移
+        if n < self._last_n and 0 <= self._last_idx < self._pointer:
+            self._pointer -= 1
+        # 确保指针在当前队列合法范围内（防止外部任意增删导致越界）
+        self._pointer %= n
+        idx = self._pointer
+        # 推进指针（假设队列稳定；若下次调用发现队列缩小，会在上方修正）
         self._pointer = (self._pointer + 1) % n
+        self._last_n = n
+        self._last_idx = idx
         return idx
 
     def reset(self) -> None:
-        """重置轮询指针为 0。"""
+        """重置轮询指针与队列跟踪状态为 0。"""
         self._pointer = 0
+        self._last_n = 0
+        self._last_idx = -1
 
 
 class LIFOScheduler(BaselineScheduler):

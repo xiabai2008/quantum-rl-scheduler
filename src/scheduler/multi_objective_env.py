@@ -240,9 +240,11 @@ class MultiObjectiveRewardWrapper(gym.Wrapper):
         # 通过检查 info 中的统计变化来判断
         scheduled = 0.0
         env = cast(QuantumSchedulingEnv, self.env.unwrapped)
+        # Issue #696: 通过公开 get_metrics() 接口读取状态，避免访问私有属性
+        metrics = env.get_metrics()
 
         # 检查本步是否有调度动作且兼容
-        if env._current_task is not None or env._total_scheduled > 0:  # noqa: SIM102
+        if metrics["has_current_task"] or metrics["total_scheduled"] > 0:  # noqa: SIM102
             # 通过比较 mismatch_count 和 success 的变化来判断
             # 简化：如果本步 reward 包含执行奖励（非惩罚），则视为成功调度
             if info.get("total_scheduled", 0) > self._mo_stats.get("_last_total_scheduled", 0):
@@ -262,9 +264,11 @@ class MultiObjectiveRewardWrapper(gym.Wrapper):
             float: 平衡度目标值 [-1, 0]
         """
         env = cast(QuantumSchedulingEnv, self.env.unwrapped)
+        # Issue #696: 通过公开 get_metrics() 接口读取状态，避免访问私有属性
+        metrics = env.get_metrics()
         # 统一为"利用率"语义（越高越忙），消除方向相反问题
-        quantum_util = 1.0 - env._quantum.available_ratio  # 量子利用率（越高越忙）
-        classical_util = env._classical.load  # 经典负载（越高越忙）
+        quantum_util = 1.0 - metrics["quantum_available_ratio"]  # 量子利用率（越高越忙）
+        classical_util = metrics["classical_load"]  # 经典负载（越高越忙）
 
         # 平衡度 = -|量子利用率 - 经典负载率|
         # 当两者相等时最平衡，值为 0
@@ -281,13 +285,13 @@ class MultiObjectiveRewardWrapper(gym.Wrapper):
         Returns:
             float: 服务质量目标值 [-1, 0]
         """
-        from src.scheduler.env import QuantumSchedulingEnv
-
         env = cast(QuantumSchedulingEnv, self.env.unwrapped)
-        if not env._task_queue:
+        # Issue #696: 通过公开 get_metrics() 接口读取状态，避免访问私有属性
+        metrics = env.get_metrics()
+        if metrics["task_queue_length"] == 0:
             return 0.0
 
-        avg_wait = sum(t.wait_steps for t in env._task_queue) / len(env._task_queue)
+        avg_wait = metrics["avg_wait_steps"]
         quality = -avg_wait / MAX_WAIT_STEPS
         return float(np.clip(quality, -1.0, 0.0))
 
