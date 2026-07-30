@@ -216,6 +216,7 @@ class QuantumCompilationEnv(gym.Env):
         self._mapping[logical_idx] = actual
         self._reverse_map[actual] = logical_idx
         self._mapped_gates += 1
+        self._current_depth += 1
         reward += 1
         if len(self._mapping) >= self.n_logical:
             terminated = True
