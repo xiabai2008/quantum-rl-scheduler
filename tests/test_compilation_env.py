@@ -373,18 +373,33 @@ class TestBoundaryCases:
 class TestObservation:
     """观测向量各维度含义验证。"""
 
-    def test_observation_has_redundant_dimensions(
+    def test_observation_dims_11_13_non_redundant(
         self, env_no_circuit: QuantumCompilationEnv
     ) -> None:
-        """14 维中有 3 个冗余反义维度（1-mapped_r, 1-alloc, 1-conn）。"""
-        obs, _ = env_no_circuit.reset(seed=42)
-        # 维度 11 = 1.0 - mapped_r, 维度 12 = 1.0 - alloc, 维度 13 = 1.0 - conn
-        mapped_r = obs[8]
-        alloc = obs[4]
-        conn = obs[3]
-        assert obs[11] == pytest.approx(1.0 - mapped_r)
-        assert obs[12] == pytest.approx(1.0 - alloc)
-        assert obs[13] == pytest.approx(1.0 - conn)
+        """观测维度11-13应提供非冗余信息，不再是1-x反义维度（Issue #656）。"""
+        env_no_circuit.reset(seed=42)
+        # step(0) 映射 logical 0 -> physical 0；step(0) 冲突 SWAP 到 physical 1
+        env_no_circuit.step(0)
+        obs, _, _, _, _ = env_no_circuit.step(0)
+        # 维度11: avg_swap_dist_n（SWAP距离归一化，>0 因有SWAP）
+        assert obs[11] > 0.0, "avg_swap_dist_n 应在SWAP后 > 0"
+        assert obs[11] != pytest.approx(1.0 - obs[8]), "obs[11] 不应等于 1-mapped_r"
+        # 维度12: swap_efficiency = mapped_gates / (mapped_gates + swap_count)
+        assert obs[12] == pytest.approx(0.5), "swap_efficiency 应为 0.5（2次映射/4次总操作）"
+        assert obs[12] != pytest.approx(1.0 - obs[4]), "obs[12] 不应等于 1-alloc"
+        # 维度13: isolated_occupied_n（0和1相邻，无隔离占用）
+        assert obs[13] == pytest.approx(0.0), "相邻映射的 isolated_occupied_n 应为 0"
+
+    def test_observation_isolated_occupied_scattered(
+        self, env_no_circuit: QuantumCompilationEnv
+    ) -> None:
+        """分散映射时维度13（隔离占用比例）应 > 0，区别于1-conn（Issue #656）。"""
+        env_no_circuit.reset(seed=42)
+        # physical 0 和 5 在4x4网格中不相邻
+        env_no_circuit.step(0)
+        obs, _, _, _, _ = env_no_circuit.step(5)
+        assert obs[13] > 0.0, "分散映射时 isolated_occupied_n 应 > 0"
+        assert obs[13] != pytest.approx(1.0 - obs[3]), "obs[13] 不应等于 1-conn"
 
     def test_observation_updates_after_step(self, env_no_circuit: QuantumCompilationEnv) -> None:
         """step 后观测应反映映射状态变化。"""

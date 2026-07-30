@@ -225,6 +225,7 @@ class QuantumCompilationEnv(gym.Env):
         return self._get_obs(), reward, terminated, truncated, {}
 
     def _get_obs(self) -> NDArray[np.float32]:
+        """构建14维观测向量，包含电路特征、映射状态、拓扑指标和效率指标。"""
         nq_n = min(self.n_logical / 100.0, 1.0)
         gate_n = min(self._n_gates / 500.0, 1.0)
         two_q_n = self._two_q_ratio
@@ -269,6 +270,15 @@ class QuantumCompilationEnv(gym.Env):
                 dists.append(min_d)
             avg_swap_dist = float(np.mean(dists)) if dists else 0.0
         fid = max(1.0 - 0.01 * self._swap_count - 0.005 * avg_swap_dist, 0.0)
+        # Issue #656: 替换冗余反义维度(1-mapped_r/1-alloc/1-conn)为有信息量的特征
+        avg_swap_dist_n = min(avg_swap_dist / max(1, self.n_physical - 1), 1.0)
+        swap_efficiency = min(
+            self._mapped_gates / max(1, self._mapped_gates + self._swap_count), 1.0
+        )
+        isolated_occupied = sum(
+            1 for q in occupied if not any(n in occupied for n in self.coupling_graph.get(q, set()))
+        )
+        isolated_occupied_n = isolated_occupied / max(1, self.n_physical)
         return np.array(
             [
                 nq_n,
@@ -282,9 +292,9 @@ class QuantumCompilationEnv(gym.Env):
                 mapped_r,
                 swap_n,
                 fid,
-                1.0 - mapped_r,
-                1.0 - alloc,
-                1.0 - conn,
+                avg_swap_dist_n,
+                swap_efficiency,
+                isolated_occupied_n,
             ],
             dtype=np.float32,
         )
