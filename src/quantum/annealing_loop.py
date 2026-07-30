@@ -147,6 +147,17 @@ class AsyncAnnealingLoop:
         self._lock = threading.Lock()
         self._stop_event = threading.Event()
         self._thread: threading.Thread | None = None
+        # Issue #715: worker 线程致命错误（OOM/CUDA），用于区分可恢复与不可恢复异常
+        self._fatal_error: Exception | None = None
+
+    @property
+    def fatal_error(self) -> Exception | None:
+        """返回 worker 线程的致命错误（Issue #715）。
+
+        当 worker 线程因 ``MemoryError`` 或 ``RuntimeError``（如 CUDA 错误）
+        终止时，该属性保存对应的异常对象；正常运行为 ``None``。
+        """
+        return self._fatal_error
 
     def get_annealing_config(self) -> dict[str, Any]:
         """返回异步退火闭环的完整参数配置（Issue #247）。
@@ -187,6 +198,7 @@ class AsyncAnnealingLoop:
             logger.warning("异步退火工作线程已启动，跳过重复启动")
             return
         self._stop_event.clear()
+        self._fatal_error = None  # Issue #715: 重启时清除上次的致命错误
         self._thread = threading.Thread(target=self._worker_loop, daemon=True)
         self._thread.start()
         logger.info("异步退火工作线程已启动")
@@ -319,8 +331,15 @@ class AsyncAnnealingLoop:
                     natural_delta=natural_delta,
                 )
                 new_reward = optimized_evaluation["reward"]
+            except (MemoryError, RuntimeError) as e:
+                # Issue #715: OOM/CUDA 等不可恢复异常，终止 worker 避免级联失败
+                logger.critical(
+                    f"[退火闭环] 步数 {step}: 不可恢复错误，终止worker: {type(e).__name__}: {e}"
+                )
+                self._fatal_error = e
+                break
             except Exception as e:
-                # 退火与评估涉及优化器、网络推理、环境交互，异常类型无法穷举，保留宽捕获并记录日志
+                # 退火与评估涉及优化器、网络推理、环境交互，其他异常视为可恢复
                 logger.error(f"[退火闭环] 步数 {step}: 退火或评估失败 ({type(e).__name__}: {e})")
                 alert_error("annealing", f"退火或评估失败: {type(e).__name__}: {e}", step=step)
                 continue

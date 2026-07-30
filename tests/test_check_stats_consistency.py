@@ -1,0 +1,137 @@
+"""tests/test_check_stats_consistency.py — Issue #691 统计口径一致性检查 BLACKLIST 单元测试"""
+
+from __future__ import annotations
+
+import re
+
+from scripts.ci.check_stats_consistency import (
+    BLACKLIST_PATTERNS,
+    _is_honest_disclosure,
+)
+
+
+def _run_blacklist_check_on_text(text: str) -> list[tuple[str, str]]:
+    """对文本逐行运行 BLACKLIST 检查，返回命中的 (pattern, message) 列表。"""
+    violations: list[tuple[str, str]] = []
+    for line in text.splitlines():
+        if _is_honest_disclosure(line):
+            continue
+        for pattern, message in BLACKLIST_PATTERNS:
+            if re.search(pattern, line, re.IGNORECASE):
+                violations.append((pattern, message))
+    return violations
+
+
+# ---------------------------------------------------------------------------
+# 正例测试：应该命中旧值 BLACKLIST 规则
+# ---------------------------------------------------------------------------
+
+
+class TestOldRealMachinePPOBlacklistPositive:
+    """PPO 真机 1665.22 旧值 BLACKLIST 正例测试"""
+
+    def test_detects_ppo_real_machine_1665_old_value(self) -> None:
+        """PPO+真机+1665.22 三者同时出现应触发 BLACKLIST。"""
+        text = "### 真机结果\nPPO 真机奖励 1665.22\n"
+        violations = _run_blacklist_check_on_text(text)
+        assert any("1736.32" in msg for _pat, msg in violations), (
+            "应检测到真机PPO旧值1665.22并提示升级为1736.32"
+        )
+
+    def test_detects_real_machine_ppo_1665_order_variant(self) -> None:
+        """关键词顺序变化（真机+PPO+1665.22）也应触发。"""
+        text = "真机实验结果：PPO策略均值=1665.22\n"
+        violations = _run_blacklist_check_on_text(text)
+        assert any("1736.32" in msg for _pat, msg in violations), (
+            "真机+PPO+1665.22顺序变体应触发BLACKLIST"
+        )
+
+
+class TestOldRealMachineFCFSBlacklistPositive:
+    """FCFS 真机 353.22 旧值 BLACKLIST 正例测试"""
+
+    def test_detects_fcfs_real_machine_353_old_value(self) -> None:
+        """FCFS+真机+353.22 三者同时出现应触发 BLACKLIST。"""
+        text = "## 真机性能\nFCFS 真机平均奖励 353.22\n"
+        violations = _run_blacklist_check_on_text(text)
+        assert any("383.00" in msg for _pat, msg in violations), (
+            "应检测到真机FCFS旧值353.22并提示升级为383.00"
+        )
+
+    def test_detects_353_with_fcfs_real_machine_prefix(self) -> None:
+        """353.22+FCFS+真机 前缀变体也应触发。"""
+        text = "基准策略结果：353.22 为 FCFS 真机均值\n"
+        violations = _run_blacklist_check_on_text(text)
+        assert any("383.00" in msg for _pat, msg in violations), (
+            "353.22+FCFS+真机变体应触发BLACKLIST"
+        )
+
+
+# ---------------------------------------------------------------------------
+# 反例测试：不应误报
+# ---------------------------------------------------------------------------
+
+
+class TestOldRealMachinePPOBlacklistNegative:
+    """PPO 1665.22 孤立出现不误报"""
+
+    def test_no_false_positive_isolated_1665_without_real_machine(self) -> None:
+        """单独出现 1665.22 但无「真机」关键词时，不应触发。"""
+        text = "某非真机仿真实验奖励 1665.22，效果良好\n"
+        violations = _run_blacklist_check_on_text(text)
+        assert not any("1736.32" in msg for _pat, msg in violations), (
+            "孤立1665.22不含真机关键词时不应误报"
+        )
+
+    def test_no_false_positive_ppo_without_real_machine_keyword(self) -> None:
+        """PPO+1665.22 但无真机时，不应触发。"""
+        text = "仿真基线：PPO 奖励 1665.22（仅仿真参考）\n"
+        violations = _run_blacklist_check_on_text(text)
+        assert not any("1736.32" in msg for _pat, msg in violations), (
+            "PPO+1665.22无真机关键词不应触发BLACKLIST"
+        )
+
+
+class TestOldRealMachineFCFSBlacklistNegative:
+    """FCFS 353.22 孤立出现不误报"""
+
+    def test_no_false_positive_isolated_353_without_real_machine(self) -> None:
+        """单独出现 353.22 但无「真机」关键词时，不应触发。"""
+        text = "本地调试输出：353.22 为某中间结果\n"
+        violations = _run_blacklist_check_on_text(text)
+        assert not any("383.00" in msg for _pat, msg in violations), (
+            "孤立353.22不含真机关键词时不应误报"
+        )
+
+    def test_no_false_positive_fcfs_without_real_machine_keyword(self) -> None:
+        """FCFS+353.22 但无真机时，不应触发。"""
+        text = "高负载场景：FCFS奖励 353.22（纯仿真）\n"
+        violations = _run_blacklist_check_on_text(text)
+        assert not any("383.00" in msg for _pat, msg in violations), (
+            "FCFS+353.22无真机关键词不应触发BLACKLIST"
+        )
+
+
+# ---------------------------------------------------------------------------
+# 诚实披露豁免测试：N=5/已废弃标注时旧值应豁免
+# ---------------------------------------------------------------------------
+
+
+class TestHonestDisclosureExemption:
+    """旧值在诚实披露上下文中应被豁免"""
+
+    def test_n5_annotation_exempts_old_ppo_1665(self) -> None:
+        """包含「5 seeds」诚实披露标注的旧PPO值应豁免。"""
+        text = "（历史参考，N=5旧实验已废弃）PPO真机值为1665.22\n"
+        violations = _run_blacklist_check_on_text(text)
+        assert not any("1736.32" in msg for _pat, msg in violations), (
+            "含N=5诚实披露时旧值1665.22应豁免"
+        )
+
+    def test_deprecated_annotation_exempts_old_fcfs_353(self) -> None:
+        """包含「已废弃」标注的旧FCFS值应豁免。"""
+        text = "注：以下值已废弃（N=5旧版）：FCFS真机 353.22\n"
+        violations = _run_blacklist_check_on_text(text)
+        assert not any("383.00" in msg for _pat, msg in violations), (
+            "含已废弃诚实披露时旧值353.22应豁免"
+        )
