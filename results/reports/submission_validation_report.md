@@ -1,6 +1,6 @@
 # 提交物校验报告 — Issue #168
 
-- **版本**: v8.0
+- **版本**: v9.1
 - **截止日期**: 2026-09-15
 - **生成时间**: 2026-07-21 13:38:37
 - **总数**: 13 项  |  ✅ 通过: 8  |  ❌ 缺失: 5
@@ -11,8 +11,8 @@
 
 | 编号 | 名称 | 类型 | 期望路径 | 严重度 | 说明 | 建议处理方式 |
 |:--:|:--|:--:|:--|:--:|:--|:--|
-| CODE_REPO | 代码仓库 | git_tag | `.` | error | Git 标签不存在: v8.0-submission | 在代码冻结日（2026-08-15）后由管理员执行 `git tag v8.0-submission` 并推送标签 |
-| CODE_ARCHIVE | 代码压缩包 | zip | `dist/quantum-rl-scheduler-v8.0.zip` | error | 文件不存在: dist\quantum-rl-scheduler-v8.0.zip | 代码冻结后执行 `python scripts/ci/validate_submission.py --pack` 生成压缩包 |
+| CODE_REPO | 代码仓库 | git_tag | `.` | error | Git 标签不存在: v9.1-submission | 在代码冻结日（2026-08-15）后由管理员执行 `git tag v9.1-submission` 并推送标签 |
+| CODE_ARCHIVE | 代码压缩包 | zip | `dist/quantum-rl-scheduler-v9.1.zip` | error | 文件不存在: dist\quantum-rl-scheduler-v9.1.zip | 代码冻结后执行 `python scripts/ci/validate_submission.py --pack` 生成压缩包 |
 | WHITEPAPER | 技术白皮书 | pdf | `技术白皮书_量子RL调度系统_v3.pdf` | warning | 文件不存在: 技术白皮书_量子RL调度系统_v3.pdf，但发现 docx 源文件: 技术白皮书_量子RL调度系统_v3.docx，需转换为 PDF 后再提交 | 将 `技术白皮书_量子RL调度系统_v3.docx` 导出为 PDF（20-50 页，需含摘要/目录/参考文献） |
 | PRESENTATION | 答辩 PPT | pptx | `答辩PPT_量子RL调度系统.pptx` | error | 文件不存在: 答辩PPT_量子RL调度系统.pptx | 根据 `答辩PPT大纲.md` 制作 .pptx 文件（15-20 页，需含封面/问题定义/架构图/实验结果/团队介绍） |
 | DEMO_VIDEO | 演示视频 | mp4 | `演示视频_量子RL调度系统.mp4` | error | 文件不存在: 演示视频_量子RL调度系统.mp4 | 录制 4-5 分钟 1080p 演示视频（关联 Issue #169） |
@@ -40,7 +40,7 @@
 
 按以下顺序处理缺失项：
 
-1. **[CODE_REPO] 代码仓库** — 在代码冻结日（2026-08-15）后由管理员执行 `git tag v8.0-submission` 并推送标签
+1. **[CODE_REPO] 代码仓库** — 在代码冻结日（2026-08-15）后由管理员执行 `git tag v9.1-submission` 并推送标签
 2. **[CODE_ARCHIVE] 代码压缩包** — 代码冻结后执行 `python scripts/ci/validate_submission.py --pack` 生成压缩包
 3. **[PRESENTATION] 答辩 PPT** — 根据 `答辩PPT大纲.md` 制作 .pptx 文件（15-20 页，需含封面/问题定义/架构图/实验结果/团队介绍）
 4. **[DEMO_VIDEO] 演示视频** — 录制 4-5 分钟 1080p 演示视频（关联 Issue #169）

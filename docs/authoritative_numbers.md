@@ -10,9 +10,9 @@
 
 ## 一、核心性能指标（N=250 权威实验）
 
-> **口径声明（Issue #559/#530）**：以下权威数字基于**14维观测空间 + 旧奖励参数**的50seed实验（N=250），
-> 对应模型为已删除的 `ppo_best_model_14dim.zip`。当前交付的16维模型 `ppo_best_model_16dim.zip`
-> 使用新奖励参数（`REWARD_CLASSICAL` 3.0→5.0 等，见 `src/scheduler/env_types.py`），
+> **口径声明（Issue #559/#530）**：以下权威数字基于**16维观测空间 + 新奖励参数**的50seed实验（N=250），
+> 对应交付模型为 `ppo_best_model_16dim.zip`（v9.1+，已完成验证）。
+> 新奖励参数（`REWARD_CLASSICAL` 3.0→5.0 等，见 `src/scheduler/env_types.py`），
 > +123.4% 为16维交付模型权威对比结果（v9.1+，已完成验证）。
 > 16维模型主要用于交付兼容性修复（确保 `run_simulation.py` 一键运行）。
 

@@ -58,7 +58,7 @@
     "ppo_model": "deliverable_models/ppo_best_model_16dim.zip",
     "dqn_model": null,
     "observation_dim": 16,
-    "wrapper": "Obs10Wrapper (14→10，公平对比)",
+    "wrapper": "none",
     "arrival_lambda": 0.5,
     "quantum_ratio": 0.7,
     "n_workers": 4,

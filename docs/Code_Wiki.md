@@ -1002,7 +1002,7 @@ from src.scheduler.parser import TaskParser, Task, TaskBuilder
 parser = TaskParser()
 task = parser.parse({"task_id": "T1", "task_type": "quantum", "qubits_required": 5, ...})
 
-# 调度环境（16维状态，3类动作）
+# 调度环境（16维状态，4类动作）
 from src.scheduler.env import QuantumSchedulingEnv
 env = QuantumSchedulingEnv(max_qubits=20)
 obs, _ = env.reset()

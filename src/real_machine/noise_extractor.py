@@ -93,7 +93,14 @@ class NoiseModelExtractor:
             available = False
             try:
                 available = backend.is_available()
-            except Exception as e:
+            except (
+                AttributeError,
+                ConnectionError,
+                TimeoutError,
+                ValueError,
+                TypeError,
+                RuntimeError,
+            ) as e:
                 logger.warning(f"[NoiseExtractor] 后端可用性检查失败: {e}，将尝试真机提取")
             mode = "真机" if available else "Mock（后端不可用）"
             logger.info(f"[NoiseExtractor] 初始化{mode}模式，backend_type={backend.backend_type}")
@@ -120,7 +127,14 @@ class NoiseModelExtractor:
             if result:
                 logger.info(f"[NoiseExtractor] 真机读出错误率提取成功，{len(result)} 个比特")
                 return result
-        except Exception as e:
+        except (
+            AttributeError,
+            ConnectionError,
+            TimeoutError,
+            ValueError,
+            TypeError,
+            RuntimeError,
+        ) as e:
             logger.warning(f"[NoiseExtractor] 真机读出错误率提取失败，降级 Mock: {e}")
 
         return cast(dict[str, float], self._mock_extract()["readout_error"])
@@ -150,7 +164,14 @@ class NoiseModelExtractor:
                     f"单比特门 {single} 个，双比特门 {two} 个"
                 )
                 return result
-        except Exception as e:
+        except (
+            AttributeError,
+            ConnectionError,
+            TimeoutError,
+            ValueError,
+            TypeError,
+            RuntimeError,
+        ) as e:
             logger.warning(f"[NoiseExtractor] 真机门错误率提取失败，降级 Mock: {e}")
 
         return cast(dict[str, float], self._mock_extract()["gate_error"])
@@ -173,7 +194,14 @@ class NoiseModelExtractor:
             if result:
                 logger.info(f"[NoiseExtractor] 真机 T1 时间提取成功，{len(result)} 个比特")
                 return result
-        except Exception as e:
+        except (
+            AttributeError,
+            ConnectionError,
+            TimeoutError,
+            ValueError,
+            TypeError,
+            RuntimeError,
+        ) as e:
             logger.warning(f"[NoiseExtractor] 真机 T1 时间提取失败，降级 Mock: {e}")
 
         return cast(dict[str, float], self._mock_extract()["t1_time"])
@@ -220,7 +248,14 @@ class NoiseModelExtractor:
                     }
                     logger.info("[NoiseExtractor] 真机噪声画像提取完成")
                     return profile
-            except Exception as e:
+            except (
+                AttributeError,
+                ConnectionError,
+                TimeoutError,
+                ValueError,
+                TypeError,
+                RuntimeError,
+            ) as e:
                 logger.warning(f"[NoiseExtractor] 真机噪声画像提取失败，降级 Mock: {e}")
 
         mock_data = self._mock_extract()
@@ -339,7 +374,14 @@ class NoiseModelExtractor:
             try:
                 raw = method()
                 return self._parse_readout_from_raw(raw)
-            except Exception:
+            except (
+                AttributeError,
+                TypeError,
+                ValueError,
+                ConnectionError,
+                TimeoutError,
+                RuntimeError,
+            ):
                 logger.debug(f"[NoiseExtractor] {method_name}() 调用失败，尝试下一个接口")
                 continue
 
@@ -368,7 +410,14 @@ class NoiseModelExtractor:
             try:
                 raw = method()
                 return self._parse_gate_errors_from_raw(raw)
-            except Exception:
+            except (
+                AttributeError,
+                TypeError,
+                ValueError,
+                ConnectionError,
+                TimeoutError,
+                RuntimeError,
+            ):
                 logger.debug(f"[NoiseExtractor] {method_name}() 调用失败，尝试下一个接口")
                 continue
 
@@ -397,7 +446,14 @@ class NoiseModelExtractor:
             try:
                 raw = method()
                 return self._parse_t1_from_raw(raw)
-            except Exception:
+            except (
+                AttributeError,
+                TypeError,
+                ValueError,
+                ConnectionError,
+                TimeoutError,
+                RuntimeError,
+            ):
                 logger.debug(f"[NoiseExtractor] {method_name}() 调用失败，尝试下一个接口")
                 continue
 

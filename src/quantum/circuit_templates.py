@@ -22,7 +22,10 @@ def generate_bell_state(qubit_pairs: list[tuple[int, int]] | None = None) -> str
     """生成 Bell 态电路（2比特最大纠缠态，用于真机验证）。
 
     Bell 态: |Φ+⟩ = (|00⟩ + |11⟩)/√2
-    电路结构: H Qc → CZ Qc Qt → H Qt → M Qc → M Qt
+    电路结构: H Qc → CZ Qc Qt → M Qc → M Qt
+
+    说明：H 作用在 control qubit 后，CZ 门即可生成 Bell 纠缠态；
+    不需要在 target qubit 上再加 H 门（否则会破坏纠缠态）。
 
     Args:
         qubit_pairs: 纠缠比特对列表 [(control, target), ...]，
@@ -40,7 +43,6 @@ def generate_bell_state(qubit_pairs: list[tuple[int, int]] | None = None) -> str
     for qc, qt in qubit_pairs:
         instructions.append(f"H Q{qc}")
         instructions.append(f"CZ Q{qc} Q{qt}")
-        instructions.append(f"H Q{qt}")
         all_qubits.add(qc)
         all_qubits.add(qt)
 
@@ -54,7 +56,11 @@ def generate_ghz_state(n_qubits: int = 3) -> str:
     """生成 GHZ-n 态电路（多比特 Greenberger-Horne-Zeilinger 纠缠态）。
 
     GHZ-n: |GHZ⟩ = (|00...0⟩ + |11...1⟩)/√2
-    电路结构: H Q0 → CZ Q0 Q1 → CZ Q1 Q2 → ... → CZ Q(n-2) Q(n-1) → M all
+    电路结构: H Q0 → [H Q(i+1) → CZ Q(i) Q(i+1) → H Q(i+1)] × (n-1) → M all
+
+    说明：QCIS 仅提供 CZ 双比特门，无法直接生成 GHZ 纠缠态。这里利用
+    H-CZ-H 等效 CNOT 门（CNOT(Qc, Qt) = H Qt → CZ Qc Qt → H Qt），
+    对每个相邻比特对施加等效 CNOT，从而把 H Q0 产生的叠加态扩展到全部比特。
 
     Args:
         n_qubits: 比特数，默认 3（GHZ-3）
@@ -70,8 +76,11 @@ def generate_ghz_state(n_qubits: int = 3) -> str:
 
     instructions: list[str] = ["H Q0"]
 
+    # 使用 H-CZ-H 等效 CNOT 门生成 GHZ 纠缠态
     for i in range(n_qubits - 1):
+        instructions.append(f"H Q{i + 1}")
         instructions.append(f"CZ Q{i} Q{i + 1}")
+        instructions.append(f"H Q{i + 1}")
 
     for i in range(n_qubits):
         instructions.append(f"M Q{i}")

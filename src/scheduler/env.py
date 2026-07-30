@@ -31,6 +31,7 @@ from src.scheduler.env_observation import get_info, get_observation
 from src.scheduler.env_real_machine import (
     FREE_TIER_MAX_QUBITS,
     advance_noise_aware_to_next_step,
+    attach_noise_extractor,
     get_noise_aware_adjustment,
     init_noise_aware_state,
     poll_pending_real_tasks,
@@ -354,12 +355,21 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
         self._noise_aware_trigger_step: int = -1
         init_noise_aware_state(self)
 
-    def attach_real_clients(self, clients: dict[str, Any]) -> None:
+    def attach_real_clients(
+        self,
+        clients: dict[str, Any],
+        inject_noise: bool = False,
+    ) -> None:
         """绑定真机客户端，启用选择性真机验证。
 
         Args:
             clients: 机器名 -> 客户端实例的映射（如 CqlibTianyanClient）。
                      绑定后，对应机器的 is_real 会被置为 True。
+            inject_noise: 是否同时通过 NoiseModelExtractor 提取噪声画像并注入
+                          到环境机器中（Issue #579）。默认 False 以保持向后兼容；
+                          设为 True 时使用 Mock 噪声数据（backend=None 自动降级），
+                          驱动仿真环境的噪声特征。需要真机噪声数据时应单独调用
+                          ``attach_noise_extractor(env, backend=real_backend)``。
         """
         self._cached_obs = None  # Issue #627: 客户端绑定可能改变机器状态，失效缓存
         self._real_clients.update(clients)
@@ -369,6 +379,9 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
         # 更新 total_qubits 缓存（Issue #219）
         # attach_real_clients 不修改 _machines 列表本身，但保守起见同步缓存
         self._total_qubits_cache = sum(m.total_qubits for m in self._machines)
+        # Issue #579: 可选注入噪声画像（Mock 模式，驱动仿真环境噪声特征）
+        if inject_noise:
+            attach_noise_extractor(self)
 
     def set_fairness_tracker(self, tracker: Any | None) -> None:
         """设置公平性跟踪器，启用奖励函数中的公平性惩罚（Issue #587）。

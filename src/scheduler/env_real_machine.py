@@ -1292,3 +1292,51 @@ def get_noise_aware_adjustment(
         return 0.0
 
     return float(env._noise_aware_current_value)
+
+
+# =============================================================================
+# 噪声模型提取与注入（Issue #579）
+# =============================================================================
+
+
+def attach_noise_extractor(
+    env: "QuantumSchedulingEnv",
+    backend: Any = None,
+    num_qubits: int = 20,
+    seed: int | None = None,
+) -> dict[str, Any] | None:
+    """创建 NoiseModelExtractor 并将噪声画像注入环境（Issue #579）。
+
+    在 ``attach_real_clients`` 后调用，从真机后端（或 Mock）提取噪声参数
+    并注入到环境的量子机器中，驱动仿真环境的噪声特征。
+
+    当 ``backend`` 为 None 或后端不可用时，自动降级为 Mock 模式，
+    返回基于真实超导量子比特统计分布的仿真噪声数据。
+
+    Args:
+        env        : 调度环境实例（需已初始化 _machines）
+        backend    : 量子硬件后端实例（``QuantumHardwareBackend`` 子类），
+                     None 时使用 Mock 模式返回仿真数据。
+        num_qubits : Mock 模式下模拟的量子比特数（默认 20）。
+        seed       : 随机数种子（用于 Mock 模式可复现）。
+
+    Returns:
+        噪声画像字典，注入失败时返回 None。
+    """
+    from src.real_machine.noise_extractor import NoiseModelExtractor
+
+    try:
+        extractor = NoiseModelExtractor(backend=backend, num_qubits=num_qubits, seed=seed)
+        noise_profile = extractor.extract_noise_profile()
+        env.inject_noise_profile(noise_profile)
+        return noise_profile
+    except (
+        AttributeError,
+        ConnectionError,
+        TimeoutError,
+        ValueError,
+        TypeError,
+        RuntimeError,
+    ) as e:
+        logger.warning(f"[NoiseExtractor] 噪声画像注入失败，跳过: {e}")
+        return None

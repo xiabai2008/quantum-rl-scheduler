@@ -19,10 +19,11 @@ Reinforcement Learning Agent for Quantum-Classical Hybrid Task Scheduling
     8 - task_type_quantum    : 当前任务是否为 quantum 类型（0-1）
     9 - task_type_classical  : 当前任务是否为 classical 类型（0-1）
 
-动作空间（Discrete(3)）：
+动作空间（Discrete(4)）：
     0 - 分配到经典计算资源
     1 - 分配到量子计算资源
     2 - 混合执行（量子-经典协同）
+    3 - 量子误差缓释（QEM）
 
 模块拆分说明：
     本模块仅保留 SchedulerAgent（DQN）核心智能体类。

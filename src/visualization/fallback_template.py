@@ -1230,11 +1230,11 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             </div>
             <div class="header-titles">
                 <h1>量子RL智能调度系统</h1>
-                <div class="subtitle">AI赋能量子计算 · PPO强化学习 · 14维状态空间 · 8策略对比</div>
+                <div class="subtitle">AI赋能量子计算 · PPO强化学习 · 16维状态空间 · 8策略对比</div>
             </div>
         </div>
         <div class="header-right">
-            <span class="model-badge" id="model-badge">PPO 14dim</span>
+            <span class="model-badge" id="model-badge">PPO 16dim</span>
             <span id="ws-status" class="ws-status disconnected">连接中...</span>
         </div>
     </div>
@@ -1403,7 +1403,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             <div class="panel">
                 <div class="panel-header">
                     <h2><span class="icon icon-rank"><svg viewBox="0 0 24 24"><path d="M6 20h12M8 20v-5l4-7 4 7v5"/><circle cx="12" cy="6" r="2" fill="currentColor" stroke="none"/><path d="M10 11l2 2 2-2" opacity="0.5"/></svg></span> 8种策略性能排名</h2>
-                    <span class="badge">14维公平重训</span>
+                    <span class="badge">16维公平重训</span>
                 </div>
                 <div class="panel-body" id="ranking-body">
                     <div class="empty-state">加载排名数据...</div>

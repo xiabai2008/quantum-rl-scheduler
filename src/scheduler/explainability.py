@@ -737,7 +737,7 @@ class PPOExplainer:
         self.n_features: int = (
             int(obs_space.shape[0]) if obs_space is not None and obs_space.shape else 17
         )
-        self.n_actions: int = int(action_space.n) if action_space is not None else 3
+        self.n_actions: int = int(action_space.n) if action_space is not None else 4
 
         if len(self.feature_names) < self.n_features:
             self.feature_names = self.feature_names + [

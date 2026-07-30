@@ -11,10 +11,11 @@ Multi-Agent PPO for Quantum-Classical Hybrid Task Scheduling
 
 设计要点：
     - 不修改 env.py 的公共接口，通过 MultiAgentEnvWrapper 包装现有环境
-    - 每个 Agent 动作空间保持 Discrete(3)：
+    - 每个 Agent 动作空间保持 Discrete(4)：
         0 = 将当前量子任务转交经典处理
         1 = 在本机执行量子任务
         2 = 在本机执行混合（量子-经典协同）
+        3 = 量子误差缓释（QEM）
     - 经典任务仍由中心调度器处理（聚合时若所有 Agent 投票 0 则走经典）
     - 纯 PyTorch 实现 Actor-Critic 与训练循环，不依赖第三方 MARL 框架
 
@@ -1358,6 +1359,7 @@ class MultiAgentPPO:
                 "mean_actor_loss": 0.0,
                 "critic_loss": 0.0,
                 "mean_entropy": 0.0,
+                "scorer_loss": 0.0,
             }
 
         # 全局状态和回报对所有 Agent 共享
@@ -1434,12 +1436,44 @@ class MultiAgentPPO:
                 n_updates += 1
 
         mean_reward = float(self.buffer.rewards[:n].mean()) if n > 0 else 0.0
-        return {
+        stats: dict[str, float] = {
             "mean_reward": mean_reward,
             "mean_actor_loss": total_actor_loss / max(n_updates * self.num_agents, 1),
             "critic_loss": total_critic_loss / max(n_updates, 1),
             "mean_entropy": total_entropy / max(n_updates * self.num_agents, 1),
+            "scorer_loss": 0.0,
         }
+
+        # Issue #598: 更新可学习机器评分网络（LearnableMachineScorer）
+        # 使用 Critic 对 batch 全局状态的价值估计作为训练目标信号，
+        # 引导评分网络学习"高价值机器应获高评分"的映射关系。
+        if self.scorer_method == "learnable" and isinstance(
+            self.machine_scorer, LearnableMachineScorer
+        ):
+            try:
+                # 提取所有机器的特征并堆叠为 (num_machines, feature_dim) 张量
+                machine_features = np.stack(
+                    [_extract_machine_features(m) for m in self.env._machines]
+                )
+                features_tensor = torch.as_tensor(
+                    machine_features, dtype=torch.float32, device=self.device
+                )
+                # 评分网络前向计算（保留计算图用于反向传播）
+                predicted_scores = self.machine_scorer.forward(features_tensor)
+                # 使用 Critic 对 batch 全局状态的均值价值（detach）作为目标信号
+                with torch.no_grad():
+                    gs_all = self._to_tensor(global_states)
+                    target_values = self.critic(gs_all).squeeze(-1).detach()
+                    target_score = target_values.mean().expand_as(predicted_scores)
+                scorer_loss = nn.functional.mse_loss(predicted_scores, target_score)
+                # 调用 LearnableMachineScorer.update 执行 zero_grad→backward→clip→step
+                stats["scorer_loss"] = self.machine_scorer.update(scorer_loss, self.max_grad_norm)
+            except (RuntimeError, ValueError) as e:
+                # 防御性兜底：评分网络更新失败不应中断 MAPPO 主训练流程
+                logger.warning(f"[MAPPO] 评分网络更新失败，跳过本次更新: {e}")
+                stats["scorer_loss"] = 0.0
+
+        return stats
 
     # ------------------------------------------------------------------
     # 推理与评估

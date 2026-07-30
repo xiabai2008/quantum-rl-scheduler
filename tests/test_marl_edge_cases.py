@@ -226,6 +226,7 @@ def test_empty_buffer_gae_and_update_are_well_defined() -> None:
         "mean_actor_loss": 0.0,
         "critic_loss": 0.0,
         "mean_entropy": 0.0,
+        "scorer_loss": 0.0,
     }
 
 
