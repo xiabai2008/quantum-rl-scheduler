@@ -624,6 +624,11 @@ class TianyanClient:
                 self._track_quota()
                 return func(*args, **kwargs)
             except Exception as e:
+                # Issue #718: 不可恢复的编程错误不重试，直接抛出
+                if isinstance(
+                    e, (ValueError, TypeError, KeyError, AttributeError, NotImplementedError)
+                ):
+                    raise
                 # 429 限流：转换为 RateLimitError 并使用自适应退避
                 if self._is_rate_limited(e):
                     retry_after = getattr(e, "retry_after", None)

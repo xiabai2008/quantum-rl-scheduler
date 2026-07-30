@@ -413,7 +413,12 @@ def load_settings(
         target_type = _resolve_type(f.type)
         try:
             field_values[fname] = _convert(value, target_type)
-        except (ValueError, TypeError):
+        except (ValueError, TypeError) as e:
+            # Issue #709: 类型转换失败时记录告警，而非静默回退默认值
+            logging.getLogger(__name__).warning(
+                f"配置项 {fname} 值 {value!r} 转换为 {target_type} 失败: {e}，"
+                f"回退到默认值 {default_val!r}"
+            )
             field_values[fname] = default_val
 
     return Settings(**field_values)

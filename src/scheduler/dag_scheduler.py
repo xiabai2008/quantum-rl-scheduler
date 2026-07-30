@@ -939,4 +939,6 @@ class DAGScheduler:
                 status=item.get("status", "pending"),
             )
             scheduler.add_task(task)
+        # Issue #713: 构建后校验 DAG 合法性（缺失依赖/环），避免延迟到运行时才报错
+        scheduler.validate_dag()
         return scheduler
