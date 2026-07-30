@@ -136,7 +136,8 @@ markers = [
     "real_machine: marks tests requiring real quantum machine access",
     "integration: marks integration tests",
     "unit: marks unit tests",
-    "benchmark_rounds: round-based performance benchmarks",
+    "benchmark: marks performance benchmark tests",
+    "benchmark_rounds: marks tests with specific benchmark round counts",
 ]
 timeout = 300
 timeout_method = "thread"
