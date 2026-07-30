@@ -289,7 +289,9 @@ def normalize_vector(
     max_v: float = float(np.max(vec_array))
 
     if max_v - min_v < 1e-10:
-        return [0.5] * len(vector)
+        # Issue #688: 常数向量返回目标区间 [min_val, max_val] 的中点，
+        # 而非固定 0.5（0.5 不一定在 [min_val, max_val] 内，如 min_val=10）。
+        return [(min_val + max_val) / 2] * len(vector)
 
     normalized = (vec_array - min_v) / (max_v - min_v)
     normalized = normalized * (max_val - min_val) + min_val
@@ -375,7 +377,11 @@ def save_json(data: Any, filepath: str) -> None:
         data: 数据
         filepath: 文件路径
     """
-    os.makedirs(os.path.dirname(filepath), exist_ok=True)
+    # Issue #688: filepath 无目录前缀时 dirname 返回空串，os.makedirs("") 会抛
+    # FileNotFoundError，需在存在目录时才创建。
+    dirname = os.path.dirname(filepath)
+    if dirname:
+        os.makedirs(dirname, exist_ok=True)
     with open(filepath, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
     logger.info(f"JSON文件保存成功：{filepath}")

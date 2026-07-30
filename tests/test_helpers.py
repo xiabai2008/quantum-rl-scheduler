@@ -262,8 +262,13 @@ class TestNormalizeVector(unittest.TestCase):
     def test_custom_range_constant_returns_midpoint(self):
         """常量向量在自定义范围下应返回范围中点。"""
         result = normalize_vector([3.0, 3.0], min_val=0.0, max_val=10.0)
-        # min==max → 返回 [0.5, 0.5]（与范围无关，固定中点）
-        self.assertEqual(result, [0.5, 0.5])
+        # Issue #688: min==max → 返回目标区间中点 (0+10)/2 = 5.0，而非固定 0.5
+        self.assertEqual(result, [5.0, 5.0])
+
+    def test_custom_range_constant_high_range(self):
+        """常量向量在高偏移区间 [10, 20] 应返回 15.0（原 bug 返回 0.5 不在区间内）。"""
+        result = normalize_vector([7.0], min_val=10.0, max_val=20.0)
+        self.assertEqual(result, [15.0])
 
 
 # ============================================================
@@ -411,6 +416,19 @@ class TestSaveLoadJson(unittest.TestCase):
             loaded = load_json(path)
             self.assertTrue(loaded["flag"])
             self.assertIsNone(loaded["none_val"])
+
+    def test_save_bare_filename_no_directory(self):
+        """Issue #688: filepath 无目录前缀时不应崩溃（原 os.makedirs("") 抛 FileNotFoundError）。"""
+        with tempfile.TemporaryDirectory() as tmp:
+            # 切换到临时目录，使用纯文件名（无目录前缀）
+            cwd = os.getcwd()
+            try:
+                os.chdir(tmp)
+                save_json({"k": "v"}, "bare.json")
+                self.assertTrue(os.path.exists(os.path.join(tmp, "bare.json")))
+                self.assertEqual(load_json("bare.json"), {"k": "v"})
+            finally:
+                os.chdir(cwd)
 
 
 # ============================================================
