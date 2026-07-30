@@ -20,6 +20,7 @@ import asyncio
 import os
 import sys
 import unittest
+from contextlib import contextmanager
 from unittest.mock import AsyncMock, MagicMock, patch
 
 # 预先导入 src.quantum.annealing（间接触发 torch/numpy 加载），
@@ -46,6 +47,7 @@ def _build_mock_app():
     mock_app.system_status = {
         "current_step": 0,
         "qubit_utilization": 0.5,
+        "classical_utilization": 0.5,
         "queue_length": 0,
         "average_wait_time": 1.0,
         "completed_tasks": 0,
@@ -71,6 +73,26 @@ def _build_mock_app():
     mock_app.manager = MagicMock()
     mock_app.manager.broadcast = AsyncMock()
     return mock_app
+
+
+@contextmanager
+def _isolate_global_state(mock_app: MagicMock):
+    """将 state 模块全局状态重定向到 mock_app 的隔离对象（Issue #723）。
+
+    simulator.py 通过 state.py 访问器（``update_system_status`` /
+    ``append_resource_history`` / ``append_decision_log`` /
+    ``get_pending_task_count`` 等）操作全局状态，这些访问器引用 state 模块
+    级变量。本上下文将 ``system_status`` / ``_resource_history`` /
+    ``_decision_log`` / ``task_queue`` 重定向到 mock_app 的对象，使访问器
+    修改反映到 mock_app，保持测试隔离与既有断言兼容。
+    """
+    with (
+        patch("src.visualization.state.system_status", mock_app.system_status),
+        patch("src.visualization.state._resource_history", mock_app._resource_history),
+        patch("src.visualization.state._decision_log", mock_app._decision_log),
+        patch("src.visualization.state.task_queue", mock_app.task_queue),
+    ):
+        yield
 
 
 def _make_sleep_raising_after(n: int):
@@ -138,6 +160,7 @@ class TestSimulateSchedulerPpoPath(unittest.IsolatedAsyncioTestCase):
 
         with (
             patch("src.visualization.simulator._app", mock_app),
+            _isolate_global_state(mock_app),
             patch(
                 "src.visualization.simulator.asyncio.sleep",
                 new=_make_sleep_raising_after(2),
@@ -176,6 +199,7 @@ class TestSimulateSchedulerPpoPath(unittest.IsolatedAsyncioTestCase):
 
         with (
             patch("src.visualization.simulator._app", mock_app),
+            _isolate_global_state(mock_app),
             patch(
                 "src.visualization.simulator.asyncio.sleep",
                 new=_make_sleep_raising_after(2),
@@ -201,6 +225,7 @@ class TestSimulateSchedulerPpoPath(unittest.IsolatedAsyncioTestCase):
 
         with (
             patch("src.visualization.simulator._app", mock_app),
+            _isolate_global_state(mock_app),
             patch(
                 "src.visualization.simulator.asyncio.sleep",
                 new=_make_sleep_raising_after(2),
@@ -228,6 +253,7 @@ class TestSimulateSchedulerPpoPath(unittest.IsolatedAsyncioTestCase):
 
         with (
             patch("src.visualization.simulator._app", mock_app),
+            _isolate_global_state(mock_app),
             patch(
                 "src.visualization.simulator.asyncio.sleep",
                 new=_make_sleep_raising_after(2),
@@ -256,6 +282,7 @@ class TestSimulateSchedulerPpoPath(unittest.IsolatedAsyncioTestCase):
 
         with (
             patch("src.visualization.simulator._app", mock_app),
+            _isolate_global_state(mock_app),
             patch(
                 "src.visualization.simulator.asyncio.sleep",
                 new=_make_sleep_raising_after(2),
@@ -282,6 +309,7 @@ class TestSimulateSchedulerPpoPath(unittest.IsolatedAsyncioTestCase):
 
         with (
             patch("src.visualization.simulator._app", mock_app),
+            _isolate_global_state(mock_app),
             patch(
                 "src.visualization.simulator.asyncio.sleep",
                 new=_make_sleep_raising_after(2),
@@ -308,6 +336,7 @@ class TestSimulateSchedulerNoModel(unittest.IsolatedAsyncioTestCase):
 
         with (
             patch("src.visualization.simulator._app", mock_app),
+            _isolate_global_state(mock_app),
             patch(
                 "src.visualization.simulator.asyncio.sleep",
                 new=_make_sleep_raising_after(2),
@@ -334,6 +363,7 @@ class TestSimulateSchedulerNoModel(unittest.IsolatedAsyncioTestCase):
 
         with (
             patch("src.visualization.simulator._app", mock_app),
+            _isolate_global_state(mock_app),
             patch(
                 "src.visualization.simulator.asyncio.sleep",
                 new=_make_sleep_raising_after(2),
@@ -358,6 +388,7 @@ class TestSimulateSchedulerNoModel(unittest.IsolatedAsyncioTestCase):
 
         with (
             patch("src.visualization.simulator._app", mock_app),
+            _isolate_global_state(mock_app),
             patch(
                 "src.visualization.simulator.asyncio.sleep",
                 new=_make_sleep_raising_after(2),
@@ -378,6 +409,7 @@ class TestSimulateSchedulerNoModel(unittest.IsolatedAsyncioTestCase):
 
         with (
             patch("src.visualization.simulator._app", mock_app),
+            _isolate_global_state(mock_app),
             patch(
                 "src.visualization.simulator.asyncio.sleep",
                 new=_make_sleep_raising_after(2),
@@ -399,6 +431,7 @@ class TestSimulateSchedulerNoModel(unittest.IsolatedAsyncioTestCase):
 
         with (
             patch("src.visualization.simulator._app", mock_app),
+            _isolate_global_state(mock_app),
             patch(
                 "src.visualization.simulator.asyncio.sleep",
                 new=_make_sleep_raising_after(2),
@@ -419,6 +452,7 @@ class TestSimulateSchedulerNoModel(unittest.IsolatedAsyncioTestCase):
 
         with (
             patch("src.visualization.simulator._app", mock_app),
+            _isolate_global_state(mock_app),
             patch(
                 "src.visualization.simulator.asyncio.sleep",
                 new=_make_sleep_raising_after(2),
@@ -448,6 +482,7 @@ class TestSimulateSchedulerTaskMigration(unittest.IsolatedAsyncioTestCase):
 
         with (
             patch("src.visualization.simulator._app", mock_app),
+            _isolate_global_state(mock_app),
             patch(
                 "src.visualization.simulator.asyncio.sleep",
                 new=_make_sleep_raising_after(2),
@@ -474,6 +509,7 @@ class TestSimulateSchedulerTaskMigration(unittest.IsolatedAsyncioTestCase):
 
         with (
             patch("src.visualization.simulator._app", mock_app),
+            _isolate_global_state(mock_app),
             patch(
                 "src.visualization.simulator.asyncio.sleep",
                 new=_make_sleep_raising_after(2),
@@ -498,6 +534,7 @@ class TestSimulateSchedulerTaskMigration(unittest.IsolatedAsyncioTestCase):
 
         with (
             patch("src.visualization.simulator._app", mock_app),
+            _isolate_global_state(mock_app),
             patch(
                 "src.visualization.simulator.asyncio.sleep",
                 new=_make_sleep_raising_after(2),
@@ -520,6 +557,7 @@ class TestSimulateSchedulerTaskMigration(unittest.IsolatedAsyncioTestCase):
 
         with (
             patch("src.visualization.simulator._app", mock_app),
+            _isolate_global_state(mock_app),
             patch(
                 "src.visualization.simulator.asyncio.sleep",
                 new=_make_sleep_raising_after(2),
@@ -549,6 +587,7 @@ class TestSimulateSchedulerRealMachinePoll(unittest.IsolatedAsyncioTestCase):
         # tick 从 1 递增到 20，第 20 次迭代时 tick%20==0 触发轮询
         with (
             patch("src.visualization.simulator._app", mock_app),
+            _isolate_global_state(mock_app),
             patch(
                 "src.visualization.simulator.asyncio.sleep",
                 new=_make_sleep_raising_after(21),
@@ -577,6 +616,7 @@ class TestSimulateSchedulerRealMachinePoll(unittest.IsolatedAsyncioTestCase):
 
         with (
             patch("src.visualization.simulator._app", mock_app),
+            _isolate_global_state(mock_app),
             patch(
                 "src.visualization.simulator.asyncio.sleep",
                 new=_make_sleep_raising_after(21),
@@ -599,6 +639,7 @@ class TestSimulateSchedulerRealMachinePoll(unittest.IsolatedAsyncioTestCase):
 
         with (
             patch("src.visualization.simulator._app", mock_app),
+            _isolate_global_state(mock_app),
             patch(
                 "src.visualization.simulator.asyncio.sleep",
                 new=_make_sleep_raising_after(21),
@@ -620,6 +661,7 @@ class TestSimulateSchedulerRealMachinePoll(unittest.IsolatedAsyncioTestCase):
 
         with (
             patch("src.visualization.simulator._app", mock_app),
+            _isolate_global_state(mock_app),
             patch(
                 "src.visualization.simulator.asyncio.sleep",
                 new=_make_sleep_raising_after(21),
@@ -640,6 +682,7 @@ class TestSimulateSchedulerRealMachinePoll(unittest.IsolatedAsyncioTestCase):
 
         with (
             patch("src.visualization.simulator._app", mock_app),
+            _isolate_global_state(mock_app),
             patch(
                 "src.visualization.simulator.asyncio.sleep",
                 new=_make_sleep_raising_after(21),
@@ -661,6 +704,7 @@ class TestSimulateSchedulerRealMachinePoll(unittest.IsolatedAsyncioTestCase):
 
         with (
             patch("src.visualization.simulator._app", mock_app),
+            _isolate_global_state(mock_app),
             patch(
                 "src.visualization.simulator.asyncio.sleep",
                 new=_make_sleep_raising_after(21),
@@ -683,6 +727,7 @@ class TestSimulateSchedulerRealMachinePoll(unittest.IsolatedAsyncioTestCase):
 
         with (
             patch("src.visualization.simulator._app", mock_app),
+            _isolate_global_state(mock_app),
             patch(
                 "src.visualization.simulator.asyncio.sleep",
                 new=_make_sleep_raising_after(21),
@@ -704,6 +749,7 @@ class TestSimulateSchedulerRealMachinePoll(unittest.IsolatedAsyncioTestCase):
 
         with (
             patch("src.visualization.simulator._app", mock_app),
+            _isolate_global_state(mock_app),
             patch(
                 "src.visualization.simulator.asyncio.sleep",
                 new=_make_sleep_raising_after(21),
@@ -728,6 +774,7 @@ class TestSimulateSchedulerHistoryAndLog(unittest.IsolatedAsyncioTestCase):
         # 跑 5 次迭代后退出
         with (
             patch("src.visualization.simulator._app", mock_app),
+            _isolate_global_state(mock_app),
             patch(
                 "src.visualization.simulator.asyncio.sleep",
                 new=_make_sleep_raising_after(6),
@@ -768,6 +815,7 @@ class TestSimulateSchedulerHistoryAndLog(unittest.IsolatedAsyncioTestCase):
 
         with (
             patch("src.visualization.simulator._app", mock_app),
+            _isolate_global_state(mock_app),
             patch(
                 "src.visualization.simulator.asyncio.sleep",
                 new=_make_sleep_raising_after(4),
@@ -806,6 +854,7 @@ class TestSimulateSchedulerHistoryAndLog(unittest.IsolatedAsyncioTestCase):
 
         with (
             patch("src.visualization.simulator._app", mock_app),
+            _isolate_global_state(mock_app),
             patch(
                 "src.visualization.simulator.asyncio.sleep",
                 new=_make_sleep_raising_after(4),
@@ -836,6 +885,7 @@ class TestSimulateSchedulerHistoryAndLog(unittest.IsolatedAsyncioTestCase):
 
         with (
             patch("src.visualization.simulator._app", mock_app),
+            _isolate_global_state(mock_app),
             patch(
                 "src.visualization.simulator.asyncio.sleep",
                 new=_make_sleep_raising_after(2),
@@ -870,6 +920,7 @@ class TestSimulateSchedulerBroadcast(unittest.IsolatedAsyncioTestCase):
 
         with (
             patch("src.visualization.simulator._app", mock_app),
+            _isolate_global_state(mock_app),
             patch(
                 "src.visualization.simulator.asyncio.sleep",
                 new=_make_sleep_raising_after(2),
@@ -907,6 +958,7 @@ class TestSimulateSchedulerBroadcast(unittest.IsolatedAsyncioTestCase):
 
         with (
             patch("src.visualization.simulator._app", mock_app),
+            _isolate_global_state(mock_app),
             patch(
                 "src.visualization.simulator.asyncio.sleep",
                 new=_make_sleep_raising_after(2),
@@ -927,6 +979,7 @@ class TestSimulateSchedulerBroadcast(unittest.IsolatedAsyncioTestCase):
 
         with (
             patch("src.visualization.simulator._app", mock_app),
+            _isolate_global_state(mock_app),
             patch(
                 "src.visualization.simulator.asyncio.sleep",
                 new=_make_sleep_raising_after(4),
@@ -947,6 +1000,7 @@ class TestSimulateSchedulerBroadcast(unittest.IsolatedAsyncioTestCase):
 
         with (
             patch("src.visualization.simulator._app", mock_app),
+            _isolate_global_state(mock_app),
             patch(
                 "src.visualization.simulator.asyncio.sleep",
                 new=_make_sleep_raising_after(2),
@@ -978,6 +1032,7 @@ class TestSimulateSchedulerQueueLength(unittest.IsolatedAsyncioTestCase):
 
         with (
             patch("src.visualization.simulator._app", mock_app),
+            _isolate_global_state(mock_app),
             patch(
                 "src.visualization.simulator.asyncio.sleep",
                 new=_make_sleep_raising_after(2),
@@ -1022,6 +1077,7 @@ class TestSimulateSchedulerQueueLength(unittest.IsolatedAsyncioTestCase):
 
         with (
             patch("src.visualization.simulator._app", mock_app),
+            _isolate_global_state(mock_app),
             patch(
                 "src.visualization.simulator.asyncio.sleep",
                 new=_make_sleep_raising_after(3),
@@ -1036,6 +1092,108 @@ class TestSimulateSchedulerQueueLength(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(env.step.call_count, 2, "应调用2次 step")
         self.assertEqual(sim._ppo_episode_reward, 5.0, "终止后重置，新 episode 累计 5.0")
         self.assertEqual(sim._ppo_episode_step, 1, "终止后重置，新 episode 步数 1")
+
+
+class TestSimulatorStateAccessors(unittest.IsolatedAsyncioTestCase):
+    """验证 simulator.py 通过 state.py 访问器操作全局状态（Issue #723）。"""
+
+    async def test_uses_update_system_status_not_direct_access(self):
+        """应通过 update_system_status 访问器更新 system_status，而非直接修改。"""
+        from src.visualization import state as viz_state
+
+        mock_app = _build_mock_app()
+        mock_app._get_ppo_model.return_value = None
+
+        with (
+            patch("src.visualization.simulator._app", mock_app),
+            _isolate_global_state(mock_app),
+            patch(
+                "src.visualization.state.update_system_status",
+                wraps=viz_state.update_system_status,
+            ) as mock_update,
+            patch(
+                "src.visualization.simulator.asyncio.sleep",
+                new=_make_sleep_raising_after(2),
+            ),
+            patch("src.visualization.simulator.random.uniform", lambda a, b: 0.0),
+            patch("src.visualization.simulator.random.random", lambda: 0.99),
+        ):
+            with self.assertRaises(asyncio.CancelledError):
+                await simulate_scheduler()
+
+        # update_system_status 应被多次调用（current_step、utilization、throughput 等）
+        self.assertGreater(mock_update.call_count, 0)
+
+    async def test_uses_append_resource_history(self):
+        """应通过 append_resource_history 访问器追加资源历史。"""
+        mock_app = _build_mock_app()
+        mock_app._get_ppo_model.return_value = None
+
+        with (
+            patch("src.visualization.simulator._app", mock_app),
+            _isolate_global_state(mock_app),
+            patch("src.visualization.state.append_resource_history") as mock_append,
+            patch(
+                "src.visualization.simulator.asyncio.sleep",
+                new=_make_sleep_raising_after(3),
+            ),
+            patch("src.visualization.simulator.random.uniform", lambda a, b: 0.0),
+            patch("src.visualization.simulator.random.random", lambda: 0.99),
+        ):
+            with self.assertRaises(asyncio.CancelledError):
+                await simulate_scheduler()
+
+        # 2 次迭代 → 2 次 append
+        self.assertEqual(mock_append.call_count, 2)
+
+    async def test_uses_append_decision_log(self):
+        """PPO 推理路径应通过 append_decision_log 访问器追加决策日志。"""
+        mock_app = _build_mock_app()
+        mock_model = MagicMock()
+        mock_model.env = MagicMock()
+        mock_model.env.reset.return_value = ([0.1] * 14, {})
+        mock_model.predict.return_value = (1, None)
+        mock_app._get_ppo_model.return_value = mock_model
+        mock_app._ppo_env = _make_mock_ppo_env()
+        mock_app._ppo_model = mock_model
+
+        with (
+            patch("src.visualization.simulator._app", mock_app),
+            _isolate_global_state(mock_app),
+            patch("src.visualization.state.append_decision_log") as mock_append,
+            patch(
+                "src.visualization.simulator.asyncio.sleep",
+                new=_make_sleep_raising_after(2),
+            ),
+            patch("src.visualization.simulator.random.uniform", lambda a, b: 0.0),
+            patch("src.visualization.simulator.random.random", lambda: 0.99),
+        ):
+            with self.assertRaises(asyncio.CancelledError):
+                await simulate_scheduler()
+
+        self.assertEqual(mock_append.call_count, 1)
+
+    async def test_uses_get_pending_task_count_for_queue_length(self):
+        """无 PPO 模型时应通过 get_pending_task_count 读取队列长度。"""
+        mock_app = _build_mock_app()
+        mock_app._get_ppo_model.return_value = None
+
+        with (
+            patch("src.visualization.simulator._app", mock_app),
+            _isolate_global_state(mock_app),
+            patch("src.visualization.state.get_pending_task_count", return_value=5) as mock_count,
+            patch(
+                "src.visualization.simulator.asyncio.sleep",
+                new=_make_sleep_raising_after(2),
+            ),
+            patch("src.visualization.simulator.random.uniform", lambda a, b: 0.0),
+            patch("src.visualization.simulator.random.random", lambda: 0.99),
+        ):
+            with self.assertRaises(asyncio.CancelledError):
+                await simulate_scheduler()
+
+        mock_count.assert_called()
+        self.assertEqual(mock_app.system_status["queue_length"], 5)
 
 
 if __name__ == "__main__":

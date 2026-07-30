@@ -10,29 +10,30 @@ v2 改进（Day2-3-9）：
 - 系统指标从环境真实观测值提取，非伪造
 - 支持 episode 结束后自动重置
 
-共享状态访问（Issue #179）：
+共享状态访问（Issue #179 / #723）：
     共享全局状态（``system_status`` / ``task_queue`` / ``manager`` /
     ``_resource_history`` / ``_decision_log``）定义在 ``state.py`` 中，
-    由 ``app.py`` 再导出为模块级属性。本模块通过 ``_app`` 访问这些状态，
-    以保持与现有测试的兼容性——测试通过 ``patch("src.visualization.simulator._app",
-    mock_app)`` 替换整个 ``_app`` 引用，从而隔离全局状态。
+    由 ``app.py`` 再导出为模块级属性。本模块通过 ``state.py`` 的线程安全
+    访问器（``update_system_status`` / ``append_resource_history`` /
+    ``append_decision_log`` / ``get_pending_task_count`` 等）读写全局状态，
+    避免多 worker 部署时的竞态风险。``_app`` 仅用于访问辅助函数
+    （``_get_ppo_model`` / ``_ppo_env`` / ``manager`` 等）。
 
-    在生产环境中，``_app.system_status`` 与 ``state.system_status`` 指向
-    同一字典对象（app.py 从 state.py 再导出），无额外开销。
-    新代码如需直接访问状态或使用线程安全访问器，请从 ``state.py`` 导入。
+    测试通过 ``patch("src.visualization.simulator._app", mock_app)`` 替换
+    辅助函数引用，并通过 ``_isolate_global_state`` 将 state 模块变量重定向到
+    mock_app 的隔离对象，从而隔离全局状态。
 """
 
 import asyncio
 import random
-from datetime import datetime
 from typing import Any
 
 from loguru import logger
 from numpy.typing import NDArray
 
-# _app 提供共享状态（从 state.py 再导出）和辅助函数访问。
-# 测试通过 patch("src.visualization.simulator._app", mock_app) 替换整个引用，
-# 实现全局状态隔离。
+# _app 仅提供辅助函数访问（_get_ppo_model / _ppo_env / manager 等）。
+# 全局状态读写统一走 state.py 访问器（Issue #723）。
+# 测试通过 patch("src.visualization.simulator._app", mock_app) 替换辅助函数引用。
 import src.visualization.app as _app
 from src.scheduler.explainability import DecisionExplainer
 from src.utils.metrics import update_runtime_gauges
@@ -57,6 +58,10 @@ async def simulate_scheduler() -> None:
     （``query_quantum_computer_list``）和真机提交记录
     （``results/real_times.json``），将真实机器名/状态与真实提交
     历史通过 WebSocket 推送到前端监控卡片。
+
+    全局状态读写均通过 ``state.py`` 访问器完成（Issue #723）：
+    ``update_system_status`` 批量更新并自动设置 ``last_update``，
+    ``append_resource_history`` / ``append_decision_log`` 自动裁剪。
     """
     global _ppo_current_obs, _ppo_episode_reward, _ppo_episode_step
 
@@ -64,7 +69,12 @@ async def simulate_scheduler() -> None:
     while True:
         await asyncio.sleep(3)
         tick += 1
-        _app.system_status["current_step"] += 1
+
+        # Issue #723: 通过 state.py 访问器读写全局状态。
+        # status 为 system_status 的活动引用（get_system_status_ref），
+        # 读取始终反映最新值；写操作统一走 update_system_status 批量更新。
+        status = viz_state.get_system_status_ref()
+        viz_state.update_system_status({"current_step": status["current_step"] + 1})
 
         # 本轮 PPO 推理动作（-1 表示未推理）
         action: int = -1
@@ -95,22 +105,25 @@ async def simulate_scheduler() -> None:
 
                 # 从真实环境观测值更新系统状态（OBS_DIM=16）
                 # obs[0] = 量子比特可用率, obs[1] = 队列长度(归一化), obs[2] = 平均等待时间(归一化)
-                _app.system_status["qubit_utilization"] = round(
-                    float(new_obs[0]), 4
-                )  # 真实量子比特利用率
                 # Issue #673: 经典资源利用率从量子利用率确定性推导，不再添加随机噪声
-                _app.system_status["classical_utilization"] = round(
-                    max(0.1, min(1.0, float(new_obs[0]) * 0.85 + 0.1)), 4
-                )  # 经典资源利用率（与量子利用率正相关，确定性推导）
-                _app.system_status["average_wait_time"] = round(
-                    float(new_obs[2]) * 100, 1
-                )  # 真实平均等待时间（反归一化）
-                # 队列长度从真实环境观测读取（obs[1] = queue_length / MAX_QUEUE_SIZE=30）
-                _app.system_status["queue_length"] = round(float(new_obs[1]) * 30)
-
-                # Issue #673: 任务完成基于 episode 步数确定性计数，不使用随机数
-                # 每步完成一个任务（简化模型：每步处理队列头部任务）
-                _app.system_status["completed_tasks"] += 1
+                # Issue #723: 通过 update_system_status 批量更新
+                viz_state.update_system_status(
+                    {
+                        # 真实量子比特利用率
+                        "qubit_utilization": round(float(new_obs[0]), 4),
+                        # 经典资源利用率（与量子利用率正相关，确定性推导）
+                        "classical_utilization": round(
+                            max(0.1, min(1.0, float(new_obs[0]) * 0.85 + 0.1)), 4
+                        ),
+                        # 真实平均等待时间（反归一化）
+                        "average_wait_time": round(float(new_obs[2]) * 100, 1),
+                        # 队列长度从真实环境观测读取（obs[1] = queue_length / MAX_QUEUE_SIZE=30）
+                        "queue_length": round(float(new_obs[1]) * 30),
+                        # Issue #673: 任务完成基于 episode 步数确定性计数，不使用随机数
+                        # 每步完成一个任务（简化模型：每步处理队列头部任务）
+                        "completed_tasks": status["completed_tasks"] + 1,
+                    }
+                )
 
                 # 检查 episode 是否结束
                 if terminated or truncated:
@@ -127,64 +140,75 @@ async def simulate_scheduler() -> None:
                 # PPO 推理失败，回退随机
                 logger.debug(f"[Web] PPO 推理失败，回退随机: {e}")
                 _ppo_current_obs = None  # 重置状态，下次重新开始
-                _app.system_status["qubit_utilization"] = round(
-                    max(
-                        0.1,
-                        min(
-                            1.0,
-                            _app.system_status["qubit_utilization"] + random.uniform(-0.03, 0.03),
+                # Issue #723: 通过 update_system_status 批量更新
+                fallback_updates = {
+                    "qubit_utilization": round(
+                        max(
+                            0.1,
+                            min(1.0, status["qubit_utilization"] + random.uniform(-0.03, 0.03)),
                         ),
+                        4,
                     ),
-                    4,
-                )
-                _app.system_status["classical_utilization"] = round(
-                    max(
-                        0.1,
-                        min(
-                            1.0,
-                            _app.system_status.get("classical_utilization", 0.0)
-                            + random.uniform(-0.05, 0.05),
+                    "classical_utilization": round(
+                        max(
+                            0.1,
+                            min(
+                                1.0,
+                                status.get("classical_utilization", 0.0)
+                                + random.uniform(-0.05, 0.05),
+                            ),
                         ),
+                        4,
                     ),
-                    4,
-                )
+                }
                 # 模拟任务完成
                 if random.random() < 0.2:
-                    _app.system_status["completed_tasks"] += random.randint(0, 1)
+                    fallback_updates["completed_tasks"] = status[
+                        "completed_tasks"
+                    ] + random.randint(0, 1)
+                viz_state.update_system_status(fallback_updates)
         else:
             # 无模型，随机模拟
-            _app.system_status["qubit_utilization"] = round(
-                max(
-                    0.1,
-                    min(1.0, _app.system_status["qubit_utilization"] + random.uniform(-0.03, 0.03)),
-                ),
-                4,
-            )
-            _app.system_status["classical_utilization"] = round(
-                max(
-                    0.1,
-                    min(
-                        1.0,
-                        _app.system_status.get("classical_utilization", 0.0)
-                        + random.uniform(-0.05, 0.05),
+            # Issue #723: 通过 update_system_status 批量更新
+            viz_state.update_system_status(
+                {
+                    "qubit_utilization": round(
+                        max(
+                            0.1,
+                            min(1.0, status["qubit_utilization"] + random.uniform(-0.03, 0.03)),
+                        ),
+                        4,
                     ),
-                ),
-                4,
+                    "classical_utilization": round(
+                        max(
+                            0.1,
+                            min(
+                                1.0,
+                                status.get("classical_utilization", 0.0)
+                                + random.uniform(-0.05, 0.05),
+                            ),
+                        ),
+                        4,
+                    ),
+                }
             )
 
         # 无 PPO 模型时，队列长度从 Web 任务队列读取
         if model is None:
-            _app.system_status["queue_length"] = len(
-                [t for t in _app.task_queue if t["status"] == "pending"]
+            # Issue #723: 通过 get_pending_task_count 访问器读取待处理任务数
+            viz_state.update_system_status(
+                {
+                    "queue_length": viz_state.get_pending_task_count(),
+                    "average_wait_time": round(
+                        max(0.5, status["average_wait_time"] + random.uniform(-0.5, 0.5)), 1
+                    ),
+                }
             )
-            _app.system_status["average_wait_time"] = round(
-                max(0.5, _app.system_status["average_wait_time"] + random.uniform(-0.5, 0.5)), 1
-            )
-        _app.system_status["last_update"] = datetime.now().isoformat()
+        # Issue #723: last_update 由 update_system_status 自动设置，无需手动赋值
 
         # Issue #679: 同步运行时 Gauge 到 Prometheus 注册表，
         # 使 /metrics 端点输出真实数值而非恒定初始值 0
-        update_runtime_gauges(_app.system_status)
+        update_runtime_gauges(status)
 
         # 每 20 个 tick（约 60 秒）轮询真机状态 + 真机提交记录
         # 避免高频查询天衍云 API（免费额度有限）
@@ -192,52 +216,54 @@ async def simulate_scheduler() -> None:
             try:
                 real_machines = _app._get_real_machines_status()
                 if real_machines:
-                    _app.system_status["real_machines"] = real_machines
+                    # Issue #723: 通过 update_system_status 更新
+                    viz_state.update_system_status({"real_machines": real_machines})
             except (OSError, RuntimeError, ValueError) as e:
                 # 网络/ API 错误 / 运行时错误 / 返回值格式错误
                 logger.error(f"[Web] 轮询真机状态异常: {e}")
             try:
-                _app.system_status["real_submissions"] = _app._load_real_submissions()
+                # Issue #723: 通过 update_system_status 更新
+                viz_state.update_system_status({"real_submissions": _app._load_real_submissions()})
             except (OSError, ValueError, RuntimeError) as e:
                 # 文件 I/O 错误 / 数据格式错误 / 运行时错误
                 logger.error(f"[Web] 加载真机提交记录异常: {e}")
 
-        # 注意：PPO激活时，队列长度已在上面从new_obs[1]读取（第93-94行），
+        # 注意：PPO激活时，队列长度已在上面从new_obs[1]读取，
         # 此处不再通过随机动画修改queue_length和completed_tasks，避免污染真实指标。
         # 前端任务卡片的动画效果由前端Vue组件独立处理，不影响后端真实数据。
 
         # 记录资源利用率历史（Issue #22：资源利用率历史趋势图）
-        _app._resource_history.append(
+        # Issue #723: 通过 append_resource_history 访问器追加并自动裁剪
+        viz_state.append_resource_history(
             {
-                "step": _app.system_status["current_step"],
-                "qubit_utilization": _app.system_status["qubit_utilization"],
-                "classical_utilization": _app.system_status["classical_utilization"],
-                "queue_length": _app.system_status["queue_length"],
-                "completed_tasks": _app.system_status["completed_tasks"],
-                "average_wait_time": _app.system_status["average_wait_time"],
+                "step": status["current_step"],
+                "qubit_utilization": status["qubit_utilization"],
+                "classical_utilization": status["classical_utilization"],
+                "queue_length": status["queue_length"],
+                "completed_tasks": status["completed_tasks"],
+                "average_wait_time": status["average_wait_time"],
                 "ppo_episode_reward": round(_ppo_episode_reward, 2),
             }
         )
-        if len(_app._resource_history) > 100:
-            _app._resource_history.pop(0)
 
         # 计算实时指标（Issue #526：实时调度过程可视化增强）
         realtime_metrics = viz_state.calculate_realtime_metrics(
-            current_step=_app.system_status["current_step"],
-            completed_tasks=_app.system_status["completed_tasks"],
-            qubit_util=_app.system_status["qubit_utilization"],
-            classical_util=_app.system_status["classical_utilization"],
-            avg_wait_time=_app.system_status["average_wait_time"],
+            current_step=status["current_step"],
+            completed_tasks=status["completed_tasks"],
+            qubit_util=status["qubit_utilization"],
+            classical_util=status["classical_utilization"],
+            avg_wait_time=status["average_wait_time"],
             ppo_step_reward=step_reward,
         )
-        _app.system_status["throughput"] = realtime_metrics["throughput"]
+        # Issue #723: 通过 update_system_status 更新 throughput
+        viz_state.update_system_status({"throughput": realtime_metrics["throughput"]})
 
         # 记录决策日志（Issue #22：决策过程回放）
         if action >= 0:
             action_label_map = {0: "经典", 1: "量子", 2: "混合"}
             log_entry = {
-                "step": _app.system_status["current_step"],
-                "task_id": f"task_{_app.system_status['current_step']}",
+                "step": status["current_step"],
+                "task_id": f"task_{status['current_step']}",
                 "action": int(action),
                 "action_label": action_label_map.get(int(action), "未知"),
                 "reward": round(step_reward, 4),
@@ -248,13 +274,12 @@ async def simulate_scheduler() -> None:
             # 计算特征贡献度（Issue #73）
             if obs is not None:
                 record = _explainer.explain(
-                    state=obs, action=int(action), step=_app.system_status["current_step"]
+                    state=obs, action=int(action), step=status["current_step"]
                 )
                 log_entry["feature_contributions"] = record.feature_contributions
                 log_entry["explanation_text"] = _explainer.format_explanation(record, top_k=5)
-            _app._decision_log.append(log_entry)
-            if len(_app._decision_log) > 200:
-                _app._decision_log.pop(0)
+            # Issue #723: 通过 append_decision_log 访问器追加并自动裁剪
+            viz_state.append_decision_log(log_entry)
 
         # 获取 reward 对比数据
         reward_comparison = viz_state.get_reward_comparison()
@@ -262,8 +287,9 @@ async def simulate_scheduler() -> None:
         await _app.manager.broadcast(
             {
                 "type": "status_update",
-                "status": _app.system_status,
-                "tasks": _app.task_queue,
+                # Issue #723: 通过访问器获取状态引用与任务队列引用
+                "status": viz_state.get_system_status_ref(),
+                "tasks": viz_state.get_task_queue_ref(),
                 "ppo_active": _app._ppo_model is not None,
                 "ppo_episode_reward": round(_ppo_episode_reward, 2),
                 "ppo_episode_step": _ppo_episode_step,
