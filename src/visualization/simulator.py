@@ -83,7 +83,8 @@ async def simulate_scheduler() -> None:
 
                 # 使用当前观测进行预测（不 reset！）
                 obs = _ppo_current_obs
-                action, _ = model.predict(obs, deterministic=True)
+                # Issue #673: 使用 asyncio.to_thread 避免同步推理阻塞事件循环
+                action, _ = await asyncio.to_thread(model.predict, obs, deterministic=True)
 
                 # 调用 env.step() 推进真实调度状态
                 new_obs, reward, terminated, truncated, _info = _app._ppo_env.step(int(action))
@@ -96,18 +97,19 @@ async def simulate_scheduler() -> None:
                 _app.system_status["qubit_utilization"] = round(
                     float(new_obs[0]), 4
                 )  # 真实量子比特利用率
+                # Issue #673: 经典资源利用率从量子利用率确定性推导，不再添加随机噪声
                 _app.system_status["classical_utilization"] = round(
-                    max(0.1, min(1.0, float(new_obs[0]) + random.uniform(-0.1, 0.15))), 4
-                )  # 经典资源利用率（与量子利用率相关但有波动）
+                    max(0.1, min(1.0, float(new_obs[0]) * 0.85 + 0.1)), 4
+                )  # 经典资源利用率（与量子利用率正相关，确定性推导）
                 _app.system_status["average_wait_time"] = round(
                     float(new_obs[2]) * 100, 1
                 )  # 真实平均等待时间（反归一化）
                 # 队列长度从真实环境观测读取（obs[1] = queue_length / MAX_QUEUE_SIZE=30）
                 _app.system_status["queue_length"] = round(float(new_obs[1]) * 30)
 
-                # 模拟任务完成（用于吞吐量计算）
-                if random.random() < 0.3:
-                    _app.system_status["completed_tasks"] += random.randint(0, 2)
+                # Issue #673: 任务完成基于 episode 步数确定性计数，不使用随机数
+                # 每步完成一个任务（简化模型：每步处理队列头部任务）
+                _app.system_status["completed_tasks"] += 1
 
                 # 检查 episode 是否结束
                 if terminated or truncated:

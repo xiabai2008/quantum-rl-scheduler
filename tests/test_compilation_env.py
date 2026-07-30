@@ -146,6 +146,59 @@ class TestStep:
 
 
 # ---------------------------------------------------------------------------
+# 电路深度观测维度测试 (Issue #652)
+# ---------------------------------------------------------------------------
+
+
+class TestDepthObservation:
+    """观测维度7（depth_n）应随映射进度递增，而非恒为0。"""
+
+    def test_depth_zero_after_reset(self, env_no_circuit: QuantumCompilationEnv) -> None:
+        """reset 后 _current_depth 应为0。"""
+        env_no_circuit.reset(seed=42)
+        assert env_no_circuit._current_depth == 0
+
+    def test_depth_increments_on_step(self, env_no_circuit: QuantumCompilationEnv) -> None:
+        """每次成功映射后 _current_depth 应递增。"""
+        env_no_circuit.reset(seed=42)
+        assert env_no_circuit._current_depth == 0
+        env_no_circuit.step(0)
+        assert env_no_circuit._current_depth == 1
+        env_no_circuit.step(1)
+        assert env_no_circuit._current_depth == 2
+
+    def test_depth_observation_nonzero_after_step(
+        self, env_no_circuit: QuantumCompilationEnv
+    ) -> None:
+        """step 后观测维度7（depth_n）应 > 0。"""
+        env_no_circuit.reset(seed=42)
+        obs_before, _, _, _, _ = env_no_circuit.step(0)
+        # depth_n 是 obs[7]，归一化为 min(depth/100, 1.0)
+        assert obs_before[7] > 0.0, "depth_n should be > 0 after a step"
+
+    def test_depth_observation_increases_with_steps(
+        self, env_no_circuit: QuantumCompilationEnv
+    ) -> None:
+        """多次 step 后 depth_n 应单调递增。"""
+        env_no_circuit.reset(seed=42)
+        depths: list[float] = []
+        for i in range(5):
+            obs, _, _, _, _ = env_no_circuit.step(i)
+            depths.append(float(obs[7]))
+        for i in range(len(depths) - 1):
+            assert depths[i + 1] > depths[i], "depth_n should monotonically increase"
+
+    def test_depth_resets_on_reset(self, env_no_circuit: QuantumCompilationEnv) -> None:
+        """reset 应将 _current_depth 归零。"""
+        env_no_circuit.reset(seed=42)
+        env_no_circuit.step(0)
+        env_no_circuit.step(1)
+        assert env_no_circuit._current_depth > 0
+        env_no_circuit.reset(seed=42)
+        assert env_no_circuit._current_depth == 0
+
+
+# ---------------------------------------------------------------------------
 # 终止条件测试
 # ---------------------------------------------------------------------------
 

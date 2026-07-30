@@ -234,6 +234,7 @@ def auto_resume_train(
         )
     else:
         # 无检查点，从头训练
+        # Issue #668: 使用与 PPOAgent/DQNAgent 一致的超参数，确保两条训练路径行为一致
         logger.info(f"[AutoResume] 检查点目录 {checkpoint_dir} 无检查点，从头开始训练")
         if algorithm == "ppo":
             model: PPO | DQN = PPO(
@@ -241,7 +242,15 @@ def auto_resume_train(
                 env,
                 verbose=0,
                 tensorboard_log="./logs/",
-                policy_kwargs={"net_arch": [64, 64]},
+                learning_rate=3e-4,
+                n_steps=2048,
+                batch_size=64,
+                n_epochs=10,
+                clip_range=0.2,
+                ent_coef=0.01,
+                gamma=0.99,
+                gae_lambda=0.95,
+                policy_kwargs={"net_arch": [128, 64]},
             )
         else:
             model = DQN(
@@ -250,7 +259,10 @@ def auto_resume_train(
                 verbose=0,
                 learning_starts=50,
                 buffer_size=1000,
-                policy_kwargs={"net_arch": [64, 64]},
+                learning_rate=3e-4,
+                batch_size=64,
+                gamma=0.99,
+                policy_kwargs={"net_arch": [128, 64]},
             )
 
         model.learn(

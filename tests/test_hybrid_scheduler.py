@@ -371,15 +371,16 @@ class TestHybridScheduler(unittest.TestCase):
         """阈值高于 RL 置信度时 RL 不被采用，走 fallback。"""
         rl_agent = Mock()
         rl_agent.predict = Mock(return_value=ACTION_QUANTUM)
-        # 阈值 0.9 > RL 置信度 0.8 → RL 不被采用
+        # 阈值 0.9 > RL 默认置信度 0.8 → RL 不被采用
+        # Issue #726: 新实现先调用 predict 再计算置信度，故 predict 会被调用但结果被丢弃
         scheduler = HybridScheduler(rl_agent=rl_agent, confidence_threshold=0.9)
 
         task = _make_task(task_type="universal", priority=3, urgency=0.5)
         ctx = {"available_qubits": 100, "queue_length": 5}
         result = scheduler.decide(task, state=np.zeros(14), context=ctx)
 
+        # Mock 无 policy → 置信度默认 0.8 < 0.9 → 走 fallback
         self.assertEqual(result["source"], "fallback")
-        rl_agent.predict.assert_not_called()
 
     def test_set_confidence_threshold_allows_rl(self):
         """调整阈值后 RL 被采用。"""

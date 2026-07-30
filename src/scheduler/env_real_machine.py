@@ -91,6 +91,25 @@ def _resolve_free_tier_max_qubits() -> int:
 FREE_TIER_MAX_QUBITS = _resolve_free_tier_max_qubits()
 
 
+def _stable_task_id_hash(task_id: str) -> int:
+    """跨进程稳定的 task_id 哈希（Issue #676）。
+
+    Python 内置 ``hash()`` 受 PYTHONHASHSEED 影响，跨进程结果不一致，
+    导致同一 task_id 在不同进程中生成不同电路，无法复现。
+    使用 ``hashlib.sha256`` 取前 8 字节作为稳定整数哈希。
+
+    Args:
+        task_id: 任务 ID 字符串
+
+    Returns:
+        跨进程稳定的整数哈希值
+    """
+    import hashlib
+
+    digest = hashlib.sha256(str(task_id).encode("utf-8")).digest()
+    return int.from_bytes(digest[:8], byteorder="big")
+
+
 def generate_qcis_circuit(
     task: Task,
     max_qubits: int = _MAX_REAL_QUBITS,
@@ -143,7 +162,7 @@ def generate_qcis_circuit(
             return "H Q0\nCNOT Q0 Q1\nM Q0 Q1"
         return "H Q0\nCNOT Q0 Q1\nCNOT Q1 Q2\nM Q0 Q1 Q2"
 
-    rng = random.Random(seed if seed is not None else hash(task.task_id))
+    rng = random.Random(seed if seed is not None else _stable_task_id_hash(task.task_id))
 
     # 确定参与比特数：至少 1 个，不超过任务需求和真机上限
     n_qubits = max(1, min(task.qubit_count, max_qubits))
@@ -345,7 +364,9 @@ def _compute_theoretical_distribution_cached(qcis: str) -> tuple[tuple[str, floa
                     continue
     total_qubits = max(n_qubits, max(all_qubit_refs) + 1 if all_qubit_refs else n_qubits)
 
-    if total_qubits > 3:
+    # Issue #674: 将状态向量模拟阈值从 3 提升到 10，覆盖 VQE(4比特)/QAOA(5比特) 等基准电路。
+    # 2^10=1024 维状态向量模拟仍很快，避免 >3 比特就回退均匀分布导致保真度基准无意义。
+    if total_qubits > 10:
         n_states = 2**n_qubits
         return tuple((format(i, f"0{n_qubits}b"), 1.0 / n_states) for i in range(n_states))
 

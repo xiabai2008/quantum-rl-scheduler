@@ -718,7 +718,7 @@ class PPOExplainer:
 
         Args:
             model             : 训练好的 stable-baselines3 PPO/RecurrentPPO 模型
-            feature_names     : 状态特征名列表，None 时使用默认 17 维特征名
+            feature_names     : 状态特征名列表，None 时使用默认 16 维特征名
             method            : 解释方法，"shap"（默认）或 "heuristic"
             background_samples: KernelExplainer 背景样本数，默认 100
         """
@@ -735,7 +735,9 @@ class PPOExplainer:
         obs_space = getattr(model, "observation_space", None)
         action_space = getattr(model, "action_space", None)
         self.n_features: int = (
-            int(obs_space.shape[0]) if obs_space is not None and obs_space.shape else 17
+            int(obs_space.shape[0])
+            if obs_space is not None and obs_space.shape
+            else 16  # Issue #658: 默认 OBS_DIM=16
         )
         self.n_actions: int = int(action_space.n) if action_space is not None else 4
 

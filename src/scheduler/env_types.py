@@ -129,8 +129,11 @@ NOISE_AWARE_PENALTY_THRESHOLD = 0.9
 NOISE_AWARE_BONUS_THRESHOLD = 0.95
 NOISE_AWARE_PENALTY_STEPS = 5
 NOISE_AWARE_DECAY_FACTOR = 0.7
-NOISE_AWARD_PENALTY_STRENGTH = 2.0
-NOISE_AWARD_BONUS_STRENGTH = 0.5
+NOISE_AWARE_PENALTY_STRENGTH = 2.0
+NOISE_AWARE_BONUS_STRENGTH = 0.5
+# 向后兼容别名（拼写修正：NOISE_AWARD → NOISE_AWARE，Issue #657）
+NOISE_AWARD_PENALTY_STRENGTH = NOISE_AWARE_PENALTY_STRENGTH
+NOISE_AWARD_BONUS_STRENGTH = NOISE_AWARE_BONUS_STRENGTH
 
 
 # ---------------------------------------------------------------------------
@@ -188,8 +191,8 @@ class RealMachineConfig:
     noise_bonus_threshold: float = NOISE_AWARE_BONUS_THRESHOLD
     noise_penalty_steps: int = NOISE_AWARE_PENALTY_STEPS
     noise_decay_factor: float = NOISE_AWARE_DECAY_FACTOR
-    noise_penalty_strength: float = NOISE_AWARD_PENALTY_STRENGTH
-    noise_bonus_strength: float = NOISE_AWARD_BONUS_STRENGTH
+    noise_penalty_strength: float = NOISE_AWARE_PENALTY_STRENGTH
+    noise_bonus_strength: float = NOISE_AWARE_BONUS_STRENGTH
 
     def __post_init__(self) -> None:
         """参数校验。"""

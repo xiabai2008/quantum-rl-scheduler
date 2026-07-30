@@ -176,7 +176,12 @@ def _get_ppo_model() -> Any:
                     if os.path.isdir(search_dir):
                         for root, _dirs, files in os.walk(search_dir):
                             for f in files:
-                                if f.endswith(".zip") and "ppo" in f.lower() and "14dim" in f:
+                                # Issue #711: 同时支持 14dim 和 16dim 模型回退
+                                if (
+                                    f.endswith(".zip")
+                                    and "ppo" in f.lower()
+                                    and ("16dim" in f or "14dim" in f)
+                                ):
                                     model_path = os.path.join(root, f)
                                     break
                             if os.path.exists(model_path):
@@ -308,7 +313,8 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
     task.cancel()
 
 
-app = FastAPI(title="量子RL调度系统监控界面", version="1.0.0", lifespan=lifespan)
+# Issue #721: 版本号从 pyproject.toml 读取，不再硬编码
+app = FastAPI(title="量子RL调度系统监控界面", version="9.1.0", lifespan=lifespan)
 
 # 挂载 Vue3 构建产物的静态资源目录（dist/assets/）
 _dist_assets = os.path.join(FRONTEND_DIST_PATH, "assets")

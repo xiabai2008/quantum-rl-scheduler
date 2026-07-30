@@ -241,7 +241,39 @@ class CqlibReplayClient:
         logger.error("[Replay] 所有备用机器均不可用，放弃提交")
         return None
 
-    def get_task_status(self, task_id: str) -> dict[str, Any]:
+    def _to_task_result(self, data: dict[str, Any], task_id: str) -> TaskResult:
+        """将 fixture 字典转换为 TaskResult 对象（Issue #702）。
+
+        确保 CqlibReplayClient 与 CqlibTianyanClient 返回类型一致，
+        支持 drop-in 替换时使用属性访问（如 ``result.task_id``）。
+
+        旧版 fixture 可能将概率数据存储在 ``result`` 字段而非 ``probability``，
+        此方法兼容两种格式。
+
+        Args:
+            data: fixture 字典数据
+            task_id: 任务 ID（覆盖 fixture 中的 task_id）
+
+        Returns:
+            TaskResult 对象
+        """
+        # 兼容旧版 fixture：probability 可能在 "result" 字段中
+        probability = data.get("probability")
+        if probability is None:
+            result_field = data.get("result")
+            probability = result_field if isinstance(result_field, dict) else {}
+        return TaskResult(
+            task_id=str(task_id),
+            status=str(data.get("status", "unknown")),
+            probability=dict(probability),
+            counts=data.get("counts"),
+            shots=int(data.get("shots", 0)),
+            backend=str(data.get("backend", "")),
+            error=data.get("error"),
+            raw=data.get("raw"),
+        )
+
+    def get_task_status(self, task_id: str) -> TaskResult:
         """根据 task_id 轮询计数返回 running 或 completed 状态。
 
         状态机：首次查询返回 ``running``，后续查询返回 ``completed``。
@@ -251,7 +283,7 @@ class CqlibReplayClient:
             task_id: 任务 ID
 
         Returns:
-            状态字典，含 ``task_id``/``status``/``result``/``raw``
+            TaskResult 对象，含 ``task_id``/``status``/``result``/``raw``
         """
         polls = self._task_polls.get(task_id, 0)
         self._task_polls[task_id] = polls + 1
@@ -262,25 +294,23 @@ class CqlibReplayClient:
         logger.debug(
             f"[Replay] get_task_status({task_id}) 第{polls + 1}次查询 -> {status['status']}"
         )
-        return status
+        return self._to_task_result(status, task_id)
 
-    def get_task_result(self, task_id: str) -> dict[str, Any]:
+    def get_task_result(self, task_id: str) -> TaskResult:
         """获取任务执行结果（从 task_result.json 加载）。
 
         Args:
             task_id: 任务 ID
 
         Returns:
-            结果字典，含 ``task_id``/``status``/``result``/``raw``
+            TaskResult 对象，含 ``task_id``/``status``/``result``/``raw``
         """
         result = dict(self._task_result)
         result["task_id"] = task_id
         logger.debug(f"[Replay] get_task_result({task_id}) -> {result['status']}")
-        return result
+        return self._to_task_result(result, task_id)
 
-    def wait_for_task(
-        self, task_id: str, timeout: int = 300, poll_interval: int = 5
-    ) -> dict[str, Any]:
+    def wait_for_task(self, task_id: str, timeout: int = 300, poll_interval: int = 5) -> TaskResult:
         """轮询等待任务完成并返回结果。
 
         回放中通过 ``get_task_status`` 的轮询计数状态机实现：
@@ -292,17 +322,24 @@ class CqlibReplayClient:
             poll_interval: 轮询间隔秒数
 
         Returns:
-            完成状态字典；超时返回 ``{"task_id": ..., "status": "timeout"}``
+            完成状态的 TaskResult 对象；超时返回 ``status="timeout"``
         """
         start = time.time()
         while time.time() - start < timeout:
             status = self.get_task_status(task_id)
-            if status["status"] == "completed":
+            if status.status == "completed":
                 return status
-            if status["status"] == "error":
+            if status.status == "error":
                 return status
             time.sleep(poll_interval)
-        return {"task_id": task_id, "status": "timeout"}
+        return TaskResult(
+            task_id=task_id,
+            status="timeout",
+            probability={},
+            counts=None,
+            shots=0,
+            backend="",
+        )
 
     def get_queue_status(self) -> dict[str, Any]:
         """获取队列状态（基于 fixtures 机器列表统计）。
@@ -500,7 +537,7 @@ class CqlibRecordingClient:
                     **status,
                 },
             )
-        else:
+        elif label == "completed":
             self._save(
                 "task_status_completed.json",
                 {
@@ -509,6 +546,9 @@ class CqlibRecordingClient:
                     **status,
                 },
             )
+        else:
+            # Issue #720: error/query_error 等非完成状态不误存为 completed fixture
+            logger.warning(f"[Recorder] 任务 {task_id} 状态为 {label}，不保存为 completed fixture")
         return status
 
     def get_task_result(self, task_id: str) -> TaskResult:

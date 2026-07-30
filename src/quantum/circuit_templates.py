@@ -22,10 +22,13 @@ def generate_bell_state(qubit_pairs: list[tuple[int, int]] | None = None) -> str
     """生成 Bell 态电路（2比特最大纠缠态，用于真机验证）。
 
     Bell 态: |Φ+⟩ = (|00⟩ + |11⟩)/√2
-    电路结构: H Qc → CZ Qc Qt → M Qc → M Qt
+    电路结构: H Qc → H Qt → CZ Qc Qt → H Qt → M Qc → M Qt
 
-    说明：H 作用在 control qubit 后，CZ 门即可生成 Bell 纠缠态；
-    不需要在 target qubit 上再加 H 门（否则会破坏纠缠态）。
+    说明：QCIS 仅提供 CZ 双比特门，无原生 CNOT。利用 H-CZ-H 等效 CNOT
+    分解（CNOT(Qc, Qt) = H Qt → CZ Qc Qt → H Qt）实现纠缠：
+        H Q0 产生叠加态，等效 CNOT 将控制比特叠加扩展到目标比特，
+        最终得到 (|00⟩ + |11⟩)/√2 Bell 纠缠态。
+    单独 H+CZ 从 |00⟩ 出发不产生纠缠（CZ 仅对 |11⟩ 加相位，Q1=0 时为恒等操作）。
 
     Args:
         qubit_pairs: 纠缠比特对列表 [(control, target), ...]，
@@ -41,8 +44,12 @@ def generate_bell_state(qubit_pairs: list[tuple[int, int]] | None = None) -> str
     all_qubits: set[int] = set()
 
     for qc, qt in qubit_pairs:
+        # H Qc 产生叠加态
         instructions.append(f"H Q{qc}")
+        # 等效 CNOT(Qc, Qt) = H Qt → CZ Qc Qt → H Qt
+        instructions.append(f"H Q{qt}")
         instructions.append(f"CZ Q{qc} Q{qt}")
+        instructions.append(f"H Q{qt}")
         all_qubits.add(qc)
         all_qubits.add(qt)
 

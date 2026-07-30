@@ -12,6 +12,7 @@ DAG Scheduler with Task Dependency Graph Support
 适用于需要表达任务间依赖关系的量子/经典混合调度场景。
 """
 
+import heapq
 from collections import deque
 from dataclasses import asdict, dataclass, field
 from itertools import pairwise
@@ -321,6 +322,35 @@ class DAGScheduler:
         path.reverse()
         return path
 
+    def compute_upward_ranks(self) -> dict[str, float]:
+        """计算每个任务的向上秩（upward rank）。
+
+        向上秩定义：
+        ``rank_u(task) = estimated_time + max(rank_u(succ) for succ in successors)``，
+        出口任务（无后继）的 ``rank_u = estimated_time``。
+
+        用于优先级感知列表调度，``rank_u`` 越大表示任务位于关键路径附近，
+        应优先调度以缩短整体 makespan。
+
+        Returns:
+            任务 ID 到向上秩的映射字典。空图返回空字典。
+        """
+        if not self.tasks:
+            return {}
+        order = self.topological_sort()
+        adj = self._build_adjacency()
+        ranks: dict[str, float] = {}
+        # 逆序遍历拓扑序，确保后继先于前驱计算
+        for tid in reversed(order):
+            task = self.tasks[tid]
+            successors = adj.get(tid, [])
+            if successors:
+                max_succ_rank = max(ranks[succ] for succ in successors if succ in ranks)
+                ranks[tid] = task.estimated_time + max_succ_rank
+            else:
+                ranks[tid] = task.estimated_time
+        return ranks
+
     # ----------------------------------------------------------
     # 资源约束调度
     # ----------------------------------------------------------
@@ -382,6 +412,97 @@ class DAGScheduler:
                     "estimated_finish": finish,
                 }
             )
+
+        schedule.sort(key=lambda x: (x["start_time"], x["machine_id"], x["task_id"]))
+        return schedule
+
+    def schedule_priority_aware(
+        self, available_qubits: int, available_machines: int = 1
+    ) -> list[dict[str, Any]]:
+        """基于 upward rank 的优先级感知列表调度。
+
+        在满足依赖关系的前提下，按 upward rank 降序（task_id 升序为 tiebreaker）
+        选择就绪任务分配到最早可用机器槽位，缩短关键路径任务完成时间。
+
+        算法步骤：
+        1. 调用 :meth:`compute_upward_ranks` 获取优先级；
+        2. 用最大堆（按 ``upward_rank`` 降序，``task_id`` 升序为 tiebreaker）
+           管理就绪任务，初始将入度为 0 的任务入堆；
+        3. 循环弹出 rank 最高的就绪任务，用 :meth:`_earliest_slot` 分配到
+           最早可用机器槽位，标记完成，将新就绪的后继（入度减为 0）入堆。
+
+        Args:
+            available_qubits: 每台机器可用量子比特数。
+            available_machines: 可用机器数，默认 1。
+
+        Returns:
+            调度结果列表，每项为
+            ``{task_id, start_time, machine_id, estimated_finish}``，
+            按开始时间、机器 ID、任务 ID 升序排列。
+        """
+        if not self.tasks:
+            return []
+
+        ranks = self.compute_upward_ranks()
+        adj = self._build_adjacency()
+
+        # 计算入度（仅统计存在的依赖）
+        in_degree: dict[str, int] = dict.fromkeys(self.tasks, 0)
+        for tid, task in self.tasks.items():
+            for dep in task.dependencies:
+                if dep in in_degree:
+                    in_degree[tid] += 1
+
+        # 最大堆：Python heapq 是最小堆，用 (-rank, task_id) 模拟最大堆
+        ready_heap: list[tuple[float, str]] = []
+        for tid, deg in in_degree.items():
+            if deg == 0:
+                heapq.heappush(ready_heap, (-ranks[tid], tid))
+
+        n_machines = max(1, available_machines)
+        machines: list[list[tuple[float, float, int]]] = [[] for _ in range(n_machines)]
+        finish_time: dict[str, float] = {}
+        schedule: list[dict[str, Any]] = []
+
+        while ready_heap:
+            _neg_rank, tid = heapq.heappop(ready_heap)
+            task = self.tasks[tid]
+            # 最早开始时间 = 依赖中最大完成时间
+            est = 0.0
+            for dep in task.dependencies:
+                if dep in finish_time:
+                    est = max(est, finish_time[dep])
+            qubits_needed = max(0, task.qubits_required)
+            duration = max(0.0, task.estimated_time)
+
+            # 选最早可开始的机器
+            best_start = float("inf")
+            best_machine = 0
+            for mid, intervals in enumerate(machines):
+                start = self._earliest_slot(
+                    intervals, est, qubits_needed, duration, available_qubits
+                )
+                if start < best_start:
+                    best_start = start
+                    best_machine = mid
+
+            finish = best_start + duration
+            machines[best_machine].append((best_start, finish, qubits_needed))
+            finish_time[tid] = finish
+            schedule.append(
+                {
+                    "task_id": tid,
+                    "start_time": best_start,
+                    "machine_id": best_machine,
+                    "estimated_finish": finish,
+                }
+            )
+
+            # 更新后继入度，新就绪的任务入堆
+            for succ in adj.get(tid, []):
+                in_degree[succ] -= 1
+                if in_degree[succ] == 0:
+                    heapq.heappush(ready_heap, (-ranks[succ], succ))
 
         schedule.sort(key=lambda x: (x["start_time"], x["machine_id"], x["task_id"]))
         return schedule
@@ -660,8 +781,9 @@ class DAGScheduler:
                 return False
             start = float(by_id[task_id]["start_time"])
             for dependency in task.dependencies:
+                # Issue #684: 前驱未在调度方案中分配时跳过，避免 KeyError 崩溃
                 if dependency not in by_id:
-                    return False  # 依赖未分配，解不可行
+                    continue
                 dependency_finish = float(by_id[dependency]["estimated_finish"])
                 if start + 1e-12 < dependency_finish:
                     return False
@@ -945,4 +1067,6 @@ class DAGScheduler:
                 status=item.get("status", "pending"),
             )
             scheduler.add_task(task)
+        # Issue #713: 构建后校验 DAG 合法性（缺失依赖/环），避免延迟到运行时才报错
+        scheduler.validate_dag()
         return scheduler

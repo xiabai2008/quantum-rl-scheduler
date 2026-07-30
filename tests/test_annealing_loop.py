@@ -11,6 +11,7 @@
 
 import json
 import time
+import types
 from typing import Any, Optional
 from unittest.mock import patch
 
@@ -81,22 +82,28 @@ class FakeOptimizer:
         fail_count: int = 0,
         weight_boost: float = 1.0,
         simulation_mode: bool = True,
+        simulation_fail: bool = False,
     ):
         self.sleep = float(sleep)
         self.fail_count = int(fail_count)
         self.weight_boost = float(weight_boost)
         self.simulation_mode = bool(simulation_mode)
+        self.simulation_fail = bool(simulation_fail)
         self.last_kwargs: dict[str, Any] = {}
         self.solver_type: str = "numpy_sa"
 
     def optimize_policy(self, agent: Any, **kwargs: Any) -> Any:
-        """模拟退火优化：增加 policy.weight，支持按次数失败。"""
+        """模拟退火优化：增加 policy.weight，支持按次数/模式失败。"""
         self.last_kwargs = dict(kwargs)
         if self.sleep > 0:
             time.sleep(self.sleep)
-        if self.fail_count > 0:
-            self.fail_count -= 1
-            raise RuntimeError("真机退火失败")
+        if self.simulation_mode:
+            if self.simulation_fail:
+                raise RuntimeError("仿真退火失败")
+        else:
+            if self.fail_count > 0:
+                self.fail_count -= 1
+                raise RuntimeError("真机退火失败")
         agent.policy.weight += self.weight_boost
         return agent
 
@@ -480,6 +487,67 @@ def test_get_impact_rate_zero_when_no_triggers():
     env = FakeEnv()
     loop = AsyncAnnealingLoop(optimizer, env, retry_delays=[0.0, 0.0])
     assert loop.get_impact_rate() == 0.0
+
+
+# ============================================================
+# Issue #519: 仿真降级失败路径测试
+# ============================================================
+def test_run_annealing_both_real_and_simulation_fail_raises(tmp_path):
+    """验证真机和仿真退火都失败时异常正确传播（Issue #519）。
+
+    _run_annealing_with_retries 在真机重试耗尽后降级为仿真，
+    若仿真也失败，异常应被抛出而非静默吞掉。
+    """
+    optimizer = FakeOptimizer(
+        fail_count=10,
+        simulation_mode=False,
+        simulation_fail=True,
+    )
+    env = FakeEnv()
+    loop = AsyncAnnealingLoop(
+        optimizer,
+        env,
+        initial_interval=100,
+        retry_delays=[0.0, 0.0],
+        log_path=str(tmp_path / "fail_log.json"),
+    )
+
+    agent_wrapper = types.SimpleNamespace(policy=FakePolicy(weight=0.0))
+
+    with pytest.raises(RuntimeError, match="仿真退火失败"):
+        loop._run_annealing_with_retries(agent_wrapper, step=1)
+
+    assert optimizer.simulation_mode is True, "重试耗尽后应降级为仿真模式"
+
+
+def test_both_fail_graceful_in_worker(tmp_path):
+    """验证退火完全失败时 worker 线程优雅处理，不崩溃（Issue #519）。
+
+    worker_loop 应捕获 _run_annealing_with_retries 抛出的异常，
+    记录日志后继续运行，不产生 history 记录。
+    """
+    optimizer = FakeOptimizer(
+        fail_count=10,
+        simulation_mode=False,
+        simulation_fail=True,
+    )
+    env = FakeEnv()
+    loop = AsyncAnnealingLoop(
+        optimizer,
+        env,
+        initial_interval=100,
+        retry_delays=[0.0, 0.0],
+        log_path=str(tmp_path / "graceful_log.json"),
+    )
+    loop.start()
+
+    model = FakeModel(weight=0.0)
+    loop.submit(model.policy, step=20)
+    loop.shutdown()
+
+    history = loop.get_history()
+    assert len(history) == 0, "退火完全失败时应跳过 history 记录"
+    assert optimizer.simulation_mode is True
 
 
 def test_get_impact_rate_after_triggers():

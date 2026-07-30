@@ -1445,8 +1445,7 @@ class MultiAgentPPO:
         }
 
         # Issue #598: 更新可学习机器评分网络（LearnableMachineScorer）
-        # 使用 Critic 对 batch 全局状态的价值估计作为训练目标信号，
-        # 引导评分网络学习"高价值机器应获高评分"的映射关系。
+        # Issue #653: 使用 per-machine 差异化目标信号，避免所有机器收敛到同一常数
         if self.scorer_method == "learnable" and isinstance(
             self.machine_scorer, LearnableMachineScorer
         ):
@@ -1460,11 +1459,18 @@ class MultiAgentPPO:
                 )
                 # 评分网络前向计算（保留计算图用于反向传播）
                 predicted_scores = self.machine_scorer.forward(features_tensor)
-                # 使用 Critic 对 batch 全局状态的均值价值（detach）作为目标信号
+                # Issue #653: 为每台机器计算差异化目标
+                # 使用 Critic 全局价值作为基线，按机器质量特征（保真度×可用率）偏差调整
                 with torch.no_grad():
                     gs_all = self._to_tensor(global_states)
                     target_values = self.critic(gs_all).squeeze(-1).detach()
-                    target_score = target_values.mean().expand_as(predicted_scores)
+                    global_value = target_values.mean()
+                    # 机器质量 = 保真度 * 可用率，质量高的机器应获更高评分
+                    quality = features_tensor[:, 0] * features_tensor[:, 1]  # (num_machines,)
+                    quality_centered = quality - quality.mean()
+                    # 以 global_value 为基线，按质量偏差缩放
+                    scale = global_value.abs().clamp(min=0.1)
+                    target_score = global_value + quality_centered * scale
                 scorer_loss = nn.functional.mse_loss(predicted_scores, target_score)
                 # 调用 LearnableMachineScorer.update 执行 zero_grad→backward→clip→step
                 stats["scorer_loss"] = self.machine_scorer.update(scorer_loss, self.max_grad_norm)

@@ -40,7 +40,8 @@ import numpy as np
 import yaml
 
 # 确保项目根目录在路径中
-PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+# Issue #714: train_agent.py 位于 scripts/training/，需要三层 dirname 才能到达项目根目录
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
@@ -253,7 +254,7 @@ def parse_args():
         "--config",
         type=str,
         default=None,
-        help="YAML 配置文件路径（会覆盖命令行参数）",
+        help="YAML 配置文件路径（命令行参数优先，配置仅填充未设置的参数）",
     )
     config.add_argument(
         "--reward-fn",
@@ -529,8 +530,14 @@ def train_single_seed(
     os.makedirs(seed_dir, exist_ok=True)
 
     # 加载检查点（如有）
-    if start_step > 0:
-        logger.info(f"从 step {start_step} 恢复训练...")
+    if start_step > 0 and getattr(args, "resume", False) and getattr(args, "checkpoint", None):
+        # Issue #683: 实际加载检查点模型权重
+        ckpt_path = args.checkpoint
+        try:
+            agent.load(ckpt_path)
+            logger.info(f"检查点模型已加载: {ckpt_path}")
+        except Exception as e:
+            logger.warning(f"检查点加载失败（{e}），将从零开始训练")
 
     logger.info(f"开始训练，共 {args.timesteps} 步...")
 
@@ -703,8 +710,10 @@ def merge_args_with_config(args: argparse.Namespace, config: dict[str, Any]) -> 
 # ============================================================================
 # 主入口
 # ============================================================================
-def main():
-    args = parse_args()
+def main(args: argparse.Namespace | None = None):
+    # Issue #682: 支持外部传入 args（CLI 入口透传），无 args 时回退到 parse_args()
+    if args is None:
+        args = parse_args()
 
     # 初始化统一日志配置（Issue #193）
     from src.config.settings import install_intercept_handler
@@ -750,9 +759,18 @@ def main():
         # 恢复训练的起始步数
         start_step = 0
         if args.resume and args.checkpoint:
-            # TODO: 实现从检查点恢复
-            logger.warning("从检查点恢复训练的功能尚未实现")
-            start_step = 0
+            # Issue #683: 实现检查点恢复——解析检查点文件名中的步数并加载模型
+            import re
+
+            ckpt_path = args.checkpoint
+            # 检查点命名格式 checkpoint_step_{N}，尝试解析已训练步数
+            m = re.search(r"checkpoint_step_(\d+)", os.path.basename(ckpt_path))
+            if m:
+                start_step = int(m.group(1))
+                logger.info(f"从检查点恢复: {ckpt_path}，起始步数={start_step}")
+            else:
+                logger.info(f"从检查点恢复: {ckpt_path}（步数未知，从 0 开始计数）")
+                start_step = 0
 
         result = train_single_seed(args, seed, experiment_name, start_step)
         all_results.append(result)

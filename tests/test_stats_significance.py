@@ -20,6 +20,7 @@ import numpy as np
 import pytest
 
 from src.utils.stats_significance import (
+    cliffs_delta,
     cohen_d,
     compare_strategies,
     minimum_detectable_effect,
@@ -406,3 +407,68 @@ class TestPowerAnalysis:
         assert n > 0
         actual_power = power_ttest(d, n, n, alpha=0.05)
         assert actual_power >= target_power - 0.01  # 允许数值误差
+
+
+# ---------------------------------------------------------------------------
+# Cliff's delta（Issue #689：大样本内存爆炸修复 + 数值正确性）
+# ---------------------------------------------------------------------------
+class TestCliffsDelta:
+    """cliffs_delta 数值正确性与大样本内存安全性。"""
+
+    def test_completely_separated_positive(self) -> None:
+        """x 全部大于 y → delta = 1.0"""
+        assert cliffs_delta([10.0, 20.0, 30.0], [1.0, 2.0, 3.0]) == 1.0
+
+    def test_completely_separated_negative(self) -> None:
+        """x 全部小于 y → delta = -1.0"""
+        assert cliffs_delta([1.0, 2.0, 3.0], [10.0, 20.0, 30.0]) == -1.0
+
+    def test_identical_groups_zero(self) -> None:
+        """两组完全相同（全平局）→ delta = 0.0"""
+        assert cliffs_delta([5.0, 5.0, 5.0], [5.0, 5.0, 5.0]) == 0.0
+
+    def test_ties_excluded_from_counts(self) -> None:
+        """平局既不计入 greater 也不计入 less。
+
+        x=[1,2,2,3], y=[2]: (1,2)→less, (2,2)→tie, (2,2)→tie, (3,2)→greater
+        delta = (1 - 1) / 4 = 0.0
+        """
+        assert cliffs_delta([1.0, 2.0, 2.0, 3.0], [2.0]) == 0.0
+
+    def test_sign_and_magnitude(self) -> None:
+        """已知分布的 delta 符号与量级。
+
+        x=[1,3], y=[2]: (1,2)→less, (3,2)→greater → delta=(1-1)/2=0.0
+        x=[3,4], y=[1,2]: 全部 greater → delta=(4-0)/4=1.0
+        """
+        assert cliffs_delta([1.0, 3.0], [2.0]) == 0.0
+        assert cliffs_delta([3.0, 4.0], [1.0, 2.0]) == 1.0
+
+    def test_empty_group_returns_nan(self) -> None:
+        """任一组为空 → nan"""
+        assert math.isnan(cliffs_delta([], [1.0, 2.0]))
+        assert math.isnan(cliffs_delta([1.0], []))
+
+    def test_large_sample_no_oom(self) -> None:
+        """Issue #689: 大样本（n1=n2=5000）不应 OOM，原矩阵法约 200MB。
+
+        排序法内存 O(n)，应平滑返回有限值。
+        """
+        rng = np.random.default_rng(42)
+        x = rng.normal(loc=1.0, scale=1.0, size=5000).tolist()
+        y = rng.normal(loc=0.0, scale=1.0, size=5000).tolist()
+        delta = cliffs_delta(x, y)
+        # x 均值大于 y → delta 应为正且较大
+        assert math.isfinite(delta)
+        assert 0.3 < delta <= 1.0
+
+    def test_matches_reference_brute_force(self) -> None:
+        """与暴力矩阵法结果一致（小样本对照）。"""
+        rng = np.random.default_rng(7)
+        x = rng.normal(size=30).tolist()
+        y = rng.normal(loc=0.5, size=25).tolist()
+        # 暴力参考实现
+        ax, ay = np.asarray(x), np.asarray(y)
+        diff = ax[:, None] - ay[None, :]
+        ref = (float((diff > 0).sum()) - float((diff < 0).sum())) / (len(x) * len(y))
+        assert abs(cliffs_delta(x, y) - ref) < 1e-12

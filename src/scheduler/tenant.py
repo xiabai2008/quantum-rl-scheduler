@@ -89,7 +89,8 @@ class TenantQuotaManager:
             }
         self._tenants: dict[str, TenantQuota] = dict(tenants)
         self._default_tenant_id = default_tenant_id
-        self._lock = threading.Lock()
+        # Issue #686: 使用 RLock 避免 consume→can_schedule 重入死锁
+        self._lock = threading.RLock()
 
     # ------------------------------------------------------------------
     # 配置加载
@@ -194,33 +195,35 @@ class TenantQuotaManager:
         Returns:
             True 表示配额充足可以调度
         """
-        quota = self._get_tenant(tenant_id)
-        self._check_daily_reset(quota)
+        # Issue #686: 加锁保护整个检查逻辑，避免 can_schedule 与 consume 之间的 TOCTOU 竞态
+        with self._lock:
+            quota = self._get_tenant(tenant_id)
+            self._check_daily_reset(quota)
 
-        # 检查量子比特上限
-        if qubits > quota.max_qubits:
-            logger.debug(
-                f"[Tenant] {quota.tenant_id} 请求 {qubits} 比特超过上限 {quota.max_qubits}"
-            )
-            return False
+            # 检查量子比特上限
+            if qubits > quota.max_qubits:
+                logger.debug(
+                    f"[Tenant] {quota.tenant_id} 请求 {qubits} 比特超过上限 {quota.max_qubits}"
+                )
+                return False
 
-        # 检查并发任务数
-        if quota.active_tasks + tasks > quota.max_concurrent_tasks:
-            logger.debug(
-                f"[Tenant] {quota.tenant_id} 并发任务 {quota.active_tasks + tasks} "
-                f"超过上限 {quota.max_concurrent_tasks}"
-            )
-            return False
+            # 检查并发任务数
+            if quota.active_tasks + tasks > quota.max_concurrent_tasks:
+                logger.debug(
+                    f"[Tenant] {quota.tenant_id} 并发任务 {quota.active_tasks + tasks} "
+                    f"超过上限 {quota.max_concurrent_tasks}"
+                )
+                return False
 
-        # 检查每日限额（0 表示不限）
-        if quota.daily_limit > 0 and quota.daily_used + tasks > quota.daily_limit:
-            logger.debug(
-                f"[Tenant] {quota.tenant_id} 每日任务 {quota.daily_used + tasks} "
-                f"超过限额 {quota.daily_limit}"
-            )
-            return False
+            # 检查每日限额（0 表示不限）
+            if quota.daily_limit > 0 and quota.daily_used + tasks > quota.daily_limit:
+                logger.debug(
+                    f"[Tenant] {quota.tenant_id} 每日任务 {quota.daily_used + tasks} "
+                    f"超过限额 {quota.daily_limit}"
+                )
+                return False
 
-        return True
+            return True
 
     def consume(
         self,

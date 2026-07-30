@@ -102,7 +102,8 @@ class OODGeneralizationTester:
         max_steps = env.max_steps
         for seed in seeds:
             for episode in range(episodes_per_seed):
-                episode_seed = seed + episode
+                # Issue #681: 与 blind_test 保持一致的种子计算（seed * episodes_per_seed + episode）
+                episode_seed = seed * episodes_per_seed + episode
                 episode_reward = self._run_shifted_episode(
                     model, env, shift_params, episode_seed, max_steps
                 )

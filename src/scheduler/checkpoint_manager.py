@@ -273,7 +273,8 @@ class CheckpointManager:
 
         meta = CheckpointMeta(
             version=version,
-            path=path,
+            # Issue #705: 存储绝对路径，避免 CWD 变化后 cleanup_orphans/delete 路径失效
+            path=os.path.abspath(path) if not os.path.isabs(path) else path,
             algorithm=algorithm,
             timesteps=timesteps,
             mean_reward=mean_reward,

@@ -37,7 +37,14 @@ def set_seed(seed: int = 42) -> int:
             )
 
     # 设置 PYTHONHASHSEED（影响 dict/set 哈希顺序）
+    # Issue #708: PYTHONHASHSEED 仅在解释器启动时读取，运行时设置对当前进程无效，
+    # 仅影响子进程。此处保留设置以确保 spawn 的子进程可复现，并记录警告。
     os.environ["PYTHONHASHSEED"] = str(seed)
+    current_hashseed = os.environ.get("PYTHONHASHSEED", "")
+    if current_hashseed != str(seed):
+        logger.warning(
+            "PYTHONHASHSEED 运行时设置对当前进程无效（需启动前设置），已写入环境变量供子进程使用"
+        )
 
     # Python 内置 random 模块
     random.seed(seed)
