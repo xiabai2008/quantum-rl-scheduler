@@ -106,3 +106,8 @@ class TestSchedulerCacheBenchmark:
         # 轻量断言：get 返回值为 int（命中）或 None（未命中），缓存大小不超 max_size
         assert result is None or isinstance(result, int)
         assert len(cache) <= n_entries
+        # 性能回归阈值断言（Issue #729）：缓存 get() 中位数应 < 100ms（含全 miss 慢路径）
+        assert benchmark.stats["median"] < 0.1, (
+            f"cache.get() 中位数超阈值 (hit_rate={hit_rate}, dim={dim}): "
+            f"{benchmark.stats['median']:.4f}s"
+        )
