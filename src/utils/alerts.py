@@ -136,6 +136,8 @@ class AlertManager:
         self._recent_timestamps: deque[float] = deque()
         # 已分发的告警列表（用于测试与诊断）
         self._alerts: list[Alert] = []
+        # Issue #706: 限制 _alerts 最大长度，避免长期运行内存泄漏
+        self._max_alerts_stored: int = 1000
 
     def alert(
         self,
@@ -176,9 +178,18 @@ class AlertManager:
         )
 
         self._alerts.append(alert)
+        # Issue #706: 超过上限时保留最近的告警，避免内存泄漏
+        if len(self._alerts) > self._max_alerts_stored:
+            self._alerts = self._alerts[-self._max_alerts_stored :]
         self._log_alert(alert)
         self._record_metric(alert)
-        self._send_webhook(alert)
+        # Issue #707: Webhook 发送（含重试）可能阻塞调用线程数秒，
+        # 放入守护线程异步执行，避免阻塞业务逻辑
+        import threading
+
+        if self.webhook_url:
+            t = threading.Thread(target=self._send_webhook, args=(alert,), daemon=True)
+            t.start()
         return alert
 
     def _log_alert(self, alert: Alert) -> None:

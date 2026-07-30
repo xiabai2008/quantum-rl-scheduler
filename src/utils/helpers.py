@@ -204,6 +204,11 @@ def load_config(
         with open(config_path, encoding="utf-8") as f:
             config = yaml.safe_load(f)
 
+        # Issue #710: 空YAML文件返回None，下游.get()会崩溃，统一返回空字典
+        if config is None:
+            logger.warning(f"配置文件为空：{config_path}，返回空字典")
+            return {}
+
         # 递归展开环境变量引用
         expanded = _expand_env_vars(config)
 

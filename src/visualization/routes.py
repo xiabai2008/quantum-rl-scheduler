@@ -389,6 +389,9 @@ async def update_status(
 async def get_ppo_comparison(_auth: None = Depends(verify_api_key)) -> dict:
     """返回 PPO 与其他策略的对比数据（从 v4 报告中读取）"""
     report_dir = os.path.join(_app._PROJECT_ROOT, "results")
+    # Issue #712: listdir 前检查目录存在，避免目录缺失返回 500
+    if not os.path.isdir(report_dir):
+        return {"error": "结果目录不存在", "strategies": [], "ppo_rank": None}
     json_files = sorted(
         [
             f
@@ -466,6 +469,9 @@ async def ppo_predict(_auth: None = Depends(verify_api_key)) -> dict:
 async def ppo_stats(_auth: None = Depends(verify_api_key)) -> dict:
     """返回 PPO 关键性能指标"""
     report_dir = os.path.join(_app._PROJECT_ROOT, "results")
+    # Issue #712: listdir 前检查目录存在，避免目录缺失返回 500
+    if not os.path.isdir(report_dir):
+        return {"error": "结果目录不存在", "strategies": [], "ppo_rank": None}
     json_files = sorted(
         [
             f

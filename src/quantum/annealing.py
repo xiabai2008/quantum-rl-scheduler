@@ -431,8 +431,11 @@ class QuantumAnnealingOptimizer:
             for mag_idx in range(magnitude_bits):
                 bit_k = 1 + mag_idx
                 bit_val = max_delta / (2 ** (mag_idx + 1))
-                Q[sign_idx, bit_k] = 2.0 * target_delta_direction * bit_val * imp
-                Q[bit_k, sign_idx] = Q[sign_idx, bit_k]
+                # Issue #698: 必须使用全局索引 base_idx + bit_k，而非局部索引 bit_k
+                # 否则符号位-数值位耦合项写入错误的矩阵位置，QUBO 完全错误
+                global_bit_idx = base_idx + bit_k
+                Q[sign_idx, global_bit_idx] = 2.0 * target_delta_direction * bit_val * imp
+                Q[global_bit_idx, sign_idx] = Q[sign_idx, global_bit_idx]
 
             # 2. 数值位之间的耦合（L2 正则化的二次项）
             for mk1 in range(magnitude_bits):

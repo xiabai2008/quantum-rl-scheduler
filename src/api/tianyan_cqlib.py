@@ -79,6 +79,8 @@ class CqlibTianyanClient(QuantumHardwareBackend):
         self._quota_tracker = quota_tracker
         self._api_secret = api_secret
         self._app_id = app_id
+        # Issue #701: 线程锁保护 platform 属性的懒加载
+        self._platform_lock = threading.Lock()
 
         if api_secret or app_id:
             logger.info("[Cqlib] 额外凭证已加载（api_secret/app_id），将在平台初始化时透传")
@@ -148,18 +150,25 @@ class CqlibTianyanClient(QuantumHardwareBackend):
 
     @property
     def platform(self) -> Any:
-        """懒加载平台连接"""
-        if self._platform is None:
-            kwargs: dict[str, Any] = {
-                "login_key": self.login_key,
-                "machine_name": self.machine_name,
-            }
-            if self._api_secret:
-                kwargs["api_secret"] = self._api_secret
-            if self._app_id:
-                kwargs["app_id"] = self._app_id
-            self._platform = self.cqlib.TianYanPlatform(**kwargs)
-        return self._platform
+        """懒加载平台连接
+
+        Issue #701: 加锁保护，避免并发首次访问时创建多个平台实例。
+        """
+        # 双重检查锁定模式：先无锁检查，再加锁创建
+        if self._platform is not None:
+            return self._platform
+        with self._platform_lock:
+            if self._platform is None:
+                kwargs: dict[str, Any] = {
+                    "login_key": self.login_key,
+                    "machine_name": self.machine_name,
+                }
+                if self._api_secret:
+                    kwargs["api_secret"] = self._api_secret
+                if self._app_id:
+                    kwargs["app_id"] = self._app_id
+                self._platform = self.cqlib.TianYanPlatform(**kwargs)
+            return self._platform
 
     def authenticate(self) -> bool:
         """验证 API Key 有效性。

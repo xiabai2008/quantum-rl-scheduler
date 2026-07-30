@@ -498,33 +498,30 @@ class NoiseModelExtractor:
             for key, value in raw.items():
                 qid = f"Q{key}" if str(key).isdigit() else str(key)
                 if isinstance(value, dict):
-                    err = _first_present(value.get("readout_error"), value.get("readout_fidelity"))
-                    if err is not None:
-                        # 如果是保真度，转为错误率
-                        if "fidelity" in str(value) and err > 0.5:
-                            err = 1.0 - err
-                        result[qid] = float(err)
+                    # Issue #703: 根据字段名判断是保真度还是错误率，不使用 val>0.5 启发式
+                    readout_error = value.get("readout_error")
+                    readout_fidelity = value.get("readout_fidelity")
+                    if readout_error is not None:
+                        result[qid] = float(readout_error)
+                    elif readout_fidelity is not None:
+                        result[qid] = 1.0 - float(readout_fidelity)
                 elif isinstance(value, int | float):
-                    val = float(value)
-                    if val > 0.5:
-                        val = 1.0 - val
-                    result[qid] = val
+                    # Issue #703: 标量值无字段名信息，假设为错误率（不转换）
+                    result[qid] = float(value)
 
         elif isinstance(raw, list | tuple):
             for item in raw:
                 if isinstance(item, dict):
                     q = item.get("qubit", item.get("q", item.get("id")))
-                    err = _first_present(
-                        item.get("readout_error"),
-                        item.get("error"),
-                        item.get("readout_fidelity"),
-                    )
-                    if q is not None and err is not None:
+                    # Issue #703: 根据字段名判断，不使用 val>0.5 启发式
+                    readout_error = _first_present(item.get("readout_error"), item.get("error"))
+                    readout_fidelity = item.get("readout_fidelity")
+                    if q is not None and readout_error is not None:
                         qid = f"Q{q}" if str(q).isdigit() else str(q)
-                        val = float(err)
-                        if val > 0.5:
-                            val = 1.0 - val
-                        result[qid] = val
+                        result[qid] = float(readout_error)
+                    elif q is not None and readout_fidelity is not None:
+                        qid = f"Q{q}" if str(q).isdigit() else str(q)
+                        result[qid] = 1.0 - float(readout_fidelity)
 
         return result if result else None
 
@@ -559,33 +556,34 @@ class NoiseModelExtractor:
                             if err is not None:
                                 result[f"{qid}_{gate_name}"] = float(err)
                         elif isinstance(gate_val, int | float):
-                            val = float(gate_val)
-                            if val > 0.5:
-                                val = 1.0 - val
-                            result[f"{qid}_{gate_name}"] = val
+                            # Issue #703: 标量值假设为错误率（不转换）
+                            result[f"{qid}_{gate_name}"] = float(gate_val)
                 elif isinstance(value, int | float):
                     # 扁平格式: {"Q0_H": 0.0008}
-                    val = float(value)
-                    if val > 0.5:
-                        val = 1.0 - val
-                    result[str(key)] = val
+                    result[str(key)] = float(value)
 
         elif isinstance(raw, list | tuple):
             for item in raw:
                 if isinstance(item, dict):
                     q = item.get("qubit", item.get("q"))
                     gate = item.get("gate", item.get("name"))
-                    err = _first_present(
-                        item.get("error"),
-                        item.get("gate_error"),
-                        item.get("gate_fidelity"),
-                    )
-                    if q is not None and gate is not None and err is not None:
+                    # Issue #703: 根据字段名判断，不使用 val>0.5 启发式
+                    gate_error = _first_present(item.get("error"), item.get("gate_error"))
+                    gate_fidelity = item.get("gate_fidelity")
+                    if q is not None and gate is not None and gate_error is not None:
                         qid = f"Q{q}" if str(q).isdigit() else str(q)
-                        val = float(err)
-                        if val > 0.5:
-                            val = 1.0 - val
+                        val = float(gate_error)
                         # 双比特门可能有 target_qubit
+                        tq = item.get("target_qubit", item.get("target_q"))
+                        if tq is not None:
+                            tqid = f"Q{tq}" if str(tq).isdigit() else str(tq)
+                            result[f"{qid}_{tqid}_{gate}"] = val
+                        else:
+                            result[f"{qid}_{gate}"] = val
+                    elif q is not None and gate is not None and gate_fidelity is not None:
+                        # Issue #703: 保真度转错误率
+                        qid = f"Q{q}" if str(q).isdigit() else str(q)
+                        val = 1.0 - float(gate_fidelity)
                         tq = item.get("target_qubit", item.get("target_q"))
                         if tq is not None:
                             tqid = f"Q{tq}" if str(tq).isdigit() else str(tq)

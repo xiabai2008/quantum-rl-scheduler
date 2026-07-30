@@ -40,7 +40,8 @@ import numpy as np
 import yaml
 
 # 确保项目根目录在路径中
-PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+# Issue #714: train_agent.py 位于 scripts/training/，需要三层 dirname 才能到达项目根目录
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 

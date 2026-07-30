@@ -176,7 +176,12 @@ def _get_ppo_model() -> Any:
                     if os.path.isdir(search_dir):
                         for root, _dirs, files in os.walk(search_dir):
                             for f in files:
-                                if f.endswith(".zip") and "ppo" in f.lower() and "14dim" in f:
+                                # Issue #711: 同时支持 14dim 和 16dim 模型回退
+                                if (
+                                    f.endswith(".zip")
+                                    and "ppo" in f.lower()
+                                    and ("16dim" in f or "14dim" in f)
+                                ):
                                     model_path = os.path.join(root, f)
                                     break
                             if os.path.exists(model_path):
