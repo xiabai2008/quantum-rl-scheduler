@@ -257,7 +257,10 @@ class TestAsyncAnnealingCallbackRolloutStart(unittest.TestCase):
         mock_loop.get_pending_result.assert_called_once()
 
     def test_on_rollout_start_writes_back_weights(self):
-        """有待回写结果时应调用 load_state_dict 回写权重。"""
+        """有待回写结果时应调用 load_state_dict 回写权重。
+
+        Issue #694: strict 参数从 False 改为 True，确保键不匹配不被静默跳过。
+        """
         pending = {
             "state_dict": {"weight": 1.0},
             "step": 100,
@@ -270,7 +273,7 @@ class TestAsyncAnnealingCallbackRolloutStart(unittest.TestCase):
             model=mock_model,
         )
         cb._on_rollout_start()
-        mock_model.policy.load_state_dict.assert_called_once_with({"weight": 1.0}, strict=False)
+        mock_model.policy.load_state_dict.assert_called_once_with({"weight": 1.0}, strict=True)
 
     def test_on_rollout_start_verbose_logs(self):
         """verbose=1 且回写成功时应记录 info 日志（覆盖第 114-117 行）。"""
@@ -334,6 +337,111 @@ class TestAsyncAnnealingCallbackTrainingEnd(unittest.TestCase):
             cb._on_training_end()
         mock_loop.shutdown.assert_called_once_with(wait=True)
         mock_logger.info.assert_called_once()
+
+
+# ============================================================
+# Issue #694: atexit 注册 + strict=True 键不匹配日志
+# ============================================================
+class TestAsyncAnnealingCallbackIssue694(unittest.TestCase):
+    """Issue #694: 验证 worker 线程 atexit 清理注册与 strict=True 键不匹配日志。"""
+
+    def test_init_callback_registers_atexit(self):
+        """_init_callback 应注册 atexit 回调以清理 worker 线程。"""
+        mock_loop = _make_mock_loop(interval=100)
+        cb = AsyncAnnealingCallback(loop=mock_loop, verbose=0)
+        with patch("src.scheduler.async_annealing_callback.atexit") as mock_atexit:
+            cb._init_callback()
+        mock_atexit.register.assert_called_once_with(mock_loop.shutdown)
+
+    def test_init_callback_no_double_atexit_registration(self):
+        """多次调用 _init_callback 不应重复注册 atexit 回调。"""
+        mock_loop = _make_mock_loop(interval=100)
+        cb = AsyncAnnealingCallback(loop=mock_loop, verbose=0)
+        with patch("src.scheduler.async_annealing_callback.atexit") as mock_atexit:
+            cb._init_callback()
+            cb._init_callback()
+            cb._init_callback()
+        # 无论调用多少次 _init_callback，atexit.register 只应被调用一次
+        mock_atexit.register.assert_called_once_with(mock_loop.shutdown)
+
+    def test_atexit_registered_flag_initialized_false(self):
+        """__init__ 后 _atexit_registered 应为 False。"""
+        mock_loop = _make_mock_loop()
+        cb = AsyncAnnealingCallback(loop=mock_loop, verbose=0)
+        self.assertFalse(cb._atexit_registered)
+
+    def test_atexit_registered_flag_set_true_after_init(self):
+        """_init_callback 后 _atexit_registered 应为 True。"""
+        mock_loop = _make_mock_loop(interval=100)
+        cb = AsyncAnnealingCallback(loop=mock_loop, verbose=0)
+        with patch("src.scheduler.async_annealing_callback.atexit"):
+            cb._init_callback()
+        self.assertTrue(cb._atexit_registered)
+
+    def test_load_state_dict_uses_strict_true(self):
+        """_on_rollout_start 应以 strict=True 调用 load_state_dict（Issue #694）。"""
+        pending = {
+            "state_dict": {"weight": 1.0},
+            "step": 100,
+            "delta": 0.5,
+        }
+        mock_loop = _make_mock_loop(pending_result=pending)
+        mock_model = MagicMock()
+        mock_model.policy.load_state_dict.return_value = None
+        cb = _bind_callback(
+            AsyncAnnealingCallback(loop=mock_loop, verbose=0),
+            model=mock_model,
+        )
+        cb._on_rollout_start()
+        _, kwargs = mock_model.policy.load_state_dict.call_args
+        self.assertTrue(kwargs.get("strict", False))
+
+    def test_missing_and_unexpected_keys_logged_on_runtime_error(self):
+        """strict=True 键不匹配时，应记录缺失键与多余键的 warning（Issue #694）。"""
+        pending = {
+            "state_dict": {"weight_a": 1.0, "extra_key": 2.0},
+            "step": 100,
+            "delta": 0.5,
+        }
+        mock_loop = _make_mock_loop(pending_result=pending)
+        mock_model = MagicMock()
+        # 模拟 strict=True 时键不匹配抛出 RuntimeError
+        mock_model.policy.load_state_dict.side_effect = RuntimeError("Missing key(s) in state_dict")
+        # 模型 state_dict 返回不同的键集合，使缺失/多余键非空
+        mock_model.policy.state_dict.return_value = {"weight_a": 0, "weight_b": 0}
+        cb = _bind_callback(
+            AsyncAnnealingCallback(loop=mock_loop, verbose=0),
+            model=mock_model,
+        )
+        with patch("src.scheduler.async_annealing_callback.logger") as mock_logger:
+            cb._on_rollout_start()
+        # 应记录 error（回写失败）
+        mock_logger.error.assert_called_once()
+        # 应记录 warning（缺失键 weight_b，多余键 extra_key）
+        warning_calls = mock_logger.warning.call_args_list
+        self.assertGreaterEqual(len(warning_calls), 2)
+        # 验证 warning 内容包含键名
+        all_warning_text = " ".join(str(c.args[0]) for c in warning_calls)
+        self.assertIn("weight_b", all_warning_text)
+        self.assertIn("extra_key", all_warning_text)
+
+    def test_runtime_error_does_not_crash_training(self):
+        """strict=True 抛出 RuntimeError 时不应中断训练（Issue #694）。"""
+        pending = {
+            "state_dict": {"weight": 1.0},
+            "step": 100,
+            "delta": 0.5,
+        }
+        mock_loop = _make_mock_loop(pending_result=pending)
+        mock_model = MagicMock()
+        mock_model.policy.load_state_dict.side_effect = RuntimeError("key mismatch")
+        mock_model.policy.state_dict.return_value = {"weight": 0}
+        cb = _bind_callback(
+            AsyncAnnealingCallback(loop=mock_loop, verbose=0),
+            model=mock_model,
+        )
+        # 不应抛异常
+        cb._on_rollout_start()
 
 
 if __name__ == "__main__":
