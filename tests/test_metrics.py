@@ -36,6 +36,7 @@ from src.utils.metrics import (
     task_wait_time,
     tasks_scheduled,
     tianyan_cb_state,
+    update_runtime_gauges,
 )
 
 
@@ -51,8 +52,8 @@ class TestMetricsExport(unittest.TestCase):
             )
 
     def test_all_exports_count(self):
-        """__all__ 应包含 19 个导出符号（含安全/速率限制指标）。"""
-        self.assertEqual(len(metrics.__all__), 19)
+        """__all__ 应包含 20 个导出符号（含 update_runtime_gauges）。"""
+        self.assertEqual(len(metrics.__all__), 20)
 
 
 class TestMetricTypes(unittest.TestCase):
@@ -274,6 +275,40 @@ class TestHistogramBuckets(unittest.TestCase):
         actual_buckets = list(annealing_iterations._upper_bounds)
         for b in expected_buckets:
             self.assertIn(b, actual_buckets)
+
+
+class TestUpdateRuntimeGauges(unittest.TestCase):
+    """测试 update_runtime_gauges helper 函数（Issue #679）。"""
+
+    def _gauge_value(self, name: str) -> float:
+        """从 REGISTRY 中采样指定指标名的当前值。"""
+        for metric in REGISTRY.collect():
+            for sample in metric.samples:
+                if sample.name == name:
+                    return sample.value
+        self.fail(f"未找到指标 {name}")
+
+    def test_updates_qubit_utilization(self):
+        """update_runtime_gauges 应将 qubit_utilization 同步到 Gauge。"""
+        update_runtime_gauges({"qubit_utilization": 0.875, "queue_length": 5})
+        self.assertAlmostEqual(self._gauge_value("scheduler_qubit_utilization"), 0.875, places=4)
+
+    def test_updates_queue_length(self):
+        """update_runtime_gauges 应将 queue_length 同步到 Gauge。"""
+        update_runtime_gauges({"qubit_utilization": 0.0, "queue_length": 17})
+        self.assertEqual(self._gauge_value("scheduler_queue_length"), 17)
+
+    def test_missing_keys_defaults_to_zero(self):
+        """缺失键时应回退到 0 而非抛出异常。"""
+        update_runtime_gauges({})
+        self.assertAlmostEqual(self._gauge_value("scheduler_qubit_utilization"), 0.0, places=4)
+        self.assertEqual(self._gauge_value("scheduler_queue_length"), 0)
+
+    def test_non_numeric_coerced_to_float(self):
+        """非数值键应被 float() 强制转换或回退到 0。"""
+        update_runtime_gauges({"qubit_utilization": "0.5", "queue_length": "3"})
+        self.assertAlmostEqual(self._gauge_value("scheduler_qubit_utilization"), 0.5, places=4)
+        self.assertEqual(self._gauge_value("scheduler_queue_length"), 3)
 
 
 if __name__ == "__main__":

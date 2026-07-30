@@ -7,6 +7,8 @@ Prometheus Metrics Collection Module
 helper 函数批量记录。
 """
 
+from typing import Any
+
 from prometheus_client import Counter, Gauge, Histogram
 
 __all__ = [
@@ -29,6 +31,7 @@ __all__ = [
     "task_wait_time",
     "tasks_scheduled",
     "tianyan_cb_state",
+    "update_runtime_gauges",
 ]
 
 
@@ -157,3 +160,18 @@ def record_scheduled_task(strategy: str, target: str, wait_seconds: float) -> No
     """
     tasks_scheduled.labels(strategy=strategy, target=target).inc()
     task_wait_time.observe(wait_seconds)
+
+
+def update_runtime_gauges(system_status: dict[str, Any]) -> None:
+    """从系统状态字典更新运行时 Gauge 指标（Issue #679）。
+
+    Prometheus Gauge 此前定义后从未被 ``.set()`` 赋值，导致 ``/metrics``
+    端点输出的 gauge 指标恒为初始值 0。本函数将 ``system_status`` 中的
+    运行时数值同步到对应的 Prometheus Gauge，使监控采集获得真实数据。
+
+    Args:
+        system_status: 共享系统状态字典，包含 ``qubit_utilization``、
+            ``queue_length`` 等键。
+    """
+    qubit_utilization.set(float(system_status.get("qubit_utilization", 0.0)))
+    queue_length.set(float(system_status.get("queue_length", 0)))

@@ -35,6 +35,7 @@ from numpy.typing import NDArray
 # 实现全局状态隔离。
 import src.visualization.app as _app
 from src.scheduler.explainability import DecisionExplainer
+from src.utils.metrics import update_runtime_gauges
 from src.visualization import state as viz_state
 
 _explainer = DecisionExplainer()
@@ -180,6 +181,10 @@ async def simulate_scheduler() -> None:
                 max(0.5, _app.system_status["average_wait_time"] + random.uniform(-0.5, 0.5)), 1
             )
         _app.system_status["last_update"] = datetime.now().isoformat()
+
+        # Issue #679: 同步运行时 Gauge 到 Prometheus 注册表，
+        # 使 /metrics 端点输出真实数值而非恒定初始值 0
+        update_runtime_gauges(_app.system_status)
 
         # 每 20 个 tick（约 60 秒）轮询真机状态 + 真机提交记录
         # 避免高频查询天衍云 API（免费额度有限）
