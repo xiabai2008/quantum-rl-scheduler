@@ -783,11 +783,17 @@ def cliffs_delta(x: list[float], y: list[float]) -> float:
     n1, n2 = len(arr_x), len(arr_y)
     if n1 == 0 or n2 == 0:
         return float("nan")
-    # 利用广播向量化计算：x_i > y_j 和 x_i < y_j 的次数
-    # 通过差分矩阵比较，避免 O(n*m) 内存开销过大时仍高效
-    diff = arr_x[:, np.newaxis] - arr_y[np.newaxis, :]
-    n_greater = float(np.sum(diff > 0))
-    n_less = float(np.sum(diff < 0))
+    # Issue #689: 原实现用 n1×n2 差分矩阵（arr_x[:,None]-arr_y[None,:]），
+    # n1=n2=10000 时约 800MB、n=20000 时约 3.2GB，大样本 OOM。
+    # 改为排序 + searchsorted 的 O((n1+n2) log n2) 内存高效算法：
+    #   对每个 x_i，#(y_j < x_i) = searchsorted(y_sorted, x_i, 'left')
+    #                  #(y_j > x_i) = n2 - searchsorted(y_sorted, x_i, 'right')
+    #   平局（y_j == x_i）既不计入 greater 也不计入 less，与原定义一致。
+    arr_y_sorted = np.sort(arr_y)
+    lo = np.searchsorted(arr_y_sorted, arr_x, side="left")  # #(y_j < x_i) = #(x_i > y_j)
+    hi = np.searchsorted(arr_y_sorted, arr_x, side="right")  # #(y_j <= x_i)
+    n_greater = float(lo.sum())
+    n_less = float((n2 - hi).sum())  # #(y_j > x_i) = #(x_i < y_j)
     return (n_greater - n_less) / (n1 * n2)
 
 
