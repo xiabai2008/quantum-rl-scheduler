@@ -93,7 +93,9 @@ def main():
     print(" 16-Dim vs 14-Dim PPO Ablation Study (High Load)")
     print("=" * 60)
 
-    model_14_path = os.path.join(PROJECT_ROOT, "deliverable_models", "ppo_best_model_16dim.zip")  # DELETED: 原 14 维模型已删除，迁移至 16 维
+    model_14_path = os.path.join(
+        PROJECT_ROOT, "deliverable_models", "ppo_best_model_16dim.zip"
+    )  # DELETED: 原 14 维模型已删除，迁移至 16 维
     model_16_path = os.path.join(PROJECT_ROOT, "deliverable_models", "ppo_best_model_16dim.zip")
 
     if not os.path.exists(model_14_path) or not os.path.exists(model_16_path):

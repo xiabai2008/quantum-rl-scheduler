@@ -123,12 +123,12 @@ def _run_single_seed_condition(
     strategy = PPOStrategy(ppo_model)
     try:
         for ep in range(episodes):
-            obs, info = sim_env.reset(seed=seed + ep)
+            obs, _info = sim_env.reset(seed=seed + ep)
             ep_reward = 0.0
             step = 0
             while step < tasks_per_episode:
                 action = strategy.select_action(obs)
-                obs, reward, terminated, truncated, info = sim_env.step(action)
+                obs, reward, terminated, truncated, _info = sim_env.step(action)
                 ep_reward += reward
                 step += 1
                 if terminated or truncated:
@@ -173,7 +173,7 @@ def run_paired_noise_experiment(
     print(f"  Tasks/Episode:   {tasks_per_episode}")
     print(f"  PPO Model:       {ppo_model_path}")
     print(f"  Alpha:           {alpha}")
-    print(f"  Conditions:      Standard（无噪声）vs DistNoise（真机MBS分布）")
+    print("  Conditions:      Standard（无噪声）vs DistNoise（真机MBS分布）")
     print(f"  Total Episodes:  {seeds * episodes * 2}（两条件各 {seeds * episodes}）")
     print("=" * 70)
 
@@ -185,7 +185,7 @@ def run_paired_noise_experiment(
     # 噪声模型信息
     mbs_arr = np.array(MBS_VALUES_10SEEDS)
     noise_arr = 1.0 - mbs_arr
-    print(f"\n[噪声模型] tianyan-287 10seeds MBS 分布")
+    print("\n[噪声模型] tianyan-287 10seeds MBS 分布")
     print(f"  MBS 均值: {mbs_arr.mean():.4f} ± {mbs_arr.std():.4f}")
     print(f"  MBS 范围: [{mbs_arr.min():.4f}, {mbs_arr.max():.4f}]")
     print(f"  噪声水平: {noise_arr.mean():.4f} ± {noise_arr.std():.4f}")
@@ -386,10 +386,10 @@ def run_paired_noise_experiment(
         "# 量子赋能AI v3：真机噪声反馈配对统计检验（N≥20 seeds）",
         "",
         f"> **实验配置**: {seeds} seeds × {episodes} episodes × 2 条件 = {seeds * episodes * 2} 次独立运行",
-        f"> **配对单元**: seed（同一 seed 下运行两条件，消除 seed 间方差）",
+        "> **配对单元**: seed（同一 seed 下运行两条件，消除 seed 间方差）",
         f"> **PPO 模型**: `{ppo_model_path}`（16 维，Actor-Critic）",
         f"> **噪声源**: tianyan-287 10seeds MBS 分布（均值 {mbs_arr.mean():.4f} ± {mbs_arr.std():.4f}）",
-        f"> **检验方法**: Wilcoxon signed-rank 检验（配对非参数检验）",
+        "> **检验方法**: Wilcoxon signed-rank 检验（配对非参数检验）",
         f"> **显著性水平**: α = {alpha}",
         f"> **生成时间**: {datetime.now().astimezone().isoformat()}",
         "",
@@ -473,11 +473,11 @@ def run_paired_noise_experiment(
             "",
             "## 五、证据链可审计性",
             "",
-            f"- 真机 MBS 数据来源: `results/reports/multiseed_real_machine_report_10seeds_v2.md`",
-            f"- 10 次独立真机运行 Task ID 可审计",
-            f"- 真实硬件噪声分布（非模拟），含真实波动",
-            f"- 噪声模型直接改进 AI 训练环境",
-            f"- 与官方赛题「硬件噪声感知训练」方向完全对齐",
+            "- 真机 MBS 数据来源: `results/reports/multiseed_real_machine_report_10seeds_v2.md`",
+            "- 10 次独立真机运行 Task ID 可审计",
+            "- 真实硬件噪声分布（非模拟），含真实波动",
+            "- 噪声模型直接改进 AI 训练环境",
+            "- 与官方赛题「硬件噪声感知训练」方向完全对齐",
             "",
             "## 六、方法学说明",
             "",
@@ -531,12 +531,8 @@ def main():
     parser = argparse.ArgumentParser(
         description="量子赋能AI v3：N≥20 seeds 真机噪声反馈配对统计检验"
     )
-    parser.add_argument(
-        "--seeds", type=int, default=25, help="随机种子数量（默认25，需≥20）"
-    )
-    parser.add_argument(
-        "--episodes", type=int, default=5, help="每 seed 每 episode 数（默认5）"
-    )
+    parser.add_argument("--seeds", type=int, default=25, help="随机种子数量（默认25，需≥20）")
+    parser.add_argument("--episodes", type=int, default=5, help="每 seed 每 episode 数（默认5）")
     parser.add_argument(
         "--tasks-per-episode", type=int, default=200, help="每 episode 最大步数（默认200）"
     )
@@ -556,9 +552,7 @@ def main():
     args = parser.parse_args()
 
     if args.seeds < 20:
-        print(
-            f"[警告] seeds={args.seeds} < 20，评审报告要求 N≥20。建议使用 --seeds 25 或更高。"
-        )
+        print(f"[警告] seeds={args.seeds} < 20，评审报告要求 N≥20。建议使用 --seeds 25 或更高。")
 
     run_paired_noise_experiment(
         seeds=args.seeds,

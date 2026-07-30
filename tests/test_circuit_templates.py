@@ -21,22 +21,23 @@ from src.quantum.circuit_templates import (
 def test_bell_state_structure():
     """Bell 态电路使用 H-CZ-H 等效 CNOT 生成纠缠态。
 
-    电路结构: H Q0 → H Q1 → CZ Q0 Q1 → H Q1 → M Q0 → M Q1
+    电路结构: H Q1 → H Q2 → CZ Q1 Q2 → H Q2 → M Q1 → M Q2
     QCIS 无原生 CNOT，用 H-CZ-H 分解实现纠缠（Issue #644 修复）。
+    Issue #639: 默认 Q1 起编（天衍-287 无 Q0）。
     """
     circuit = generate_bell_state()
     lines = circuit.split("\n")
-    assert "H Q0" in lines
-    assert "CZ Q0 Q1" in lines
-    assert "M Q0" in lines
+    assert "H Q1" in lines
+    assert "CZ Q1 Q2" in lines
     assert "M Q1" in lines
-    # H Q1 应在 CZ 前后各出现一次（H-CZ-H 等效 CNOT）
-    h1_positions = [i for i, ln in enumerate(lines) if ln == "H Q1"]
-    assert len(h1_positions) == 2, f"H Q1 应出现 2 次，实际 {len(h1_positions)} 次"
-    cz_pos = lines.index("CZ Q0 Q1")
-    assert h1_positions[0] < cz_pos < h1_positions[1], "H Q1 应在 CZ 前后各一次"
-    # H Q0 应在 CZ Q0 Q1 之前
-    assert lines.index("H Q0") < cz_pos
+    assert "M Q2" in lines
+    # H Q2 应在 CZ 前后各出现一次（H-CZ-H 等效 CNOT）
+    h2_positions = [i for i, ln in enumerate(lines) if ln == "H Q2"]
+    assert len(h2_positions) == 2, f"H Q2 应出现 2 次，实际 {len(h2_positions)} 次"
+    cz_pos = lines.index("CZ Q1 Q2")
+    assert h2_positions[0] < cz_pos < h2_positions[1], "H Q2 应在 CZ 前后各一次"
+    # H Q1 应在 CZ Q1 Q2 之前
+    assert lines.index("H Q1") < cz_pos
 
 
 def test_bell_state_multiple_pairs():
@@ -58,14 +59,17 @@ def test_bell_state_multiple_pairs():
 
 
 def test_ghz_state_structure():
-    """GHZ 态包含 H Q0，以及每个 CZ 前后各有一个 H 作用在 target 上（H-CZ-H 等效 CNOT）。"""
+    """GHZ 态包含 H Q1，以及每个 CZ 前后各有一个 H 作用在 target 上（H-CZ-H 等效 CNOT）。
+
+    Issue #639: 默认 Q1 起编（天衍-287 无 Q0）。
+    """
     circuit = generate_ghz_state(3)
     lines = circuit.split("\n")
-    assert "H Q0" in lines
-    # 每个 CZ Q{i} Q{i+1} 前后都应有 H Q{i+1}
+    assert "H Q1" in lines
+    # 每个 CZ Q{i+1} Q{i+2} 前后都应有 H Q{i+2}
     for i in range(2):  # n=3 → i=0, 1
-        cz = f"CZ Q{i} Q{i + 1}"
-        h_target = f"H Q{i + 1}"
+        cz = f"CZ Q{i + 1} Q{i + 2}"
+        h_target = f"H Q{i + 2}"
         assert cz in lines
         assert h_target in lines
         cz_pos = lines.index(cz)
@@ -73,7 +77,7 @@ def test_ghz_state_structure():
         assert any(p < cz_pos for p in h_positions), f"{h_target} 应出现在 {cz} 之前"
         assert any(p > cz_pos for p in h_positions), f"{h_target} 应出现在 {cz} 之后"
     # 测量所有比特
-    for q in [0, 1, 2]:
+    for q in [1, 2, 3]:
         assert f"M Q{q}" in lines
 
 
@@ -103,7 +107,7 @@ def test_vqe_circuit_params_shape():
         generate_vqe_circuit(n_qubits=4, depth=2, params=np.zeros((2, 3, 2)))
     # 正确形状应正常工作
     circuit = generate_vqe_circuit(n_qubits=4, depth=2, params=np.zeros((2, 4, 2)))
-    assert "RY Q0" in circuit
+    assert "RY Q1" in circuit  # Issue #639: Q1 起编
 
 
 def test_qaoa_circuit_structure():
@@ -125,7 +129,7 @@ def test_qaoa_circuit_params():
         generate_qaoa_circuit(n_qubits=5, p_layers=2, beta=np.zeros(3))
     # 正确形状应正常工作
     circuit = generate_qaoa_circuit(n_qubits=5, p_layers=2, gamma=np.zeros(2), beta=np.zeros(2))
-    assert "H Q0" in circuit
+    assert "H Q1" in circuit  # Issue #639: Q1 起编
 
 
 def test_all_templates_return_qcis():

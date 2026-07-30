@@ -71,13 +71,11 @@ class TestComputeFairnessPenalty:
         assert result == 0.0
 
     def test_unknown_tenant_uses_zero_wait(self) -> None:
-        """未知租户使用等待时间0。"""
+        """未知租户不在等待字典中时返回0（Issue #655: 不再对未知租户施加惩罚）。"""
         wait_times = {"tenant_a": 10.0, "tenant_b": 10.0}
-        # tenant_c 不在字典中，wait=0
-        # mean=10, deviation=|0-10|/10=1.0 > 0.3
+        # tenant_c 不在字典中，Issue #655 后返回 0.0（无惩罚）
         result = compute_fairness_penalty("tenant_c", wait_times)
-        expected = -FAIRNESS_PENALTY_FACTOR * 1.0
-        assert result == pytest.approx(expected, abs=1e-6)
+        assert result == pytest.approx(0.0, abs=1e-6)
 
     def test_none_tenant_id_returns_zero(self) -> None:
         """None 租户 ID 无租户上下文，返回0（不施加公平性惩罚）。"""
@@ -124,10 +122,10 @@ class TestFairnessObservation:
         assert OBS_DIM_WITH_FAIRNESS == 17
 
     def test_env_without_fairness_obs(self) -> None:
-        """默认环境观测空间为 16 维。"""
+        """关闭公平性观测后观测空间为 16 维（Issue #647: 默认已开启公平性观测）。"""
         from src.scheduler.env import QuantumSchedulingEnv
 
-        env = QuantumSchedulingEnv()
+        env = QuantumSchedulingEnv(include_fairness_obs=False)
         assert env.observation_space.shape == (16,)
 
     def test_env_with_fairness_obs(self) -> None:
@@ -153,15 +151,15 @@ class TestObservationDimAblation:
         assert obs.shape == (8,)
 
     def test_observation_dim_none_defaults_to_full(self) -> None:
-        """observation_dim=None 时使用默认 16 维。"""
+        """observation_dim=None 时使用默认 16 维（需关闭公平性观测，Issue #647）。"""
         from src.scheduler.env import QuantumSchedulingEnv
 
-        env = QuantumSchedulingEnv(observation_dim=None)
+        env = QuantumSchedulingEnv(observation_dim=None, include_fairness_obs=False)
         assert env.observation_space.shape == (16,)
 
     def test_observation_dim_larger_than_default_no_truncation(self) -> None:
-        """observation_dim 大于 OBS_DIM 时不截断。"""
+        """observation_dim 大于 OBS_DIM 时不截断（需关闭公平性观测，Issue #647）。"""
         from src.scheduler.env import QuantumSchedulingEnv
 
-        env = QuantumSchedulingEnv(observation_dim=20)
+        env = QuantumSchedulingEnv(observation_dim=20, include_fairness_obs=False)
         assert env.observation_space.shape == (16,)

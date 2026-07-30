@@ -115,7 +115,8 @@ def run_comparison(
     episodes_per_seed: int = 5,
     max_steps: int = 200,
     ppo_model: str = "deliverable_models/ppo_best_model_16dim.zip",
-    dqn_model: str | None = None,  # DELETED: DQN 模型已在 v9 删除，原 dqn_best_model_10dim.zip 不再提供
+    dqn_model: str
+    | None = None,  # DELETED: DQN 模型已在 v9 删除，原 dqn_best_model_10dim.zip 不再提供
     patterns: Sequence[WorkloadPattern] = WORKLOAD_PATTERNS,
 ) -> dict[str, Any]:
     """执行 3×8 对比并返回可复现的完整结果。"""

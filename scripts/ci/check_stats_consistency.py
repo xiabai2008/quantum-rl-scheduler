@@ -357,9 +357,7 @@ def check_welch_t_misattribution(line: str) -> str | None:
     # 行中同时包含 Mann-Whitney 或正确新p值 1.449e-66 或废弃声明时，
     # 说明是对比/废弃说明文本，不报错
     has_context = (
-        "mann-whitney" in line_lower
-        or "1.449e-66" in line_lower
-        or _is_deprecation_notice(line)
+        "mann-whitney" in line_lower or "1.449e-66" in line_lower or _is_deprecation_notice(line)
     )
     if has_1032e42 and "welch" in line_lower and not has_context:
         return WELCH_T_FOR_1032E42

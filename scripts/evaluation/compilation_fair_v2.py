@@ -622,7 +622,9 @@ def main() -> None:
         f"  Bootstrap 95% CI: [{stats_summary['bootstrap_ci_low']:.1f}%, "
         f"{stats_summary['bootstrap_ci_high']:.1f}%]"
     )
-    print(f"  显著性 (α=0.05): {'[PASS] 显著' if stats_summary['significant'] else '[FAIL] 不显著'}")
+    print(
+        f"  显著性 (α=0.05): {'[PASS] 显著' if stats_summary['significant'] else '[FAIL] 不显著'}"
+    )
     print(
         f"  子集（中+深 n={subset_analysis['n_pairs']}）: "
         f"{subset_stats['improvement_pct']:+.1f}%, p={subset_stats['p_value']:.2e}, "

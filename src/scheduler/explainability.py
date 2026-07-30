@@ -100,7 +100,7 @@ class DecisionRecord:
 
     Attributes:
         step                 : 决策步序号
-        state                : 决策时的状态向量（17维）
+        state                : 决策时的状态向量（16维，含公平性观测时为17维）
         action               : 选择的动作编号
         action_prob          : 动作概率/置信度（0-1）
         q_values             : 各动作的 Q 值（DQN 可用，PPO 可为 None）
@@ -199,7 +199,7 @@ class DecisionExplainer:
         初始化决策解释器。
 
         Args:
-            feature_names: 状态空间特征名列表，为 None 时使用默认 17 维特征名
+            feature_names: 状态空间特征名列表，为 None 时使用默认 16 维特征名
             method        : 贡献度计算方法，"heuristic"（默认）或 "shap"
         """
         self.feature_names: list[str] = (
@@ -788,11 +788,35 @@ class PPOExplainer:
             probs = dist.distribution.probs.cpu().numpy()
         return np.asarray(probs, dtype=np.float64)
 
+    def set_background_data(self, observations: NDArray[Any]) -> None:
+        """注入真实状态分布作为 SHAP 背景数据（Issue #648）。
+
+        Args:
+            observations: 真实环境观测样本，shape=(n_samples, n_features)。
+                          若样本数超过 background_samples，随机采样子集。
+        """
+        if observations.ndim != 2:
+            raise ValueError(f"observations 应为 2D 数组，收到 shape={observations.shape}")
+        if observations.shape[1] != self.n_features:
+            raise ValueError(
+                f"observations 特征数 {observations.shape[1]} != n_features {self.n_features}"
+            )
+        if observations.shape[0] > self.background_samples:
+            rng = np.random.default_rng(seed=42)
+            idx = rng.choice(observations.shape[0], size=self.background_samples, replace=False)
+            self._background_data = observations[idx].astype(np.float64)
+        else:
+            self._background_data = observations.astype(np.float64)
+        # 重置 explainer 以使用新背景数据
+        self._explainer = None
+
     def _init_shap_explainer(self) -> Any:
         """
         懒加载初始化 SHAP KernelExplainer。
 
-        使用零向量作为背景数据（可配置 background_samples 数量），
+        Issue #648: 背景数据使用 Uniform(0,1) 而非 N(0,0.1) 合成噪声，
+        更匹配状态特征值域（保真度、可用率等大多在 [0,1] 范围）。
+        若已通过 set_background_data() 注入真实状态分布，则优先使用。
         KernelExplainer 适用于任何黑盒模型，兼容性最好。
 
         Returns:
@@ -809,10 +833,12 @@ class PPOExplainer:
 
         import shap
 
-        rng = np.random.default_rng(seed=42)
-        self._background_data = rng.normal(
-            loc=0.0, scale=0.1, size=(self.background_samples, self.n_features)
-        )
+        if self._background_data is None:
+            # Issue #648: Uniform(0,1) 比 N(0,0.1) 更匹配状态特征值域
+            rng = np.random.default_rng(seed=42)
+            self._background_data = rng.uniform(
+                low=0.0, high=1.0, size=(self.background_samples, self.n_features)
+            )
         self._explainer = shap.KernelExplainer(
             model=self._predict_proba,
             data=self._background_data,

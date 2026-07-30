@@ -4,7 +4,7 @@ Observation Builder Module for Quantum-Classical Hybrid Task Scheduling Environm
 
 本模块封装环境的观测向量与信息字典构建逻辑，将依赖环境内部状态的方法
 抽离为独立函数：
-    - get_observation : 构建并返回当前 14 维状态向量（含物理噪声和拓扑特征）
+    - get_observation : 构建并返回当前 16 维状态向量（含物理噪声和拓扑特征，OBS_DIM=16）
     - get_info        : 构建环境信息字典，供调试和监控使用
 
 依赖关系：仅依赖 env_types.py 中的常量与数据类，不依赖 env.py。

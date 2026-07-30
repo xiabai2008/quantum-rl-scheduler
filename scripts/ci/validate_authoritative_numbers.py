@@ -301,9 +301,7 @@ def check_line(line: str, filepath: str, line_num: int) -> list[Violation]:
 
     # 检查 Cohen's d=-1.70 或 rank-biserial=-0.71 旧效应量
     # 巡逻记录中旧数字与权威数字同时出现用于对比，不报错
-    if DEPRECATED_EFFECT_SIZE.search(line) and not (
-        is_patrol and "1.449e-66" in line
-    ):
+    if DEPRECATED_EFFECT_SIZE.search(line) and not (is_patrol and "1.449e-66" in line):
         violations.append(
             Violation(
                 file_path=filepath,

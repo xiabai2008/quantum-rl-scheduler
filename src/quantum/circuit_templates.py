@@ -38,7 +38,7 @@ def generate_bell_state(qubit_pairs: list[tuple[int, int]] | None = None) -> str
         QCIS 格式字符串
     """
     if qubit_pairs is None:
-        qubit_pairs = [(0, 1)]
+        qubit_pairs = [(1, 2)]  # Issue #639: 默认 Q1 起编（天衍-287 无 Q0）
 
     instructions: list[str] = []
     all_qubits: set[int] = set()
@@ -81,16 +81,17 @@ def generate_ghz_state(n_qubits: int = 3) -> str:
     if n_qubits < 2:
         raise ValueError(f"GHZ 态至少需要 2 个比特，收到 n_qubits={n_qubits}")
 
-    instructions: list[str] = ["H Q0"]
+    # Issue #639: 默认 Q1 起编（天衍-287 物理比特 Q1-Q105，无 Q0）
+    instructions: list[str] = ["H Q1"]
 
     # 使用 H-CZ-H 等效 CNOT 门生成 GHZ 纠缠态
     for i in range(n_qubits - 1):
-        instructions.append(f"H Q{i + 1}")
-        instructions.append(f"CZ Q{i} Q{i + 1}")
-        instructions.append(f"H Q{i + 1}")
+        instructions.append(f"H Q{i + 2}")
+        instructions.append(f"CZ Q{i + 1} Q{i + 2}")
+        instructions.append(f"H Q{i + 2}")
 
     for i in range(n_qubits):
-        instructions.append(f"M Q{i}")
+        instructions.append(f"M Q{i + 1}")
 
     return "\n".join(instructions)
 
@@ -139,19 +140,20 @@ def generate_vqe_circuit(
 
     instructions: list[str] = []
 
+    # Issue #639: 默认 Q1 起编（天衍-287 物理比特 Q1-Q105，无 Q0）
     for d in range(depth):
         for q in range(n_qubits):
             theta_ry = float(params[d, q, 0])
             theta_rz = float(params[d, q, 1])
-            instructions.append(f"RY Q{q} {theta_ry:.10f}")
-            instructions.append(f"RZ Q{q} {theta_rz:.10f}")
+            instructions.append(f"RY Q{q + 1} {theta_ry:.10f}")
+            instructions.append(f"RZ Q{q + 1} {theta_rz:.10f}")
 
         if two_qubit_gates and n_qubits >= 2:
             for q in range(n_qubits - 1):
-                instructions.append(f"CZ Q{q} Q{q + 1}")
+                instructions.append(f"CZ Q{q + 1} Q{q + 2}")
 
     for q in range(n_qubits):
-        instructions.append(f"M Q{q}")
+        instructions.append(f"M Q{q + 1}")
 
     return "\n".join(instructions)
 
@@ -208,25 +210,26 @@ def generate_qaoa_circuit(
 
     instructions: list[str] = []
 
+    # Issue #639: 默认 Q1 起编（天衍-287 物理比特 Q1-Q105，无 Q0）
     for q in range(n_qubits):
-        instructions.append(f"H Q{q}")
+        instructions.append(f"H Q{q + 1}")
 
     for p in range(p_layers):
         g = float(gamma[p])
         b = float(beta[p])
 
         for q in range(n_qubits):
-            instructions.append(f"RZ Q{q} {2 * g:.10f}")
+            instructions.append(f"RZ Q{q + 1} {2 * g:.10f}")
 
         if two_qubit_gates and n_qubits >= 2:
             for q in range(n_qubits - 1):
-                instructions.append(f"CZ Q{q} Q{q + 1}")
+                instructions.append(f"CZ Q{q + 1} Q{q + 2}")
 
         for q in range(n_qubits):
-            instructions.append(f"RX Q{q} {2 * b:.10f}")
+            instructions.append(f"RX Q{q + 1} {2 * b:.10f}")
 
     for q in range(n_qubits):
-        instructions.append(f"M Q{q}")
+        instructions.append(f"M Q{q + 1}")
 
     return "\n".join(instructions)
 

@@ -47,7 +47,9 @@ ALPHA = 0.05
 # 权威基准（50 seed N=250, max_qubits=287）
 AUTHORITATIVE_PPO_MEAN = 2348.91
 AUTHORITATIVE_FCFS_MEAN = 1051.59
-AUTHORITATIVE_IMPROVEMENT_PCT = 123.4  # 2348.91/1051.59-1，见 config/statistics.yaml（旧 88.3 为 14 维口径，已废弃）
+AUTHORITATIVE_IMPROVEMENT_PCT = (
+    123.4  # 2348.91/1051.59-1，见 config/statistics.yaml（旧 88.3 为 14 维口径，已废弃）
+)
 SHRINK_THRESHOLD_PP = 10.0  # 缩水阈值（百分点）
 
 
@@ -272,7 +274,9 @@ def run_validation() -> dict:
         verdict = "❌ 缩水超过阈值，需触发预案 B"
         plan_b_triggered = True
     else:
-        verdict = f"✅ 缩水 ≤{SHRINK_THRESHOLD_PP}pp，+{AUTHORITATIVE_IMPROVEMENT_PCT}% 在 105 规模下稳健"
+        verdict = (
+            f"✅ 缩水 ≤{SHRINK_THRESHOLD_PP}pp，+{AUTHORITATIVE_IMPROVEMENT_PCT}% 在 105 规模下稳健"
+        )
         plan_b_triggered = False
 
     print(f"  验收结论: {verdict}")
