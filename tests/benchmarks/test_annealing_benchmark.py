@@ -19,7 +19,7 @@ from torch import nn
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
 from src.quantum.annealing import QuantumAnnealingOptimizer
-from src.scheduler.env import OBS_DIM, QuantumSchedulingEnv
+from src.scheduler.env import QuantumSchedulingEnv
 from src.scheduler.parser import LegacyTaskParser
 
 
@@ -69,6 +69,10 @@ class TestAnnealingBenchmark:
         result = benchmark(solve)
         assert len(result) == 10
         assert all(ch in "01" for ch in result)
+        # 性能回归阈值断言（Issue #729）：10x10 QUBO 求解均值应 < 1.0s
+        assert benchmark.stats["mean"] < 1.0, (
+            f"QUBO 10x10 求解均值超阈值: {benchmark.stats['mean']:.3f}s"
+        )
 
     def test_qubo_solve_medium(self, benchmark):
         """QUBO 求解基准：50x50 矩阵 < 3 秒"""
@@ -86,6 +90,10 @@ class TestAnnealingBenchmark:
         result = benchmark(solve)
         assert len(result) == 50
         assert all(ch in "01" for ch in result)
+        # 性能回归阈值断言（Issue #729）：50x50 QUBO 求解均值应 < 3.0s
+        assert benchmark.stats["mean"] < 3.0, (
+            f"QUBO 50x50 求解均值超阈值: {benchmark.stats['mean']:.3f}s"
+        )
 
     def test_network_to_qubo(self, benchmark):
         """network_to_qubo 性能基准（小网络 nn.Linear(8,4)）"""
@@ -101,6 +109,10 @@ class TestAnnealingBenchmark:
         total_params = 8 * 4 + 4  # 36
         expected = total_params * n_bits_per_weight
         assert qubo.shape == (expected, expected)
+        # 性能回归阈值断言（Issue #729）：network_to_qubo 均值应 < 0.2s
+        assert benchmark.stats["mean"] < 0.2, (
+            f"network_to_qubo 均值超阈值: {benchmark.stats['mean']:.3f}s"
+        )
 
     def test_bitstring_decode(self, benchmark):
         """bitstring_to_weights 解码性能基准"""
@@ -122,6 +134,10 @@ class TestAnnealingBenchmark:
         assert len(result) == len(shapes)
         for decoded, shape in zip(result, shapes, strict=False):
             assert decoded.shape == shape
+        # 性能回归阈值断言（Issue #729）：bitstring 解码均值应 < 0.1s
+        assert benchmark.stats["mean"] < 0.1, (
+            f"bitstring_to_weights 均值超阈值: {benchmark.stats['mean']:.3f}s"
+        )
 
 
 @pytest.mark.benchmark
@@ -132,6 +148,8 @@ class TestEnvBenchmark:
         """QuantumSchedulingEnv.step() 性能基准（max_steps=100）"""
         env = QuantumSchedulingEnv(max_steps=100, seed=42)
         env.reset(seed=42)
+        # 使用 env 实际观测空间形状断言，兼容 include_fairness_obs 开关
+        expected_shape = env.observation_space.shape
 
         def step_once():
             action = int(env.action_space.sample())
@@ -141,19 +159,28 @@ class TestEnvBenchmark:
             return obs
 
         result = benchmark(step_once)
-        assert result.shape == (OBS_DIM,)
+        assert result.shape == expected_shape
+        # 性能回归阈值断言（Issue #729）：env.step() 中位数应 < 50ms
+        assert benchmark.stats["median"] < 0.05, (
+            f"env.step() 中位数超阈值: {benchmark.stats['median']:.4f}s"
+        )
 
     def test_env_reset_performance(self, benchmark):
         """QuantumSchedulingEnv.reset() 性能基准"""
         env = QuantumSchedulingEnv(max_steps=100, seed=42)
+        expected_shape = env.observation_space.shape
 
         def reset_once():
             obs, _info = env.reset(seed=42)
             return obs
 
         result = benchmark(reset_once)
-        assert result.shape == (OBS_DIM,)
+        assert result.shape == expected_shape
         assert np.all(result >= 0.0) and np.all(result <= 1.0)
+        # 性能回归阈值断言（Issue #729）：env.reset() 中位数应 < 50ms
+        assert benchmark.stats["median"] < 0.05, (
+            f"env.reset() 中位数超阈值: {benchmark.stats['median']:.4f}s"
+        )
 
 
 @pytest.mark.benchmark
@@ -172,3 +199,5 @@ class TestParserBenchmark:
         assert result is not None
         assert result.qubit_count == 10
         assert result.gate_count == 20
+        # 性能回归阈值断言（Issue #729）：QASM 解析均值应 < 0.1s
+        assert benchmark.stats["mean"] < 0.1, f"QASM 解析均值超阈值: {benchmark.stats['mean']:.4f}s"

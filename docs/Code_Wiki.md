@@ -1050,7 +1050,7 @@ config = load_config()
 | [test_scheduler.py](../tests/test_scheduler.py) | 调度核心（含 11 个多机器用例） |
 | [test_annealing.py](../tests/test_annealing.py) | 量子启发式退火 |
 | [test_helpers.py](../tests/test_helpers.py) | 工具函数 |
-| [test_visualization.py](../tests/test_visualization.py) | Web 可视化（90% 覆盖） |
+| [tests/visualization/](../tests/visualization/) | Web 可视化（Issue #730 拆分为 5 个子模块：app/routes/security/state/websocket） |
 | [test_multi_objective.py](../tests/test_multi_objective.py) | 多目标奖励（v6） |
 | [test_marl.py](../tests/test_marl.py) | MAPPO 多智能体（v6） |
 | [test_state_space.py](../tests/test_state_space.py) | 状态空间（v6） |

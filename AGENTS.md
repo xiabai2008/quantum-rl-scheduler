@@ -153,7 +153,12 @@ quantum-rl-scheduler/
 │   ├── test_state_space.py       # 状态空间测试
 │   ├── test_api.py               # API 层测试
 │   ├── test_parser.py            # 解析器测试
-│   ├── test_visualization.py     # 可视化测试
+│   ├── visualization/            # 可视化测试（Issue #730 拆分自 test_visualization.py）
+│   │   ├── test_app.py           # app.py 辅助函数测试
+│   │   ├── test_routes.py        # HTTP API 路由测试
+│   │   ├── test_security.py      # 安全/输入校验测试
+│   │   ├── test_state.py         # state.py 访问器测试
+│   │   └── test_websocket.py     # WebSocket 端点测试
 │   ├── test_helpers.py           # 工具函数测试
 │   ├── test_property.py          # property-based testing
 │   ├── test_callbacks.py         # 回调测试
