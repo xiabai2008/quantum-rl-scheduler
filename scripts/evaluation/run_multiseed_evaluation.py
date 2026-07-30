@@ -866,7 +866,7 @@ def _generate_utilization_report(
                 "> 与赛题『资源利用率』定义可能存在口径差异。答辩时应说明：本项目以量子比特利用率",
                 "> 作为资源利用率的核心度量，PPO 通过智能调度减少量子比特空闲，实现利用率提升。",
                 "",
-                f"> **数据文件**: `{canonical_path}` → utilization 字段",
+                f"> **数据文件**: `{canonical_path.relative_to(_PROJECT_ROOT)}` → utilization 字段",
             ]
         )
 

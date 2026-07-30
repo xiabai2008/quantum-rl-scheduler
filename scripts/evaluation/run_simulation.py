@@ -621,9 +621,13 @@ def run_simulation(
                 real_prob = 0.0
 
     # ---- 创建共享的基础环境配置 ----
+    # Issue #630: 预训练模型（PPO/DQN）均在 16 维观测空间下训练，
+    # 必须显式关闭公平性观测（默认开启会扩展到 17 维），否则加载模型时
+    # 触发 Observation space mismatch / 内存违规崩溃。
     base_env_kwargs = {
         "max_steps": tasks_per_episode,
         "max_qubits": 287,
+        "include_fairness_obs": False,
     }
 
     # ---- 创建策略 ----

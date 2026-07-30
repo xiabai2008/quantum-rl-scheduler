@@ -102,9 +102,14 @@ def _generate_markdown_report(
         Markdown 字符串
     """
     lines: list[str] = []
+    # Issue #640: 转为相对路径，避免在报告中泄露个人绝对路径
+    try:
+        display_path = input_path.relative_to(PROJECT_ROOT)
+    except ValueError:
+        display_path = input_path
     lines.append("# 策略对比统计显著性检验报告")
     lines.append("")
-    lines.append(f"> **数据来源**: `{input_path}`")
+    lines.append(f"> **数据来源**: `{display_path}`")
     lines.append(f"> **显著性水平 α**: {alpha}")
 
     # 取第一个对比的校正信息（所有对比一致）
@@ -249,7 +254,7 @@ def _generate_markdown_report(
     lines.append("- 检验力 ≥ 0.99 且显著的对比：核心结论极其稳健，样本量远超检测该效应所需。")
     lines.append("")
     lines.append("---")
-    lines.append(f"*报告自动生成 | 数据源: {input_path}*")
+    lines.append(f"*报告自动生成 | 数据源: {display_path}*")
 
     return "\n".join(lines)
 

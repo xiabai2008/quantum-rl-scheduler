@@ -2,7 +2,7 @@
 
 > 本报告为提交清单 `EXP_STAT` 必需文件，使用 250 次独立episode验证PPO相对于基线策略的统计显著性。
 
-> **数据来源**: `C:\Users\HZR\Desktop\揭榜挂帅擂台赛\quantum-rl-scheduler\results\multiseed_evaluation\rewards_multiseed.json`
+> **数据来源**: `results/multiseed_evaluation/rewards_multiseed.json`
 > **显著性水平 α**: 0.05
 > **比较次数**: 28（Bonferroni 校正后 α = 0.0018）
 
@@ -254,4 +254,4 @@
 - 检验力 ≥ 0.99 且显著的对比：核心结论极其稳健，样本量远超检测该效应所需。
 
 ---
-*报告自动生成 | 数据源: C:\Users\HZR\Desktop\揭榜挂帅擂台赛\quantum-rl-scheduler\results\multiseed_evaluation\rewards_multiseed.json*
+*报告自动生成 | 数据源: results/multiseed_evaluation/rewards_multiseed.json*

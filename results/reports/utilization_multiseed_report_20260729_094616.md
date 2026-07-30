@@ -86,4 +86,4 @@
 > 与赛题『资源利用率』定义可能存在口径差异。答辩时应说明：本项目以量子比特利用率
 > 作为资源利用率的核心度量，PPO 通过智能调度减少量子比特空闲，实现利用率提升。
 
-> **数据文件**: `C:\Users\HZR\Desktop\揭榜挂帅擂台赛\quantum-rl-scheduler\results\multiseed_evaluation\rewards_multiseed.json` → utilization 字段
+> **数据文件**: `results/multiseed_evaluation/rewards_multiseed.json` → utilization 字段
