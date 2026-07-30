@@ -5,6 +5,7 @@
 使 RL 训练不被退火求解阻塞，并在每个 rollout 开始前将优化后的权重回写到模型。
 """
 
+import atexit
 from typing import Any
 
 from loguru import logger
@@ -97,6 +98,8 @@ class AsyncAnnealingCallback(BaseCallback):
         self.loop = loop
         self.annealing_mode = str(annealing_mode)
         self._next_trigger_step: int | None = None
+        # Issue #694: 标记 atexit 回调是否已注册，避免重复注册
+        self._atexit_registered: bool = False
 
     def _init_callback(self) -> None:
         """回调初始化：透传退火模式、启动异步退火工作线程并设置首次触发步数。"""
@@ -104,6 +107,12 @@ class AsyncAnnealingCallback(BaseCallback):
         self.loop.annealing_mode = self.annealing_mode
         self.loop.start()
         self._next_trigger_step = self.loop.get_current_interval()
+        # Issue #694: 注册 atexit 回调确保 worker 线程在异常中断时被清理。
+        # 训练被 Ctrl+C 或异常中断时 _on_training_end 不会被调用，
+        # 通过 atexit 兜底调用 loop.shutdown 避免 worker 线程泄漏。
+        if not self._atexit_registered:
+            atexit.register(self.loop.shutdown)
+            self._atexit_registered = True
         if self.verbose:
             logger.info(
                 f"[AsyncAnnealingCallback] 异步退火回调已启动，"
@@ -179,15 +188,39 @@ class AsyncAnnealingCallback(BaseCallback):
         delta = result["delta"]
 
         try:
-            self.model.policy.load_state_dict(state_dict, strict=False)
+            # Issue #694: 使用 strict=True 替代 strict=False。
+            # strict=False 会静默跳过不匹配的键，导致退火结果部分丢失且无感知。
+            # strict=True 在键不匹配时抛出 RuntimeError，由下方 except 捕获并记录
+            # 缺失/多余键的详细信息，便于排查退火权重结构不一致的问题。
+            self.model.policy.load_state_dict(state_dict, strict=True)
             if self.verbose:
                 logger.info(
                     f"[AsyncAnnealingCallback] rollout 开始前回写退火权重 "
                     f"(step={step}, delta={delta:.4f})"
                 )
+        except RuntimeError as e:
+            # strict=True 在键不匹配或形状不一致时抛出 RuntimeError。
+            # 计算缺失键与多余键并记录警告，便于诊断退火权重结构变化。
+            model_keys = set(self.model.policy.state_dict().keys())
+            incoming_keys = set(state_dict.keys())
+            missing_keys = sorted(model_keys - incoming_keys)
+            unexpected_keys = sorted(incoming_keys - model_keys)
+            if missing_keys:
+                logger.warning(
+                    f"[AsyncAnnealingCallback] 回写退火权重缺失键 "
+                    f"{len(missing_keys)} 个: {missing_keys[:10]}"
+                )
+            if unexpected_keys:
+                logger.warning(
+                    f"[AsyncAnnealingCallback] 回写退火权重多余键 "
+                    f"{len(unexpected_keys)} 个: {unexpected_keys[:10]}"
+                )
+            logger.error(
+                f"[AsyncAnnealingCallback] 回写退火权重失败 "
+                f"(step={step}, 键不匹配或形状不一致: {type(e).__name__}: {e})"
+            )
         except Exception as e:
-            # PyTorch load_state_dict 可能因键不匹配/张量形状不一致/CPU-GPU 不匹配
-            # 等多种原因抛出 RuntimeError/TypeError，无法精确收窄
+            # 其他异常（如 CPU-GPU 不匹配等）仍需捕获，避免中断训练
             logger.error(
                 f"[AsyncAnnealingCallback] 回写退火权重失败 (step={step}, {type(e).__name__}: {e})"
             )

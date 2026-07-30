@@ -1546,5 +1546,154 @@ class TestQAOAScheduler(unittest.TestCase):
         )
 
 
+# ============================================================
+# TestHEFTIterativeUpwardRanks (Issue #724)
+# ============================================================
+class TestHEFTIterativeUpwardRanks(unittest.TestCase):
+    """Issue #724: 验证 HEFT _compute_upward_ranks 迭代实现的正确性与栈安全。"""
+
+    def test_deep_chain_dag_no_recursion_error(self):
+        """深链式 DAG（2000 节点线性链）不应触发 RecursionError。"""
+        # 构造 2000 个节点的线性链：T0 -> T1 -> T2 -> ... -> T1999
+        depth = 2000
+        tasks = []
+        for i in range(depth):
+            task = {
+                "task_id": f"T{i}",
+                "priority": 3,
+                "estimated_time": 1.0,
+                "arrival_time": 0.0,
+                "qubit_count": 4,
+            }
+            # 每个节点指向下一个节点（最后一个节点无后继）
+            if i < depth - 1:
+                task["successors"] = [f"T{i + 1}"]
+            tasks.append(task)
+
+        scheduler = HEFTScheduler()
+        # 迭代实现不应抛出 RecursionError
+        idx = scheduler.select_action(tasks, _EMPTY_RESOURCES)
+        # T0 的 upward rank 应为 2000.0（1.0 * 2000），应为最大值
+        self.assertEqual(tasks[idx]["task_id"], "T0")
+
+    def test_correct_upward_rank_with_successors(self):
+        """带后继的任务 upward rank 应为 comp + max(succ_rank)。"""
+        # T2 (exit): rank = 10
+        # T1 (exit): rank = 20
+        # T0 -> T1, T0 -> T2: rank = 5 + max(20, 10) = 25
+        tasks = [
+            {
+                "task_id": "T0",
+                "estimated_time": 5.0,
+                "successors": ["T1", "T2"],
+            },
+            {"task_id": "T1", "estimated_time": 20.0},
+            {"task_id": "T2", "estimated_time": 10.0},
+        ]
+        scheduler = HEFTScheduler()
+        # 构造映射直接验证 _compute_upward_ranks
+        task_id_set = {str(t.get("task_id", i)) for i, t in enumerate(tasks)}
+        successors_map: dict[str, list[str]] = {}
+        avg_comp_times: dict[str, float] = {}
+        for i, task in enumerate(tasks):
+            tid = str(task.get("task_id", i))
+            avg_comp_times[tid] = float(task.get("estimated_time", 10.0))
+            succ = task.get("successors", []) or []
+            successors_map[tid] = [str(s) for s in succ if str(s) in task_id_set]
+
+        ranks = scheduler._compute_upward_ranks(tasks, successors_map, avg_comp_times)
+        self.assertEqual(ranks["T2"], 10.0)
+        self.assertEqual(ranks["T1"], 20.0)
+        self.assertEqual(ranks["T0"], 25.0)
+
+    def test_exit_node_rank_equals_comp_time(self):
+        """退出节点（无后继）的 upward rank 应等于其计算时间。"""
+        tasks = [
+            {"task_id": "A", "estimated_time": 15.0},
+            {"task_id": "B", "estimated_time": 7.0},
+        ]
+        scheduler = HEFTScheduler()
+        task_id_set = {str(t.get("task_id", i)) for i, t in enumerate(tasks)}
+        successors_map = {tid: [] for tid in task_id_set}
+        avg_comp_times = {
+            str(t.get("task_id", i)): float(t["estimated_time"]) for i, t in enumerate(tasks)
+        }
+        ranks = scheduler._compute_upward_ranks(tasks, successors_map, avg_comp_times)
+        self.assertEqual(ranks["A"], 15.0)
+        self.assertEqual(ranks["B"], 7.0)
+
+    def test_diamond_dag_correct_ranks(self):
+        """菱形 DAG: A -> B, A -> C, B -> D, C -> D 应正确计算 rank。"""
+        # D (exit): rank = 4
+        # B -> D: rank = 3 + 4 = 7
+        # C -> D: rank = 2 + 4 = 6
+        # A -> B, A -> C: rank = 1 + max(7, 6) = 8
+        tasks = [
+            {"task_id": "A", "estimated_time": 1.0, "successors": ["B", "C"]},
+            {"task_id": "B", "estimated_time": 3.0, "successors": ["D"]},
+            {"task_id": "C", "estimated_time": 2.0, "successors": ["D"]},
+            {"task_id": "D", "estimated_time": 4.0},
+        ]
+        scheduler = HEFTScheduler()
+        task_id_set = {str(t.get("task_id", i)) for i, t in enumerate(tasks)}
+        successors_map: dict[str, list[str]] = {}
+        avg_comp_times: dict[str, float] = {}
+        for i, task in enumerate(tasks):
+            tid = str(task.get("task_id", i))
+            avg_comp_times[tid] = float(task["estimated_time"])
+            succ = task.get("successors", []) or []
+            successors_map[tid] = [str(s) for s in succ if str(s) in task_id_set]
+
+        ranks = scheduler._compute_upward_ranks(tasks, successors_map, avg_comp_times)
+        self.assertEqual(ranks["D"], 4.0)
+        self.assertEqual(ranks["B"], 7.0)
+        self.assertEqual(ranks["C"], 6.0)
+        self.assertEqual(ranks["A"], 8.0)
+
+    def test_cycle_detection_breaks_loop(self):
+        """含环的 DAG 应通过环检测断开，不陷入无限循环。"""
+        # A -> B -> C -> A（环）
+        tasks = [
+            {"task_id": "A", "estimated_time": 1.0, "successors": ["B"]},
+            {"task_id": "B", "estimated_time": 2.0, "successors": ["C"]},
+            {"task_id": "C", "estimated_time": 3.0, "successors": ["A"]},
+        ]
+        scheduler = HEFTScheduler()
+        task_id_set = {str(t.get("task_id", i)) for i, t in enumerate(tasks)}
+        successors_map: dict[str, list[str]] = {}
+        avg_comp_times: dict[str, float] = {}
+        for i, task in enumerate(tasks):
+            tid = str(task.get("task_id", i))
+            avg_comp_times[tid] = float(task["estimated_time"])
+            succ = task.get("successors", []) or []
+            successors_map[tid] = [str(s) for s in succ if str(s) in task_id_set]
+
+        # 迭代实现的环检测应确保方法能正常返回，不无限循环
+        ranks = scheduler._compute_upward_ranks(tasks, successors_map, avg_comp_times)
+        # 所有节点都应有 rank 值（环被断开）
+        self.assertEqual(len(ranks), 3)
+
+    def test_select_action_with_deep_chain(self):
+        """select_action 在深链 DAG 上应正常返回且选择 rank 最高的任务。"""
+        depth = 1500
+        tasks = []
+        for i in range(depth):
+            task = {
+                "task_id": f"T{i}",
+                "priority": 3,
+                "estimated_time": 2.0,
+                "arrival_time": 0.0,
+                "qubit_count": 4,
+            }
+            if i < depth - 1:
+                task["successors"] = [f"T{i + 1}"]
+            tasks.append(task)
+
+        scheduler = HEFTScheduler()
+        idx = scheduler.select_action(tasks, _EMPTY_RESOURCES)
+        # T0 的 rank 最高（2.0 * 1500 = 3000.0）
+        self.assertEqual(idx, 0)
+
+
 if __name__ == "__main__":
     unittest.main()

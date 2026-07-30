@@ -381,73 +381,58 @@ class QuantumAnnealingOptimizer:
         # 最大更新幅度限制为权重标准差的比例（Issue #246: 从 config 读取 max_delta_ratio）
         max_delta = weight_std * self._max_delta_ratio
 
-        for i in range(num_weights):
-            w = flat_weights[i]
-            imp = param_importance[i]
-            base_idx = i * n_bits_per_weight
+        # ---------- 步骤 3a：向量化构造每权重的 QUBO 子块 ----------
+        # Issue #734: 将三层 Python for 循环改为 numpy 向量化批量构造，
+        # 显著提升中等规模网络的 QUBO 构造性能（秒级降至毫秒级）。
+        magnitude_bits = n_bits_per_weight - 1
 
-            # 梯度方向：正梯度表示应该减小权重（负更新），反之亦然
-            if use_gradient:
-                g_norm = flat_gradients_normalized[i]
-                # 目标更新方向：与梯度相反（梯度下降）
-                target_delta_direction = -g_norm
-            else:
-                # 无梯度时，倾向于小幅正则化（向零收缩）
-                target_delta_direction = -np.sign(w) * 0.1
+        # 每位数值权重：bit 0 为符号位，bit 1..n-1 为数值位
+        # bit_vals[m] = max_delta / 2^(m+1)，即 1/2, 1/4, 1/8, ...
+        bit_vals = max_delta / (2.0 ** np.arange(1, magnitude_bits + 1))
 
-            # 每一位的数值权重（无符号部分）
-            # bit 0: 符号位 (1=负, 0=正)
-            # bit 1..n-1: 数值位，权重为 1/2, 1/4, ...
-            magnitude_bits = n_bits_per_weight - 1
+        # 目标更新方向：与梯度相反（梯度下降），或无梯度时向零收缩
+        target = -flat_gradients_normalized if use_gradient else -np.sign(flat_weights) * 0.1
 
-            for bit_k in range(n_bits_per_weight):
-                global_idx = base_idx + bit_k
+        imp = param_importance  # shape: (num_weights,)
 
-                if bit_k == 0:
-                    # 符号位
-                    # 注意：符号位没有单独的对角线性项
-                    # 因为 Δw = (1-2s) * m 中 s 总是与 m 相乘
-                    # 符号位的影响通过与数值位的耦合项体现
-                    Q[global_idx, global_idx] = 0.0
-                else:
-                    # 数值位 (bit_k - 1 是数值位的索引)
-                    mag_idx = bit_k - 1
-                    bit_val = max_delta / (2 ** (mag_idx + 1))  # 1/2, 1/4, 1/8, ...
+        # 对角项（数值位）：-t*v_k*imp + λ*v_k²
+        # shape: (num_weights, magnitude_bits)
+        diag_mag = -target[:, None] * bit_vals[None, :] * imp[:, None] + reg_lambda * (
+            bit_vals[None, :] ** 2
+        )
 
-                    # 对角项：-t*v_k + λ*v_k²
-                    # t = target_delta_direction (目标更新方向)
-                    # 线性项来自 g*Δw，我们要最小化 loss，所以目标是 -t*Δw
-                    Q[global_idx, global_idx] = (
-                        -target_delta_direction * bit_val * imp + reg_lambda * bit_val * bit_val
-                    )
+        # 符号位-数值位耦合项：2*t*v_k*imp
+        # shape: (num_weights, magnitude_bits)
+        coupling_sm = 2.0 * target[:, None] * bit_vals[None, :] * imp[:, None]
 
-            # --- 同一权重内比特间的耦合项 ---
-            # 1. 符号位与数值位的耦合：来自 Δw 的符号-数值表示
-            # f = -t*Δw + λ*Δw²
-            #   = -t*(1-2s)*m + λ*m²
-            #   = -t*m + 2t*s*m + λ*m²
-            # 展开 m = Σ b_k v_k 后，s 与 b_k 的交叉项系数为 2t*v_k
-            sign_idx = base_idx
-            for mag_idx in range(magnitude_bits):
-                bit_k = 1 + mag_idx
-                bit_val = max_delta / (2 ** (mag_idx + 1))
-                # Issue #698: 必须使用全局索引 base_idx + bit_k，而非局部索引 bit_k
-                # 否则符号位-数值位耦合项写入错误的矩阵位置，QUBO 完全错误
-                global_bit_idx = base_idx + bit_k
-                Q[sign_idx, global_bit_idx] = 2.0 * target_delta_direction * bit_val * imp
-                Q[global_bit_idx, sign_idx] = Q[sign_idx, global_bit_idx]
+        # 数值位间耦合项（L2 正则化二次项的 off-diagonal 部分）
+        # mm_full[i,j] = 2*λ*val_i*val_j，对角线置零得到 off-diagonal 耦合
+        mm_full = 2.0 * reg_lambda * np.outer(bit_vals, bit_vals)
+        mm_offdiag = mm_full.copy()
+        np.fill_diagonal(mm_offdiag, 0.0)
 
-            # 2. 数值位之间的耦合（L2 正则化的二次项）
-            for mk1 in range(magnitude_bits):
-                for mk2 in range(mk1 + 1, magnitude_bits):
-                    b1 = 1 + mk1
-                    b2 = 1 + mk2
-                    val1 = max_delta / (2 ** (mk1 + 1))
-                    val2 = max_delta / (2 ** (mk2 + 1))
-                    # 交叉项来自 L2 正则化: (sum b_i v_i)^2 = sum b_i^2 v_i^2 + 2 sum_{i<j} b_i b_j v_i v_j
-                    coupling = 2.0 * reg_lambda * val1 * val2
-                    Q[b1 + base_idx, b2 + base_idx] = coupling
-                    Q[b2 + base_idx, b1 + base_idx] = coupling
+        # 构造每权重的 n_bits_per_weight × n_bits_per_weight 子块
+        # 符号位对角项为 0（blocks 初始化为零，无需显式赋值）
+        blocks = np.zeros((num_weights, n_bits_per_weight, n_bits_per_weight), dtype=np.float64)
+        # 数值位对角项（索引 1..magnitude_bits）
+        mag_diag_idx = np.arange(1, magnitude_bits + 1)
+        blocks[:, mag_diag_idx, mag_diag_idx] = diag_mag
+        # 符号位-数值位耦合（行 0 列 1..mag，及对称位置）
+        blocks[:, 0, 1:] = coupling_sm
+        blocks[:, 1:, 0] = coupling_sm
+        # 数值位间耦合（子矩阵 [1:, 1:] 的 off-diagonal）
+        blocks[:, 1:, 1:] += mm_offdiag[None, :, :]
+
+        # 将子块散布到全局 QUBO 矩阵
+        if num_weights > 0:
+            # 构造全局行/列索引，通过 +0* 项强制广播到完整 3D 形状
+            # (num_weights, n_bits_per_weight, n_bits_per_weight)
+            i_idx = np.arange(num_weights)[:, None, None]
+            p_idx = np.arange(n_bits_per_weight)[None, :, None]
+            q_idx = np.arange(n_bits_per_weight)[None, None, :]
+            rows = (i_idx * n_bits_per_weight + p_idx + 0 * q_idx).ravel()
+            cols = (i_idx * n_bits_per_weight + 0 * p_idx + q_idx).ravel()
+            Q[rows, cols] = blocks.ravel()
 
         # --- 跨权重的耦合项（可选，基于 Hessian 近似）---
         # 对于同一层的相邻权重，添加弱相关耦合
@@ -1995,6 +1980,9 @@ class QuantumAnnealingOptimizer:
 
         dimod QUBO 字典格式：{(i, j): value}，其中 i <= j
 
+        Issue #734: 使用 np.triu_indices + np.nonzero 向量化提取上三角非零元素，
+        替代 O(N²) 双重 Python 循环。
+
         Args:
             qubo_matrix: (N, N) 的 numpy 矩阵
 
@@ -2002,13 +1990,14 @@ class QuantumAnnealingOptimizer:
             qubo_dict: {(row, col): value} 字典
         """
         n = qubo_matrix.shape[0]
-        qubo_dict = {}
-        for i in range(n):
-            for j in range(i, n):
-                val = qubo_matrix[i, j]
-                if abs(val) > 1e-12:  # 跳过零值项以节省内存
-                    qubo_dict[(i, j)] = float(val)
-        return qubo_dict
+        # 提取上三角所有元素（含对角线），再过滤零值
+        rows, cols = np.triu_indices(n)
+        vals = qubo_matrix[rows, cols]
+        mask = np.abs(vals) > 1e-12  # 跳过零值项以节省内存
+        return {
+            (int(r), int(c)): float(v)
+            for r, c, v in zip(rows[mask], cols[mask], vals[mask], strict=False)
+        }
 
     @staticmethod
     def _qubo_flip_delta(

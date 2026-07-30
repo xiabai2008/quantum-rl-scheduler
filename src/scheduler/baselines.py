@@ -365,12 +365,14 @@ class HEFTScheduler(BaselineScheduler):
         successors_map: dict[str, list[str]],
         avg_comp_times: dict[str, float],
     ) -> dict[str, float]:
-        """计算 DAG 中每个任务的 upward rank（Issue #582）。
+        """计算 DAG 中每个任务的 upward rank（Issue #270/#582/#724）。
 
         upward_rank[node] = avg_comp_time[node] + max(upward_rank[successor])
         退出节点（无后继）: upward_rank = avg_comp_time[node]
 
-        使用记忆化递归计算，含环检测保护（遇到正在计算的节点按退出节点处理）。
+        Issue #724: 改用基于栈的迭代实现替代递归，避免深链式 DAG
+        （如数百节点的线性链）导致 RecursionError。含环检测保护
+        （遇到正在计算中的节点按退出节点处理，断开环）。
 
         Args:
             tasks           : 任务列表（用于遍历，实际计算依赖映射）
@@ -381,33 +383,56 @@ class HEFTScheduler(BaselineScheduler):
             {task_id: upward_rank} 字典
         """
         ranks: dict[str, float] = {}
-        # 正在计算中的节点（用于环检测，避免无限递归）
+        # 正在计算中的节点（用于环检测，避免无限循环）
         computing: set[str] = set()
-
-        def _rank(task_id: str) -> float:
-            if task_id in ranks:
-                return ranks[task_id]
-            # 环检测：遇到正在计算的节点，按退出节点处理（断开环）
-            if task_id in computing:
-                return avg_comp_times.get(task_id, _DEFAULT_ESTIMATED_TIME)
-            computing.add(task_id)
-            comp = avg_comp_times.get(task_id, _DEFAULT_ESTIMATED_TIME)
-            successors = successors_map.get(task_id, [])
-            if not successors:
-                ranks[task_id] = comp
-            else:
-                # 取所有后继 upward rank 的最大值
-                max_succ = 0.0
-                for s in successors:
-                    max_succ = max(max_succ, _rank(s))
-                ranks[task_id] = comp + max_succ
-            computing.discard(task_id)
-            return ranks[task_id]
 
         for task in tasks:
             tid = str(task.get("task_id", ""))
-            if tid:
-                _rank(tid)
+            if not tid or tid in ranks:
+                continue
+
+            # 基于栈的迭代 DFS，每个栈帧记录 (节点, 后继列表, 下一个待处理的后继索引)
+            stack: list[tuple[str, list[str], int]] = []
+            stack.append((tid, successors_map.get(tid, []), 0))
+            computing.add(tid)
+
+            while stack:
+                current_id, succ_list, succ_idx = stack[-1]
+                found_unprocessed = False
+
+                # 遍历后继，找到第一个未处理的
+                while succ_idx < len(succ_list):
+                    succ = succ_list[succ_idx]
+                    if succ in ranks:
+                        # 已计算，跳过
+                        succ_idx += 1
+                        continue
+                    if succ in computing:
+                        # 环检测：遇到正在计算的节点，按退出节点处理（断开环）
+                        ranks[succ] = avg_comp_times.get(succ, _DEFAULT_ESTIMATED_TIME)
+                        succ_idx += 1
+                        continue
+                    # 发现未处理的后继，压栈并切换到该后继
+                    stack[-1] = (current_id, succ_list, succ_idx + 1)
+                    succ_successors = successors_map.get(succ, [])
+                    stack.append((succ, succ_successors, 0))
+                    computing.add(succ)
+                    found_unprocessed = True
+                    break
+
+                if not found_unprocessed:
+                    # 所有后继已处理完毕，计算当前节点的 rank
+                    comp = avg_comp_times.get(current_id, _DEFAULT_ESTIMATED_TIME)
+                    if succ_list:
+                        max_succ = 0.0
+                        for s in succ_list:
+                            max_succ = max(max_succ, ranks.get(s, 0.0))
+                        ranks[current_id] = comp + max_succ
+                    else:
+                        ranks[current_id] = comp
+                    computing.discard(current_id)
+                    stack.pop()
+
         return ranks
 
     def select_action(self, tasks: list[dict], available_resources: dict) -> int:

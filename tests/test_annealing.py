@@ -2246,5 +2246,103 @@ class TestAnnealingConfigWiring(unittest.TestCase):
         self.assertEqual(cfg.get("sim_cooling_rate"), 0.995)
 
 
+# ============================================================
+# Issue #734: QUBO 矩阵向量化构造正确性
+# ============================================================
+class TestNetworkToQuboVectorized(unittest.TestCase):
+    """Issue #734: 验证向量化构造的 QUBO 矩阵与原始循环逻辑数学等价。"""
+
+    def test_qubo_matrix_symmetric_vectorized(self):
+        """向量化构造的 QUBO 矩阵应严格对称。"""
+        opt = QuantumAnnealingOptimizer(num_qubits=16)
+        np.random.seed(42)
+        weights = [np.random.randn(3, 2).astype(np.float32), np.random.randn(2).astype(np.float32)]
+        Q = opt.network_to_qubo(weights)
+        np.testing.assert_array_almost_equal(Q, Q.T)
+
+    def test_qubo_sign_bit_diagonal_zero_vectorized(self):
+        """向量化构造：符号位（每权重第 0 位）对角元应为 0。"""
+        opt = QuantumAnnealingOptimizer(num_qubits=16)
+        weights = [np.array([0.5, -0.3, 0.8])]
+        Q = opt.network_to_qubo(weights)
+        n_bits_per_weight = opt.n_bits_per_weight
+        num_weights = sum(w.size for w in weights)
+        for i in range(num_weights):
+            sign_idx = i * n_bits_per_weight
+            self.assertEqual(Q[sign_idx, sign_idx], 0.0)
+
+    def test_qubo_with_gradients_symmetric_vectorized(self):
+        """向量化构造：带梯度的 QUBO 矩阵应对称。"""
+        opt = QuantumAnnealingOptimizer(num_qubits=16)
+        np.random.seed(99)
+        weights = [np.random.randn(4, 2).astype(np.float32)]
+        gradients = [np.random.randn(4, 2).astype(np.float32)]
+        Q = opt.network_to_qubo(weights, gradients=gradients)
+        np.testing.assert_array_almost_equal(Q, Q.T)
+
+    def test_qubo_offdiag_magnitude_coupling_correct(self):
+        """向量化构造：数值位间耦合项应等于 2*λ*val_i*val_j。"""
+        opt = QuantumAnnealingOptimizer(num_qubits=16)
+        n_bits = opt.n_bits_per_weight
+        reg_lambda = opt._reg_lambda
+        max_delta = np.std([0.5]) * opt._max_delta_ratio + 1e-8  # 近似 max_delta
+        # 用单权重简化验证
+        weights = [np.array([0.5])]
+        Q = opt.network_to_qubo(weights)
+        # 数值位索引 1..n_bits-1，耦合项 Q[1,2] 应为 2*λ*val_0*val_1
+        bit_vals = max_delta / (2.0 ** np.arange(1, n_bits))
+        for mk1 in range(n_bits - 1):
+            for mk2 in range(mk1 + 1, n_bits - 1):
+                expected = 2.0 * reg_lambda * bit_vals[mk1] * bit_vals[mk2]
+                b1 = 1 + mk1
+                b2 = 1 + mk2
+                self.assertAlmostEqual(Q[b1, b2], expected, places=6)
+                self.assertAlmostEqual(Q[b2, b1], expected, places=6)
+
+    def test_matrix_to_qubo_dict_vectorized(self):
+        """向量化 _matrix_to_qubo_dict 应正确提取上三角非零元素。"""
+        # 构造已知矩阵
+        matrix = np.array(
+            [
+                [1.0, 0.0, 3.0],
+                [0.0, 0.0, 0.0],
+                [3.0, 0.0, 2.0],
+            ]
+        )
+        result = QuantumAnnealingOptimizer._matrix_to_qubo_dict(matrix)
+        # 上三角非零元素：(0,0)=1, (0,2)=3, (2,2)=2
+        expected = {(0, 0): 1.0, (0, 2): 3.0, (2, 2): 2.0}
+        self.assertEqual(result, expected)
+
+    def test_matrix_to_qubo_dict_skips_zeros(self):
+        """_matrix_to_qubo_dict 应跳过绝对值小于 1e-12 的元素。"""
+        matrix = np.array(
+            [
+                [1e-13, 1e-11],
+                [1e-11, 5.0],
+            ]
+        )
+        result = QuantumAnnealingOptimizer._matrix_to_qubo_dict(matrix)
+        # 1e-13 应被跳过，1e-11 应保留
+        self.assertNotIn((0, 0), result)
+        self.assertIn((0, 1), result)
+        self.assertIn((1, 1), result)
+
+    def test_qubo_large_weights_vectorized_matches_properties(self):
+        """向量化构造：多权重场景下矩阵属性应正确。"""
+        opt = QuantumAnnealingOptimizer(num_qubits=16)
+        np.random.seed(123)
+        weights = [np.random.randn(8).astype(np.float32) for _ in range(3)]
+        Q = opt.network_to_qubo(weights)
+        # 对称性
+        np.testing.assert_array_almost_equal(Q, Q.T)
+        # 有限性
+        self.assertTrue(np.all(np.isfinite(Q)))
+        # 形状
+        num_weights = sum(w.size for w in weights)
+        expected_size = num_weights * opt.n_bits_per_weight
+        self.assertEqual(Q.shape, (expected_size, expected_size))
+
+
 if __name__ == "__main__":
     unittest.main()
