@@ -178,36 +178,3 @@ end_of_line = "lf"
 charset = "utf-8"
 trim_trailing_whitespace = true
 insert_final_newline = true
-
-# =============================================================================
-# mutmut 配置 — Mutation Testing
-# =============================================================================
-[tool.mutmut]
-# 变异测试配置（mutmut 3.6.0）
-# 重要：mutmut 3.x 的 trampoline 机制禁止模块名以 "src." 开头（assert not name.startswith("src.")），
-# 而本项目用 src-layout（from src.utils.seeds import ...），直接跑会崩溃。
-# 跑变异测试前需临时将对应测试的 import 从 `from src.X import` 改为 `from X import`
-# （并 sys.path.insert 指向 src 子目录，使模块名变为 utils.X / scheduler.X / api.X），跑完 `git checkout` 恢复。
-# 单模块逐跑：每次只保留一个 source_path + 对应的 pytest_add_cli_args_test_selection 最稳。
-source_paths = [
-    "src/utils/seeds.py",
-    "src/utils/helpers.py",
-    "src/scheduler/parser.py",
-    "src/scheduler/env_reward.py",
-    "src/scheduler/env_observation.py",
-    "src/quantum/annealing.py",
-    "src/api/circuit_breaker.py",
-]
-# 测试选择：只收集/运行这些测试文件（mutmut 3.x 用 pytest_add_cli_args_test_selection，runner_command 已废弃）
-pytest_add_cli_args_test_selection = [
-    "tests/test_seeds.py",
-    "tests/test_helpers.py",
-    "tests/test_parser.py",
-    "tests/test_scheduler.py",
-    "tests/test_annealing.py",
-    "tests/test_circuit_breaker.py",
-]
-# 并行工作进程数
-workers = 4
-# 排除的变异类型（避免不实用的变异）
-# 参见 mutmut 文档

@@ -554,7 +554,7 @@ def run_simulation(
     Args:
         episodes: 仿真 episode 数
         tasks_per_episode: 每个 episode 的任务数目标
-        model_path: 训练好的 DQN 模型路径（.zip），为 None 则使用未训练的随机 DQN
+        model_path: 训练好的 DQN 模型路径（.zip），为 None 则跳过 DQN 策略（Issue #733）
         ppo_model_path: 训练好的 PPO 模型路径（.zip），为 None 则不包含 PPO 策略
         output_dir: 结果输出目录
         verbose: 是否打印详细日志
@@ -567,7 +567,7 @@ def run_simulation(
     print("=" * 64)
     print(f"  Episodes:           {episodes}")
     print(f"  Tasks/Episode:      {tasks_per_episode}")
-    print(f"  DQN Model Path:     {model_path or '(无，使用随机 DQN)'}")
+    print(f"  DQN Model Path:     {model_path or '(无，跳过 DQN 策略)'}")
     print(f"  PPO Model Path:     {ppo_model_path or '(无，不包含 PPO)'}")
     print(
         f"  Real Prob:          {real_prob} (机器={real_machine})"
@@ -588,12 +588,12 @@ def run_simulation(
         sys.exit(1)
 
     try:
-        from stable_baselines3 import DQN
+        import stable_baselines3  # noqa: F401  # 依赖可用性检查
 
-        print("[导入] Stable-Baselines3 DQN 加载成功")
+        print("[导入] Stable-Baselines3 加载成功")
     except ImportError as e:
         print(f"[错误] stable_baselines3 未安装: {e}")
-        print("  请运行: pip install stable-baselines3")
+        print("  请运行: pip install stable_baselines3")
         sys.exit(1)
 
     # ---- 真机抽样客户端（real_prob>0 时启用，需 TIANYAN_API_KEY）----
@@ -633,7 +633,9 @@ def run_simulation(
     # ---- 创建策略 ----
     strategies: list[BaseStrategy] = []
 
-    # 策略 A：DQN
+    # 策略 A：DQN（仅在提供已训练模型时纳入对比）
+    # Issue #733: 无模型路径时跳过 DQN 策略——1000 步预训练几乎不产生
+    # 有意义的策略改进，反而增加显著时间开销。随机基线已由策略 C 提供。
     if model_path and os.path.isfile(model_path):
         print(f"[DQN] 加载已训练模型: {model_path}")
         dqn_env = QuantumSchedulingEnv(**base_env_kwargs)
@@ -642,21 +644,9 @@ def run_simulation(
         agent = SchedulerAgent(env=dqn_env)
         agent.load(model_path)
         dqn_model = agent.model
+        strategies.append(DQNModelStrategy(dqn_model))
     else:
-        print("[DQN] 未提供模型路径，使用未训练的 DQN（用于演示）")
-        dqn_env = QuantumSchedulingEnv(**base_env_kwargs)
-        dqn_model = DQN(
-            policy="MlpPolicy",
-            env=dqn_env,
-            learning_rate=3e-4,
-            buffer_size=10000,
-            batch_size=64,
-            gamma=0.99,
-            verbose=0,
-        )
-        dqn_model.learn(total_timesteps=1000)
-        print("[DQN] 快速预训练完成（1000 步）")
-    strategies.append(DQNModelStrategy(dqn_model))
+        print("[DQN] 未提供模型路径，跳过 DQN 策略（避免无意义的预训练开销）")
 
     # 策略 B：FCFS
     strategies.append(FCFSStrategy())
