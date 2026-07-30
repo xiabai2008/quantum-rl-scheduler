@@ -308,47 +308,13 @@ jobs:
         run: pip-audit -r requirements-dev.txt
 
   # ---------------------------------------------------------------------------
-  # Job 5: Mutation Testing（mutmut）— 评估测试质量
-  # 仅对核心模块进行变异测试，避免过长的 CI 运行时间
-  # 注：仅在 main 分支推送时运行，PR 中跳过（耗时较长）
-  #     初期 continue-on-error: true，仅收集基线数据
-  # ---------------------------------------------------------------------------
-  mutation-testing:
-    name: "Mutation Testing (mutmut)"
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    needs: test  # 在测试通过后运行
-    # 在 main 分支推送和 PR 时均运行（Issue #176: 扩展到 PR 检测测试质量退化）
-    if: github.event_name == 'push' || github.event_name == 'pull_request'
-    # mutmut 3.x trampoline 与 src-layout 不兼容（pyproject.toml 注释），
-    # CI 无法自动执行手动 import 改写，暂不阻断 PR。
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-
-      - name: Install dependencies
-        run: |
-          pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install -r requirements-dev.txt
-          pip install mutmut
-
-      - name: Run mutation testing
-        run: mutmut run
-        continue-on-error: true  # mutmut 3.x src-layout incompat
-
-      - name: Show mutation results
-        run: mutmut results
-        if: always()
-
-  # ---------------------------------------------------------------------------
-  # Job 6: Benchmark 性能追踪（跨版本回归检测）
+  # Job 5: Benchmark 性能追踪（跨版本回归检测）
   # 对比 main 分支基线，检测性能退化
   # ---------------------------------------------------------------------------
+  # Issue #697: 移除 mutation-testing job——mutmut 3.x trampoline 与 src-layout
+  # 不兼容（assert not name.startswith("src.")），无法通过配置修复，CI 实际
+  # 无法运行变异测试，仅浪费资源。配置同步从 pyproject.toml / requirements-dev.txt
+  # 移除。如需变异测试，建议迁移到 cosmic-ray（支持 src-layout）。
   benchmark:
     name: "Benchmark Regression Check"
     runs-on: ubuntu-latest
@@ -382,9 +348,10 @@ jobs:
             -v
 
       - name: Track and compare benchmarks
+        # Issue #697: 移除 continue-on-error，使性能回归（超阈值）阻断 CI。
+        # benchmark_tracker.py 在检测到回归时 sys.exit(1)。
         run: |
           python scripts/ci/benchmark_tracker.py benchmark_results.json --report
-        continue-on-error: true  # micro-bench variance, non-blocking
 
       - name: Generate performance trend chart
         run: |

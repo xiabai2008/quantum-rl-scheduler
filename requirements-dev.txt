@@ -19,9 +19,6 @@ mypy>=1.5.0
 ruff>=0.4.0
 bandit>=1.7.0
 
-# === Mutation Testing — 评估测试质量 ===
-mutmut>=3.0.0
-
 # === 录制/回放测试 — HTTP 响应录制与回放（Issue #175） ===
 vcrpy>=6.0.0
 

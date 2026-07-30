@@ -16,6 +16,7 @@ WebSocket 端点处理
     - 连接数限制：由 ``ConnectionManager`` 在 ``connect()`` 中强制执行
 """
 
+import asyncio
 import json
 import os
 from typing import Any
@@ -26,6 +27,37 @@ from loguru import logger
 import src.visualization.app as _app
 from src.visualization import state
 from src.visualization.security import WS_MAX_MESSAGE_BYTES, is_origin_allowed
+
+
+def _load_ppo_stats(report_dir: str) -> dict[str, Any]:
+    """从 results 目录读取最近的仿真结果并计算 PPO 排名（同步文件 I/O）。
+
+    供 WebSocket 端点通过 ``asyncio.to_thread`` 调用，避免阻塞事件循环（Issue #739）。
+
+    Args:
+        report_dir: results 目录绝对路径
+
+    Returns:
+        包含 ``ppo_rank`` 和 ``total`` 的字典；无可用文件时返回空字典
+
+    Raises:
+        OSError: 目录/文件读取失败
+        json.JSONDecodeError: JSON 解析失败
+        KeyError: 数据字段缺失
+    """
+    json_files = sorted(
+        [f for f in os.listdir(report_dir) if f.startswith("simulation_results_")],
+        reverse=True,
+    )
+    if not json_files:
+        return {}
+    with open(os.path.join(report_dir, json_files[0])) as f:
+        sim_data = json.load(f)
+    sorted_items = sorted(
+        sim_data.items(), key=lambda x: x[1].get("avg_reward", -9999), reverse=True
+    )
+    ppo_rank = next((i + 1 for i, (k, _) in enumerate(sorted_items) if "PPO" in k.upper()), None)
+    return {"ppo_rank": ppo_rank, "total": len(sorted_items)}
 
 
 def _check_websocket_origin(websocket: WebSocket) -> bool:
@@ -93,20 +125,8 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
         ppo_stats: dict[str, Any] = {}
         try:
             report_dir = os.path.join(_app._PROJECT_ROOT, "results")
-            json_files = sorted(
-                [f for f in os.listdir(report_dir) if f.startswith("simulation_results_")],
-                reverse=True,
-            )
-            if json_files:
-                with open(os.path.join(report_dir, json_files[0])) as f:
-                    sim_data = json.load(f)
-                sorted_items = sorted(
-                    sim_data.items(), key=lambda x: x[1].get("avg_reward", -9999), reverse=True
-                )
-                ppo_rank = next(
-                    (i + 1 for i, (k, _) in enumerate(sorted_items) if "PPO" in k.upper()), None
-                )
-                ppo_stats = {"ppo_rank": ppo_rank, "total": len(sorted_items)}
+            # 通过线程池执行同步文件 I/O，避免阻塞事件循环（Issue #739）
+            ppo_stats = await asyncio.to_thread(_load_ppo_stats, report_dir)
         except (json.JSONDecodeError, OSError, KeyError) as e:
             # JSON 解析错误 / 文件 I/O 错误 / 数据字段缺失
             logger.debug(f"[Web] WebSocket 初始化读取 PPO 数据失败: {e}")
