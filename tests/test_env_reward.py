@@ -29,6 +29,7 @@ from src.scheduler.env_types import (
     ACTION_CLASSICAL,
     ACTION_HYBRID,
     ACTION_QUANTUM,
+    OBS_CROSSTALK_RISK,
     QUANTUM_SPEEDUP_RANGE,
     REWARD_CLASSICAL,
     REWARD_HYBRID,
@@ -299,3 +300,77 @@ class TestComputeExecutionReward:
         assert var_new < var_old
         # 方差缩减应显著（理论约 54%，留出采样余量后至少缩减 20%）
         assert var_new < 0.8 * var_old
+
+
+# ---------------------------------------------------------------------------
+# _compute_execution_reward crosstalk_risk 参数化（Issue #746）
+# ---------------------------------------------------------------------------
+class TestComputeExecutionRewardCrosstalkParam:
+    """``_compute_execution_reward`` 新增 ``crosstalk_risk`` 形参的行为测试。
+
+    核心目标：传入步首已算出的 ``crosstalk_risk`` 时，奖励计算不再重复调用
+    ``_get_observation()`` 重建观测，且奖励语义与回退路径逐位一致。
+    """
+
+    def test_crosstalk_risk_param_skips_get_observation(self) -> None:
+        """传入 crosstalk_risk 时不应调用 _get_observation() 重建观测。"""
+        from unittest.mock import patch
+
+        from src.scheduler.env import QuantumSchedulingEnv
+
+        env = QuantumSchedulingEnv(max_steps=5, seed=42)
+        env.reset(seed=42)
+        task = _make_task(qubit_count=10)
+        rng = np.random.default_rng(42)
+
+        call_count = 0
+        original = env._get_observation
+
+        def spy() -> np.ndarray:
+            nonlocal call_count
+            call_count += 1
+            return original()
+
+        with patch.object(env, "_get_observation", spy):
+            # 传入 crosstalk_risk，不应触发 _get_observation
+            env._compute_execution_reward(task, ACTION_QUANTUM, rng, crosstalk_risk=0.3)
+
+        assert call_count == 0, "传入 crosstalk_risk 时不应调用 _get_observation()"
+
+    def test_crosstalk_risk_param_consistent_with_fallback(self) -> None:
+        """传入 crosstalk_risk 的奖励值应与回退路径（从 _get_observation 读取）一致。"""
+        from src.scheduler.env import QuantumSchedulingEnv
+
+        env = QuantumSchedulingEnv(max_steps=5, seed=42)
+        env.reset(seed=42)
+        task = _make_task(qubit_count=10)
+
+        # 从环境观测中读取真实的 crosstalk_risk
+        obs = env._get_observation()
+        crosstalk_risk = float(obs[OBS_CROSSTALK_RISK])
+
+        # 路径1：传入 crosstalk_risk 参数
+        rng_a = np.random.default_rng(99)
+        reward_param = env._compute_execution_reward(
+            task, ACTION_QUANTUM, rng_a, crosstalk_risk=crosstalk_risk
+        )
+
+        # 路径2：不传 crosstalk_risk，回退到 _get_observation()
+        rng_b = np.random.default_rng(99)
+        reward_fallback = env._compute_execution_reward(task, ACTION_QUANTUM, rng_b)
+
+        assert reward_param == pytest.approx(reward_fallback)
+
+    def test_step_reward_unchanged_with_param(self) -> None:
+        """step() 在兼容分配分支传入 crosstalk_risk 后，奖励应保持稳定。"""
+        from src.scheduler.env import QuantumSchedulingEnv
+
+        env = QuantumSchedulingEnv(max_steps=5, seed=42)
+        env.reset(seed=42)
+
+        # 连续执行几步，验证不抛异常且奖励为有限值
+        for _ in range(3):
+            _obs, reward, terminated, truncated, _ = env.step(1)
+            assert np.isfinite(reward), "奖励应为有限值"
+            if terminated or truncated:
+                env.reset()

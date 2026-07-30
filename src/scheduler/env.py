@@ -681,7 +681,12 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
                         )
                     else:
                         # 混合动作：降级为经典执行，避免系统空转
-                        reward += self._compute_execution_reward(task, ACTION_CLASSICAL, rng, obs)
+                        reward += self._compute_execution_reward(
+                            task,
+                            ACTION_CLASSICAL,
+                            rng,
+                            crosstalk_risk=obs[OBS_CROSSTALK_RISK],
+                        )
                         self._total_scheduled += 1
                         self._classical_success += 1
                         self._last_selected_machine = None
@@ -695,7 +700,10 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
                     crosstalk_penalty = crosstalk_risk * 2.0
 
                     reward += (
-                        self._compute_execution_reward(task, action, rng, obs) - crosstalk_penalty
+                        self._compute_execution_reward(
+                            task, action, rng, crosstalk_risk=crosstalk_risk
+                        )
+                        - crosstalk_penalty
                     )
                     self._total_scheduled += 1
 
@@ -892,7 +900,7 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
         task: Task,
         action: int,
         rng: np.random.Generator,
-        obs: NDArray[Any] | None = None,
+        crosstalk_risk: float | None = None,
         fairness_penalty: float | None = None,
     ) -> float:
         """计算执行奖励（委托给 env_reward.compute_execution_reward）。
@@ -901,18 +909,19 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
             task: 待执行任务。
             action: 调度动作（ACTION_CLASSICAL / ACTION_QUANTUM / ACTION_HYBRID）。
             rng: 随机数生成器。
-            obs: 步首缓存的全局观测向量。若提供则直接读取串扰风险，避免重复构建观测
-                （Issue #522 性能优化）；若为 None 则回退到即时构建。
+            crosstalk_risk: 步首已算出的串扰风险值（Issue #746）。若提供则直接使用，
+                避免在奖励计算中重复调用 ``_get_observation()`` 重建观测；为 None 时
+                回退到从 ``_cached_obs`` 缓存观测读取（保留 Issue #627 的缓存逻辑）。
             fairness_penalty: 公平性惩罚值（Issue #587）。为 None 时自动从
                 ``_fairness_tracker`` 计算；非 None 时直接使用传入值。
 
         Returns:
             执行奖励标量。
         """
-        # Issue #522: 优先复用步首缓存的观测，避免在奖励计算中重复调用 _get_observation()
-        if obs is None:
-            obs = self._get_observation()
-        crosstalk_risk = obs[OBS_CROSSTALK_RISK]
+        # Issue #746: 优先复用步首已算出的 crosstalk_risk，避免重复调用
+        # _get_observation()。回退路径仍走 _cached_obs 缓存（Issue #627）。
+        if crosstalk_risk is None:
+            crosstalk_risk = self._get_observation()[OBS_CROSSTALK_RISK]
         crosstalk_penalty = crosstalk_risk * 2.0  # 惩罚因子可调
 
         # Issue #587: 公平性惩罚嵌入奖励函数
