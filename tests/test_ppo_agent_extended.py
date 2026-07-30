@@ -528,3 +528,52 @@ def test_get_config_returns_all_fields(tiny_env: TinyEnv) -> None:
     assert config["architecture"] == "PPO"
     assert config["observation_dim"] == 4
     assert config["action_dim"] == 3
+
+
+# ============================================================================
+# Issue #677: PPO 早停机制测试
+# ============================================================================
+
+
+def test_train_creates_early_stop_callback(monkeypatch, tiny_env: TinyEnv) -> None:
+    """train 应在 early_stop_patience>0 时创建早停回调并挂载到 EvalCallback（Issue #677）。"""
+    early_stop_instance = MagicMock(name="early_stop")
+    early_stop_cls = MagicMock(return_value=early_stop_instance)
+    monkeypatch.setattr(ppo_module, "StopTrainingOnNoModelImprovement", early_stop_cls)
+
+    _, eval_cls, _, _ = _patch_training_callbacks(monkeypatch)
+    model = MagicMock()
+    agent = PPOAgent(tiny_env, log_dir=LOG_DIR, verbose=0)
+    monkeypatch.setattr(agent, "_build_model", MagicMock(return_value=model))
+
+    agent.train(
+        total_timesteps=10,
+        eval_freq=2,
+        early_stop_patience=3,
+        early_stop_min_evals=2,
+        progress_bar=False,
+    )
+
+    early_stop_cls.assert_called_once_with(max_no_improvement_evals=3, min_evals=2, verbose=1)
+    assert eval_cls.call_args.kwargs["callback_on_new_best"] is early_stop_instance
+
+
+def test_train_disables_early_stop_when_patience_none(monkeypatch, tiny_env: TinyEnv) -> None:
+    """early_stop_patience=None 时不应创建早停回调（Issue #677）。"""
+    early_stop_cls = MagicMock()
+    monkeypatch.setattr(ppo_module, "StopTrainingOnNoModelImprovement", early_stop_cls)
+
+    _, eval_cls, _, _ = _patch_training_callbacks(monkeypatch)
+    model = MagicMock()
+    agent = PPOAgent(tiny_env, log_dir=LOG_DIR, verbose=0)
+    monkeypatch.setattr(agent, "_build_model", MagicMock(return_value=model))
+
+    agent.train(
+        total_timesteps=10,
+        eval_freq=2,
+        early_stop_patience=None,
+        progress_bar=False,
+    )
+
+    early_stop_cls.assert_not_called()
+    assert eval_cls.call_args.kwargs["callback_on_new_best"] is None

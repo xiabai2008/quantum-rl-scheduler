@@ -545,5 +545,110 @@ class TestSchedulerCacheEdgeCases(unittest.TestCase):
         self.assertEqual(result, 0)
 
 
+# ============================================================
+# 细粒度锁测试（Issue #738）
+# ============================================================
+class TestSchedulerCacheFineGrainedLock(unittest.TestCase):
+    """验证 numpy 相似度运算在锁外执行，不阻塞并发 put/get（Issue #738）。"""
+
+    def test_numpy_computation_outside_lock(self):
+        """get 慢路径的 numpy.stack 应在锁外执行。"""
+        cache = SchedulerCache(similarity_threshold=0.5)
+        # 放入一个条目，查询相似但不精确匹配的状态以触发慢路径
+        cache.put(np.array([1.0, 0.0]), action=1)
+
+        lock_status_during_numpy: list[bool] = []
+        original_stack = np.stack
+
+        def spy_stack(*args, **kwargs):
+            lock_status_during_numpy.append(cache._lock.locked())
+            return original_stack(*args, **kwargs)
+
+        with patch.object(cache_mod.np, "stack", new=spy_stack):
+            cache.get(np.array([1.0, 0.01]))  # 相似但不精确 → 慢路径
+
+        self.assertTrue(lock_status_during_numpy, "np.stack 未被调用，慢路径未触发")
+        self.assertFalse(lock_status_during_numpy[0], "np.stack 应在锁外执行（Issue #738）")
+
+    def test_concurrent_put_succeeds_during_get_slow_path(self):
+        """get 慢路径 numpy 运算期间 put 不应被阻塞。"""
+        cache = SchedulerCache(similarity_threshold=0.5)
+        cache.put(np.array([1.0, 0.0]), action=1)
+
+        put_done = threading.Event()
+        stack_entered = threading.Event()
+        original_stack = np.stack
+
+        def slow_stack(*args, **kwargs):
+            stack_entered.set()
+            # 等待 put 完成（最多 2 秒），模拟 numpy 运算期间的时间窗口
+            put_done.wait(timeout=2.0)
+            return original_stack(*args, **kwargs)
+
+        def do_put() -> None:
+            cache.put(np.array([5.0, 5.0]), action=99)
+            put_done.set()
+
+        with patch.object(cache_mod.np, "stack", new=slow_stack):
+            getter = threading.Thread(target=cache.get, args=(np.array([1.0, 0.01]),))
+            getter.start()
+            # 等待 numpy 运算开始（此时锁已释放）
+            self.assertTrue(stack_entered.wait(timeout=2.0), "numpy 运算未在 2 秒内启动")
+            # 在 numpy 运算期间执行 put
+            putter = threading.Thread(target=do_put)
+            putter.start()
+            putter.join(timeout=3.0)
+            getter.join(timeout=5.0)
+
+        self.assertTrue(put_done.is_set(), "put 应在 get 慢路径期间完成（Issue #738）")
+
+
+# ============================================================
+# TTL 主动清理测试（Issue #737）
+# ============================================================
+class TestSchedulerCacheTTLProactiveCleanup(unittest.TestCase):
+    """验证 get 慢路径和 put 周期性主动清理过期条目（Issue #737）。"""
+
+    def test_get_slow_path_cleans_all_expired_entries(self):
+        """get 慢路径应主动清理所有过期条目，而非仅清理查询条目。"""
+        cache = SchedulerCache(ttl_seconds=10.0, similarity_threshold=0.99)
+        # put 5 个条目 @ t=1000
+        with patch.object(cache_mod.time, "monotonic", side_effect=[1000.0] * 5):
+            for i in range(5):
+                cache.put(np.array([float(i), 0.0]), action=i)
+        self.assertEqual(len(cache), 5)
+
+        # get @ t=1100（全部过期），查询不存在的新状态触发慢路径
+        with patch.object(cache_mod.time, "monotonic", side_effect=[1100.0]):
+            result = cache.get(np.array([99.0, 0.0]))
+
+        self.assertIsNone(result)
+        # 所有过期条目都应被主动清理
+        self.assertEqual(len(cache), 0)
+
+    def test_put_periodic_cleanup_removes_expired(self):
+        """put 周期性清理应移除过期条目。"""
+        cache = SchedulerCache(ttl_seconds=10.0, similarity_threshold=0.99, cleanup_interval=3)
+        # put 2 个条目 @ t=1000
+        with patch.object(cache_mod.time, "monotonic", side_effect=[1000.0, 1000.0]):
+            cache.put(np.array([1.0, 0.0]), action=1)
+            cache.put(np.array([2.0, 0.0]), action=2)
+        self.assertEqual(len(cache), 2)
+
+        # put 第 3 个条目 @ t=1100（触发 cleanup_interval=3 的周期清理）
+        with patch.object(cache_mod.time, "monotonic", side_effect=[1100.0]):
+            cache.put(np.array([3.0, 0.0]), action=3)
+
+        # 前 2 个条目已过期（1100-1000=100 > 10），应被清理
+        self.assertEqual(len(cache), 1)
+
+    def test_cleanup_interval_validation(self):
+        """非法 cleanup_interval 应抛出 ValueError。"""
+        with self.assertRaises(ValueError):
+            SchedulerCache(cleanup_interval=0)
+        with self.assertRaises(ValueError):
+            SchedulerCache(cleanup_interval=-1)
+
+
 if __name__ == "__main__":
     unittest.main()
