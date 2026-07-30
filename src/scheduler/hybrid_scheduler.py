@@ -268,12 +268,8 @@ class HybridScheduler:
                 "reason": f"规则引擎命中，动作={action}",
             }
 
-        # 2. RL 智能体决策（先校验置信度阈值，避免不必要的推理）
-        if (
-            self._rl_agent is not None
-            and state is not None
-            and self._confidence_threshold <= _RL_CONFIDENCE
-        ):
+        # 2. RL 智能体决策（Issue #726: 使用实际推理置信度而非常量比较）
+        if self._rl_agent is not None and state is not None:
             try:
                 raw_action = self._rl_agent.predict(state, deterministic=True)
                 # Issue #685: SB3 原生模型 predict 返回 (action, state) 元组
@@ -281,13 +277,35 @@ class HybridScheduler:
                     resolved_action = int(raw_action[0])
                 else:
                     resolved_action = int(raw_action)
-                self._rl_decisions += 1
-                return {
-                    "action": resolved_action,
-                    "source": "rl",
-                    "confidence": _RL_CONFIDENCE,
-                    "reason": "RL 智能体决策",
-                }
+
+                # Issue #726: 计算实际推理置信度（动作概率）
+                confidence = _RL_CONFIDENCE  # 默认高置信度
+                try:
+                    policy = getattr(self._rl_agent, "policy", None)
+                    if policy is not None:
+                        import torch
+
+                        obs_tensor = torch.as_tensor(state, dtype=torch.float32).unsqueeze(0)
+                        with torch.no_grad():
+                            dist = policy.get_distribution(obs_tensor)
+                            probs = dist.distribution.probs.squeeze(0)
+                            confidence = float(probs[resolved_action])
+                except (RuntimeError, ValueError, AttributeError, TypeError):
+                    pass  # 无法计算置信度时使用默认值（含 Mock 等非标准对象）
+
+                # 使用实际置信度与阈值比较
+                if confidence >= self._confidence_threshold:
+                    self._rl_decisions += 1
+                    return {
+                        "action": resolved_action,
+                        "source": "rl",
+                        "confidence": confidence,
+                        "reason": "RL 智能体决策",
+                    }
+                else:
+                    logger.debug(
+                        f"RL 置信度 {confidence:.3f} < 阈值 {self._confidence_threshold}, 回退到规则"
+                    )
             except RuntimeError:
                 # RL 未训练，走兜底
                 logger.debug("RL 智能体未训练（RuntimeError），回退到默认规则")

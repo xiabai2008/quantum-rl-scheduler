@@ -65,7 +65,7 @@ _FULL_COMPONENTS: dict[str, bool] = {
     "annealing": True,
     "multi_machine": True,
     "multi_objective": True,
-    "state_14dim": True,
+    "state_16dim": True,  # Issue #727: 从 state_14dim 更新为 state_16dim
 }
 
 
@@ -140,12 +140,23 @@ class ObsMaskWrapper(gym.Wrapper):
     def __init__(self, env: gym.Env, mask_dims: list[int]) -> None:
         super().__init__(env)
         self.mask_dims = set(mask_dims)
-        self.observation_space = gym.spaces.Box(
-            low=0.0,
-            high=1.0,
-            shape=(OBS_DIM,),
-            dtype=np.float32,
-        )
+        # Issue #728: 从底层环境继承 low/high，避免硬编码 [0,1] 范围限制
+        base_space = env.observation_space
+        if isinstance(base_space, gym.spaces.Box):
+            self.observation_space = gym.spaces.Box(
+                low=base_space.low.copy(),
+                high=base_space.high.copy(),
+                shape=base_space.shape,
+                dtype=np.float32,
+            )
+        else:
+            # 非 Box 空间回退到默认 [0,1] 范围
+            self.observation_space = gym.spaces.Box(
+                low=0.0,
+                high=1.0,
+                shape=base_space.shape,
+                dtype=np.float32,
+            )
 
     def _apply_mask(self, obs: np.ndarray) -> np.ndarray:
         masked = obs.copy()
@@ -252,11 +263,11 @@ class AblationRunner:
 
         # D2 — 状态空间消融：使用 8 维简化状态
         d2 = dict(_FULL_COMPONENTS)
-        d2["state_14dim"] = False
+        d2["state_16dim"] = False  # Issue #727: 从 state_14dim 更新
         configs.append(
             AblationConfig(
                 name="D2_state_simplified",
-                description="状态空间消融：关闭 14 维扩展状态（使用 8 维简化）",
+                description="状态空间消融：关闭 16 维扩展状态（使用 8 维简化）",  # Issue #727: 14→16
                 components=d2,
                 env_params={},
             )

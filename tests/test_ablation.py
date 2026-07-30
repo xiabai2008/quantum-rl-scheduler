@@ -165,7 +165,7 @@ class TestDefineConfigs(unittest.TestCase):
 
     def test_each_config_disables_one_component(self):
         """测试每个配置恰好关闭一个组件（相对全量基线）"""
-        full = {"rl", "annealing", "multi_machine", "multi_objective", "state_14dim"}
+        full = {"rl", "annealing", "multi_machine", "multi_objective", "state_16dim"}
         for cfg in self.configs:
             disabled = {k for k, v in cfg.components.items() if not v}
             self.assertEqual(
@@ -200,7 +200,7 @@ class TestDefineConfigs(unittest.TestCase):
             "annealing",
             "multi_machine",
             "multi_objective",
-            "state_14dim",
+            "state_16dim",
         }
         for cfg in self.configs:
             self.assertEqual(set(cfg.components.keys()), expected_keys)
@@ -223,7 +223,7 @@ class TestRunSingle(unittest.TestCase):
                 "annealing": False,
                 "multi_machine": False,
                 "multi_objective": False,
-                "state_14dim": True,
+                "state_16dim": True,
             },
             env_params={"max_steps": 50, "max_qubits": 30, "seed": 0},
         )
@@ -256,7 +256,7 @@ class TestRunSingle(unittest.TestCase):
                 "annealing": False,
                 "multi_machine": False,
                 "multi_objective": False,
-                "state_14dim": True,
+                "state_16dim": True,
             },
             env_params={"max_steps": 40, "max_qubits": 20, "seed": 1},
         )
@@ -273,7 +273,7 @@ class TestRunSingle(unittest.TestCase):
                 "annealing": False,
                 "multi_machine": True,
                 "multi_objective": False,
-                "state_14dim": True,
+                "state_16dim": True,
             },
             env_params={"max_steps": 60, "max_qubits": 30, "seed": 7},
         )
@@ -317,7 +317,7 @@ class TestRunAll(unittest.TestCase):
                     "annealing": False,
                     "multi_machine": False,
                     "multi_objective": False,
-                    "state_14dim": True,
+                    "state_16dim": True,
                 },
                 env_params={"max_steps": 30, "max_qubits": 20, "seed": 0},
             ),
@@ -329,7 +329,7 @@ class TestRunAll(unittest.TestCase):
                     "annealing": False,
                     "multi_machine": False,
                     "multi_objective": False,
-                    "state_14dim": True,
+                    "state_16dim": True,
                 },
                 env_params={"max_steps": 30, "max_qubits": 20, "seed": 0},
             ),
@@ -514,7 +514,7 @@ class TestSaveLoadResults(unittest.TestCase):
                 "annealing": False,
                 "multi_machine": True,
                 "multi_objective": False,
-                "state_14dim": True,
+                "state_16dim": True,
             },
             env_params={"max_steps": 80, "max_qubits": 25, "seed": 3},
         )
@@ -558,7 +558,7 @@ class TestEdgeCases(unittest.TestCase):
                 "annealing": False,
                 "multi_machine": False,
                 "multi_objective": False,
-                "state_14dim": True,
+                "state_16dim": True,
             },
             env_params={"max_steps": 30, "max_qubits": 20, "seed": 0},
         )

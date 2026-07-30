@@ -175,7 +175,7 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
         quantum_task_ratio: float | None = None,
         real_machine_max_qubits: int = FREE_TIER_MAX_QUBITS,
         noise_profile: str | dict[str, Any] | None = None,
-        include_fairness_obs: bool = False,
+        include_fairness_obs: bool = True,  # Issue #654: 默认开启公平性观测，展示公平调度能力
         observation_dim: int | None = None,
         use_noise_profile: bool = False,
         max_poll_per_step: int = REAL_MACHINE_MAX_POLL_PER_STEP_DEFAULT,
@@ -810,7 +810,7 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
     def _get_arrival_lambda(self) -> float:
         """返回当前步的泊松到达率，供多负载评估使用。"""
         if self.arrival_lambda is None:
-            return 1.2
+            return 0.5  # Issue #678: 与权威实验配置一致（AGENTS.md: 泊松到达λ=0.5）
         if callable(self.arrival_lambda):
             value = float(self.arrival_lambda(self._current_step, self.max_steps))
             if value < 0.0:

@@ -16,6 +16,7 @@ REST API 路由处理器
     替换，必须保留在 app 模块上。
 """
 
+import asyncio
 import hmac
 import json
 import os
@@ -446,10 +447,14 @@ async def ppo_predict(_auth: None = Depends(verify_api_key)) -> dict:
         return {"error": "PPO 模型未加载", "action": None, "confidence": 0}
 
     try:
-        if _app._ppo_env is None:
-            return {"error": "PPO 环境未初始化", "action": None}
-        obs = _app._ppo_env.reset()[0]
-        action, _states = model.predict(obs, deterministic=True)
+        # Issue #673: 使用独立环境实例，避免 API 调用 reset 污染后台仿真环境状态
+        from src.scheduler.env import QuantumSchedulingEnv
+
+        eval_env = QuantumSchedulingEnv(max_qubits=287, seed=42)
+        obs, _ = eval_env.reset()
+        # Issue #673: 使用 asyncio.to_thread 避免同步推理阻塞事件循环
+        action, _states = await asyncio.to_thread(model.predict, obs, deterministic=True)
+        eval_env.close()
 
         action_map = {0: "经典资源", 1: "量子资源", 2: "混合执行"}
         return {

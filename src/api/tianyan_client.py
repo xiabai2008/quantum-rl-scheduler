@@ -837,7 +837,8 @@ class TianyanClient:
 
                 # 真实模式委托 cqlib
                 if self._cqlib is not None:
-                    result = self._cqlib.get_task_status(task_id)
+                    # Issue #717: 使用 _call_with_retry 包装，网络抖动时自动重试
+                    result = self._call_with_retry(self._cqlib.get_task_status, task_id)
                     if self._circuit_breaker:
                         self._circuit_breaker.on_success()
                     return result
@@ -880,19 +881,36 @@ class TianyanClient:
         Raises:
             TianyanAPIError: 查询失败或任务尚未完成时抛出
         """
-        if self.mock_mode and hasattr(self, "_mock_client") and self._mock_client:
-            with self._observe_api_call("get_task_result", "task_result"):
-                return cast(TaskResult, self._mock_client.get_task_result(task_id))
+        # Issue #716: 添加熔断器保护，与 submit_quantum_task/get_task_status 一致
+        if self._circuit_breaker:
+            self._circuit_breaker.before_request()
 
-        # 真实模式委托 cqlib
-        if self._cqlib is not None:
-            with self._observe_api_call("get_task_result", "task_result"):
-                return self._call_with_retry(self._cqlib.get_task_result, task_id)
+        try:
+            if self.mock_mode and hasattr(self, "_mock_client") and self._mock_client:
+                with self._observe_api_call("get_task_result", "task_result"):
+                    result = cast(TaskResult, self._mock_client.get_task_result(task_id))
+                    if self._circuit_breaker:
+                        self._circuit_breaker.on_success()
+                    return result
 
-        raise TianyanAPIError(
-            status_code=500,
-            message="未配置有效 API 密钥或 cqlib 客户端，无法获取任务结果",
-        )
+            # 真实模式委托 cqlib
+            if self._cqlib is not None:
+                with self._observe_api_call("get_task_result", "task_result"):
+                    result = self._call_with_retry(self._cqlib.get_task_result, task_id)
+                    if self._circuit_breaker:
+                        self._circuit_breaker.on_success()
+                    return result
+
+            raise TianyanAPIError(
+                status_code=500,
+                message="未配置有效 API 密钥或 cqlib 客户端，无法获取任务结果",
+            )
+        except Exception as e:
+            if self._is_rate_limited(e):
+                raise
+            if self._circuit_breaker:
+                self._circuit_breaker.on_failure()
+            raise
 
     # ------------------------------------------------------------------
     # 5. 列出可用量子后端

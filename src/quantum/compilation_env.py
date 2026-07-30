@@ -7,6 +7,7 @@ QuantumCompilationEnv — PPO驱动的量子比特映射环境 (14维/可配置�
     - #594: PHYSICAL_QUBITS 从硬编码改为构造函数参数，支持自定义耦合图和天衍-287拓扑
 """
 
+import warnings
 from collections import deque
 from typing import Any
 
@@ -139,7 +140,13 @@ class QuantumCompilationEnv(gym.Env):
             if side * side == self.n_physical:
                 self.coupling_graph = _build_2d_grid_coupling(side, side)
             else:
-                # 非完全平方数时退化为默认 4x4 网格（截断到 n_physical 个节点）
+                # Issue #659: 非完全平方数时发出警告，避免静默截断用户输入
+                warnings.warn(
+                    f"n_physical={self.n_physical} 不是完全平方数，"
+                    f"请显式提供 grid_rows 和 grid_cols。"
+                    f"回退到 {GRID_ROWS}x{GRID_COLS}={PHYSICAL_QUBITS} 比特网格。",
+                    stacklevel=2,
+                )
                 self.coupling_graph = _build_2d_grid_coupling(GRID_ROWS, GRID_COLS)
                 self.n_physical = PHYSICAL_QUBITS
 
