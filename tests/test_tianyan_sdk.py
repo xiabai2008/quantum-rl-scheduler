@@ -92,6 +92,18 @@ def test_authentication_and_backend_errors_return_safe_defaults(
     assert subject.list_backends() == []
 
 
+def test_login_key_is_private_and_repr_masks_it(client: CqlibTianyanClient) -> None:
+    """login_key 应以私有属性存储，repr 不泄露明文（Issue #735）。"""
+    # 私有属性存储
+    assert client._login_key == "fake-key"
+    # property 访问器保持向后兼容
+    assert client.login_key == "fake-key"
+    # repr 必须脱敏
+    repr_str = repr(client)
+    assert "fake-key" not in repr_str
+    assert "login_key=***" in repr_str
+
+
 def test_submit_validates_input_and_honours_quota(client: CqlibTianyanClient) -> None:
     """空输入应拒绝，配额不足时不应访问平台。"""
     with pytest.raises(ValueError, match="qcis"):
@@ -323,6 +335,35 @@ def test_wait_query_error_terminates_after_threshold(client: CqlibTianyanClient)
     assert sleep_mock.call_count == 2
 
 
+def test_wait_query_error_alternating_does_not_terminate(
+    client: CqlibTianyanClient,
+) -> None:
+    """query_error 与 running 交替时不应累计误终止（Issue #719）。
+
+    旧实现 query_fail_count 只增不减，交替状态累计 3 次 query_error 后误判为
+    error。修复后任意非 query_error 状态应重置计数器，继续轮询直到任务完成。
+    """
+    statuses = [
+        {"status": "query_error"},
+        {"status": "running"},
+        {"status": "query_error"},
+        {"status": "running"},
+        {"status": "query_error"},
+        {"status": "running"},
+        {"status": "completed", "result": {"0": 1.0}},
+    ]
+    with (
+        patch.object(client, "get_task_status", side_effect=statuses) as status_mock,
+        patch("src.api.tianyan_cqlib.time.sleep") as sleep_mock,
+    ):
+        result = client.wait_for_task("task", timeout=60, poll_interval=1)
+    assert result["status"] == "completed"
+    # 全部 7 次状态都被消费（未在第 3 次 query_error 处提前终止）
+    assert status_mock.call_count == 7
+    # 6 次 sleep（前 6 次非终态各 sleep 一次，第 7 次完成直接返回）
+    assert sleep_mock.call_count == 6
+
+
 def test_is_available_handles_auth_machine_and_unexpected_errors(
     client: CqlibTianyanClient,
 ) -> None:
@@ -380,3 +421,16 @@ def test_coordinator_status_and_quota_paths(
     assert coordinator.get_submit_stats()["ok"]["submit"] == 1
     assert statuses["ok"] == {"running": 1}
     assert "offline" in statuses["bad"]["error"]
+
+
+def test_coordinator_login_key_private_and_repr_masks_it() -> None:
+    """协调器 login_key 应私有存储，repr 不泄露明文（Issue #735）。"""
+    coordinator = MultiMachineCqlibCoordinator("coord-secret", ["m1"])
+    # 私有属性存储
+    assert coordinator._login_key == "coord-secret"
+    # property 访问器保持向后兼容
+    assert coordinator.login_key == "coord-secret"
+    # repr 必须脱敏
+    repr_str = repr(coordinator)
+    assert "coord-secret" not in repr_str
+    assert "login_key=***" in repr_str

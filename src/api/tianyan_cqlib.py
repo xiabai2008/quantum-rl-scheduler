@@ -114,7 +114,7 @@ class CqlibTianyanClient(QuantumHardwareBackend):
         import cqlib
 
         self.cqlib = cqlib
-        self.login_key = login_key
+        self._login_key = login_key  # Issue #735: 私有属性，避免调试/序列化泄露
         self.machine_name = machine_name
         self.auto_retry_machine = auto_retry_machine
         self._platform = None
@@ -128,6 +128,19 @@ class CqlibTianyanClient(QuantumHardwareBackend):
             logger.info("[Cqlib] 额外凭证已加载（api_secret/app_id），将在平台初始化时透传")
 
         logger.info(f"[Cqlib] 客户端初始化，默认机器={machine_name}")
+
+    @property
+    def login_key(self) -> str:
+        """返回 API Key（Issue #735: 私有属性的只读访问器）。
+
+        内部存储为 ``_login_key`` 私有属性，避免在 ``repr()``、序列化或
+        调试输出中泄露密钥；保留公开访问接口以维持向后兼容。
+        """
+        return self._login_key
+
+    def __repr__(self) -> str:
+        """返回脱敏的对象表示，避免泄露 API Key（Issue #735）。"""
+        return f"CqlibTianyanClient(machine={self.machine_name!r}, login_key=***)"
 
     # ------------------------------------------------------------------
     # QuantumHardwareBackend ABC 接口实现（Issue #257）
@@ -625,6 +638,8 @@ class CqlibTianyanClient(QuantumHardwareBackend):
 
         处理 ``query_error`` 状态：连续 3 次查询失败后快速终止，
         避免无意义轮询至超时（Issue #407）。
+        Issue #719: 仅统计"连续"失败，任意非 query_error 状态重置计数器，
+        避免 query_error 与 running/unknown 交替时累计误终止。
 
         Args:
             task_id: 任务 ID
@@ -650,6 +665,10 @@ class CqlibTianyanClient(QuantumHardwareBackend):
                         shots=0,
                         backend=self.machine_name,
                     )
+            else:
+                # Issue #719: 非 query_error 状态重置连续失败计数，
+                # 避免 query_error 与 running/unknown 交替时累计误终止
+                query_fail_count = 0
             time.sleep(poll_interval)
         return TaskResult(
             task_id=task_id,
@@ -755,7 +774,7 @@ class MultiMachineCqlibCoordinator:
             api_secret       : API Secret（可选，透传给各机器的 CqlibTianyanClient）
             app_id           : App ID（可选，透传给各机器的 CqlibTianyanClient）
         """
-        self.login_key = login_key
+        self._login_key = login_key  # Issue #735: 私有属性，避免调试/序列化泄露
         self.machine_names = list(machine_names)
         self.auto_retry_machine = auto_retry_machine
         self._quota_tracker = quota_tracker
@@ -768,6 +787,19 @@ class MultiMachineCqlibCoordinator:
         self._lock = threading.Lock()
 
         logger.info(f"[MultiMachine] 纳管 {len(self.machine_names)} 台机器: {self.machine_names}")
+
+    @property
+    def login_key(self) -> str:
+        """返回 API Key（Issue #735: 私有属性的只读访问器）。
+
+        内部存储为 ``_login_key`` 私有属性，避免在 ``repr()``、序列化或
+        调试输出中泄露密钥；保留公开访问接口以维持向后兼容。
+        """
+        return self._login_key
+
+    def __repr__(self) -> str:
+        """返回脱敏的对象表示，避免泄露 API Key（Issue #735）。"""
+        return f"MultiMachineCqlibCoordinator(machines={self.machine_names!r}, login_key=***)"
 
     def _get_client(self, machine_name: str) -> CqlibTianyanClient:
         """懒加载指定机器的客户端（避免初始化时连接所有机器）。
