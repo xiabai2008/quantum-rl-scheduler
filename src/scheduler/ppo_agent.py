@@ -20,6 +20,7 @@ from stable_baselines3.common.callbacks import (
     BaseCallback,
     CallbackList,
     EvalCallback,
+    StopTrainingOnNoModelImprovement,
 )
 from stable_baselines3.common.monitor import Monitor
 
@@ -239,6 +240,8 @@ class PPOAgent:
         log_dir: str | None = None,
         resume_from: str | None = None,
         extra_callbacks: list[Any] | None = None,
+        early_stop_patience: int | None = 5,
+        early_stop_min_evals: int = 3,
         **kwargs: Any,
     ) -> PPO | RecurrentPPO:
         """
@@ -249,6 +252,10 @@ class PPOAgent:
             eval_freq: 评估频率
             n_eval_episodes: 每次评估的回合数
             log_dir: 日志目录
+            early_stop_patience: 早停耐心值（Issue #677）。连续 N 次评估无新最优
+                模型则提前停止训练，避免模型收敛后浪费计算资源。``None`` 或 ``<=0``
+                时禁用早停。默认 ``5``。
+            early_stop_min_evals: 早停生效前的最少评估次数，默认 ``3``。
             **kwargs: 额外参数，支持以下真机抽样回调参数：
                 - real_callback_interval: 真机抽样间隔（步数），>0 时启用，默认 0（禁用）
                 - real_callback_prob    : 每次触发的提交概率，默认 0.15
@@ -278,6 +285,22 @@ class PPOAgent:
         real_cb_shots = int(kwargs.pop("real_callback_shots", 512))
 
         eval_env: gym.Env[Any, Any] = self._create_eval_env()  # Issue #399: 独立评估环境
+
+        # Issue #677: 早停机制 — 连续 patience 次评估无新最优模型则提前停止训练，
+        # 避免模型收敛后继续训练浪费计算资源。通过 callback_on_new_best 挂载到
+        # EvalCallback，仅当产生新最优模型时重置无改善计数。
+        early_stop_callback: StopTrainingOnNoModelImprovement | None = None
+        if early_stop_patience is not None and early_stop_patience > 0:
+            early_stop_callback = StopTrainingOnNoModelImprovement(
+                max_no_improvement_evals=early_stop_patience,
+                min_evals=early_stop_min_evals,
+                verbose=1,
+            )
+            logger.info(
+                f"[PPOAgent] 早停已启用: patience={early_stop_patience} "
+                f"min_evals={early_stop_min_evals}"
+            )
+
         eval_callback = EvalCallback(
             eval_env=eval_env,
             best_model_save_path=os.path.join(self.log_dir, "best_model"),
@@ -285,6 +308,7 @@ class PPOAgent:
             eval_freq=eval_freq,
             n_eval_episodes=n_eval_episodes,
             deterministic=True,
+            callback_on_new_best=early_stop_callback,
         )
 
         # 构建回调列表（使用 BaseCallback 基类类型以容纳 EvalCallback /
