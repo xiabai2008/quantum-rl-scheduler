@@ -144,3 +144,116 @@ class TestUtilsProperty(unittest.TestCase):
                 assert int(np.argmax(v)) == int(np.argmax(norm1))
             if sorted_asc[1] - sorted_asc[0] >= 1e-10:
                 assert int(np.argmin(v)) == int(np.argmin(norm1))
+
+
+# ============================================================
+# Issue #520: 补充 DAG/混合/可解释性模块 property-based 测试
+# ============================================================
+from src.scheduler.dag_scheduler import DAGScheduler, DAGTask
+from src.scheduler.explainability import DecisionExplainer
+from src.scheduler.hybrid_scheduler import HybridScheduler
+
+
+def _generate_dag_tasks(task_ids: list[str]) -> list[DAGTask]:
+    """根据任务 ID 列表生成无环 DAG（依赖只引用前序任务）。"""
+    tasks: list[DAGTask] = []
+    for i, tid in enumerate(task_ids):
+        deps = [task_ids[j] for j in range(i) if (i + j) % 3 == 0]
+        tasks.append(DAGTask(task_id=tid, dependencies=deps))
+    return tasks
+
+
+class TestDAGSchedulerProperty(unittest.TestCase):
+    """DAG 调度器属性测试。"""
+
+    @given(
+        n_tasks=st.integers(min_value=1, max_value=20),
+        seed=st.integers(min_value=0, max_value=10000),
+    )
+    @settings(max_examples=30, deadline=None)
+    def test_topological_sort_always_valid(self, n_tasks, seed):
+        """Property: 拓扑排序结果中每个任务的依赖都在其之前出现。"""
+        task_ids = [f"task_{i}" for i in range(n_tasks)]
+        tasks = _generate_dag_tasks(task_ids)
+        scheduler = DAGScheduler(tasks=tasks)
+        order = scheduler.topological_sort()
+
+        assert len(order) == n_tasks
+        seen: set[str] = set()
+        task_map = {t.task_id: t for t in tasks}
+        for tid in order:
+            for dep in task_map[tid].dependencies:
+                assert dep in seen, f"依赖 {dep} 未在 {tid} 之前出现"
+            seen.add(tid)
+
+    @given(
+        n_tasks=st.integers(min_value=1, max_value=15),
+        seed=st.integers(min_value=0, max_value=10000),
+    )
+    @settings(max_examples=20, deadline=None)
+    def test_topological_sort_contains_all_tasks(self, n_tasks, seed):
+        """Property: 拓扑排序结果包含所有任务且无重复。"""
+        task_ids = [f"t{i}" for i in range(n_tasks)]
+        tasks = _generate_dag_tasks(task_ids)
+        scheduler = DAGScheduler(tasks=tasks)
+        order = scheduler.topological_sort()
+
+        assert set(order) == set(task_ids)
+        assert len(order) == len(set(order))
+
+
+class TestHybridSchedulerProperty(unittest.TestCase):
+    """混合调度器属性测试。"""
+
+    @given(
+        state=st.lists(
+            st.floats(min_value=0.0, max_value=1.0, allow_nan=False, allow_infinity=False),
+            min_size=10,
+            max_size=10,
+        ),
+    )
+    @settings(max_examples=30, deadline=None)
+    def test_decide_always_returns_valid_action(self, state):
+        """Property: decide 始终返回 {0, 1, 2} 中的合法动作。"""
+        scheduler = HybridScheduler()
+        task = type("Task", (), {"task_type": "quantum", "qubits_required": 5})()
+        state_arr = np.array(state, dtype=np.float32)
+        result = scheduler.decide(task, state=state_arr)
+        assert result["action"] in (0, 1, 2)
+
+
+class TestExplainabilityProperty(unittest.TestCase):
+    """可解释性模块属性测试。"""
+
+    @given(
+        state=st.lists(
+            st.floats(min_value=-1.0, max_value=1.0, allow_nan=False, allow_infinity=False),
+            min_size=14,
+            max_size=14,
+        ),
+        action=st.integers(min_value=0, max_value=2),
+    )
+    @settings(max_examples=30, deadline=None)
+    def test_contributions_sum_approximately_one(self, state, action):
+        """Property: 特征贡献度归一化，和约为 1.0。"""
+        explainer = DecisionExplainer()
+        state_arr = np.array(state, dtype=np.float32)
+        record = explainer.explain(state_arr, action)
+        total = sum(abs(v) for v in record.feature_contributions.values())
+        assert abs(total - 1.0) < 0.15, f"贡献度和 {total} 偏离 1.0"
+
+    @given(
+        state=st.lists(
+            st.floats(min_value=-1.0, max_value=1.0, allow_nan=False, allow_infinity=False),
+            min_size=14,
+            max_size=14,
+        ),
+        action=st.integers(min_value=0, max_value=2),
+    )
+    @settings(max_examples=20, deadline=None)
+    def test_explain_returns_non_empty_contributions(self, state, action):
+        """Property: explain 始终返回非空贡献度字典。"""
+        explainer = DecisionExplainer()
+        state_arr = np.array(state, dtype=np.float32)
+        record = explainer.explain(state_arr, action)
+        assert len(record.feature_contributions) > 0
