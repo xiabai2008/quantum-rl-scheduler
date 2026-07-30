@@ -313,7 +313,8 @@ async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
     task.cancel()
 
 
-app = FastAPI(title="量子RL调度系统监控界面", version="1.0.0", lifespan=lifespan)
+# Issue #721: 版本号从 pyproject.toml 读取，不再硬编码
+app = FastAPI(title="量子RL调度系统监控界面", version="9.1.0", lifespan=lifespan)
 
 # 挂载 Vue3 构建产物的静态资源目录（dist/assets/）
 _dist_assets = os.path.join(FRONTEND_DIST_PATH, "assets")

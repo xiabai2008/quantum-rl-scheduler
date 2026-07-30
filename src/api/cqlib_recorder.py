@@ -500,7 +500,7 @@ class CqlibRecordingClient:
                     **status,
                 },
             )
-        else:
+        elif label == "completed":
             self._save(
                 "task_status_completed.json",
                 {
@@ -509,6 +509,9 @@ class CqlibRecordingClient:
                     **status,
                 },
             )
+        else:
+            # Issue #720: error/query_error 等非完成状态不误存为 completed fixture
+            logger.warning(f"[Recorder] 任务 {task_id} 状态为 {label}，不保存为 completed fixture")
         return status
 
     def get_task_result(self, task_id: str) -> TaskResult:
