@@ -201,7 +201,7 @@ class MockTianyanClient:
 
         return {
             "task_id": "",  # 将在 submit 时填充
-            "status": "COMPLETED",
+            "status": "completed",
             "backend": "tianyan-287",
             "shots": shots,
             "counts": counts,
@@ -266,7 +266,7 @@ class MockTianyanClient:
         self._tasks[task_id] = {
             "task_id": task_id,
             "type": "quantum",
-            "status": "PENDING",
+            "status": "pending",
             "backend": backend,
             "shots": shots,
             "circuit_qasm": circuit_qasm,
@@ -290,9 +290,9 @@ class MockTianyanClient:
         """Mock 查询任务执行状态
 
         模拟任务状态轮转：
-        - PENDING（0-2次查询）
-        - RUNNING（3-5次查询）
-        - COMPLETED（6+次查询）
+        - pending（0-2次查询）
+        - running（3-5次查询）
+        - completed（6+次查询）
 
         Args:
             task_id: 任务 ID
@@ -312,17 +312,18 @@ class MockTianyanClient:
         task = self._tasks[task_id]
 
         # 模拟状态轮转
-        if task["status"] == "PENDING":
-            # 随机决定是否进入 RUNNING
-            if random.random() < 0.3:  # 30% 概率进入 RUNNING
-                task["status"] = "RUNNING"
+        # Issue #671: 统一使用小写状态字符串，与真实 cqlib 客户端保持一致
+        if task["status"] == "pending":
+            # 随机决定是否进入 running
+            if random.random() < 0.3:  # 30% 概率进入 running
+                task["status"] = "running"
                 task["started_at"] = datetime.now().isoformat()
-                logger.debug(f"Mock 任务 {task_id} 状态变更: PENDING → RUNNING")
+                logger.debug(f"Mock 任务 {task_id} 状态变更: pending → running")
 
-        elif task["status"] == "RUNNING":  # noqa: SIM102
-            # 随机决定是否进入 COMPLETED
-            if random.random() < 0.4:  # 40% 概率进入 COMPLETED
-                task["status"] = "COMPLETED"
+        elif task["status"] == "running":  # noqa: SIM102
+            # 随机决定是否进入 completed
+            if random.random() < 0.4:  # 40% 概率进入 completed
+                task["status"] = "completed"
                 task["completed_at"] = datetime.now().isoformat()
 
                 # 生成模拟结果
@@ -332,7 +333,7 @@ class MockTianyanClient:
                 )
                 task["result"]["task_id"] = task_id
 
-                logger.debug(f"Mock 任务 {task_id} 状态变更: RUNNING → COMPLETED")
+                logger.debug(f"Mock 任务 {task_id} 状态变更: running → completed")
 
         logger.debug(f"Mock 任务 {task_id} 状态: {task['status']}")
         result = task.get("result") or {}
@@ -377,10 +378,10 @@ class MockTianyanClient:
 
         task = self._tasks[task_id]
 
-        if task["status"] != "COMPLETED":
+        if task["status"] != "completed":
             # 自动触发状态轮转，确保能获取到结果
             self.get_task_status(task_id)
-            if task["status"] != "COMPLETED":
+            if task["status"] != "completed":
                 raise ValueError(f"Mock 任务 {task_id} 尚未完成，当前状态: {task['status']}")
 
         logger.info(f"Mock 获取任务 {task_id} 结果成功")
@@ -462,7 +463,7 @@ class MockTianyanClient:
         self._tasks[task_id] = {
             "task_id": task_id,
             "type": "classical",
-            "status": "COMPLETED",  # 经典任务立即完成
+            "status": "completed",  # 经典任务立即完成
             "language": language,
             "code": code,
             "submitted_at": datetime.now().isoformat(),
@@ -487,8 +488,8 @@ class MockTianyanClient:
         self._maybe_fail("get_queue_status")
 
         # 统计内存中的任务
-        pending_count = sum(1 for t in self._tasks.values() if t["status"] == "PENDING")
-        running_count = sum(1 for t in self._tasks.values() if t["status"] == "RUNNING")
+        pending_count = sum(1 for t in self._tasks.values() if t["status"] == "pending")
+        running_count = sum(1 for t in self._tasks.values() if t["status"] == "running")
 
         result = {
             "total_pending": pending_count,
@@ -532,20 +533,20 @@ class MockTianyanClient:
         Returns:
             任务最终结果字典
         """
-        elapsed = 0.0
-        while elapsed < timeout:
+        # Issue #704: 使用 monotonic 时钟计算实际经过时间
+        start = time.monotonic()
+        while time.monotonic() - start < timeout:
             status_info = self.get_task_status(task_id)
-            status = status_info.get("status", "UNKNOWN")
+            status = status_info.get("status", "unknown")
 
-            if status == "COMPLETED":
+            if status == "completed":
                 logger.info(f"Mock 任务 {task_id} 已完成")
                 return self.get_task_result(task_id)
-            elif status == "FAILED":
+            elif status in ("failed", "error", "query_error"):
                 raise RuntimeError(f"Mock 任务 {task_id} 执行失败")
 
             logger.debug(f"Mock 任务 {task_id} 状态={status}，{poll_interval}s 后再次查询")
             time.sleep(poll_interval)
-            elapsed += poll_interval
 
         raise TimeoutError(f"Mock 任务 {task_id} 等待超时（{timeout}s）")
 

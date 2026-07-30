@@ -404,23 +404,29 @@ class PPOAgent:
         if self.model is None:
             raise RuntimeError("模型尚未训练！请先调用 train() 方法或使用 load() 加载已训练模型。")
 
+        # Issue #669: 使用独立评估环境，避免评估 episode 的 reset/step 污染训练环境状态
+        eval_env = self._create_eval_env()
+
         episode_rewards = []
         episode_success_rates = []
 
         for _ep in range(num_episodes):
-            obs, info = self.env.reset()
+            obs, info = eval_env.reset()
             total_reward = 0.0
             done = False
 
             while not done:
                 action = self.predict(obs, deterministic=deterministic)
-                obs, reward, terminated, truncated, info = self.env.step(action)
-                total_reward += reward
+                obs, reward, terminated, truncated, info = eval_env.step(action)
+                total_reward += float(reward)
                 done = terminated or truncated
 
             episode_rewards.append(total_reward)
             completion_rate = info.get("completion_rate", 0.0)
             episode_success_rates.append(completion_rate)
+
+        # 关闭评估环境释放资源
+        eval_env.close()
 
         result = {
             "mean_reward": float(np.mean(episode_rewards)),

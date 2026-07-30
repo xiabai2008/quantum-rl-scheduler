@@ -11,6 +11,7 @@ Cqlib Wrapper for Tianyan Cloud Platform
 使用前需安装：pip install cqlib
 """
 
+import threading
 import time
 from typing import TYPE_CHECKING, Any
 
@@ -21,6 +22,48 @@ from src.api.types import TaskResult
 
 if TYPE_CHECKING:
     from src.api.quota_tracker import QuotaTracker
+
+# Issue #515: QCIS 电路内容验证常量
+MAX_QCIS_LENGTH = 100_000
+MAX_GATE_COUNT = 10_000
+MAX_QUBITS_REFERENCED = 287
+_QCIS_VALID_INSTRUCTIONS = frozenset(
+    {"H", "X", "Y", "Z", "S", "T", "RX", "RY", "RZ", "CZ", "CNOT", "M", "B", "ISWAP", "I"}
+)
+
+
+def _validate_qcis(qcis_str: str) -> None:
+    """验证 QCIS 电路内容，防止提交超深/非法电路（Issue #515）。
+
+    Args:
+        qcis_str: QCIS 指令字符串
+
+    Raises:
+        ValueError: 电路超过长度/门数/比特数上限，或包含非法指令
+    """
+    if len(qcis_str) > MAX_QCIS_LENGTH:
+        raise ValueError(f"QCIS 电路超过最大长度 {MAX_QCIS_LENGTH} 字符")
+
+    lines = [ln.strip() for ln in qcis_str.strip().split("\n") if ln.strip()]
+    if len(lines) > MAX_GATE_COUNT:
+        raise ValueError(f"QCIS 门数量超过上限 {MAX_GATE_COUNT}")
+
+    referenced_qubits: set[str] = set()
+    for line in lines:
+        parts = line.split()
+        if not parts:
+            continue
+        op = parts[0].upper()
+        if op not in _QCIS_VALID_INSTRUCTIONS:
+            raise ValueError(f"QCIS 非法指令: {parts[0]}")
+        for token in parts[1:]:
+            token = token.strip(",")
+            if token.upper().startswith("Q") and token[1:].isdigit():
+                referenced_qubits.add(token)
+    if len(referenced_qubits) > MAX_QUBITS_REFERENCED:
+        raise ValueError(
+            f"QCIS 引用比特数 {len(referenced_qubits)} 超过上限 {MAX_QUBITS_REFERENCED}"
+        )
 
 
 class CqlibTianyanClient(QuantumHardwareBackend):
@@ -78,6 +121,8 @@ class CqlibTianyanClient(QuantumHardwareBackend):
         self._quota_tracker = quota_tracker
         self._api_secret = api_secret
         self._app_id = app_id
+        # Issue #701: 线程锁保护 platform 属性的懒加载
+        self._platform_lock = threading.Lock()
 
         if api_secret or app_id:
             logger.info("[Cqlib] 额外凭证已加载（api_secret/app_id），将在平台初始化时透传")
@@ -147,18 +192,25 @@ class CqlibTianyanClient(QuantumHardwareBackend):
 
     @property
     def platform(self) -> Any:
-        """懒加载平台连接"""
-        if self._platform is None:
-            kwargs: dict[str, Any] = {
-                "login_key": self.login_key,
-                "machine_name": self.machine_name,
-            }
-            if self._api_secret:
-                kwargs["api_secret"] = self._api_secret
-            if self._app_id:
-                kwargs["app_id"] = self._app_id
-            self._platform = self.cqlib.TianYanPlatform(**kwargs)
-        return self._platform
+        """懒加载平台连接
+
+        Issue #701: 加锁保护，避免并发首次访问时创建多个平台实例。
+        """
+        # 双重检查锁定模式：先无锁检查，再加锁创建
+        if self._platform is not None:
+            return self._platform
+        with self._platform_lock:
+            if self._platform is None:
+                kwargs: dict[str, Any] = {
+                    "login_key": self.login_key,
+                    "machine_name": self.machine_name,
+                }
+                if self._api_secret:
+                    kwargs["api_secret"] = self._api_secret
+                if self._app_id:
+                    kwargs["app_id"] = self._app_id
+                self._platform = self.cqlib.TianYanPlatform(**kwargs)
+            return self._platform
 
     def authenticate(self) -> bool:
         """验证 API Key 有效性。
@@ -275,6 +327,9 @@ class CqlibTianyanClient(QuantumHardwareBackend):
             qcis_str = circuit.qcis if hasattr(circuit, "qcis") else str(circuit)
         else:
             raise ValueError("必须提供 qcis 或 circuit")
+
+        # Issue #515: 验证 QCIS 电路内容，防止提交超深/非法电路
+        _validate_qcis(qcis_str)
 
         # 配额预检查：配额不足时跳过提交，保持"全部不可用返回 None"语义
         if self._quota_tracker is not None and not self._quota_tracker.can_consume(
@@ -709,22 +764,28 @@ class MultiMachineCqlibCoordinator:
         self._clients: dict[str, CqlibTianyanClient] = {}
         self._submit_count: dict[str, int] = dict.fromkeys(self.machine_names, 0)
         self._fail_count: dict[str, int] = dict.fromkeys(self.machine_names, 0)
+        # Issue #666: 线程锁，保护 _clients 懒加载与计数器并发读写
+        self._lock = threading.Lock()
 
         logger.info(f"[MultiMachine] 纳管 {len(self.machine_names)} 台机器: {self.machine_names}")
 
     def _get_client(self, machine_name: str) -> CqlibTianyanClient:
-        """懒加载指定机器的客户端（避免初始化时连接所有机器）。"""
-        if machine_name not in self._clients:
-            if machine_name not in self.machine_names:
-                raise ValueError(f"机器 {machine_name} 未被纳管")
-            self._clients[machine_name] = CqlibTianyanClient(
-                login_key=self.login_key,
-                machine_name=machine_name,
-                auto_retry_machine=self.auto_retry_machine,
-                api_secret=self._api_secret,
-                app_id=self._app_id,
-            )
-        return self._clients[machine_name]
+        """懒加载指定机器的客户端（避免初始化时连接所有机器）。
+
+        Issue #666: 加锁保护，避免并发下重复创建客户端导致连接泄漏。
+        """
+        with self._lock:
+            if machine_name not in self._clients:
+                if machine_name not in self.machine_names:
+                    raise ValueError(f"机器 {machine_name} 未被纳管")
+                self._clients[machine_name] = CqlibTianyanClient(
+                    login_key=self.login_key,
+                    machine_name=machine_name,
+                    auto_retry_machine=self.auto_retry_machine,
+                    api_secret=self._api_secret,
+                    app_id=self._app_id,
+                )
+            return self._clients[machine_name]
 
     def submit_to_machine(
         self,
@@ -747,14 +808,17 @@ class MultiMachineCqlibCoordinator:
         try:
             client = self._get_client(machine_name)
             task_id = client.submit_quantum_task(qcis=qcis, shots=shots, task_name=task_name)
-            self._submit_count[machine_name] = self._submit_count.get(machine_name, 0) + 1
+            # Issue #666: 加锁保护计数器更新，避免并发下计数丢失
+            with self._lock:
+                self._submit_count[machine_name] = self._submit_count.get(machine_name, 0) + 1
             # 提交成功后记录配额消耗（仅当 task_id 非 None 时）
             if self._quota_tracker is not None and task_id is not None:
                 self._quota_tracker.consume(shots=shots, tasks=1)
             return task_id
         except Exception as e:
             # 涉及客户端获取（ValueError）与提交，异常类型无法穷举，保留宽捕获并记录日志
-            self._fail_count[machine_name] = self._fail_count.get(machine_name, 0) + 1
+            with self._lock:
+                self._fail_count[machine_name] = self._fail_count.get(machine_name, 0) + 1
             logger.error(f"[MultiMachine] {machine_name} 提交失败: {e}")
             return None
 

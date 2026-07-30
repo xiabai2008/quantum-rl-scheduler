@@ -27,7 +27,6 @@ simulator.py / websocket_handler.py 之间的循环依赖问题。
 
 from __future__ import annotations
 
-import random
 import threading
 import time
 import uuid
@@ -395,11 +394,11 @@ def calculate_realtime_metrics(
         _last_metrics_snapshot["completed_tasks"] = completed_tasks
         _last_metrics_snapshot["timestamp"] = now
 
-        # 简化的 baseline reward 估计（FCFS-like：基于等待时间和利用率）
-        # 这是一个简化估计，用于给前端提供对比曲线参考
+        # Issue #680: baseline reward 使用确定性估算（PPO的70%），避免随机数误导监控面板
+        # 标注为估算值，非真实FCFS策略输出
         baseline_step_reward = (
-            ppo_step_reward * 0.7 + random.uniform(-0.5, 0.2) if ppo_step_reward != 0 else 0.0
-        )
+            ppo_step_reward * 0.7 if ppo_step_reward != 0 else 0.0
+        )  # FCFS估算值（基于PPO性能的70% heuristic，非真实策略输出）
 
         # 更新累积奖励
         _reward_comparison["ppo_cumulative_reward"] += ppo_step_reward

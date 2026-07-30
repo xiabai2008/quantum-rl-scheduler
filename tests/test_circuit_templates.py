@@ -19,9 +19,10 @@ from src.quantum.circuit_templates import (
 
 
 def test_bell_state_structure():
-    """Bell 态电路包含 H Q0, CZ Q0 Q1, M Q0, M Q1，且不包含第二个 H Q1。
+    """Bell 态电路使用 H-CZ-H 等效 CNOT 生成纠缠态。
 
-    第二个 H 作用在 target qubit 上会破坏纠缠态，必须删除。
+    电路结构: H Q0 → H Q1 → CZ Q0 Q1 → H Q1 → M Q0 → M Q1
+    QCIS 无原生 CNOT，用 H-CZ-H 分解实现纠缠（Issue #644 修复）。
     """
     circuit = generate_bell_state()
     lines = circuit.split("\n")
@@ -29,22 +30,28 @@ def test_bell_state_structure():
     assert "CZ Q0 Q1" in lines
     assert "M Q0" in lines
     assert "M Q1" in lines
-    # 第二个 H（作用在 target 上）会破坏纠缠态，必须不存在
-    assert "H Q1" not in lines
-    # 顺序：H Q0 应在 CZ Q0 Q1 之前
-    assert lines.index("H Q0") < lines.index("CZ Q0 Q1")
+    # H Q1 应在 CZ 前后各出现一次（H-CZ-H 等效 CNOT）
+    h1_positions = [i for i, ln in enumerate(lines) if ln == "H Q1"]
+    assert len(h1_positions) == 2, f"H Q1 应出现 2 次，实际 {len(h1_positions)} 次"
+    cz_pos = lines.index("CZ Q0 Q1")
+    assert h1_positions[0] < cz_pos < h1_positions[1], "H Q1 应在 CZ 前后各一次"
+    # H Q0 应在 CZ Q0 Q1 之前
+    assert lines.index("H Q0") < cz_pos
 
 
 def test_bell_state_multiple_pairs():
-    """测试多对比特生成：每对都应有 H Qc, CZ Qc Qt，且 target 上无第二个 H。"""
+    """测试多对比特生成：每对都应有 H Qc, H Qt, CZ Qc Qt, H Qt（H-CZ-H 等效 CNOT）。"""
     pairs = [(0, 1), (2, 3), (4, 5)]
     circuit = generate_bell_state(pairs)
     lines = circuit.split("\n")
     for qc, qt in pairs:
         assert f"H Q{qc}" in lines
         assert f"CZ Q{qc} Q{qt}" in lines
-        # target 上不应有第二个 H
-        assert f"H Q{qt}" not in lines
+        # target 上应有 2 个 H（CZ 前后各一个）
+        ht_positions = [i for i, ln in enumerate(lines) if ln == f"H Q{qt}"]
+        assert len(ht_positions) == 2, f"H Q{qt} 应出现 2 次"
+        cz_pos = lines.index(f"CZ Q{qc} Q{qt}")
+        assert ht_positions[0] < cz_pos < ht_positions[1]
     # 测量所有涉及的比特
     for q in [0, 1, 2, 3, 4, 5]:
         assert f"M Q{q}" in lines

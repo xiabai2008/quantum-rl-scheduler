@@ -341,7 +341,10 @@ def is_origin_allowed(origin: str) -> bool:
         是否允许
     """
     if not origin:
-        # 无 Origin 头（非浏览器客户端，如 curl），允许
-        return True
+        # Issue #736: 空 Origin 可被伪造绕过，默认拒绝
+        # 如需允许非浏览器客户端（curl 等），设置环境变量 VIZ_WS_ALLOW_EMPTY_ORIGIN=1
+        import os
+
+        return os.environ.get("VIZ_WS_ALLOW_EMPTY_ORIGIN", "0") == "1"
     allowed = get_allowed_ws_origins()
     return origin in allowed

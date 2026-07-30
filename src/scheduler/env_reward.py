@@ -107,12 +107,16 @@ def compute_fairness_penalty(
     """
     if not fairness_wait_times or len(fairness_wait_times) < 2:
         return 0.0
-    if tenant_id is None:
+    # 统一 None 和空字符串为 "unknown"，避免查找时键不一致（Issue #655）
+    tid = tenant_id if tenant_id else "unknown"
+    # 如果归一化后的 tid 不在字典中，尝试原始值或 unknown
+    if tid not in fairness_wait_times:
+        tid = tenant_id if tenant_id in fairness_wait_times else "unknown"
+    if tid not in fairness_wait_times:
         return 0.0
     mean_wait = float(np.mean(list(fairness_wait_times.values())))
     if mean_wait < 1e-6:
         return 0.0
-    tid = tenant_id or "unknown"
     tenant_wait = fairness_wait_times.get(tid, 0.0)
     deviation = abs(tenant_wait - mean_wait) / mean_wait
     if deviation > FAIRNESS_PENALTY_THRESHOLD:

@@ -262,8 +262,8 @@ class TestNormalizeVector(unittest.TestCase):
     def test_custom_range_constant_returns_midpoint(self):
         """常量向量在自定义范围下应返回范围中点。"""
         result = normalize_vector([3.0, 3.0], min_val=0.0, max_val=10.0)
-        # min==max → 返回 [0.5, 0.5]（与范围无关，固定中点）
-        self.assertEqual(result, [0.5, 0.5])
+        # Issue #688: 常量向量返回目标区间中点 (0+10)/2=5.0，而非固定0.5
+        self.assertEqual(result, [5.0, 5.0])
 
 
 # ============================================================

@@ -214,6 +214,8 @@ class CircuitBreaker:
         self.state: CircuitState = CircuitState.CLOSED
         self.failure_count: int = 0
         self.last_failure_time: float = 0.0
+        # Issue #664: HALF_OPEN 状态下是否已有试探请求在进行中
+        self._half_open_trial_in_progress: bool = False
         # 线程锁：保护 state / failure_count / last_failure_time 的并发读写（Issue #213）
         # 使用 RLock 以允许同一线程内嵌套调用（如 call() 内部调用 reset()）
         self._lock = threading.RLock()
@@ -259,12 +261,22 @@ class CircuitBreaker:
                 if time.monotonic() - self.last_failure_time >= self.recovery_timeout:
                     # 进入 HALF_OPEN，放行一次试探性调用
                     self.state = CircuitState.HALF_OPEN
+                    self._half_open_trial_in_progress = True
                 else:
                     raise CircuitOpenError(
                         "熔断器处于 OPEN 状态，拒绝调用",
                         code="CIRCUIT_OPEN",
                         retryable=True,
                     )
+            elif current_state == CircuitState.HALF_OPEN:
+                # Issue #664: HALF_OPEN 状态仅允许一个试探请求并发执行
+                if self._half_open_trial_in_progress:
+                    raise CircuitOpenError(
+                        "熔断器处于 HALF_OPEN 状态，试探请求进行中，拒绝并发调用",
+                        code="CIRCUIT_HALF_OPEN_BUSY",
+                        retryable=True,
+                    )
+                self._half_open_trial_in_progress = True
 
         # 阶段 2：不加锁执行 func（避免外部回调持锁导致死锁）
         try:
@@ -274,6 +286,7 @@ class CircuitBreaker:
             logger.debug(f"熔断器记录失败: {type(e).__name__}: {e}")
             # 阶段 3a：加锁更新失败状态
             with self._lock:
+                self._half_open_trial_in_progress = False
                 self.failure_count += 1
                 self.last_failure_time = time.monotonic()
                 if self.state == CircuitState.HALF_OPEN:
@@ -292,6 +305,7 @@ class CircuitBreaker:
 
         # 阶段 3b：加锁更新成功状态
         with self._lock:
+            self._half_open_trial_in_progress = False
             if self.state == CircuitState.HALF_OPEN:
                 # HALF_OPEN 试探通过 → 重置为 CLOSED
                 self.state = CircuitState.CLOSED
@@ -318,6 +332,7 @@ class CircuitBreaker:
             self.state = CircuitState.CLOSED
             self.failure_count = 0
             self.last_failure_time = 0.0
+            self._half_open_trial_in_progress = False
 
     # ------------------------------------------------------------------
     # 兼容方法：供 TianyanClient 等外部调用方使用

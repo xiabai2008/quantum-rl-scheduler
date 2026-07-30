@@ -64,8 +64,10 @@ class EpsilonExplorationCallback(BaseCallback):
         self.decay_freq = decay_freq
 
     def _on_step(self) -> bool:
-        """每步触发：衰减 epsilon 并记录到 TensorBoard。"""
-        self.epsilon = max(self.epsilon_end, self.epsilon * self.epsilon_decay)
+        """每步触发：按 decay_freq 衰减 epsilon 并记录到 TensorBoard。"""
+        # Issue #667: decay_freq 之前被忽略，现按 decay_freq 间隔衰减
+        if self.decay_freq > 0 and self.n_calls % self.decay_freq == 0:
+            self.epsilon = max(self.epsilon_end, self.epsilon * self.epsilon_decay)
         # 记录到 TensorBoard
         self.logger.record("exploration/epsilon", self.epsilon)
         return True
@@ -147,6 +149,38 @@ class AnnealingCallback(BaseCallback):
                 if quality > self.best_reward:
                     self.best_reward = quality
                     self.optimized_count += 1
+
+                    # Issue #663: 将退火优化后的权重写回模型，避免优化结果被丢弃
+                    try:
+                        policy = getattr(self.model, "policy", None)
+                        if policy is not None and hasattr(optimized_agent, "policy"):
+                            # 优先尝试 load_state_dict 语义保持一致的权重迁移
+                            try:
+                                policy.load_state_dict(
+                                    optimized_agent.policy.state_dict(), strict=False
+                                )
+                            except Exception:
+                                # 退火优化器可能返回不同结构，逐参数复制同形状张量
+                                src_params = list(optimized_agent.policy.parameters())
+                                dst_params = list(policy.parameters())
+                                if len(src_params) == len(dst_params):
+                                    import torch
+
+                                    with torch.no_grad():
+                                        for sp, dp in zip(src_params, dst_params, strict=True):
+                                            if sp.shape == dp.shape:
+                                                dp.copy_(sp)
+                            logger.info(
+                                f"[退火] 步数{self.n_calls}: 优化权重已写回模型 "
+                                f"(质量={quality:.4f})"
+                            )
+                        elif self.verbose:
+                            logger.warning(
+                                f"[退火] 步数{self.n_calls}: 无法写回权重（模型缺少 policy 属性）"
+                            )
+                    except Exception as write_err:
+                        if self.verbose:
+                            logger.warning(f"[退火] 步数{self.n_calls}: 权重写回失败: {write_err}")
 
                     if self.verbose:
                         logger.info(
