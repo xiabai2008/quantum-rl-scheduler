@@ -991,6 +991,52 @@ class TestSimulateSchedulerQueueLength(unittest.IsolatedAsyncioTestCase):
         # 2 个 pending
         self.assertEqual(mock_app.system_status["queue_length"], 2)
 
+    async def test_ppo_episode_termination_and_auto_reset(self):
+        """测试 PPO episode 终止后自动重置（Issue #518）。
+
+        首次 step 返回 terminated=True，下个 tick 应调用 env.reset()
+        并重置 episode 计数器。
+        """
+        import src.visualization.simulator as sim
+
+        sim._ppo_current_obs = None
+        sim._ppo_episode_reward = 0.0
+        sim._ppo_episode_step = 0
+
+        mock_app = _build_mock_app()
+        mock_model = MagicMock()
+        mock_model.env = MagicMock()
+        mock_model.env.reset.return_value = ([0.1] * 14, {})
+        mock_model.predict.return_value = (1, None)
+        mock_app._get_ppo_model.return_value = mock_model
+        mock_app._ppo_model = mock_model
+
+        obs = np.array([0.5] * 14, dtype=np.float32)
+        env = MagicMock()
+        env.reset.return_value = (obs, {})
+        env.step.side_effect = [
+            (obs, 10.0, True, False, {}),  # 第1次 step: terminated=True
+            (obs, 5.0, False, False, {}),  # 第2次 step: 正常
+        ]
+        mock_app._ppo_env = env
+
+        with (
+            patch("src.visualization.simulator._app", mock_app),
+            patch(
+                "src.visualization.simulator.asyncio.sleep",
+                new=_make_sleep_raising_after(3),
+            ),
+            patch("src.visualization.simulator.random.uniform", lambda a, b: 0.0),
+            patch("src.visualization.simulator.random.random", lambda: 0.0),
+        ):
+            with self.assertRaises(asyncio.CancelledError):
+                await simulate_scheduler()
+
+        self.assertEqual(env.reset.call_count, 2, "应调用2次 reset: 初始化 + 终止后重置")
+        self.assertEqual(env.step.call_count, 2, "应调用2次 step")
+        self.assertEqual(sim._ppo_episode_reward, 5.0, "终止后重置，新 episode 累计 5.0")
+        self.assertEqual(sim._ppo_episode_step, 1, "终止后重置，新 episode 步数 1")
+
 
 if __name__ == "__main__":
     unittest.main()
