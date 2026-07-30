@@ -36,6 +36,18 @@ if TYPE_CHECKING:
     from src.api.hardware_adapter import QuantumHardwareBackend
 
 
+def _first_present(*values: Any) -> Any:
+    """返回第一个非 None 的值（Issue #675）。
+
+    与 ``a or b or c`` 不同，本函数不会将 ``0``/``0.0``/``False``/``""`` 视为缺失，
+    仅跳过 ``None``，从而保留 ``0.0`` 等合法值。
+    """
+    for v in values:
+        if v is not None:
+            return v
+    return None
+
+
 class NoiseModelExtractor:
     """真机噪声模型提取器
 
@@ -486,7 +498,7 @@ class NoiseModelExtractor:
             for key, value in raw.items():
                 qid = f"Q{key}" if str(key).isdigit() else str(key)
                 if isinstance(value, dict):
-                    err = value.get("readout_error") or value.get("readout_fidelity")
+                    err = _first_present(value.get("readout_error"), value.get("readout_fidelity"))
                     if err is not None:
                         # 如果是保真度，转为错误率
                         if "fidelity" in str(value) and err > 0.5:
@@ -502,10 +514,10 @@ class NoiseModelExtractor:
             for item in raw:
                 if isinstance(item, dict):
                     q = item.get("qubit", item.get("q", item.get("id")))
-                    err = (
-                        item.get("readout_error")
-                        or item.get("error")
-                        or item.get("readout_fidelity")
+                    err = _first_present(
+                        item.get("readout_error"),
+                        item.get("error"),
+                        item.get("readout_fidelity"),
                     )
                     if q is not None and err is not None:
                         qid = f"Q{q}" if str(q).isdigit() else str(q)
@@ -543,7 +555,7 @@ class NoiseModelExtractor:
                     qid = f"Q{key}" if str(key).isdigit() else str(key)
                     for gate_name, gate_val in value.items():
                         if isinstance(gate_val, dict):
-                            err = gate_val.get("error") or gate_val.get("gate_error")
+                            err = _first_present(gate_val.get("error"), gate_val.get("gate_error"))
                             if err is not None:
                                 result[f"{qid}_{gate_name}"] = float(err)
                         elif isinstance(gate_val, int | float):
@@ -563,7 +575,11 @@ class NoiseModelExtractor:
                 if isinstance(item, dict):
                     q = item.get("qubit", item.get("q"))
                     gate = item.get("gate", item.get("name"))
-                    err = item.get("error") or item.get("gate_error") or item.get("gate_fidelity")
+                    err = _first_present(
+                        item.get("error"),
+                        item.get("gate_error"),
+                        item.get("gate_fidelity"),
+                    )
                     if q is not None and gate is not None and err is not None:
                         qid = f"Q{q}" if str(q).isdigit() else str(q)
                         val = float(err)
@@ -603,7 +619,7 @@ class NoiseModelExtractor:
             for key, value in raw.items():
                 qid = f"Q{key}" if str(key).isdigit() else str(key)
                 if isinstance(value, dict):
-                    t1 = value.get("t1") or value.get("T1") or value.get("t1_time")
+                    t1 = _first_present(value.get("t1"), value.get("T1"), value.get("t1_time"))
                     if t1 is not None:
                         t1_val = float(t1)
                         # 若值 < 0.001，假定单位为秒，转换为微秒
@@ -620,7 +636,7 @@ class NoiseModelExtractor:
             for item in raw:
                 if isinstance(item, dict):
                     q = item.get("qubit", item.get("q", item.get("id")))
-                    t1 = item.get("t1") or item.get("T1") or item.get("t1_time")
+                    t1 = _first_present(item.get("t1"), item.get("T1"), item.get("t1_time"))
                     if q is not None and t1 is not None:
                         qid = f"Q{q}" if str(q).isdigit() else str(q)
                         t1_val = float(t1)

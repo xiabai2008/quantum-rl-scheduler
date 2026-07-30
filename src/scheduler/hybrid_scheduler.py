@@ -276,7 +276,11 @@ class HybridScheduler:
         ):
             try:
                 raw_action = self._rl_agent.predict(state, deterministic=True)
-                resolved_action = int(raw_action)
+                # Issue #685: SB3 原生模型 predict 返回 (action, state) 元组
+                if isinstance(raw_action, tuple | list):
+                    resolved_action = int(raw_action[0])
+                else:
+                    resolved_action = int(raw_action)
                 self._rl_decisions += 1
                 return {
                     "action": resolved_action,

@@ -89,6 +89,9 @@ class TrainingMetricsLogger:
         """
         record = {"tag": tag, "value": float(value), "step": int(step)}
         self._records["scalars"].append(record)
+        # Issue #670: 限制 _records 内存增长，避免长训练 OOM
+        if len(self._records["scalars"]) > 10000:
+            self._records["scalars"] = self._records["scalars"][-5000:]
         if self._writer is not None:
             self._writer.add_scalar(tag, float(value), int(step))
         else:

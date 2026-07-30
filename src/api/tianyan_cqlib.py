@@ -11,6 +11,7 @@ Cqlib Wrapper for Tianyan Cloud Platform
 使用前需安装：pip install cqlib
 """
 
+import threading
 import time
 from typing import TYPE_CHECKING, Any
 
@@ -709,22 +710,28 @@ class MultiMachineCqlibCoordinator:
         self._clients: dict[str, CqlibTianyanClient] = {}
         self._submit_count: dict[str, int] = dict.fromkeys(self.machine_names, 0)
         self._fail_count: dict[str, int] = dict.fromkeys(self.machine_names, 0)
+        # Issue #666: 线程锁，保护 _clients 懒加载与计数器并发读写
+        self._lock = threading.Lock()
 
         logger.info(f"[MultiMachine] 纳管 {len(self.machine_names)} 台机器: {self.machine_names}")
 
     def _get_client(self, machine_name: str) -> CqlibTianyanClient:
-        """懒加载指定机器的客户端（避免初始化时连接所有机器）。"""
-        if machine_name not in self._clients:
-            if machine_name not in self.machine_names:
-                raise ValueError(f"机器 {machine_name} 未被纳管")
-            self._clients[machine_name] = CqlibTianyanClient(
-                login_key=self.login_key,
-                machine_name=machine_name,
-                auto_retry_machine=self.auto_retry_machine,
-                api_secret=self._api_secret,
-                app_id=self._app_id,
-            )
-        return self._clients[machine_name]
+        """懒加载指定机器的客户端（避免初始化时连接所有机器）。
+
+        Issue #666: 加锁保护，避免并发下重复创建客户端导致连接泄漏。
+        """
+        with self._lock:
+            if machine_name not in self._clients:
+                if machine_name not in self.machine_names:
+                    raise ValueError(f"机器 {machine_name} 未被纳管")
+                self._clients[machine_name] = CqlibTianyanClient(
+                    login_key=self.login_key,
+                    machine_name=machine_name,
+                    auto_retry_machine=self.auto_retry_machine,
+                    api_secret=self._api_secret,
+                    app_id=self._app_id,
+                )
+            return self._clients[machine_name]
 
     def submit_to_machine(
         self,
@@ -747,14 +754,17 @@ class MultiMachineCqlibCoordinator:
         try:
             client = self._get_client(machine_name)
             task_id = client.submit_quantum_task(qcis=qcis, shots=shots, task_name=task_name)
-            self._submit_count[machine_name] = self._submit_count.get(machine_name, 0) + 1
+            # Issue #666: 加锁保护计数器更新，避免并发下计数丢失
+            with self._lock:
+                self._submit_count[machine_name] = self._submit_count.get(machine_name, 0) + 1
             # 提交成功后记录配额消耗（仅当 task_id 非 None 时）
             if self._quota_tracker is not None and task_id is not None:
                 self._quota_tracker.consume(shots=shots, tasks=1)
             return task_id
         except Exception as e:
             # 涉及客户端获取（ValueError）与提交，异常类型无法穷举，保留宽捕获并记录日志
-            self._fail_count[machine_name] = self._fail_count.get(machine_name, 0) + 1
+            with self._lock:
+                self._fail_count[machine_name] = self._fail_count.get(machine_name, 0) + 1
             logger.error(f"[MultiMachine] {machine_name} 提交失败: {e}")
             return None
 

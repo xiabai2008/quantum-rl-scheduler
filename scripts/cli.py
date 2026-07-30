@@ -95,7 +95,11 @@ def train(
     }
 
     args = argparse.Namespace(**args_dict)
-    main.__wrapped__(args) if hasattr(main, "__wrapped__") else main()
+    # Issue #682: 修复 CLI 参数传递链断裂——直接透传 args 给 main，避免重新解析命令行
+    if hasattr(main, "__wrapped__"):
+        main.__wrapped__(args)
+    else:
+        main(args)
 
 
 @cli.command(name="simulate")

@@ -184,7 +184,10 @@ class QuotaTracker:
             self._daily_history = [h for h in history if isinstance(h, dict)]
 
     def _persist_state(self) -> None:
-        """将当前状态写入 state_path（需在锁内调用）。自动创建父目录。"""
+        """将当前状态写入 state_path（需在锁内调用）。自动创建父目录。
+
+        Issue #665: 使用临时文件 + 原子 rename 避免写入中途崩溃导致状态文件损坏。
+        """
         state = {
             "used": self._used,
             "daily_history": self._daily_history,
@@ -194,8 +197,11 @@ class QuotaTracker:
             parent = os.path.dirname(self._state_path)
             if parent:
                 os.makedirs(parent, exist_ok=True)
-            with open(self._state_path, "w", encoding="utf-8") as f:
+            # 原子写入：先写临时文件，再 rename 覆盖目标文件
+            tmp_path = f"{self._state_path}.tmp"
+            with open(tmp_path, "w", encoding="utf-8") as f:
                 json.dump(state, f, ensure_ascii=False, indent=2)
+            os.replace(tmp_path, self._state_path)
         except OSError as e:
             logger.error(f"[QuotaTracker] 状态持久化失败: {e}")
 
