@@ -1,3 +1,5 @@
+> **⚠️ DEPRECATED (Issue #792)**: This document contains outdated statistics (+88.3%/76.4%). Current verified values: +123.4% (PPO vs FCFS, N=250, p=1.032e-42). Refer to `results/reports/` for current data.
+
 # 队友定时任务提示词（优化版）
 
 > 瑞哥发给各队友。每人找到自己的部分，复制代码块粘贴到 TRAE 即可。

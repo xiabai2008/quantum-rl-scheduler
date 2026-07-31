@@ -1,3 +1,5 @@
+> **⚠️ DEPRECATED (Issue #792)**: This document contains outdated statistics (+88.3%/76.4%). Current verified values: +123.4% (PPO vs FCFS, N=250, p=1.032e-42). Refer to `results/reports/` for current data.
+
 # zyhsga 定时任务提示词（4个任务完整版）
 
 > zyhsga 新加入项目，需要一次性创建4个定时任务。
