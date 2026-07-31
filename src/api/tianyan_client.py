@@ -428,7 +428,7 @@ class TianyanClient:
                 app_id=self._app_id,
             )
             logger.info(f"✅ 真实模式委托 cqlib（机器={machine_name}）")
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             # 涉及 cqlib SDK 导入与初始化，异常类型无法穷举，保留宽捕获并记录日志
             logger.warning(f"cqlib 客户端初始化失败: {e}，回退 REST 路径")
 

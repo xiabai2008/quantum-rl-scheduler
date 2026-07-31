@@ -227,7 +227,7 @@ def _get_real_cqlib_client() -> Any:
             auto_retry_machine=True,
         )
         logger.info("[Web] 真机 cqlib 客户端已就绪: tianyan_s")
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         # 防御性错误边界：客户端创建可能因依赖缺失/网络/认证/配置等多种原因失败，统一降级为离线
         logger.warning(f"[Web] 真机客户端创建失败 ({e})，真机状态降级为离线")
         _real_cqlib_client = None
@@ -249,7 +249,7 @@ def _get_real_machines_status() -> list[dict[str, Any]]:
         return []
     try:
         return client.list_backends()  # type: ignore[no-any-return]
-    except Exception as e:  # 防御性错误边界：cqlib 任意异常均需优雅降级为空列表
+    except Exception as e:  # noqa: BLE001  # 防御性错误边界：cqlib 任意异常均需优雅降级为空列表
         logger.error(f"[Web] 查询真机状态失败: {e}")
         return []
 
@@ -294,7 +294,7 @@ def _get_quota_tracker() -> Any:
                 config_path=str(_PROJECT_ROOT / "config" / "quota.yaml"),
                 state_path=str(_PROJECT_ROOT / "logs" / "quota_state.json"),
             )
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.debug(f"[Web] QuotaTracker 初始化失败: {e}")
             return None
     return _quota_tracker_instance

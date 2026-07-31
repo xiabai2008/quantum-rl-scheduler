@@ -496,7 +496,7 @@ class _InterceptHandler(logging.Handler):
             _loguru_logger.opt(depth=depth, exception=record.exc_info).log(
                 level, record.getMessage()
             )
-        except Exception:
+        except Exception:  # noqa: BLE001
             # 拦截 handler 自身异常，避免日志系统崩溃影响主流程
             pass
 

@@ -10,18 +10,20 @@
 
 import json
 import os
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 from loguru import logger
 from stable_baselines3.common.callbacks import BaseCallback
+
+if TYPE_CHECKING:
+    from torch.utils.tensorboard import SummaryWriter
 
 try:
     from torch.utils.tensorboard import SummaryWriter
 
     _TENSORBOARD_AVAILABLE = True
 except ImportError:  # pragma: no cover
-    SummaryWriter = None  # type: ignore[assignment, misc]
     _TENSORBOARD_AVAILABLE = False
 
 __all__ = [
@@ -172,7 +174,7 @@ class TrainingMetricsLogger:
             safe_metrics = {k: float(v) for k, v in metrics.items()}
             try:
                 self._writer.add_hparams(flat_params, safe_metrics)
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001
                 logger.warning(
                     f"[TrainingMetricsLogger] add_hparams 失败: {type(exc).__name__}: {exc}"
                 )
@@ -337,7 +339,7 @@ class TensorboardCallback(BaseCallback):
             if "grad_norm" in info:
                 GRADIENT_NORM.set(info["grad_norm"])
             TRAINING_STEPS.inc()
-        except Exception:
+        except Exception:  # noqa: BLE001
             pass  # 指标采集失败不影响训练
         return True
 

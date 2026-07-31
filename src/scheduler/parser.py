@@ -839,7 +839,7 @@ class LegacyTaskParser:
 
             return features
 
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.error(f"文本解析失败: {e}")
             return None
 

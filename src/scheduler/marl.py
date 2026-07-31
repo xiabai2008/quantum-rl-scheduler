@@ -37,7 +37,7 @@ from __future__ import annotations
 import json
 import os
 import random
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 import torch
@@ -398,7 +398,7 @@ class ActorNet(nn.Module):
             logits 张量，形状 (batch, action_dim)
         """
         features = self.feature(obs)
-        return self.action_head(features)  # type: ignore[no-any-return]
+        return cast(torch.Tensor, self.action_head(features))
 
     def get_action(
         self, obs: torch.Tensor, deterministic: bool = False
@@ -472,7 +472,7 @@ class CentralizedCritic(nn.Module):
         Returns:
             价值张量，形状 (batch,)
         """
-        return self.net(global_state).squeeze(-1)  # type: ignore[no-any-return]
+        return cast(torch.Tensor, self.net(global_state).squeeze(-1))
 
 
 # ---------------------------------------------------------------------------
@@ -627,8 +627,8 @@ class LearnableMachineScorer(MachineScorer, nn.Module):
         """
         if features.dim() == 1:
             features = features.unsqueeze(0)
-            return self.net(features).squeeze(-1).squeeze(0)  # type: ignore[no-any-return]
-        return self.net(features).squeeze(-1)  # type: ignore[no-any-return]
+            return cast(torch.Tensor, self.net(features).squeeze(-1).squeeze(0))
+        return cast(torch.Tensor, self.net(features).squeeze(-1))
 
     def get_score(self, machine_features: np.ndarray) -> float:
         """
@@ -1107,7 +1107,7 @@ class MultiAgentPPO:
             from src.utils.seeds import set_seed
 
             set_seed(int(seed))
-        except Exception:  # pragma: no cover - 防御性兜底
+        except (ImportError, ValueError, TypeError):  # pragma: no cover - 防御性兜底
             random.seed(seed)
             np.random.seed(seed)
             torch.manual_seed(seed)
