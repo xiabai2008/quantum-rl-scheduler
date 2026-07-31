@@ -428,7 +428,7 @@ class TianyanClient:
                 app_id=self._app_id,
             )
             logger.info(f"✅ 真实模式委托 cqlib（机器={machine_name}）")
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             # 涉及 cqlib SDK 导入与初始化，异常类型无法穷举，保留宽捕获并记录日志
             logger.warning(f"cqlib 客户端初始化失败: {e}，回退 REST 路径")
 
@@ -1111,10 +1111,10 @@ class TianyanClient:
             status_info = self.get_task_status(task_id)
             status = status_info.get("status", "unknown")
 
-            if status.upper() == "COMPLETED":
+            if status.lower() == "completed":
                 logger.info(f"任务 {task_id} 已完成")
                 return self.get_task_result(task_id)
-            elif status.upper() in ("FAILED", "ERROR", "QUERY_ERROR"):
+            elif status.lower() in ("failed", "error", "query_error"):
                 error_msg = status_info.get("error", "未知错误")
                 raise TianyanAPIError(
                     status_code=400,

@@ -48,7 +48,6 @@ from src.scheduler.env_types import (
     ACTION_CLASSICAL,
     ACTION_HYBRID,
     ACTION_QUANTUM,
-    CROSSTALK_PENALTY_FACTOR,
     DEFAULT_MACHINE_CONFIGS,
     INITIAL_QUEUE_RANGE,
     MAX_QUEUE_SIZE,
@@ -82,7 +81,6 @@ from src.scheduler.env_types import (
     REAL_MACHINE_SUBMIT_INTERVAL,
     REAL_MACHINE_SUCCESS_BONUS,
     REAL_SUBMIT_PROBABILITY_DEFAULT,
-    REQUEUE_PENALTY_FACTOR,
     REWARD_CLASSICAL,
     REWARD_HYBRID,
     REWARD_LOW_QUBIT_UTIL,
@@ -177,11 +175,7 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
         quantum_task_ratio: float | None = None,
         real_machine_max_qubits: int = FREE_TIER_MAX_QUBITS,
         noise_profile: str | dict[str, Any] | None = None,
-        # Issue #781: 默认 False 以匹配 16 维交付模型 (ppo_best_model_16dim.zip)。
-        # 启用公平性观测需配合 17 维模型，否则会触发维度不匹配；
-        # 7.30 二审"公平调度默认开启"应通过显式配置 include_fairness_obs=True 实现，
-        # 而非破坏模型加载的默认值。
-        include_fairness_obs: bool = False,
+        include_fairness_obs: bool = False,  # Issue #588: 默认关闭，保持 OBS_DIM=16 向后兼容；显式开启时扩展到 17 维
         observation_dim: int | None = None,
         use_noise_profile: bool = False,
         max_poll_per_step: int = REAL_MACHINE_MAX_POLL_PER_STEP_DEFAULT,
@@ -377,7 +371,7 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
                           驱动仿真环境的噪声特征。需要真机噪声数据时应单独调用
                           ``attach_noise_extractor(env, backend=real_backend)``。
         """
-        self._invalidate_obs_cache()  # Issue #627: 客户端绑定可能改变机器状态，失效缓存
+        self._cached_obs = None  # Issue #627: 客户端绑定可能改变机器状态，失效缓存
         self._real_clients.update(clients)
         for m in self._machines:
             if m.name in clients:
@@ -395,7 +389,7 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
         Args:
             tracker: MultiTenantFairnessTracker 实例，或 None 清除。
         """
-        self._invalidate_obs_cache()  # Issue #627: 公平性跟踪器影响第17维观测
+        self._cached_obs = None  # Issue #627: 公平性跟踪器影响第17维观测
         self._fairness_tracker = tracker
 
     def inject_noise_profile(
@@ -417,7 +411,7 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
         """
         from loguru import logger
 
-        self._invalidate_obs_cache()  # Issue #627: 噪声注入改变机器保真度/噪声特征
+        self._cached_obs = None  # Issue #627: 噪声注入改变机器保真度/噪声特征
         self._injected_noise_profile = profile
         targets = [m for m in self._machines if machine_name is None or m.name == machine_name]
         if not targets:
@@ -560,7 +554,7 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
         rng = self.np_random
 
         # Issue #627: reset 会彻底重建状态，失效旧缓存
-        self._invalidate_obs_cache()
+        self._cached_obs = None
 
         # 重置步数和统计
         self._current_step = 0
@@ -676,14 +670,14 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
                 if quantum_unavailable:
                     if action == ACTION_QUANTUM:
                         # 纯量子动作：任务重新排队，半个 mismatch 惩罚
-                        reward += REWARD_MISMATCH * REQUEUE_PENALTY_FACTOR
+                        reward += REWARD_MISMATCH * 0.5
                         task.wait_steps += 1
                         if len(self._task_queue) < MAX_QUEUE_SIZE:
                             self._task_queue.append(task)
                         self._last_selected_machine = None
                         log_msg = (
                             f"[步骤{self._current_step}] 量子资源不可用，"
-                            f"任务{task.task_id} 重新入队，惩罚{REWARD_MISMATCH * REQUEUE_PENALTY_FACTOR:.1f}"
+                            f"任务{task.task_id} 重新入队，惩罚{REWARD_MISMATCH * 0.5:.1f}"
                         )
                     else:
                         # 混合动作：降级为经典执行，避免系统空转
@@ -702,11 +696,14 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
                         )
                 else:
                     # 兼容分配：计算执行奖励（复用步首缓存的 obs，避免重复构建观测）
-                    # Issue #783/#784: crosstalk_penalty 由 _compute_execution_reward 内部
-                    # 统一计算并扣减，此处不再外部重复扣减，避免双重惩罚。
                     crosstalk_risk = obs[OBS_CROSSTALK_RISK]
-                    reward += self._compute_execution_reward(
-                        task, action, rng, crosstalk_risk=crosstalk_risk
+                    crosstalk_penalty = crosstalk_risk * 2.0
+
+                    reward += (
+                        self._compute_execution_reward(
+                            task, action, rng, crosstalk_risk=crosstalk_risk
+                        )
+                        - crosstalk_penalty
                     )
                     self._total_scheduled += 1
 
@@ -796,7 +793,7 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
         # advance_time 后的状态（如 arrival_rate_ma 已更新），保证返回给 Agent
         # 的观测与原始实现语义一致（原实现返回 advance_time 后的观测）。
         # 先失效缓存，再通过 _get_observation() 计算新 obs 并写入缓存。
-        self._invalidate_obs_cache()
+        self._cached_obs = None
         return_obs = self._get_observation()
         return return_obs, reward, terminated, truncated, self._get_info()
 
@@ -925,7 +922,7 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
         # _get_observation()。回退路径仍走 _cached_obs 缓存（Issue #627）。
         if crosstalk_risk is None:
             crosstalk_risk = self._get_observation()[OBS_CROSSTALK_RISK]
-        crosstalk_penalty = crosstalk_risk * CROSSTALK_PENALTY_FACTOR  # 惩罚因子可调
+        crosstalk_penalty = crosstalk_risk * 2.0  # 惩罚因子可调
 
         # Issue #587: 公平性惩罚嵌入奖励函数
         # 若未显式传入 fairness_penalty，则根据 tenant_manager 是否存在决定是否计算
@@ -978,18 +975,6 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
 
     def _pick_next_task(self) -> None:
         pick_next_task(self)
-
-    def _invalidate_obs_cache(self) -> None:
-        """失效观测聚合缓存（Issue #775）。
-
-        所有修改机器/聚合/队列状态的 mutator 在状态变更后必须调用，
-        确保后续 ``_get_observation()`` 返回最新观测而非过期缓存。
-
-        幂等：多次调用无副作用。该函数被 step()/reset() 及委托给子模块的
-        route_to_machine / recompute_aggregate / advance_time / pick_next_task
-        调用，避免外部绕开 step() 直接调用 mutator 时返回过期观测。
-        """
-        self._cached_obs = None
 
     def _get_observation(self) -> NDArray[Any]:
         # Issue #627: 优先返回缓存观测，避免热路径中重复构建 16/17 维向量

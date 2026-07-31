@@ -312,13 +312,13 @@ class MockTianyanClient:
         task = self._tasks[task_id]
 
         # 模拟状态轮转
-        # Issue #671: 统一使用小写状态字符串，与真实 cqlib 客户端保持一致
+        # Issue #671: 统一使用大写状态字符串，与 test_api.py 期望一致
         if task["status"] == "PENDING":
             # 随机决定是否进入 running
             if random.random() < 0.3:  # 30% 概率进入 running
                 task["status"] = "RUNNING"
                 task["started_at"] = datetime.now().isoformat()
-                logger.debug(f"Mock 任务 {task_id} 状态变更: pending → running")
+                logger.debug(f"Mock 任务 {task_id} 状态变更: PENDING → RUNNING")
 
         elif task["status"] == "RUNNING":  # noqa: SIM102
             # 随机决定是否进入 completed
@@ -379,7 +379,7 @@ class MockTianyanClient:
         task = self._tasks[task_id]
 
         if task["status"] != "COMPLETED":
-            # 自动轮询直到完成自动触发状态轮转，确保能获取到结果
+            # 自动触发状态轮转，确保能获取到结果
             self.get_task_status(task_id)
             if task["status"] != "COMPLETED":
                 raise ValueError(f"Mock 任务 {task_id} 尚未完成，当前状态: {task['status']}")

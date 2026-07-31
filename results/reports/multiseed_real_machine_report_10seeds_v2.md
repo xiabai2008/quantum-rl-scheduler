@@ -1,5 +1,7 @@
 # 天衍-287 多seed真机实验统计分析报告 v2（Issue #244）
 
+> **⚠️ 历史报告冻结声明（2026-07-31）**：本报告中 +88.3%、p=1.032e-42 等为14维旧模型口径，**已废弃**。现行权威口径为16维交付模型：PPO vs FCFS **+123.4%**（N=250, Welch t p=1.449e-66），见 config/statistics.yaml。
+
 > **生成时间**: 2026-07-27
 > **关联 Issue**: #244（重跑 10 seeds 实验，验证所有 seed 真机参与率 > 0）
 > **数据文件**: `results/real_machine/tianyan287_multiseed/multiseed_data_20260727_005558.json`

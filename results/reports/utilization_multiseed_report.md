@@ -1,5 +1,7 @@
 # 资源利用率多 Seed 权威报告（Issue #350）
 
+> **⚠️ 历史报告冻结声明（2026-07-31）**：本报告中 +88.3%、p=1.032e-42 等为14维旧模型口径，**已废弃**。现行权威口径为16维交付模型：PPO vs FCFS **+123.4%**（N=250, Welch t p=1.449e-66），见 config/statistics.yaml。
+
 > **实验配置**: 50 seeds × 5 episodes = 250 次独立运行
 > **观测维度**: 16 维（原生环境）
 > **数据来源**: `results/multiseed_evaluation/rewards_multiseed.json` → utilization 字段

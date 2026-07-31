@@ -373,19 +373,37 @@ class TestBoundaryCases:
 class TestObservation:
     """观测向量各维度含义验证。"""
 
-    def test_observation_dims_11_13_anti_sense(
-        self, env_no_circuit: QuantumCompilationEnv
-    ) -> None:
-        """维度11-13为反义冗余特征（PR#870回退PR#759后恢复原始定义）。
+    def test_observation_dims_11_13_anti_sense(self, env_no_circuit: QuantumCompilationEnv) -> None:
+        """观测维度11-13为反义维度（1-x），与 PR #759 新维度设计不同。
 
-        维度11=1-mapped_r, 12=1-alloc, 13=1-conn。
-        这些维度与dim 8/4/3语义冗余，保留以匹配已训练的 ppo_compilation_agent.zip。
+        当前实现（与预训练 ppo_compilation_agent.zip 兼容）：
+            - obs[11] = 1.0 - mapped_r（反义映射比率）
+            - obs[12] = 1.0 - alloc（反义分配比率）
+            - obs[13] = 1.0 - conn（反义连接度）
+
+        Issue #841：PR #759 曾将这三维替换为非冗余特征（avg_swap_dist_n /
+        swap_efficiency / isolated_occupied_n），但因预训练模型基于反义维度
+        训练，替换后导致 -107.7% 性能回退，已回退。详见 MODELS.md。
         """
         env_no_circuit.reset(seed=42)
         env_no_circuit.step(0)
         obs, _, _, _, _ = env_no_circuit.step(0)
+        # 维度11: 1.0 - mapped_r
         assert obs[11] == pytest.approx(1.0 - obs[8]), "obs[11] 应等于 1-mapped_r"
+        # 维度12: 1.0 - alloc
         assert obs[12] == pytest.approx(1.0 - obs[4]), "obs[12] 应等于 1-alloc"
+        # 维度13: 1.0 - conn
+        assert obs[13] == pytest.approx(1.0 - obs[3]), "obs[13] 应等于 1-conn"
+
+    def test_observation_anti_sense_conn_scattered(
+        self, env_no_circuit: QuantumCompilationEnv
+    ) -> None:
+        """分散映射时维度13（1-conn）应反映连接度下降，区别于相邻映射。"""
+        env_no_circuit.reset(seed=42)
+        # physical 0 和 5 在4x4网格中不相邻
+        env_no_circuit.step(0)
+        obs, _, _, _, _ = env_no_circuit.step(5)
+        # 分散映射时 conn=0，所以 obs[13] = 1-conn = 1.0
         assert obs[13] == pytest.approx(1.0 - obs[3]), "obs[13] 应等于 1-conn"
 
     def test_observation_updates_after_step(self, env_no_circuit: QuantumCompilationEnv) -> None:

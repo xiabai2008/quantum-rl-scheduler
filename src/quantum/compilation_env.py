@@ -270,6 +270,8 @@ class QuantumCompilationEnv(gym.Env):
                 dists.append(min_d)
             avg_swap_dist = float(np.mean(dists)) if dists else 0.0
         fid = max(1.0 - 0.01 * self._swap_count - 0.005 * avg_swap_dist, 0.0)
+        # Issue #656/#841: 暂保留旧反义维度(1-mapped_r/1-alloc/1-conn)以匹配已训练的 ppo_compilation_agent.zip
+        # 新维度(avg_swap_dist_n/swap_efficiency/isolated_occupied_n)虽更合理，但需重训练模型，8/15冻结前回退
         return np.array(
             [
                 nq_n,

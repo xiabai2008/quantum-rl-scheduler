@@ -5,6 +5,7 @@ from __future__ import annotations
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
+import gymnasium
 import numpy as np
 import pytest
 from gymnasium import spaces
@@ -15,7 +16,7 @@ from src.scheduler.ppo_agent import PPOAgent
 LOG_DIR = "logs/test_ppo_agent"
 
 
-class TinyEnv:
+class TinyEnv(gymnasium.Env):
     """不触发真实训练的最小 Gym 风格环境。"""
 
     observation_space = spaces.Box(0.0, 1.0, shape=(4,), dtype=np.float32)

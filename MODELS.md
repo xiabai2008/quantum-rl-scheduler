@@ -1,7 +1,8 @@
 # 权威模型检查点归档（MODELS.md）
 
 > 本文件说明本项目**可提交的训练好的模型检查点**，用于保证评审在克隆仓库后能复现论文中的实验结果（PPO vs FCFS +123.4% 等）。
-> 最后更新：2026-07-28
+> Version: 9.1.0
+> 最后更新：2026-07-31
 
 ## 为什么需要本目录
 
@@ -14,7 +15,7 @@
 | 策略 | 提交路径（可复现） | 训练说明 | 体积 | 复现指标 |
 |------|-------------------|----------|------|----------|
 | **PPO（16维MLP）** | `deliverable_models/ppo_best_model_16dim.zip` | 16维原生环境，100K steps，标准PPO(MLP)，seed=42，use_lstm=False | ~282 KB | 调度层PPO（权威实验见statistics.yaml） |
-| **PPO编译优化Agent** | `deliverable_models/ppo_compilation_agent.zip` | 量子比特映射任务专用PPO Agent，4×4 2D网格训练200k steps | ~160 KB | 公平对比v2：深电路(14-16q, 20电路)SWAP减少+33.3%（方向性优势，样本量不足），全60电路p=8.40e-01不显著，中+深40电路子集p=5.99e-01不显著（Issue #451） |
+| **PPO编译优化Agent** | `deliverable_models/ppo_compilation_agent.zip` | 量子比特映射任务专用PPO Agent，4×4 2D网格训练200k steps | ~160 KB | 公平对比v2（2026-07-31重测）：全60电路PPO avg=8.12 vs SABRE 9.72，变化率+16.5%（PPO略优），Wilcoxon p=8.40e-01不显著；中+深40子集+19.7%，p=5.99e-01不显著（Issue #451/#841） |
 
 ## 训练配置（复现前提）
 
@@ -58,7 +59,7 @@ python scripts/evaluation/ablation_ppo_variants.py
 | 指标 | 数值 | 统计检验 |
 |:--|:--|:--|
 | PPO vs FCFS 提升 | **+123.4%** | Welch t, p=1.449e-66, Cohen's d=-2.1353（16维权威实验, N=250, config/statistics.yaml） |
-| 编译层PPO vs SABRE | 公平对比v2（4×4 2D网格, 60电路同池配对, Issue #451） | 深电路(14-16q, 20电路)SWAP减少+33.3%（方向性优势，样本量不足），全60电路p=8.40e-01不显著，中+深40电路子集p=5.99e-01不显著 |
+| 编译层PPO vs SABRE | 公平对比v2（4×4 2D网格, 60电路同池配对, Issue #451） | 深电路(14-16q, 20电路)SWAP减少+45.5%（方向性优势，样本量不足），全60电路p=5.95e-01不显著，中+深40电路子集p=2.56e-01不显著 |
 | 2D网格拓扑优势 | SABRE在2D网格上SWAP比线性链少~62% | 拓扑消融实验（ablation_compilation_env.py） |
 | 真机验证 | 315次SDK调用100%成功率 | 可用性验证 |
 
