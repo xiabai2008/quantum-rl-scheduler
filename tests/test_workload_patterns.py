@@ -27,7 +27,7 @@ class RecordingGenerator:
 
 def test_default_environment_behavior_is_preserved() -> None:
     env = QuantumSchedulingEnv()
-    assert env._get_arrival_lambda() == pytest.approx(1.2)
+    assert env._get_arrival_lambda() == pytest.approx(0.5)  # Issue #678: 与权威实验配置 λ=0.5 一致
     assert env.quantum_task_ratio is None
 
 

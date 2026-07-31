@@ -390,7 +390,7 @@ def run_real_env_comparison(
 
     # 创建真实调度环境（14维）
     env = QuantumSchedulingEnv(max_steps=100)
-    logger.info("环境: QuantumSchedulingEnv (obs_dim=14, action_dim=3)")
+    logger.info("环境: QuantumSchedulingEnv (obs_dim=14, action_dim=4)")
 
     # 收集经验数据
     buffer = SimpleReplayBuffer(capacity=500)

@@ -85,7 +85,7 @@ class OODGeneralizationTester:
             包含以下键的字典：
             - ``in_distribution``: 原始分布评估结果
             - ``ood``: 偏移分布评估结果
-            - ``degradation``: 性能衰减分析结果
+            - ``degradation``: 性能衰减分析结果（含统计显著性）
             - ``shift_params``: 使用的偏移参数
 
         Raises:
@@ -110,7 +110,12 @@ class OODGeneralizationTester:
                 ood_rewards.append(episode_reward)
 
         ood_results = summarize_rewards(ood_rewards)
-        degradation = self.compute_ood_degradation(in_dist_results, ood_results)
+        degradation = self.compute_ood_degradation(
+            in_dist_results,
+            ood_results,
+            in_distribution_rewards=in_dist_results["all_rewards"],
+            ood_rewards=ood_rewards,
+        )
 
         logger.info(
             "OOD 测试完成：in_dist={:.2f}, ood={:.2f}, degradation={:.2%}, robust={}",
@@ -131,23 +136,40 @@ class OODGeneralizationTester:
         self,
         in_distribution_results: dict[str, Any],
         ood_results: dict[str, Any],
+        in_distribution_rewards: list[float] | None = None,
+        ood_rewards: list[float] | None = None,
     ) -> dict[str, Any]:
         """计算分布外性能衰减。
 
         衰减率定义为 ``(原始均值 - OOD均值) / |原始均值|``，正值表示性能下降，
         负值表示 OOD 性能更好。当原始均值接近 0 时退化为符号判定。
 
+        当同时提供 ``in_distribution_rewards`` 和 ``ood_rewards`` 时，
+        额外返回衰减率的 Bootstrap 95% CI、In-Dist vs OOD 差异显著性
+        （p 值 + Cohen's d 效应量），并将 ``is_robust`` 判定从纯阈值升级为
+        「衰减率 < 阈值 且 衰减不具统计显著性」双条件。
+
         Args:
             in_distribution_results: 原始分布评估结果（须含 ``mean_reward``）。
             ood_results: 偏移分布评估结果（须含 ``mean_reward``）。
+            in_distribution_rewards: 原始分布的逐 episode 奖励列表，用于
+                统计显著性检验；默认 ``None`` 不执行统计增强。
+            ood_rewards: 偏移分布的逐 episode 奖励列表，用于统计检验；
+                默认 ``None`` 不执行统计增强。
 
         Returns:
             包含以下键的衰减结果字典：
             - ``in_distribution_mean``: 原始分布平均奖励
             - ``ood_mean``: 偏移分布平均奖励
             - ``degradation_rate``: 衰减率，正值表示性能下降
-            - ``is_robust``: 是否鲁棒（衰减率 < 阈值）
+            - ``is_robust``: 是否鲁棒（阈值 + 非显著衰减双条件）
             - ``robustness_threshold``: 鲁棒性阈值
+            - ``degradation_ci95_lower``: 衰减率 95% CI 下界（nan 表示未计算）
+            - ``degradation_ci95_upper``: 衰减率 95% CI 上界（nan 表示未计算）
+            - ``significance_p_value``: In-Dist vs OOD 显著性 p 值（nan 表示未计算）
+            - ``effect_size_cohens_d``: 效应量 Cohen's d（nan 表示未计算）
+            - ``effect_size_level``: 效应量等级（None/字符串）
+            - ``statistically_significant_degradation``: 是否统计显著衰减
         """
         in_mean = float(in_distribution_results["mean_reward"])
         ood_mean = float(ood_results["mean_reward"])
@@ -158,8 +180,72 @@ class OODGeneralizationTester:
         else:
             degradation_rate = (in_mean - ood_mean) / abs(in_mean)
 
-        # 衰减率为负（OOD 性能更好）时视为鲁棒
-        is_robust = degradation_rate < self.robust_threshold
+        # ---- 统计增强：CI / 显著性 / 效应量 ----
+        deg_ci_lo: float = float("nan")
+        deg_ci_hi: float = float("nan")
+        sig_p: float = float("nan")
+        es_d: float = float("nan")
+        es_level: str | None = None
+        sig_deg: bool = False
+
+        both_rewards_provided = (
+            in_distribution_rewards is not None
+            and ood_rewards is not None
+            and len(in_distribution_rewards) >= 2
+            and len(ood_rewards) >= 2
+        )
+
+        if both_rewards_provided:
+            from src.utils.stats_significance import (
+                bootstrap_improvement_ci,
+                compare_strategies,
+            )
+
+            # both_rewards_provided 已保证非 None 且长度 >= 2，断言消除 mypy 类型歧义
+            assert in_distribution_rewards is not None
+            assert ood_rewards is not None
+
+            # 1) 衰减率 Bootstrap 95% CI
+            # bootstrap_improvement_ci 计算 (target - baseline) / |baseline| * 100
+            # 这里 target = ood, baseline = in_dist
+            # improvement_pct 对应 OOD 相对于 In-Dist 的提升率
+            # 衰减率 degradation_rate = -improvement_pct / 100
+            _imp_pct, imp_ci_lo, imp_ci_hi = bootstrap_improvement_ci(
+                list(ood_rewards), list(in_distribution_rewards), confidence=0.95
+            )
+            # 注意：bootstrap_improvement_ci 返回百分比（值，CI 上下界也是百分比
+            # degradation = -improvement_pct / 100 → CI 也要取相反数并除 100
+            if not (np.isnan(imp_ci_lo) or np.isnan(imp_ci_hi)):
+                deg_ci_lo = -imp_ci_hi / 100.0
+                deg_ci_hi = -imp_ci_lo / 100.0
+
+            # 2) In-Dist vs OOD 差异显著性 + 效应量
+            cmp_res = compare_strategies(
+                {"In-Dist": list(in_distribution_rewards), "OOD": list(ood_rewards)}
+            )
+            pair_key = "In-Dist vs OOD"
+            if pair_key in cmp_res:
+                pair = cmp_res[pair_key]
+                sig_p = float(pair.get("p_value", float("nan")))
+                # compare_strategies 可能使用 Cohen's d 或 rank-biserial
+                if pair.get("effect_size_type") == "Cohen's d":
+                    es_d = float(pair.get("effect_size", float("nan")))
+                else:
+                    # 用 cohen_d 单独计算一次保证有 d 值
+                    from src.utils.stats_significance import cohen_d as _cohen_d
+
+                    es_d = _cohen_d(list(in_distribution_rewards), list(ood_rewards))
+                if not np.isnan(es_d):
+                    from src.utils.stats_significance import _effect_level
+
+                    es_level = _effect_level(es_d, "Cohen's d")
+                # 显著且 In-Dist 均值 > OOD 均值（正衰减
+                significant = bool(pair.get("significant", False))
+                mean_diff_in_gt_0 = in_mean > ood_mean
+                sig_deg = significant and mean_diff_in_gt_0
+
+        # ---- is_robust 升级为双条件：阈值 + 非显著衰减
+        is_robust = (degradation_rate < self.robust_threshold) and (not sig_deg)
 
         return {
             "in_distribution_mean": in_mean,
@@ -167,6 +253,12 @@ class OODGeneralizationTester:
             "degradation_rate": float(degradation_rate),
             "is_robust": bool(is_robust),
             "robustness_threshold": float(self.robust_threshold),
+            "degradation_ci95_lower": deg_ci_lo,
+            "degradation_ci95_upper": deg_ci_hi,
+            "significance_p_value": sig_p,
+            "effect_size_cohens_d": es_d,
+            "effect_size_level": es_level,
+            "statistically_significant_degradation": sig_deg,
         }
 
     def _run_shifted_episode(

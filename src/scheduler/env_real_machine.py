@@ -373,7 +373,7 @@ def _compute_theoretical_distribution_cached(qcis: str) -> tuple[tuple[str, floa
     try:
         raw_dist = _simulate_qcis_statevector(qcis, total_qubits, measure_qubits)
         return tuple((k, round(v, 12)) for k, v in raw_dist.items())
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.warning(f"状态向量模拟失败({e})，回退均匀分布")
         n_states = 2**n_qubits
         return tuple((format(i, f"0{n_qubits}b"), 1.0 / n_states) for i in range(n_states))
@@ -718,7 +718,7 @@ def submit_to_real_machine(
         else:
             # 提交被拒绝（非异常），计入失败并触发降级判断
             record_real_failure(env, machine.name, "提交被拒绝（返回 None）")
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         # 真机 API 提交失败：区分暂时性错误与永久性错误（Issue #218）
         # - 暂时性错误（网络超时/连接错误/服务端 5xx）：不计入连续失败，仅记录日志，
         #   避免网络抖动误触发降级
@@ -824,7 +824,7 @@ def poll_pending_real_tasks(env: "QuantumSchedulingEnv") -> float:
         try:
             status = client.get_task_status(real_task_id)
             pending["cached_status"] = dict(status) if status else {}
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             # 查询异常视为本步未拿到结果，移到队尾等待下次轮询
             logger.debug(f"[真机闭环] 查询 {real_task_id} 异常: {e}")
             pending["cached_status"] = {"status": "unknown"}

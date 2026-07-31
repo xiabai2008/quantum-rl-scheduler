@@ -524,3 +524,163 @@ class TestOODGeneralizationTester:
         )
         # 无偏移时衰减率应较小
         assert result["degradation"]["degradation_rate"] < 0.30
+
+
+# ============================================================
+# Issue #839: 统计显著性集成新增测试
+# ============================================================
+
+
+class TestSummarizeRewardsCIAndSEM:
+    """summarize_rewards 新增 sem / ci95_lower / ci95_upper 测试。"""
+
+    @staticmethod
+    def test_blind_summarize_rewards_has_ci_and_sem() -> None:
+        """标准 n=5 场景：sem 和 CI 三键存在且数值与手算一致。
+
+        rewards = [1.0, 2.0, 3.0, 4.0, 5.0]
+        - mean = 3.0
+        - std(ddof=1) = sqrt(((1-3)²+(2-3)²+(3-3)²+(4-3)²+(5-3)²)/4)
+                    = sqrt((4+1+0+1+4)/4) = sqrt(10/4) = sqrt(2.5) ≈ 1.5811
+        - sem = std / sqrt(5) ≈ 1.5811 / 2.2361 ≈ 0.7071
+        - CI = mean ± 1.96 * sem ≈ 3.0 ± 1.96*0.7071 ≈ [1.614, 4.386]
+        """
+        from src.evaluation.blind_test import summarize_rewards
+
+        rewards = [1.0, 2.0, 3.0, 4.0, 5.0]
+        result = summarize_rewards(rewards)
+
+        # 键存在
+        assert "sem" in result
+        assert "ci95_lower" in result
+        assert "ci95_upper" in result
+
+        # 数值校验
+        assert result["sem"] == pytest.approx(0.7071, rel=1e-3)
+        assert result["ci95_lower"] == pytest.approx(1.614, rel=1e-2)
+        assert result["ci95_upper"] == pytest.approx(4.386, rel=1e-2)
+
+    @staticmethod
+    def test_blind_summarize_rewards_n1_boundary() -> None:
+        """n=1 边界：sem / ci95_* 均为 nan，不抛异常。"""
+        from src.evaluation.blind_test import summarize_rewards
+
+        result = summarize_rewards([42.0])
+        assert np.isnan(result["sem"])
+        assert np.isnan(result["ci95_lower"])
+        assert np.isnan(result["ci95_upper"])
+
+    @staticmethod
+    def test_blind_summarize_rewards_empty() -> None:
+        """空列表边界：sem / ci95_* 均为 nan。"""
+        from src.evaluation.blind_test import summarize_rewards
+
+        result = summarize_rewards([])
+        assert np.isnan(result["sem"])
+        assert np.isnan(result["ci95_lower"])
+        assert np.isnan(result["ci95_upper"])
+
+
+class TestOODDegradationWithSignificanceAndCI:
+    """OOD compute_ood_degradation 统计增强 + 兼容路径测试。"""
+
+    @staticmethod
+    def test_ood_degradation_significant_case() -> None:
+        """路径 A：传入两组明显差异的奖励 → 新字段有值且显著。
+
+        In-Dist: 50 个 N(2349, 857²)
+        OOD:     50 个 N(1500, 857²)
+        预期：衰减显著（p < 0.01），CI 下界 > 0，效应量中/大。
+        """
+        rng = np.random.default_rng(42)
+        in_dist_r = list(rng.normal(2349.0, 857.0, 50))
+        ood_r = list(rng.normal(1500.0, 857.0, 50))
+
+        tester = OODGeneralizationTester()
+        in_results = {"mean_reward": float(np.mean(in_dist_r))}
+        ood_res = {"mean_reward": float(np.mean(ood_r))}
+
+        deg = tester.compute_ood_degradation(
+            in_results,
+            ood_res,
+            in_distribution_rewards=in_dist_r,
+            ood_rewards=ood_r,
+        )
+
+        # 新字段存在且有合理数值
+        assert deg["significance_p_value"] < 0.01
+        assert deg["statistically_significant_degradation"] is True
+        assert deg["effect_size_level"] in ("中效应", "大效应")
+        # 正衰减：CI 下界应 > 0（95% 置信 OOD 更差）
+        assert deg["degradation_ci95_lower"] > 0
+        # Cohen's d 数值合理
+        assert np.isfinite(deg["effect_size_cohens_d"])
+        assert deg["effect_size_cohens_d"] > 0  # In-Dist > OOD → 正 d
+
+    @staticmethod
+    def test_ood_degradation_backward_compatible() -> None:
+        """路径 B：不传奖励列表 → 兼容旧版且新字段填 nan/False/None。
+
+        degradation_rate 与传入完全相同的两组（同数据）得到完全相同的数值
+        （回归测试，使用 pytest.approx rel=1e-9）。
+        """
+        rng = np.random.default_rng(7)
+        in_dist_r = list(rng.normal(2349.0, 857.0, 30))
+        ood_r = list(rng.normal(2000.0, 857.0, 30))
+
+        tester = OODGeneralizationTester()
+        in_results = {"mean_reward": float(np.mean(in_dist_r))}
+        ood_res = {"mean_reward": float(np.mean(ood_r))}
+
+        # 路径 B：不传奖励
+        deg_b = tester.compute_ood_degradation(in_results, ood_res)
+
+        # 新字段应为 nan / None / False
+        assert np.isnan(deg_b["degradation_ci95_lower"])
+        assert np.isnan(deg_b["degradation_ci95_upper"])
+        assert np.isnan(deg_b["significance_p_value"])
+        assert np.isnan(deg_b["effect_size_cohens_d"])
+        assert deg_b["effect_size_level"] is None
+        assert deg_b["statistically_significant_degradation"] is False
+
+        # 路径 A：传奖励（同一组数据）
+        deg_a = tester.compute_ood_degradation(
+            in_results,
+            ood_res,
+            in_distribution_rewards=in_dist_r,
+            ood_rewards=ood_r,
+        )
+
+        # degradation_rate 必须完全一致（回归）
+        assert deg_a["degradation_rate"] == pytest.approx(deg_b["degradation_rate"], rel=1e-9)
+
+    @staticmethod
+    def test_ood_degradation_is_robust_upgrade_significant_but_small() -> None:
+        """is_robust 升级：衰减率点估计 < 30% 但统计显著时不判鲁棒。
+
+        构造两组样本量很大的数据，衰减率点估计约 15%（<30%）但由于样本量大
+        而统计显著 → 新 is_robust 应为 False（双条件判定）。
+        """
+        rng = np.random.default_rng(123)
+        # 大样本（n=500）确保即使小差异也显著
+        in_dist_r = list(rng.normal(1000.0, 100.0, 500))
+        # OOD 比基线低 15%，但方差小 → 统计会显著
+        ood_r = list(rng.normal(850.0, 100.0, 500))
+
+        tester = OODGeneralizationTester(robust_threshold=0.30)
+        in_results = {"mean_reward": float(np.mean(in_dist_r))}
+        ood_res = {"mean_reward": float(np.mean(ood_r))}
+
+        deg = tester.compute_ood_degradation(
+            in_results,
+            ood_res,
+            in_distribution_rewards=in_dist_r,
+            ood_rewards=ood_r,
+        )
+
+        # 衰减率约 15%（< 阈值 30%）
+        assert deg["degradation_rate"] == pytest.approx(0.15, abs=0.05)
+        # 但由于样本量大，衰减统计显著
+        assert deg["statistically_significant_degradation"] is True
+        # 双条件：虽然 rate < 30% 但显著 → 不鲁棒
+        assert deg["is_robust"] is False

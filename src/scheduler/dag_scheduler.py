@@ -685,7 +685,7 @@ class DAGScheduler:
                 [int(sample.get(index, 0)) for index in range(qubo.shape[0])],
                 dtype=np.int8,
             )
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001
             logger.warning("[DAG-QUBO] neal 不可用或求解失败：{}；使用 NumPy SA", exc)
             self._last_annealing_solver = "numpy_sa"
             return self._numpy_scheduling_annealing(qubo, num_reads)
@@ -781,8 +781,12 @@ class DAGScheduler:
                 return False
             start = float(by_id[task_id]["start_time"])
             for dependency in task.dependencies:
-                # Issue #684: 前驱未在调度方案中分配时跳过，避免 KeyError 崩溃
+                # Issue #684: 区分悬空依赖（指向不存在的任务）和未分配前驱
+                if dependency not in self.tasks:
+                    # 悬空依赖：指向不在任务列表中的任务，方案不可行
+                    return False
                 if dependency not in by_id:
+                    # 前驱在 tasks 中但未在调度方案中分配，跳过避免 KeyError
                     continue
                 dependency_finish = float(by_id[dependency]["estimated_finish"])
                 if start + 1e-12 < dependency_finish:
@@ -875,7 +879,7 @@ class DAGScheduler:
             assignment, _energy = solve_task_assignment(
                 tasks_list, machines_list, optimizer=optimizer
             )
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             # Issue #389: 退火异常时记录日志后回退到经典资源约束调度，保证调度可用
             # 原实现完全吞掉异常，退火配置错误/依赖缺失/QUBO 构建异常将无法被发现
             logger.warning(

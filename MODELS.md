@@ -1,6 +1,7 @@
 # 权威模型检查点归档（MODELS.md）
 
 > 本文件说明本项目**可提交的训练好的模型检查点**，用于保证评审在克隆仓库后能复现论文中的实验结果（PPO vs FCFS +123.4% 等）。
+> Version: 9.1.0
 > 最后更新：2026-07-31
 
 ## 为什么需要本目录
@@ -14,7 +15,7 @@
 | 策略 | 提交路径（可复现） | 训练说明 | 体积 | 复现指标 |
 |------|-------------------|----------|------|----------|
 | **PPO（16维MLP）** | `deliverable_models/ppo_best_model_16dim.zip` | 16维原生环境，100K steps，标准PPO(MLP)，seed=42，use_lstm=False | ~282 KB | 调度层PPO（权威实验见statistics.yaml） |
-| **PPO编译优化Agent** | `deliverable_models/ppo_compilation_agent.zip` | 量子比特映射任务专用PPO Agent，4×4 2D网格训练200k steps | ~160 KB | 公平对比v2：深电路(14-16q, 20电路)SWAP减少+45.5%（方向性优势，样本量不足），全60电路p=5.95e-01不显著，中+深40电路子集p=2.56e-01不显著（Issue #451） |
+| **PPO编译优化Agent** | `deliverable_models/ppo_compilation_agent.zip` | 量子比特映射任务专用PPO Agent，4×4 2D网格训练200k steps | ~160 KB | 公平对比v2（2026-07-31重测）：全60电路PPO avg=8.12 vs SABRE 9.72，变化率+16.5%（PPO略优），Wilcoxon p=8.40e-01不显著；中+深40子集+19.7%，p=5.99e-01不显著（Issue #451/#841） |
 
 ## 训练配置（复现前提）
 
@@ -79,7 +80,6 @@ python scripts/evaluation/ablation_ppo_variants.py
 - PPO 权威调度模型为**16维标准MLP**（`ppo_best_model_16dim.zip`），是v9.1交付版本
 - 旧的10维/14维调度模型已清理，仅保留当前最优16维模型和编译优化Agent
 - 编译层Agent（`ppo_compilation_agent.zip`）为独立模型，使用14维观测空间（量子编译环境专用）
-- **PR #759 兼容性提示（Issue #772）**：2026-07-31 PR #759 将 `compilation_env.py` 观测维度 11-13 从冗余反义特征替换为非冗余指标（维度数仍为14，shape 不变），但 `ppo_compilation_agent.zip` 是在替换前训练的，行为上可能与新环境存在分布偏移。维度数兼容可正常加载，但若需严格复现公平对比v2结果，建议基于新观测定义重训编译层模型（由 #772 跟踪）
 - 如需重新训练并替换权威模型：使用对应训练脚本训练后将模型复制至 `deliverable_models/` 并同步更新本文件
 - `run_simulation.py` 默认加载 `deliverable_models/ppo_best_model_16dim.zip`
 - `models/` 目录（.gitignore忽略）存放训练过程中的临时checkpoint，不作为交付物

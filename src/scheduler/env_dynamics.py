@@ -197,6 +197,7 @@ def advance_time(env: "QuantumSchedulingEnv", rng: np.random.Generator) -> None:
         env.arrival_history.append(new_task_count)
         if len(env.arrival_history) > getattr(env, "max_arrival_history_length", 10):
             env.arrival_history.pop(0)
+    env._invalidate_obs_cache()  # Issue #775: 时间推进改变所有资源状态，失效观测缓存
 
 
 def pick_next_task(env: "QuantumSchedulingEnv") -> None:
@@ -214,6 +215,9 @@ def pick_next_task(env: "QuantumSchedulingEnv") -> None:
     Args:
         env: 调度环境实例
     """
+    # Issue #789: 本函数从 _task_queue 取出任务（队列长度变化）并更新 _current_task，
+    # 两者均影响观测向量，必须失效缓存。
+    env._cached_obs = None
     if not env._task_queue:
         env._current_task = None
         return
@@ -224,3 +228,4 @@ def pick_next_task(env: "QuantumSchedulingEnv") -> None:
     best_task = max(env._task_queue, key=lambda t: (t.priority, t.wait_steps, t.urgency))
     env._task_queue.remove(best_task)
     env._current_task = best_task
+    env._invalidate_obs_cache()  # Issue #775: 任务切换改变队列/当前任务状态，失效观测缓存

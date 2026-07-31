@@ -101,14 +101,14 @@ class TestActorNetDirect:
 
     def test_forward_returns_logits_shape(self) -> None:
         """forward 应返回 (batch, action_dim) 形状的 logits。"""
-        actor = ActorNet(obs_dim=13, action_dim=3, hidden_sizes=(8,))
+        actor = ActorNet(obs_dim=13, action_dim=4, hidden_sizes=(8,))
         obs = torch.zeros(4, 13)  # batch=4
         logits = actor.forward(obs)
-        assert logits.shape == (4, 3)
+        assert logits.shape == (4, 4)
 
     def test_evaluate_actions_returns_log_prob_and_entropy(self) -> None:
         """evaluate_actions 应返回 log_prob 和 entropy。"""
-        actor = ActorNet(obs_dim=13, action_dim=3, hidden_sizes=(8,))
+        actor = ActorNet(obs_dim=13, action_dim=4, hidden_sizes=(8,))
         obs = torch.zeros(2, 13)
         actions = torch.zeros(2, dtype=torch.long)
         log_prob, entropy = actor.evaluate_actions(obs, actions)
@@ -119,7 +119,7 @@ class TestActorNetDirect:
 
     def test_get_action_deterministic_picks_argmax(self) -> None:
         """deterministic=True 时应选择 logit 最大的动作。"""
-        actor = ActorNet(obs_dim=13, action_dim=3, hidden_sizes=(8,))
+        actor = ActorNet(obs_dim=13, action_dim=4, hidden_sizes=(8,))
         obs = torch.zeros(1, 13)
         # 多次采样，确定性策略每次应返回相同动作
         action1, _, _ = actor.get_action(obs, deterministic=True)
