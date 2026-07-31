@@ -101,6 +101,10 @@ class QuantumCompilationEnv(gym.Env):
                         否则使用正方形网格（sqrt(n) x sqrt(n)）
         grid_rows    : 网格行数，与 grid_cols 一起用于构建耦合图（优先于自动推导）
         grid_cols    : 网格列数
+        obs_version  : 观测语义版本，兼容 PR #759 前后模型权重。
+                      "v759_post" (默认): 维度11-13 = avg_swap_dist_n/swap_efficiency/isolated_occupied_n (新特征)
+                      "v759_pre"         : 维度11-13 = 1-mapped_r/1-alloc/1-conn (旧模型训练语义，
+                                           加载 deliverable_models/ppo_compilation_agent.zip 时必须使用)
     """
 
     metadata = {"render_modes": ["human"]}  # noqa: RUF012
@@ -113,6 +117,7 @@ class QuantumCompilationEnv(gym.Env):
         coupling_graph: dict[int, set[int]] | None = None,
         grid_rows: int | None = None,
         grid_cols: int | None = None,
+        obs_version: str = "v759_post",
     ) -> None:
         super().__init__()
         self.max_steps = max_steps
@@ -153,6 +158,14 @@ class QuantumCompilationEnv(gym.Env):
         # 预计算距离缓存（实例级别，支持自定义耦合图）
         self._distance_cache = _all_pairs_distances(self.coupling_graph)
         self.observation_space = spaces.Box(low=0, high=1, shape=(14,), dtype=np.float32)
+        # Issue #772: 观测语义版本化，兼容 PR #759 前的旧模型权重
+        # "v759_post" (默认): 维度11-13 = 新特征 (avg_swap_dist_n/swap_efficiency/isolated_occupied_n)
+        # "v759_pre"         : 维度11-13 = 1-mapped_r/1-alloc/1-conn (旧模型训练语义)
+        if obs_version not in ("v759_pre", "v759_post"):
+            raise ValueError(
+                f"obs_version 必须为 'v759_pre' 或 'v759_post'，收到 {obs_version!r}"
+            )
+        self._obs_version = obs_version
         self.action_space = spaces.Discrete(self.n_physical)
         self._gates: list[Any] = []
         self._n_gates: int = 0
@@ -279,6 +292,16 @@ class QuantumCompilationEnv(gym.Env):
             1 for q in occupied if not any(n in occupied for n in self.coupling_graph.get(q, set()))
         )
         isolated_occupied_n = isolated_occupied / max(1, self.n_physical)
+        # Issue #772: 观测语义版本化，兼容 PR #759 前的旧模型权重
+        # 维度11-13 在 v759_post 为新特征，在 v759_pre 为旧模型训练语义(反义冗余特征)
+        if self._obs_version == "v759_pre":
+            dim11 = 1.0 - mapped_r
+            dim12 = 1.0 - alloc
+            dim13 = 1.0 - conn
+        else:  # v759_post (默认)
+            dim11 = avg_swap_dist_n
+            dim12 = swap_efficiency
+            dim13 = isolated_occupied_n
         return np.array(
             [
                 nq_n,
@@ -292,9 +315,9 @@ class QuantumCompilationEnv(gym.Env):
                 mapped_r,
                 swap_n,
                 fid,
-                avg_swap_dist_n,
-                swap_efficiency,
-                isolated_occupied_n,
+                dim11,
+                dim12,
+                dim13,
             ],
             dtype=np.float32,
         )

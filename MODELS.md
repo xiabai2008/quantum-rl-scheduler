@@ -79,6 +79,7 @@ python scripts/evaluation/ablation_ppo_variants.py
 - PPO 权威调度模型为**16维标准MLP**（`ppo_best_model_16dim.zip`），是v9.1交付版本
 - 旧的10维/14维调度模型已清理，仅保留当前最优16维模型和编译优化Agent
 - 编译层Agent（`ppo_compilation_agent.zip`）为独立模型，使用14维观测空间（量子编译环境专用）
+- **Issue #772 观测语义版本化**：PR #759 将编译层观测维度 11-13 由反义冗余特征 (`1-mapped_r`/`1-alloc`/`1-conn`) 替换为新特征 (`avg_swap_dist_n`/`swap_efficiency`/`isolated_occupied_n`)。`QuantumCompilationEnv` 新增 `obs_version` 参数：`"v759_post"`（默认，新特征）/`"v759_pre"`（旧模型训练语义）。**当前 `ppo_compilation_agent.zip` 为 v759_pre 语义训练，加载它的脚本（`compilation_fair_v2.py`、`gen_compilation_report.py`）已强制传 `obs_version="v759_pre"`**。若用 `train_compilation_agent_2dgrid.py`/`compilation_full.py` 重训该模型，新模型为 v759_post 语义，届时需将上述两处改回 `"v759_post"` 或保持同步。
 - 如需重新训练并替换权威模型：使用对应训练脚本训练后将模型复制至 `deliverable_models/` 并同步更新本文件
 - `run_simulation.py` 默认加载 `deliverable_models/ppo_best_model_16dim.zip`
 - `models/` 目录（.gitignore忽略）存放训练过程中的临时checkpoint，不作为交付物

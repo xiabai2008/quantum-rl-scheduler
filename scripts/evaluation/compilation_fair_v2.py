@@ -161,7 +161,8 @@ def evaluate_ppo(
     model = PPO.load(model_path)
     results: list[dict[str, Any]] = []
     for item in pool:
-        env = QuantumCompilationEnv(item["circuit"], max_steps=max_steps)
+        # Issue #772: 加载旧模型 ppo_compilation_agent.zip (v759_pre 语义训练) 必须用 v759_pre
+        env = QuantumCompilationEnv(item["circuit"], max_steps=max_steps, obs_version="v759_pre")
         obs, _ = env.reset(seed=SEED)
         while True:
             action, _ = model.predict(obs, deterministic=True)

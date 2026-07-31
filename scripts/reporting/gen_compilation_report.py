@@ -72,7 +72,8 @@ np.random.seed(42)  # Same seed for same circuits
 for _cat, cfg in {"sh": (5, 8, 5, 10), "md": (9, 14, 10, 20), "dp": (14, 16, 20, 30)}.items():
     for _i in range(20):
         qc = random_circuit(np.random.randint(*cfg[:2]), np.random.randint(*cfg[2:]), measure=False)
-        env = QuantumCompilationEnv(qc, max_steps=200)
+        # Issue #772: 加载旧模型 ppo_compilation_agent.zip (v759_pre 语义训练) 必须用 v759_pre
+        env = QuantumCompilationEnv(qc, max_steps=200, obs_version="v759_pre")
         obs, _ = env.reset()
         while True:
             action, _ = model.predict(obs, deterministic=True)

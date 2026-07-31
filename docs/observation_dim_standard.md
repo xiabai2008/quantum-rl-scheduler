@@ -43,6 +43,7 @@
 编译层PPO Agent（`ppo_compilation_agent.zip`）使用独立的14维观测空间，定义在`src/quantum/compilation_env.py`：
 - 包含：电路特征（深度、两比特门比例）、当前映射状态、耦合图拓扑特征、SWAP候选动作评估
 - 这与调度层的16维观测空间完全不同，是量子比特映射任务专用
+- **Issue #772 观测语义版本化**：`QuantumCompilationEnv` 新增 `obs_version` 参数（`"v759_post"` 默认 / `"v759_pre"` 旧模型语义）。PR #759 将维度 11-13 由反义冗余特征改为新特征；加载旧模型 `ppo_compilation_agent.zip`（v759_pre 语义训练）时必须传 `obs_version="v759_pre"`，相关评估脚本（`compilation_fair_v2.py`、`gen_compilation_report.py`）已强制指定。
 
 ### 1.4 耦合图拓扑（v9更新）
 
