@@ -372,14 +372,14 @@ class ActorNet(nn.Module):
     """
 
     def __init__(
-        self, obs_dim: int, action_dim: int = 3, hidden_sizes: tuple[int, ...] = (128, 64)
+        self, obs_dim: int, action_dim: int = 4, hidden_sizes: tuple[int, ...] = (128, 64)
     ):
         """
         初始化 Actor 网络。
 
         Args:
             obs_dim: 局部观测维度
-            action_dim: 动作维度，默认 3
+            action_dim: 动作维度，默认 4（与 QuantumSchedulingEnv 动作空间一致）
             hidden_sizes: 隐藏层尺寸
         """
         super().__init__()
