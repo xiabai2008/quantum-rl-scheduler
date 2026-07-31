@@ -59,8 +59,8 @@ jobs:
         shell: bash
         run: |
           python scripts/ci/validate_submission.py --check \
-            --manifest config/submission_manifest.yaml
-            --skip-items CODE_ARCHIVE,DEMO_VIDEO \
+            --manifest config/submission_manifest.yaml \
+            --skip-items CODE_ARCHIVE,DEMO_VIDEO
 
       - name: Run authoritative metrics audit
         shell: bash
@@ -91,8 +91,8 @@ jobs:
       - name: Package submission artifacts
         run: |
           python scripts/ci/validate_submission.py --pack \
-            --manifest config/submission_manifest.yaml
-            --skip-items CODE_ARCHIVE,DEMO_VIDEO \
+            --manifest config/submission_manifest.yaml \
+            --skip-items CODE_ARCHIVE,DEMO_VIDEO
 
       - name: Upload package artifact
         uses: actions/upload-artifact@v4
