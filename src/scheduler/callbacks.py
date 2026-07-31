@@ -159,7 +159,7 @@ class AnnealingCallback(BaseCallback):
                                 policy.load_state_dict(
                                     optimized_agent.policy.state_dict(), strict=False
                                 )
-                            except Exception:
+                            except (ValueError, TypeError, RuntimeError, OSError, KeyError, AttributeError):
                                 # 退火优化器可能返回不同结构，逐参数复制同形状张量
                                 src_params = list(optimized_agent.policy.parameters())
                                 dst_params = list(policy.parameters())
@@ -187,7 +187,7 @@ class AnnealingCallback(BaseCallback):
                             f"[退火] 步数{self.n_calls}: 优化完成 (质量={quality:.4f}, "
                             f"累计优化{self.optimized_count}次)"
                         )
-            except Exception as e:
+            except (ValueError, TypeError, RuntimeError, OSError, KeyError, AttributeError) as e:
                 # 量子退火优化可能抛出多种异常（dimod/neal/torch），无法精确收窄
                 if self.verbose:
                     logger.warning(f"[退火] 步数{self.n_calls}: 退火跳过 ({e})")
@@ -294,7 +294,7 @@ class RealMachineCallback(BaseCallback):
         if hasattr(self.env, "get_random_pending_task"):
             try:
                 task = self.env.get_random_pending_task()
-            except Exception as e:
+            except (ValueError, TypeError, RuntimeError, OSError, KeyError, AttributeError) as e:
                 # 防御性捕获：env 内部状态访问可能抛出多种异常，降级为无任务
                 logger.debug(f"[RealCallback] 获取待处理任务失败: {e}")
                 task = None
@@ -331,7 +331,7 @@ class RealMachineCallback(BaseCallback):
                     f"tid={real_tid} latency={record['latency_s']}s "
                     f"task={task_id_str}"
                 )
-        except Exception as e:
+        except (ValueError, TypeError, RuntimeError, OSError, KeyError, AttributeError) as e:
             # 真机 API 提交可能因网络/认证/服务端等多种原因失败，无法精确收窄
             record["latency_s"] = round(time.time() - t0, 3)
             record["status"] = f"error: {str(e)[:80]}"

@@ -160,7 +160,7 @@ class ModelExporter:
                 self.algorithm = name
                 logger.info(f"成功以 {name.upper()} 格式加载模型: {self.model_path}")
                 return model
-            except Exception as e:
+            except (ValueError, TypeError, RuntimeError, OSError, KeyError, AttributeError) as e:
                 errors.append(f"{name.upper()}: {e}")
                 logger.debug(f"以 {name.upper()} 加载失败: {e}")
 
@@ -199,7 +199,7 @@ class ModelExporter:
             obs_space = model.observation_space
             if hasattr(obs_space, "shape") and obs_space.shape:
                 return tuple(obs_space.shape)
-        except Exception as e:
+        except (ValueError, TypeError, RuntimeError, OSError, KeyError, AttributeError) as e:
             logger.debug(f"输入形状推断失败，使用默认值 {_DEFAULT_INPUT_SHAPE}: {e}")
         return _DEFAULT_INPUT_SHAPE
 
@@ -228,7 +228,7 @@ class ModelExporter:
                         f"从模型观测空间推断输入形状: {inferred}（覆盖默认 {input_shape}）"
                     )
                     return inferred
-        except Exception as e:
+        except (ValueError, TypeError, RuntimeError, OSError, KeyError, AttributeError) as e:
             logger.debug(f"输出形状推断失败，使用输入值 {input_shape}: {e}")
         return input_shape
 
@@ -331,7 +331,7 @@ class ModelExporter:
                 raise RuntimeError(f"ONNX 完整性校验失败: {check_err}") from check_err
             logger.info(f"ONNX 导出成功: {onnx_path}")
             return onnx_path
-        except Exception as e:
+        except (ValueError, TypeError, RuntimeError, OSError, KeyError, AttributeError) as e:
             logger.error(f"ONNX 导出失败: {e}")
             raise RuntimeError(f"ONNX 导出失败: {e}") from e
 
@@ -367,7 +367,7 @@ class ModelExporter:
             traced.save(ts_path)
             logger.info(f"TorchScript 导出成功: {ts_path}")
             return ts_path
-        except Exception as e:
+        except (ValueError, TypeError, RuntimeError, OSError, KeyError, AttributeError) as e:
             logger.error(f"TorchScript 导出失败: {e}")
             raise RuntimeError(f"TorchScript 导出失败: {e}") from e
 
@@ -430,7 +430,7 @@ class ModelExporter:
                         f"TorchScript 验证: max_diff={ts_max:.2e}, "
                         f"mean_diff={ts_mean:.2e}, valid={ts_valid}"
                     )
-                except Exception as e:
+                except (ValueError, TypeError, RuntimeError, OSError, KeyError, AttributeError) as e:
                     logger.error(f"TorchScript 验证失败: {e}")
                     details["torchscript"] = {"valid": False, "error": str(e)}
 
@@ -466,7 +466,7 @@ class ModelExporter:
                         "valid": False,
                         "error": "onnxruntime 未安装",
                     }
-                except Exception as e:
+                except (ValueError, TypeError, RuntimeError, OSError, KeyError, AttributeError) as e:
                     logger.error(f"ONNX 验证失败: {e}")
                     details["onnx"] = {"valid": False, "error": str(e)}
 
@@ -525,7 +525,7 @@ class ModelExporter:
             result["onnx_path"] = onnx_path
         except ImportError as e:
             logger.warning(f"ONNX 导出跳过（依赖缺失）: {e}")
-        except Exception as e:
+        except (ValueError, TypeError, RuntimeError, OSError, KeyError, AttributeError) as e:
             logger.warning(f"ONNX 导出失败（已降级）: {e}")
 
         # 验证
@@ -590,7 +590,7 @@ def export_model(
             result["onnx_path"] = onnx_path
         except ImportError as e:
             logger.warning(f"ONNX 导出跳过: {e}")
-        except Exception as e:
+        except (ValueError, TypeError, RuntimeError, OSError, KeyError, AttributeError) as e:
             logger.warning(f"ONNX 导出失败: {e}")
 
     result["validation"] = exporter.validate_export(

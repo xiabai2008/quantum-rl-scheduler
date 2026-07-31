@@ -243,7 +243,7 @@ class CqlibTianyanClient(QuantumHardwareBackend):
             # 网络问题：连接超时/拒绝/不可达，不应被视为认证失败
             logger.warning(f"[Cqlib] 认证时遭遇网络问题（不计入凭证失败）: {type(e).__name__}: {e}")
             return False
-        except Exception as e:
+        except (ValueError, TypeError, RuntimeError, OSError, KeyError, AttributeError) as e:
             # cqlib 平台连接异常类型无法穷举，保留宽捕获并记录日志
             # 默认视为永久性错误（凭证无效/权限不足等）
             logger.error(f"[Cqlib] 认证失败（凭证或服务端问题）: {e}")
@@ -267,7 +267,7 @@ class CqlibTianyanClient(QuantumHardwareBackend):
         except OSError as e:
             # 网络问题：暂时性错误，不应触发降级
             return False, f"网络异常: {type(e).__name__}: {e}", True
-        except Exception as e:
+        except (ValueError, TypeError, RuntimeError, OSError, KeyError, AttributeError) as e:
             # cqlib 平台连接异常：默认视为永久性错误
             err_msg = str(e)
             # 部分关键字提示为暂时性服务端错误（5xx）
@@ -296,7 +296,7 @@ class CqlibTianyanClient(QuantumHardwareBackend):
                 }
                 for m in machines
             ]
-        except Exception as e:
+        except (ValueError, TypeError, RuntimeError, OSError, KeyError, AttributeError) as e:
             # cqlib 查询接口异常类型无法穷举，保留宽捕获并记录日志
             logger.error(f"[Cqlib] 获取机器列表失败: {e}")
             return []
@@ -379,7 +379,7 @@ class CqlibTianyanClient(QuantumHardwareBackend):
             if self._quota_tracker is not None:
                 self._quota_tracker.consume(shots=shots, tasks=1)
             return str(result)
-        except Exception as e:
+        except (ValueError, TypeError, RuntimeError, OSError, KeyError, AttributeError) as e:
             # cqlib 提交接口异常类型无法穷举，保留宽捕获并记录日志
             err_msg = str(e)
             logger.error(f"[Cqlib] {self.machine_name} 提交失败: {err_msg}")
@@ -413,7 +413,7 @@ class CqlibTianyanClient(QuantumHardwareBackend):
                     return m.get("status") == "running"
             # 未找到该机器，乐观放行
             return True
-        except Exception as e:
+        except (ValueError, TypeError, RuntimeError, OSError, KeyError, AttributeError) as e:
             # cqlib 查询失败不阻塞，乐观放行；记录日志便于排查
             logger.debug(f"[Cqlib] 查询机器 {machine_name} 可用性失败: {e}，乐观放行")
             return True
@@ -533,7 +533,7 @@ class CqlibTianyanClient(QuantumHardwareBackend):
                 if self._quota_tracker is not None:
                     self._quota_tracker.consume(shots=shots, tasks=1)
                 return tid
-            except Exception as e:
+            except (ValueError, TypeError, RuntimeError, OSError, KeyError, AttributeError) as e:
                 # cqlib 备用机器提交异常类型无法穷举，保留宽捕获并记录日志
                 err_msg = str(e)
                 logger.debug(f"[Cqlib] {machine} 失败: {err_msg[:80]}")
@@ -616,7 +616,7 @@ class CqlibTianyanClient(QuantumHardwareBackend):
                 error=message[:200],
                 raw={},
             )
-        except Exception as e:
+        except (ValueError, TypeError, RuntimeError, OSError, KeyError, AttributeError) as e:
             # cqlib 查询接口异常类型无法穷举，保留宽捕获并记录日志
             logger.debug(f"[Cqlib] 查询任务 {task_id} 状态失败: {e}")
             return TaskResult(
@@ -705,7 +705,7 @@ class CqlibTianyanClient(QuantumHardwareBackend):
             if not self.authenticate():
                 return False
             return self._is_machine_available(self.machine_name)
-        except Exception as e:
+        except (ValueError, TypeError, RuntimeError, OSError, KeyError, AttributeError) as e:
             # cqlib 平台访问异常类型无法穷举，保留宽捕获并记录日志
             logger.debug(f"[Cqlib] is_available 检查失败: {e}")
             return False
@@ -847,7 +847,7 @@ class MultiMachineCqlibCoordinator:
             if self._quota_tracker is not None and task_id is not None:
                 self._quota_tracker.consume(shots=shots, tasks=1)
             return task_id
-        except Exception as e:
+        except (ValueError, TypeError, RuntimeError, OSError, KeyError, AttributeError) as e:
             # 涉及客户端获取（ValueError）与提交，异常类型无法穷举，保留宽捕获并记录日志
             with self._lock:
                 self._fail_count[machine_name] = self._fail_count.get(machine_name, 0) + 1
@@ -865,7 +865,7 @@ class MultiMachineCqlibCoordinator:
             try:
                 client = self._get_client(name)
                 status[name] = client.get_queue_status()
-            except Exception as e:
+            except (ValueError, TypeError, RuntimeError, OSError, KeyError, AttributeError) as e:
                 # 涉及客户端获取与队列查询，异常类型无法穷举，保留宽捕获并记录日志
                 logger.debug(f"[MultiMachine] 获取 {name} 队列状态失败: {e}")
                 status[name] = {"error": str(e)[:80]}
