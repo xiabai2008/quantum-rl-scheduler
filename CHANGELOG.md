@@ -21,7 +21,7 @@
 - **MARL evaluate()修复**：训练-评估一致性修复，多智能体评估结果可复现
 - **Property-based测试 + 性能基准测试**：Hypothesis策略测试+ASV基准
 - **27个issues全部关闭**：所有P0/P1/P2 issues已处理
-- **测试3359通过，ruff/mypy 0 errors**
+- **测试3550通过（pytest --collect-only 实测 2026-07-31），ruff/mypy 0 errors**
 
 ### 变更 (v9.0.0 → 9.1.0)
 - **权威数字更新**：基于16维交付模型 `ppo_best_model_16dim.zip` 重跑 N=250 多seed评估，PPO vs FCFS 提升 +88.3% → **+123.4%**（Welch t p=1.449e-66，Cohen's d=-2.14，CI[+113.3%, +133.5%]）；旧14维数字移入 `config/statistics.yaml` deprecated 段留痕

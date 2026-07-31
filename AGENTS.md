@@ -144,7 +144,7 @@ quantum-rl-scheduler/
 │       ├── alerts.py             # 告警
 │       └── seeds.py              # 随机种子管理
 
-├── tests/                        # 测试（94 文件，3400+ 用例）
+├── tests/                        # 测试（94 文件，3550 用例）
 │   ├── test_scheduler.py         # 调度环境测试
 │   ├── test_marl.py              # MAPPO 测试
 │   ├── test_annealing.py         # 量子启发式退火测试
@@ -259,7 +259,7 @@ quantum-rl-scheduler/
 ### 测试升级
 
 - 测试文件：5 → 76（+71个专用测试模块）
-- 测试用例：100+ → 3400+（Issue #398 P1-4 统一口径，pytest --collect-only 实测 3467，2026-07-30）
+- 测试用例：100+ → 3550（Issue #398 P1-4 统一口径，pytest --collect-only 实测，2026-07-31）
 - CI 强制覆盖率：40% → 80%（实际 93.58%，pyproject.toml `fail_under=80`）
 - 新增：property-based testing + 性能基准测试 + mutation testing + 统计显著性检验
 
