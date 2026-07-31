@@ -291,7 +291,8 @@ class PPOAgent:
         # EvalCallback，仅当产生新最优模型时重置无改善计数。
         early_stop_callback: StopTrainingOnNoModelImprovement | None = None
         if early_stop_patience is not None and early_stop_patience > 0:
-            early_stop_callback = StopTrainingOnNoModelImprovement(
+            early_stop_callback = StopTrainingOnNoModelImprovement(min_delta=0.001,
+
                 max_no_improvement_evals=early_stop_patience,
                 min_evals=early_stop_min_evals,
                 verbose=1,
