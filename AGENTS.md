@@ -24,6 +24,11 @@
 feat / fix / docs / test / refactor / chore
 ```
 
+### Archive 文档说明
+
+> `archive/docs/` 目录下的 teammate 文档为历史归档文件，其中的 +88.3%/76.4% 等数字为旧版 14 维模型数据，已被 v9.1 16 维模型的 +123.4% 取代。
+> **archive 文档不作为数据基准**，仅供历史追溯。权威数字以 `config/statistics.yaml` 和 `AGENTS.md` 为准。
+
 ***
 
 ## 1. 项目概述
