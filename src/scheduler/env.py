@@ -175,7 +175,7 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
         quantum_task_ratio: float | None = None,
         real_machine_max_qubits: int = FREE_TIER_MAX_QUBITS,
         noise_profile: str | dict[str, Any] | None = None,
-        include_fairness_obs: bool = True,  # Issue #654: 默认开启公平性观测，展示公平调度能力
+        include_fairness_obs: bool = False,  # Issue #654: 默认开启公平性观测，展示公平调度能力
         observation_dim: int | None = None,
         use_noise_profile: bool = False,
         max_poll_per_step: int = REAL_MACHINE_MAX_POLL_PER_STEP_DEFAULT,
