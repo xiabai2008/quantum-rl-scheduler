@@ -17,7 +17,11 @@ from src.scheduler.env_types import (
     ACTION_QUANTUM_QEM,
     FAIRNESS_PENALTY_FACTOR,
     FAIRNESS_PENALTY_THRESHOLD,
+    FIDELITY_NORM_REF,
+    LOW_FIDELITY_DISCOUNT,
+    LOW_FIDELITY_THRESHOLD,
     MAX_WAIT_STEPS,
+    QEM_TIME_PENALTY_FACTOR,
     QUANTUM_SPEEDUP_RANGE,
     REWARD_CLASSICAL,
     REWARD_HYBRID,
@@ -192,12 +196,12 @@ def compute_execution_reward(
         # Issue #401: 加速比基于任务比特数对数缩放（而非纯随机）
         speedup = _compute_task_speedup(task, rng)
         # 保真度加成：保真度越高，加速比越大
-        fidelity_factor = quantum_fidelity / 0.99  # 归一化到 ~1.0
+        fidelity_factor = quantum_fidelity / FIDELITY_NORM_REF  # 归一化到 ~1.0
         speedup *= fidelity_factor
         reward = REWARD_QUANTUM_BASE * speedup
         # 保真度过低时打折，避免智能体盲目偏向低质量量子资源。
-        if quantum_fidelity < 0.9:
-            reward *= 0.6
+        if quantum_fidelity < LOW_FIDELITY_THRESHOLD:
+            reward *= LOW_FIDELITY_DISCOUNT
 
         # 应用串扰惩罚
         reward -= crosstalk_penalty
@@ -219,12 +223,12 @@ def compute_execution_reward(
         qem_fidelity = 1.0 - (1.0 - quantum_fidelity) / 2.0
 
         speedup = _compute_task_speedup(task, rng)
-        fidelity_factor = qem_fidelity / 0.99
+        fidelity_factor = qem_fidelity / FIDELITY_NORM_REF
         speedup *= fidelity_factor
         reward = REWARD_QUANTUM_BASE * speedup
 
         # 2. 施加时间代价（奖励打折），模拟更长的执行时间
-        time_penalty_factor = 3.0
+        time_penalty_factor = QEM_TIME_PENALTY_FACTOR
         reward /= time_penalty_factor
 
         # 应用串扰惩罚

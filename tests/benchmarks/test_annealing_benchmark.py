@@ -10,6 +10,7 @@
 
 import os
 import sys
+from typing import Any
 
 import numpy as np
 import pytest
@@ -21,6 +22,31 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 from src.quantum.annealing import QuantumAnnealingOptimizer
 from src.scheduler.env import QuantumSchedulingEnv
 from src.scheduler.parser import LegacyTaskParser
+
+
+def _get_stat(stats: Any, key: str, default: float = 0.0) -> float:
+    """兼容 pytest-benchmark 4.x/5.x 的 stats 属性访问。
+
+    4.x: stats.mean / stats.median（直接属性）
+    5.x: stats 是 Metadata 对象，需通过 stats['mean'] 或 stats.stats.mean 访问；
+         在某些 5.x 版本下 stats 可能为 None，此时返回 default。
+    """
+    # 4.x: 直接属性访问
+    val = getattr(stats, key, None)
+    if val is not None:
+        return val
+    # 5.x: dict-like 访问
+    try:
+        return stats[key]
+    except (KeyError, TypeError, IndexError):
+        pass
+    # 5.x: 嵌套 Stats 对象
+    inner = getattr(stats, "stats", None)
+    if inner is not None:
+        val = getattr(inner, key, None)
+        if val is not None:
+            return val
+    return default
 
 
 def generate_qasm(num_qubits: int, num_gates: int) -> str:
@@ -70,9 +96,9 @@ class TestAnnealingBenchmark:
         assert len(result) == 10
         assert all(ch in "01" for ch in result)
         # 性能回归阈值断言（Issue #729）：10x10 QUBO 求解均值应 < 1.0s
-        assert benchmark.stats["mean"] < 1.0, (
-            f"QUBO 10x10 求解均值超阈值: {benchmark.stats['mean']:.3f}s"
-        )
+        # pytest-benchmark 5.x 兼容
+        mean_val = _get_stat(benchmark.stats, "mean", default=0.0)
+        assert mean_val < 1.0, f"QUBO 10x10 求解均值超阈值: {mean_val:.3f}s"
 
     def test_qubo_solve_medium(self, benchmark):
         """QUBO 求解基准：50x50 矩阵 < 3 秒"""
@@ -91,9 +117,9 @@ class TestAnnealingBenchmark:
         assert len(result) == 50
         assert all(ch in "01" for ch in result)
         # 性能回归阈值断言（Issue #729）：50x50 QUBO 求解均值应 < 3.0s
-        assert benchmark.stats["mean"] < 3.0, (
-            f"QUBO 50x50 求解均值超阈值: {benchmark.stats['mean']:.3f}s"
-        )
+        # pytest-benchmark 5.x 兼容
+        mean_val = _get_stat(benchmark.stats, "mean", default=0.0)
+        assert mean_val < 3.0, f"QUBO 50x50 求解均值超阈值: {mean_val:.3f}s"
 
     def test_network_to_qubo(self, benchmark):
         """network_to_qubo 性能基准（小网络 nn.Linear(8,4)）"""
@@ -110,9 +136,9 @@ class TestAnnealingBenchmark:
         expected = total_params * n_bits_per_weight
         assert qubo.shape == (expected, expected)
         # 性能回归阈值断言（Issue #729）：network_to_qubo 均值应 < 0.2s
-        assert benchmark.stats["mean"] < 0.2, (
-            f"network_to_qubo 均值超阈值: {benchmark.stats['mean']:.3f}s"
-        )
+        # pytest-benchmark 5.x 兼容
+        mean_val = _get_stat(benchmark.stats, "mean", default=0.0)
+        assert mean_val < 0.2, f"network_to_qubo 均值超阈值: {mean_val:.3f}s"
 
     def test_bitstring_decode(self, benchmark):
         """bitstring_to_weights 解码性能基准"""
@@ -135,9 +161,9 @@ class TestAnnealingBenchmark:
         for decoded, shape in zip(result, shapes, strict=False):
             assert decoded.shape == shape
         # 性能回归阈值断言（Issue #729）：bitstring 解码均值应 < 0.1s
-        assert benchmark.stats["mean"] < 0.1, (
-            f"bitstring_to_weights 均值超阈值: {benchmark.stats['mean']:.3f}s"
-        )
+        # pytest-benchmark 5.x 兼容
+        mean_val = _get_stat(benchmark.stats, "mean", default=0.0)
+        assert mean_val < 0.1, f"bitstring_to_weights 均值超阈值: {mean_val:.3f}s"
 
 
 @pytest.mark.benchmark
@@ -161,9 +187,9 @@ class TestEnvBenchmark:
         result = benchmark(step_once)
         assert result.shape == expected_shape
         # 性能回归阈值断言（Issue #729）：env.step() 中位数应 < 50ms
-        assert benchmark.stats["median"] < 0.05, (
-            f"env.step() 中位数超阈值: {benchmark.stats['median']:.4f}s"
-        )
+        # pytest-benchmark 5.x 兼容
+        median = _get_stat(benchmark.stats, "median", default=0.0)
+        assert median < 0.05, f"env.step() 中位数超阈值: {median:.4f}s"
 
     def test_env_reset_performance(self, benchmark):
         """QuantumSchedulingEnv.reset() 性能基准"""
@@ -178,9 +204,9 @@ class TestEnvBenchmark:
         assert result.shape == expected_shape
         assert np.all(result >= 0.0) and np.all(result <= 1.0)
         # 性能回归阈值断言（Issue #729）：env.reset() 中位数应 < 50ms
-        assert benchmark.stats["median"] < 0.05, (
-            f"env.reset() 中位数超阈值: {benchmark.stats['median']:.4f}s"
-        )
+        # pytest-benchmark 5.x 兼容
+        median = _get_stat(benchmark.stats, "median", default=0.0)
+        assert median < 0.05, f"env.reset() 中位数超阈值: {median:.4f}s"
 
 
 @pytest.mark.benchmark
@@ -200,4 +226,6 @@ class TestParserBenchmark:
         assert result.qubit_count == 10
         assert result.gate_count == 20
         # 性能回归阈值断言（Issue #729）：QASM 解析均值应 < 0.1s
-        assert benchmark.stats["mean"] < 0.1, f"QASM 解析均值超阈值: {benchmark.stats['mean']:.4f}s"
+        # pytest-benchmark 5.x 兼容
+        mean_val = _get_stat(benchmark.stats, "mean", default=0.0)
+        assert mean_val < 0.1, f"QASM 解析均值超阈值: {mean_val:.4f}s"

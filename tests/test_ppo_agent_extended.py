@@ -5,6 +5,7 @@ from __future__ import annotations
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
+import gymnasium
 import numpy as np
 import pytest
 from gymnasium import spaces
@@ -15,14 +16,11 @@ from src.scheduler.ppo_agent import PPOAgent
 LOG_DIR = "logs/test_ppo_agent"
 
 
-class TinyEnv:
-    """不触发真实训练的最小 Gym 风格环境。
-
-    Issue #787: 动作空间对齐主环境 QuantumSchedulingEnv 的 Discrete(4)。
-    """
+class TinyEnv(gymnasium.Env):
+    """不触发真实训练的最小 Gym 风格环境。"""
 
     observation_space = spaces.Box(0.0, 1.0, shape=(4,), dtype=np.float32)
-    action_space = spaces.Discrete(4)
+    action_space = spaces.Discrete(3)
 
     def __init__(self) -> None:
         self.steps = 0
@@ -291,12 +289,12 @@ def test_save_load_config_and_repr(monkeypatch, tiny_env: TinyEnv) -> None:
 
     config = agent.get_config()
     assert config["observation_dim"] == 4
-    assert config["action_dim"] == 4
+    assert config["action_dim"] == 3
     assert config["architecture"] == "PPO"
     text = repr(agent)
     assert "PPOAgent" in text
     assert "状态维度=4" in text
-    assert "动作维度=4" in text
+    assert "动作维度=3" in text
 
 
 # ============================================================================
@@ -530,7 +528,7 @@ def test_get_config_returns_all_fields(tiny_env: TinyEnv) -> None:
     assert config["max_grad_norm"] == 0.3
     assert config["architecture"] == "PPO"
     assert config["observation_dim"] == 4
-    assert config["action_dim"] == 4
+    assert config["action_dim"] == 3
 
 
 # ============================================================================
@@ -539,10 +537,10 @@ def test_get_config_returns_all_fields(tiny_env: TinyEnv) -> None:
 
 
 def test_train_creates_early_stop_callback(monkeypatch, tiny_env: TinyEnv) -> None:
-    """train 应在 early_stop_patience>0 时创建早停回调并挂载到 EvalCallback（Issue #677）。"""
+    """train 应在 early_stop_patience>0 时创建早停回调并挂载到 EvalCallback（Issue #677/#799）。"""
     early_stop_instance = MagicMock(name="early_stop")
     early_stop_cls = MagicMock(return_value=early_stop_instance)
-    monkeypatch.setattr(ppo_module, "StopTrainingOnNoModelImprovement", early_stop_cls)
+    monkeypatch.setattr(ppo_module, "StopTrainingOnNoModelImprovementMinDelta", early_stop_cls)
 
     _, eval_cls, _, _ = _patch_training_callbacks(monkeypatch)
     model = MagicMock()
@@ -557,14 +555,42 @@ def test_train_creates_early_stop_callback(monkeypatch, tiny_env: TinyEnv) -> No
         progress_bar=False,
     )
 
-    early_stop_cls.assert_called_once_with(max_no_improvement_evals=3, min_evals=2, verbose=1)
+    early_stop_cls.assert_called_once_with(
+        max_no_improvement_evals=3, min_evals=2, min_delta=0.0, verbose=1
+    )
+    assert eval_cls.call_args.kwargs["callback_on_new_best"] is early_stop_instance
+
+
+def test_train_creates_early_stop_callback_with_min_delta(monkeypatch, tiny_env: TinyEnv) -> None:
+    """train 应将 early_stop_min_delta 传递给早停回调（Issue #799）。"""
+    early_stop_instance = MagicMock(name="early_stop")
+    early_stop_cls = MagicMock(return_value=early_stop_instance)
+    monkeypatch.setattr(ppo_module, "StopTrainingOnNoModelImprovementMinDelta", early_stop_cls)
+
+    _, eval_cls, _, _ = _patch_training_callbacks(monkeypatch)
+    model = MagicMock()
+    agent = PPOAgent(tiny_env, log_dir=LOG_DIR, verbose=0)
+    monkeypatch.setattr(agent, "_build_model", MagicMock(return_value=model))
+
+    agent.train(
+        total_timesteps=10,
+        eval_freq=2,
+        early_stop_patience=5,
+        early_stop_min_evals=1,
+        early_stop_min_delta=0.5,
+        progress_bar=False,
+    )
+
+    early_stop_cls.assert_called_once_with(
+        max_no_improvement_evals=5, min_evals=1, min_delta=0.5, verbose=1
+    )
     assert eval_cls.call_args.kwargs["callback_on_new_best"] is early_stop_instance
 
 
 def test_train_disables_early_stop_when_patience_none(monkeypatch, tiny_env: TinyEnv) -> None:
     """early_stop_patience=None 时不应创建早停回调（Issue #677）。"""
     early_stop_cls = MagicMock()
-    monkeypatch.setattr(ppo_module, "StopTrainingOnNoModelImprovement", early_stop_cls)
+    monkeypatch.setattr(ppo_module, "StopTrainingOnNoModelImprovementMinDelta", early_stop_cls)
 
     _, eval_cls, _, _ = _patch_training_callbacks(monkeypatch)
     model = MagicMock()

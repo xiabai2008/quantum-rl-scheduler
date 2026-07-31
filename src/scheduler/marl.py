@@ -37,7 +37,7 @@ from __future__ import annotations
 import json
 import os
 import random
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 import torch
@@ -367,7 +367,7 @@ class ActorNet(nn.Module):
     单个 Agent 的策略网络（Actor）。
 
     输入：本机局部观测（local_obs_dim 维）
-    输出：3 个离散动作的 logits（Categorical 分布）
+    输出：N_ACTIONS 个离散动作的 logits（Categorical 分布）
 
     使用 Tanh 激活函数（PPO 常用配置，训练稳定）。
     """
@@ -380,7 +380,7 @@ class ActorNet(nn.Module):
 
         Args:
             obs_dim: 局部观测维度
-            action_dim: 动作维度，默认 N_ACTIONS（4：classical/quantum/hybrid/qem）
+            action_dim: 动作维度，默认 N_ACTIONS(=4)
             hidden_sizes: 隐藏层尺寸
         """
         super().__init__()
@@ -398,7 +398,7 @@ class ActorNet(nn.Module):
             logits 张量，形状 (batch, action_dim)
         """
         features = self.feature(obs)
-        return self.action_head(features)  # type: ignore[no-any-return]
+        return cast(torch.Tensor, self.action_head(features))
 
     def get_action(
         self, obs: torch.Tensor, deterministic: bool = False
@@ -472,7 +472,7 @@ class CentralizedCritic(nn.Module):
         Returns:
             价值张量，形状 (batch,)
         """
-        return self.net(global_state).squeeze(-1)  # type: ignore[no-any-return]
+        return cast(torch.Tensor, self.net(global_state).squeeze(-1))
 
 
 # ---------------------------------------------------------------------------
@@ -627,8 +627,8 @@ class LearnableMachineScorer(MachineScorer, nn.Module):
         """
         if features.dim() == 1:
             features = features.unsqueeze(0)
-            return self.net(features).squeeze(-1).squeeze(0)  # type: ignore[no-any-return]
-        return self.net(features).squeeze(-1)  # type: ignore[no-any-return]
+            return cast(torch.Tensor, self.net(features).squeeze(-1).squeeze(0))
+        return cast(torch.Tensor, self.net(features).squeeze(-1))
 
     def get_score(self, machine_features: np.ndarray) -> float:
         """
@@ -720,7 +720,7 @@ class LearnableMachineScorer(MachineScorer, nn.Module):
             else:
                 logger.warning(f"[LearnableMachineScorer] 权重文件不存在: {load_path}，跳过加载")
                 return
-        state = torch.load(load_path, map_location=self.device, weights_only=False)
+        state = torch.load(load_path, map_location=self.device, weights_only=False)  # nosec B614
         self.net.load_state_dict(state["model_state_dict"])
         if "optimizer_state_dict" in state:
             self.optimizer.load_state_dict(state["optimizer_state_dict"])
@@ -1107,7 +1107,7 @@ class MultiAgentPPO:
             from src.utils.seeds import set_seed
 
             set_seed(int(seed))
-        except Exception:  # pragma: no cover - 防御性兜底
+        except (ImportError, ValueError, TypeError):  # pragma: no cover - 防御性兜底
             random.seed(seed)
             np.random.seed(seed)
             torch.manual_seed(seed)

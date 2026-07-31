@@ -148,7 +148,7 @@ class AsyncAnnealingCallback(BaseCallback):
                     state_dict=snapshot_dict,
                     policy_ref=self.model.policy,
                 )
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 # PyTorch state_dict/clone/cpu 转换可能抛出多种异常
                 # （RuntimeError/TypeError/MemoryError 等），无法精确收窄
                 logger.error(
@@ -219,7 +219,7 @@ class AsyncAnnealingCallback(BaseCallback):
                 f"[AsyncAnnealingCallback] 回写退火权重失败 "
                 f"(step={step}, 键不匹配或形状不一致: {type(e).__name__}: {e})"
             )
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             # 其他异常（如 CPU-GPU 不匹配等）仍需捕获，避免中断训练
             logger.error(
                 f"[AsyncAnnealingCallback] 回写退火权重失败 (step={step}, {type(e).__name__}: {e})"

@@ -48,7 +48,7 @@ class ConnectionManager:
                 logger.warning(f"[Web] WebSocket 连接数已达上限 {self.max_connections}，拒绝新连接")
                 try:
                     await websocket.close(code=1008)  # Policy Violation
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001
                     # 防御性：close 在某些状态下可能抛异常，不影响拒绝逻辑
                     logger.debug(f"[Web] 拒绝连接时 close 失败: {e}")
                 return False
@@ -80,7 +80,7 @@ class ConnectionManager:
         for connection in connections:
             try:
                 await connection.send_json(message)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 # 防御性错误边界：单个连接发送失败不应中断广播，任何异常均移除该连接
                 logger.debug(f"[Web] WebSocket 广播失败，将移除该连接: {e}")
                 disconnected.append(connection)

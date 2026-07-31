@@ -358,7 +358,7 @@ class DecisionExplainer:
                     raw = vals[0]
                 else:
                     raw = np.zeros(n, dtype=np.float64)
-            except Exception:
+            except Exception:  # noqa: BLE001
                 # SHAP 计算失败时回退到方向感知启发式
                 raw = self._directional_raw(state_arr, action, q_arr)
         else:
@@ -906,7 +906,7 @@ class PPOExplainer:
                     raw = np.asarray(sv.flatten(), dtype=np.float64)
             else:
                 raw = np.zeros(self.n_features, dtype=np.float64)
-        except Exception:
+        except Exception:  # noqa: BLE001
             raw = self._directional_raw_values(obs_arr, action)
 
         return {name: float(val) for name, val in zip(self.feature_names, raw, strict=True)}
@@ -947,7 +947,7 @@ class PPOExplainer:
                 probs = self._predict_proba(obs_arr.reshape(1, -1))
                 advantage = float(probs[0, action] - probs.mean())
                 return z_scores * advantage
-            except Exception:
+            except Exception:  # noqa: BLE001
                 pass
 
         return z_scores

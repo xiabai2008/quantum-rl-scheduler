@@ -54,8 +54,8 @@ ACTION_QUANTUM = 1  # 分配到量子计算资源
 ACTION_HYBRID = 2  # 混合执行
 ACTION_QUANTUM_QEM = 3  # 使用误差缓释（QEM）的量子执行
 
-# Issue #787: 动作空间维度常量，与 env.py 的 spaces.Discrete(4) 对齐
-N_ACTIONS = 4  # 0: classical, 1: quantum, 2: hybrid, 3: qem
+# 动作空间维度（动作枚举 0..3 共 4 个，统一引用避免硬编码不一致，Issue #787）
+N_ACTIONS = 4
 
 # ---------------------------------------------------------------------------
 # 奖励参数（修改后：增强正确执行的奖励）
@@ -72,6 +72,14 @@ QUANTUM_SPEEDUP_RANGE = (2.0, 5.0)  # 量子加速比范围
 # Issue #587: 公平性惩罚参数
 FAIRNESS_PENALTY_THRESHOLD = 0.3
 FAIRNESS_PENALTY_FACTOR = 2.0
+
+# Issue #801: 奖励函数魔法数字提取为命名常量（数值未变，仅集中管理）
+CROSSTALK_PENALTY_FACTOR = 2.0
+REQUEUE_PENALTY_FACTOR = 0.5
+FIDELITY_NORM_REF = 0.99
+LOW_FIDELITY_THRESHOLD = 0.9
+LOW_FIDELITY_DISCOUNT = 0.6
+QEM_TIME_PENALTY_FACTOR = 3.0
 
 # ---------------------------------------------------------------------------
 # 环境参数

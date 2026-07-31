@@ -443,7 +443,7 @@ class QuotaTracker:
                     "estimated_exhaustion": est_exhaustion,
                 }
                 requests.post(webhook_url, json=payload, timeout=5)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 # webhook 失败不阻塞主流程，仅记录日志
                 logger.error(f"[QuotaTracker] webhook 通知失败: {e}")
 

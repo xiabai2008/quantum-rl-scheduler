@@ -138,6 +138,23 @@ project-review/
 docs/teammate_*.md
 docs/pr_patrol_*.md
 docs/project_dashboard_*.html
-# 归档的临时文件（从 docs/ 移入 archive/ 的临时文件，不纳入版本控制）
+# ── 归档的临时文件（从 docs/ 移入 archive/ 的临时文件，不纳入版本控制）──
 archive/pr_patrol/
 archive/project_dashboard/
+
+# ── 测试覆盖率输出（Issue #848）──
+coverage_*.txt
+
+# ── 真机重试配置临时文件（Issue #848）──
+# 匹配 issue165_quota_budget_retry.yaml / retry2.yaml / retry_N.yaml / formal.yaml 全部变体
+results/real_machine/issue165_quota_budget_retry*.yaml
+results/real_machine/issue165_quota_budget.yaml
+results/real_machine/issue165_quota_budget_formal.yaml
+results/real_machine/issue192_quota_budget.yaml
+results/real_machine/smoke_quota_budget.yaml
+
+# ── 调度状态持久化临时目录（Issue #848）──
+.schedule_state/
+
+# ── 工具临时目录（Issue #848）──
+.workbuddy/

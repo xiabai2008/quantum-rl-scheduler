@@ -141,6 +141,7 @@ class TestTaskDuration:
         assert _task_duration(task) == 5
 
 
+@_skip_no_ortools
 class TestCompatPPOStrategy:
     """测试 PPO 观测维度兼容层。"""
 
@@ -194,6 +195,7 @@ class TestCompatPPOStrategy:
         assert called_obs.shape[0] == 16
 
 
+@_skip_no_ortools
 class TestRlAvgFlowTime:
     """测试 RL 侧 flow_time 计算。"""
 
