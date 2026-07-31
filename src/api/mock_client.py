@@ -266,7 +266,7 @@ class MockTianyanClient:
         self._tasks[task_id] = {
             "task_id": task_id,
             "type": "quantum",
-            "status": "pending",
+            "status": "PENDING",
             "backend": backend,
             "shots": shots,
             "circuit_qasm": circuit_qasm,
@@ -313,7 +313,7 @@ class MockTianyanClient:
 
         # 模拟状态轮转
         # Issue #671: 统一使用小写状态字符串，与真实 cqlib 客户端保持一致
-        if task["status"] == "pending":
+        if task["status"] == "PENDING":
             # 随机决定是否进入 running
             if random.random() < 0.3:  # 30% 概率进入 running
                 task["status"] = "running"
@@ -488,7 +488,7 @@ class MockTianyanClient:
         self._maybe_fail("get_queue_status")
 
         # 统计内存中的任务
-        pending_count = sum(1 for t in self._tasks.values() if t["status"] == "pending")
+        pending_count = sum(1 for t in self._tasks.values() if t["status"] == "PENDING")
         running_count = sum(1 for t in self._tasks.values() if t["status"] == "running")
 
         result = {
@@ -498,12 +498,12 @@ class MockTianyanClient:
             "estimated_wait_time": pending_count * 30,  # 每个任务约 30 秒
             "by_backend": {
                 "tianyan-287": {
-                    "pending": pending_count,
+                    "PENDING": pending_count,
                     "running": running_count,
                     "capacity": 100,
                 },
                 "tianyan-simulator": {
-                    "pending": 0,
+                    "PENDING": 0,
                     "running": 0,
                     "capacity": 1000,
                 },
