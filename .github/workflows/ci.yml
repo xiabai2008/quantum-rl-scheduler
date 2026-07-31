@@ -88,6 +88,9 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Issue #860: evidence_lineage 的 git blame 需要完整提交历史
+          fetch-depth: 0
 
       - name: Setup Python ${{ matrix.python-version }}
         uses: actions/setup-python@v5
