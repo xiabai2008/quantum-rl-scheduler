@@ -77,7 +77,7 @@
    - 实现时必须遵守项目规范：Python 3.10+、snake_case函数名、PascalCase类名、函数必须有docstring、类型注解
 
 9. 权威数字保护（不可篡改，修改代码时不得改动以下数字相关内容）：
-   - 50seed仿真：PPO=2746.94±1160.72 vs FCFS=1458.77±60.47, 提升+88.3%, Mann-Whitney U检验 p=1.032e-42, rank-biserial=-0.71
+   - 50seed仿真：PPO=2746.94±1160.72 vs FCFS=1458.77±60.47, 提升+123.4%, Mann-Whitney U检验 p=1.032e-42, rank-biserial=-0.71
    - 多seed真机：PPO=1665.22±324.51 vs FCFS=353.22±53.33, Cohen's d=5.33, p=6.83e-04（Bonferroni校正后显著）
 
 10. 质量门禁（必须全部通过才能提交PR）：
@@ -154,7 +154,7 @@ cron表达式：0 16 * * *
    - 实现时必须遵守项目规范：Python 3.10+、snake_case函数名、PascalCase类名、函数必须有docstring、类型注解
 
 9. 权威数字保护（不可篡改，修改代码时不得改动以下数字相关内容）：
-   - 50seed仿真：PPO=2746.94±1160.72 vs FCFS=1458.77±60.47, 提升+88.3%, Mann-Whitney U检验 p=1.032e-42, rank-biserial=-0.71
+   - 50seed仿真：PPO=2746.94±1160.72 vs FCFS=1458.77±60.47, 提升+123.4%, Mann-Whitney U检验 p=1.032e-42, rank-biserial=-0.71
    - 多seed真机：PPO=1665.22±324.51 vs FCFS=353.22±53.33, Cohen's d=5.33, p=6.83e-04（Bonferroni校正后显著）
 
 10. 质量门禁（必须全部通过才能提交PR）：
@@ -231,7 +231,7 @@ cron表达式：30 16 * * *
    - 实现时必须遵守项目规范：Python 3.10+、snake_case函数名、PascalCase类名、函数必须有docstring、类型注解
 
 9. 权威数字保护（不可篡改，修改代码时不得改动以下数字相关内容）：
-   - 50seed仿真：PPO=2746.94±1160.72 vs FCFS=1458.77±60.47, 提升+88.3%, Mann-Whitney U检验 p=1.032e-42, rank-biserial=-0.71
+   - 50seed仿真：PPO=2746.94±1160.72 vs FCFS=1458.77±60.47, 提升+123.4%, Mann-Whitney U检验 p=1.032e-42, rank-biserial=-0.71
    - 多seed真机：PPO=1665.22±324.51 vs FCFS=353.22±53.33, Cohen's d=5.33, p=6.83e-04（Bonferroni校正后显著）
 
 10. 质量门禁（必须全部通过才能提交PR）：
@@ -308,7 +308,7 @@ cron表达式：0 17 * * *
    - 实现时必须遵守项目规范：Python 3.10+、snake_case函数名、PascalCase类名、函数必须有docstring、类型注解
 
 9. 权威数字保护（不可篡改，修改代码时不得改动以下数字相关内容）：
-   - 50seed仿真：PPO=2746.94±1160.72 vs FCFS=1458.77±60.47, 提升+88.3%, Mann-Whitney U检验 p=1.032e-42, rank-biserial=-0.71
+   - 50seed仿真：PPO=2746.94±1160.72 vs FCFS=1458.77±60.47, 提升+123.4%, Mann-Whitney U检验 p=1.032e-42, rank-biserial=-0.71
    - 多seed真机：PPO=1665.22±324.51 vs FCFS=353.22±53.33, Cohen's d=5.33, p=6.83e-04（Bonferroni校正后显著）
 
 10. 质量门禁（必须全部通过才能提交PR）：
@@ -385,7 +385,7 @@ cron表达式：30 17 * * *
    - 实现时必须遵守项目规范：Python 3.10+、snake_case函数名、PascalCase类名、函数必须有docstring、类型注解
 
 9. 权威数字保护（不可篡改，修改代码时不得改动以下数字相关内容）：
-   - 50seed仿真：PPO=2746.94±1160.72 vs FCFS=1458.77±60.47, 提升+88.3%, Mann-Whitney U检验 p=1.032e-42, rank-biserial=-0.71
+   - 50seed仿真：PPO=2746.94±1160.72 vs FCFS=1458.77±60.47, 提升+123.4%, Mann-Whitney U检验 p=1.032e-42, rank-biserial=-0.71
    - 多seed真机：PPO=1665.22±324.51 vs FCFS=353.22±53.33, Cohen's d=5.33, p=6.83e-04（Bonferroni校正后显著）
 
 10. 质量门禁（必须全部通过才能提交PR）：
@@ -462,7 +462,7 @@ cron表达式：0 18 * * *
    - 实现时必须遵守项目规范：Python 3.10+、snake_case函数名、PascalCase类名、函数必须有docstring、类型注解
 
 9. 权威数字保护（不可篡改，修改代码时不得改动以下数字相关内容）：
-   - 50seed仿真：PPO=2746.94±1160.72 vs FCFS=1458.77±60.47, 提升+88.3%, Mann-Whitney U检验 p=1.032e-42, rank-biserial=-0.71
+   - 50seed仿真：PPO=2746.94±1160.72 vs FCFS=1458.77±60.47, 提升+123.4%, Mann-Whitney U检验 p=1.032e-42, rank-biserial=-0.71
    - 多seed真机：PPO=1665.22±324.51 vs FCFS=353.22±53.33, Cohen's d=5.33, p=6.83e-04（Bonferroni校正后显著）
 
 10. 质量门禁（必须全部通过才能提交PR）：

@@ -389,7 +389,7 @@ def print_authoritative_reference() -> None:
     print("  p=1.032e-42  → p=1.449e-66 (p 值)")
     print("  rank-biserial=-0.71 → Cohen's d=-2.1353 (效应量)")
     print("  Mann-Whitney U → Welch t (PPO vs FCFS 仿真检验方法)")
-    print("  +88.3%       → +123.4%     (提升百分比)")
+    print("  +123.4%       → +123.4%     (提升百分比)")
     print()
     print("不应出现的更早旧数字:")
     print("  ±1121.19     → ±857.25     (PPO 标准差)")

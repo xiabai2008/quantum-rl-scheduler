@@ -477,7 +477,7 @@ cron表达式：0 16 * * 2,5
 
 3. 如果存在 results/multiseed_evaluation/rewards_multiseed.json，读取并验证：
    - 计算PPO和FCFS的均值和标准差
-   - 与AGENTS.md中的权威数字对比（PPO=2746.94±1160.72, FCFS=1458.77±60.47, +88.3%）
+   - 与AGENTS.md中的权威数字对比（PPO=2746.94±1160.72, FCFS=1458.77±60.47, +123.4%）
    - 如果偏差超过5%，创建GitHub Issue报告数据不一致，分配给Jackhock-1
 
 4. 获取本周我的commit：git log --author="Jackhock-1" --since="7 days ago" --oneline

@@ -2,6 +2,28 @@
 
 本文件记录项目的所有重要变更，按日期倒序排列。
 
+## [2026-07-31] - v9.1.1 文档一致性修复
+
+### 修复
+- **#783**: step() crosstalk_penalty 双重扣减修复（_compute_execution_reward 内部已扣减，外部重复扣减导致4x惩罚）
+- **#787**: MAPPO action_dim 默认值 3→4 修正（QuantumSchedulingEnv 定义4个动作）
+- **#788**: compilation_fair_v2 报告结论文本方向反转（3处 较低→较高）
+- **#790/#793/#796**: PPO 早停 callback 修复 + nosec 标注 + include_fairness_obs 默认值回退
+- **#797**: RoundRobin 指针修正（非 last_idx 弹出时指针偏移）
+- **#798**: 文档测试用例数 2824+→3500+（实测 3508）
+- **#800**: Code_Wiki.md 观测维度 14→16、测试文件数 64→111
+- **#803**: strategy_comparison_report_v4 添加 DQN 已删除声明
+## [2026-07-31] - v9.1.1 文档一致性修复
+
+### 修复
+- **#783**: step() crosstalk_penalty 双重扣减修复（_compute_execution_reward 内部已扣减，外部重复扣减导致4x惩罚）
+- **#787**: MAPPO action_dim 默认值 3→4 修正（QuantumSchedulingEnv 定义4个动作）
+- **#788**: compilation_fair_v2 报告结论文本方向反转（3处 较低→较高）
+- **#790/#793/#796**: PPO 早停 callback 修复 + nosec 标注 + include_fairness_obs 默认值回退
+- **#797**: RoundRobin 指针修正（非 last_idx 弹出时指针偏移）
+- **#798**: 文档测试用例数 2824+→3500+（实测 3508）
+- **#800**: Code_Wiki.md 观测维度 14→16、测试文件数 64→111
+- **#803**: strategy_comparison_report_v4 添加 DQN 已删除声明
 ## [2026-07-29] - v9.1.0 权威数字更新 + 评审报告P0/P1修复
 
 ### v9.1 关键变更总览（相对于v8.x）

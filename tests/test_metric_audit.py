@@ -27,7 +27,7 @@ def test_find_forbidden_skips_audit_exempt_lines() -> None:
     豁免仅对带标记的当前行生效；同一文件中其他不带标记的行仍应被审计。
     """
     text = (
-        "当前 +88.3%\n"
+        "当前 +123.4%\n"
         "历史 2723.0 ± 138.2 <!-- audit-exempt: historical 10-seed -->\n"
         "旧版 2723.0 不带豁免标记"
     )

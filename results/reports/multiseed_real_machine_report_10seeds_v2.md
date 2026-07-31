@@ -224,7 +224,7 @@ MBS < 1.0 反映真机噪声，符合超导量子计算机的物理特性。
 ### 权威性能结论
 
 性能提升结论仍由仿真实验支撑：
-- **PPO vs FCFS +88.3%**（N=250, p=1.032e-42, rank-biserial=-0.71）
+- **PPO vs FCFS +123.4%**（N=250, p=1.032e-42, rank-biserial=-0.71）
 - 详见 `results/reports/statistical_validation.md`
 
 ---
@@ -235,7 +235,7 @@ MBS < 1.0 反映真机噪声，符合超导量子计算机的物理特性。
 |:--|:--|
 | `results/reports/real_machine_boundary_statement.md` | 真机验证结论边界声明（已更新 Issue #244 章节） |
 | `results/reports/multiseed_real_machine_report_10seeds.md` | 旧版报告（已标记为 invalid） |
-| `results/reports/statistical_validation.md` | 仿真实验权威统计验证（+88.3%, N=250） |
+| `results/reports/statistical_validation.md` | 仿真实验权威统计验证（+123.4%, N=250） |
 | `results/reports/multi_qubit_validation.md` | 多比特保真度对比分析（Issue #250） |
 | `scripts/real_machine/tianyan287_multiseed.py` | 实验脚本 |
 

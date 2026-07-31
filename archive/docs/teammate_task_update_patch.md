@@ -48,7 +48,7 @@
 
 6. 在创建Issue的正文模板中，「## 关联」部分必须包含以下权威数字：
 项目权威数字（不可篡改）：
-- 50seed仿真：PPO=2746.94±1160.72 vs FCFS=1458.77±60.47, 提升+88.3%, Mann-Whitney U检验 p=1.032e-42, rank-biserial=-0.71
+- 50seed仿真：PPO=2746.94±1160.72 vs FCFS=1458.77±60.47, 提升+123.4%, Mann-Whitney U检验 p=1.032e-42, rank-biserial=-0.71
 - 多seed真机：PPO=1665.22±324.51 vs FCFS=353.22±53.33, Cohen's d=5.33, p=6.83e-04（Bonferroni校正后显著）
 - 所有实验数据和PR必须与以上数字一致
 
@@ -107,7 +107,7 @@ cron表达式和任务名称不变。
 
 6. 在创建Issue的正文模板中，「## 关联」部分必须包含以下权威数字：
 项目权威数字（不可篡改）：
-- 50seed仿真：PPO=2746.94±1160.72 vs FCFS=1458.77±60.47, 提升+88.3%, Mann-Whitney U检验 p=1.032e-42, rank-biserial=-0.71
+- 50seed仿真：PPO=2746.94±1160.72 vs FCFS=1458.77±60.47, 提升+123.4%, Mann-Whitney U检验 p=1.032e-42, rank-biserial=-0.71
 - 多seed真机：PPO=1665.22±324.51 vs FCFS=353.22±53.33, Cohen's d=5.33, p=6.83e-04（Bonferroni校正后显著）
 - 所有实验数据和PR必须与以上数字一致
 
@@ -168,7 +168,7 @@ cron表达式和任务名称不变。
 
 6. 在创建Issue的正文模板中，「## 关联」部分必须包含以下权威数字：
 项目权威数字（不可篡改）：
-- 50seed仿真：PPO=2746.94±1160.72 vs FCFS=1458.77±60.47, 提升+88.3%, Mann-Whitney U检验 p=1.032e-42, rank-biserial=-0.71
+- 50seed仿真：PPO=2746.94±1160.72 vs FCFS=1458.77±60.47, 提升+123.4%, Mann-Whitney U检验 p=1.032e-42, rank-biserial=-0.71
 - 多seed真机：PPO=1665.22±324.51 vs FCFS=353.22±53.33, Cohen's d=5.33, p=6.83e-04（Bonferroni校正后显著）
 - 所有实验数据和PR必须与以上数字一致
 
@@ -229,7 +229,7 @@ cron表达式和任务名称不变。
 
 6. 在创建Issue的正文模板中，「## 关联」部分必须包含以下权威数字：
 项目权威数字（不可篡改）：
-- 50seed仿真：PPO=2746.94±1160.72 vs FCFS=1458.77±60.47, 提升+88.3%, Mann-Whitney U检验 p=1.032e-42, rank-biserial=-0.71
+- 50seed仿真：PPO=2746.94±1160.72 vs FCFS=1458.77±60.47, 提升+123.4%, Mann-Whitney U检验 p=1.032e-42, rank-biserial=-0.71
 - 多seed真机：PPO=1665.22±324.51 vs FCFS=353.22±53.33, Cohen's d=5.33, p=6.83e-04（Bonferroni校正后显著）
 - 所有实验数据和PR必须与以上数字一致
 
@@ -292,7 +292,7 @@ cron表达式和任务名称不变。
 
 6. 在创建Issue的正文模板中，「## 关联」部分必须包含以下权威数字：
 项目权威数字（不可篡改）：
-- 50seed仿真：PPO=2746.94±1160.72 vs FCFS=1458.77±60.47, 提升+88.3%, Mann-Whitney U检验 p=1.032e-42, rank-biserial=-0.71
+- 50seed仿真：PPO=2746.94±1160.72 vs FCFS=1458.77±60.47, 提升+123.4%, Mann-Whitney U检验 p=1.032e-42, rank-biserial=-0.71
 - 多seed真机：PPO=1665.22±324.51 vs FCFS=353.22±53.33, Cohen's d=5.33, p=6.83e-04（Bonferroni校正后显著）
 - 所有实验数据和PR必须与以上数字一致
 
@@ -353,7 +353,7 @@ cron表达式和任务名称不变。
 
 6. 在创建Issue的正文模板中，「## 关联」部分必须包含以下权威数字：
 项目权威数字（不可篡改）：
-- 50seed仿真：PPO=2746.94±1160.72 vs FCFS=1458.77±60.47, 提升+88.3%, Mann-Whitney U检验 p=1.032e-42, rank-biserial=-0.71
+- 50seed仿真：PPO=2746.94±1160.72 vs FCFS=1458.77±60.47, 提升+123.4%, Mann-Whitney U检验 p=1.032e-42, rank-biserial=-0.71
 - 多seed真机：PPO=1665.22±324.51 vs FCFS=353.22±53.33, Cohen's d=5.33, p=6.83e-04（Bonferroni校正后显著）
 - 所有实验数据和PR必须与以上数字一致
 
