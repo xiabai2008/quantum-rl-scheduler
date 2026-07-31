@@ -692,7 +692,7 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
                         self._last_selected_machine = None
                         log_msg = (
                             f"[步骤{self._current_step}] 量子资源不可用，"
-                            f"任务{task.task_id} 重新入队，惩罚{REWARD_MISMATCH * MISMATCH_REQUEUE_FACTOR  # #801: named constant:.1f}"
+                            f"任务{task.task_id} 重新入队，惩罚{REWARD_MISMATCH * MISMATCH_REQUEUE_FACTOR:.1f}"
                         )
                     else:
                         # 混合动作：降级为经典执行，避免系统空转
