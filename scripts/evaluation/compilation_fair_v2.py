@@ -335,12 +335,24 @@ def generate_report(
     ppo_better_overall = stats_summary["improvement_pct"] > 0
     ppo_better_subset = subset_stats["improvement_pct"] > 0
 
+    # PPO 劣势幅度（正值表示 PPO 比 SABRE 高出多少 %）
+    ppo_worse_pct_overall = max(0.0, -stats_summary["improvement_pct"])
+    ppo_worse_pct_subset = max(0.0, -subset_stats["improvement_pct"])
+
     if ppo_better_overall and stats_summary["significant"]:
         sig_text = f"p = {stats_summary['p_value']:.2e} < 0.05，PPO 的 SWAP 数显著低于 SABRE，差异具有统计显著性。"
     elif ppo_better_overall:
         sig_text = f"p = {stats_summary['p_value']:.2e}，未达到 0.05 显著性水平，PPO 平均 SWAP 数较低但差异不显著。"
+    elif stats_summary["p_value"] >= 0.999:
+        sig_text = (
+            f"p = {stats_summary['p_value']:.2e} ≈ 1.0，PPO 不优于 SABRE（单侧检验完全反向），"
+            f"PPO 平均 SWAP 数高于 SABRE {ppo_worse_pct_overall:.1f}%。"
+        )
     else:
-        sig_text = f"p = {stats_summary['p_value']:.2e}，PPO 平均 SWAP 数高于 SABRE。"
+        sig_text = (
+            f"p = {stats_summary['p_value']:.2e}，PPO 平均 SWAP 数高于 SABRE {ppo_worse_pct_overall:.1f}%，"
+            f"PPO 不优于 SABRE。"
+        )
 
     if ppo_better_subset and subset_stats["significant"]:
         subset_sig_text = (
@@ -348,10 +360,49 @@ def generate_report(
         )
     elif ppo_better_subset:
         subset_sig_text = f"p = {subset_stats['p_value']:.2e}，子集检验未达到 0.05 显著性水平，PPO 平均较低但差异不显著。"
+    elif subset_stats["p_value"] >= 0.999:
+        subset_sig_text = (
+            f"p = {subset_stats['p_value']:.2e} ≈ 1.0，PPO 在中电路+深电路子集上不优于 SABRE（完全反向），"
+            f"PPO SWAP 数高于 SABRE {ppo_worse_pct_subset:.1f}%。"
+        )
     else:
         subset_sig_text = (
-            f"p = {subset_stats['p_value']:.2e}，PPO 在中电路+深电路子集上 SWAP 数高于 SABRE。"
+            f"p = {subset_stats['p_value']:.2e}，PPO 在中电路+深电路子集上 SWAP 数高于 SABRE "
+            f"{ppo_worse_pct_subset:.1f}%，PPO 不优于 SABRE。"
         )
+
+    # 数据驱动的统计结论文字（避免数据与结论矛盾）
+    deep_improvement = breakdown.get("deep", {}).get("improvement_pct", 0.0)
+    if deep_improvement > 0:
+        deep_conclusion_text = f"深电路类别改进{deep_improvement:.1f}%，提示PPO在复杂电路上有优势"
+    else:
+        deep_conclusion_text = (
+            f"深电路类别PPO SWAP数高{abs(deep_improvement):.1f}%，PPO在复杂电路上不优于SABRE"
+        )
+
+    if ppo_better_overall and stats_summary["significant"]:
+        stats_conclusion = (
+            f"PPO平均SWAP数显著低于SABRE(p<0.05)，{deep_conclusion_text}。"
+        )
+    elif ppo_better_overall:
+        stats_conclusion = (
+            f"PPO平均SWAP数低于SABRE但差异未达统计显著性(p>0.05)，{deep_conclusion_text}，"
+            f"提示需更大规模训练验证。"
+        )
+    else:
+        stats_conclusion = (
+            f"PPO平均SWAP数高于SABRE {ppo_worse_pct_overall:.1f}%（p={stats_summary['p_value']:.2e}），"
+            f"PPO不优于SABRE；{deep_conclusion_text}，"
+            f"提示模型与观测空间可能不匹配，需重新训练或对齐观测维度。"
+        )
+
+    # 显著性汇总（避免硬编码"均未显著"）
+    both_insignificant = not stats_summary["significant"] and not subset_stats["significant"]
+    sig_summary = (
+        "差异均未达到统计显著性阈值(α=0.05)，提示需进一步训练或优化奖励函数。"
+        if both_insignificant
+        else "详见上方显著性检验结果。"
+    )
 
     # 类别表格行
     cat_rows = []
@@ -517,7 +568,7 @@ def generate_report(
 当前模型在4×4 2D网格+全电路分布上训练200k steps。
 全60电路平均变化 {stats_summary["improvement_pct"]:+.1f}%（p={stats_summary["p_value"]:.2e}），
 中+深电路子集变化 {subset_stats["improvement_pct"]:+.1f}%（p={subset_stats["p_value"]:.2e}），
-差异均未达到统计显著性阈值(α=0.05)，提示需进一步训练或优化奖励函数。
+{sig_summary}
 
 ---
 
@@ -530,9 +581,7 @@ def generate_report(
 3. **当前模型评测结果**：全60电路 SABRE avg={stats_summary["sabre_mean"]:.2f} SWAP，
    PPO avg={stats_summary["ppo_mean"]:.2f} SWAP，变化 {stats_summary["improvement_pct"]:+.1f}%
    （p={stats_summary["p_value"]:.2e}）；中+深子集变化 {subset_stats["improvement_pct"]:+.1f}%（p={subset_stats["p_value"]:.2e}）。
-4. **统计结论**：PPO平均SWAP数低于SABRE但差异未达统计显著性(p>0.05)，
-   深电路类别改进{breakdown.get("deep", {}).get("improvement_pct", 0):+.1f}%，
-   提示PPO在复杂电路上有优势但需更大规模训练验证。
+4. **统计结论**：{stats_conclusion}
 5. 完整逐电路数据入库 `results/compilation/fair_v2_per_circuit.json` 可复算。
 
 ---
