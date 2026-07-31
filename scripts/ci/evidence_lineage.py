@@ -286,7 +286,10 @@ def git_blame_line(root: Path, file_path: str, line_number: int) -> tuple[str, s
             ],
             cwd=str(root),
             capture_output=True,
-            text=True,
+            # Issue #860: 显式 UTF-8 解码（text=True 走 locale 编码，中文作者/
+            # 备注在 GBK/cp1252 下抛 UnicodeDecodeError 被静默吞掉导致 blame 全空）
+            encoding="utf-8",
+            errors="replace",
             check=False,
         )
         if result.returncode != 0:

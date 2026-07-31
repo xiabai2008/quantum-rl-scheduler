@@ -47,6 +47,7 @@ jobs:
           python -m pytest tests/ \
             -v \
             -n auto --dist loadscope \
+            --max-worker-restart=2 \
             --ignore=tests/test_performance_benchmarks.py \
             --cov=src \
             --cov-report=term-missing \
