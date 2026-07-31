@@ -46,16 +46,24 @@ class ItemResult:
 class SubmissionValidator:
     """提交物校验器"""
 
-    def __init__(self, manifest_path: str, project_root: str = ".") -> None:
+    def __init__(
+        self,
+        manifest_path: str,
+        project_root: str = ".",
+        skip_items: list[str] | None = None,
+    ) -> None:
         """初始化校验器
 
         Args:
             manifest_path: 清单文件路径
             project_root: 项目根目录
+            skip_items: 需要跳过的提交物 id 列表（如 release CI 中跳过仅
+                本地生成的交付物：dist zip / 演示视频等，Issue #860）
         """
         with open(manifest_path, encoding="utf-8") as f:
             self.manifest = yaml.safe_load(f)
         self.project_root = Path(project_root)
+        self.skip_items: set[str] = set(skip_items or [])
         self.errors: list[str] = []
         self.warnings: list[str] = []
         self.results: list[ItemResult] = []
@@ -73,6 +81,9 @@ class SubmissionValidator:
         print()
 
         for item in self.manifest["items"]:
+            if item["id"] in self.skip_items:
+                print(f"[SKIP] {item['id']}: 已按 --skip-items 跳过（本地人工交付物）")
+                continue
             self._validate_item(item)
 
         self._check_version_consistency()
@@ -740,14 +751,17 @@ def prepare_submission(manifest_path: str, project_root: str = ".") -> None:
     print("=" * 60)
 
 
-def package_submission(manifest_path: str, project_root: str = ".") -> None:
+def package_submission(
+    manifest_path: str, project_root: str = ".", skip_items: list[str] | None = None
+) -> None:
     """打包提交物
 
     Args:
         manifest_path: 清单文件路径
         project_root: 项目根目录
+        skip_items: 跳过的提交物 id 列表（Issue #860）
     """
-    validator = SubmissionValidator(manifest_path, project_root)
+    validator = SubmissionValidator(manifest_path, project_root, skip_items=skip_items)
 
     if not validator.validate_all():
         print("\n❌ 校验失败，拒绝打包")
@@ -824,6 +838,13 @@ def main() -> None:
         help="清单文件路径 (默认: config/submission_manifest.yaml)",
     )
     parser.add_argument(
+        "--skip-items",
+        type=str,
+        default="",
+        help="逗号分隔的提交物 id 列表，跳过其校验（如 CODE_ARCHIVE,DEMO_VIDEO；"
+        "用于 release CI 中跳过仅本地生成的交付物）",
+    )
+    parser.add_argument(
         "--project-root",
         type=str,
         default=".",
@@ -835,12 +856,14 @@ def main() -> None:
     if not args.check and not args.pack and not args.prepare:
         parser.error("必须指定 --check、--pack 或 --prepare 之一")
 
+    skip_ids = [s.strip() for s in args.skip_items.split(",") if s.strip()]
+
     if args.prepare:
         prepare_submission(args.manifest, args.project_root)
     elif args.pack:
-        package_submission(args.manifest, args.project_root)
+        package_submission(args.manifest, args.project_root, skip_items=skip_ids)
     else:
-        validator = SubmissionValidator(args.manifest, args.project_root)
+        validator = SubmissionValidator(args.manifest, args.project_root, skip_items=skip_ids)
         success = validator.validate_all()
         if args.report:
             validator.generate_report(args.report)
