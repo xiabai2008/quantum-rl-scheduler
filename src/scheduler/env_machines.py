@@ -178,6 +178,7 @@ def route_to_machine(
         # QEM：执行时间乘 3，保真度提升（错误率减半）
         task.execution_time = int(task.execution_time * 3.0)
         machine.fidelity = 1.0 - ((1.0 - machine.fidelity) * 0.5)
+    env._invalidate_obs_cache()  # Issue #775: 路由改变机器/队列状态，失效观测缓存
 
 
 def recompute_aggregate(env: "QuantumSchedulingEnv") -> None:
@@ -209,3 +210,4 @@ def recompute_aggregate(env: "QuantumSchedulingEnv") -> None:
     env._quantum.fidelity = float(sum(m.fidelity * m.total_qubits for m in env._machines) / total_q)
     env._quantum.quantum_queue = sum(m.quantum_queue for m in env._machines)
     env._quantum_available = any(m.available for m in env._machines)
+    env._invalidate_obs_cache()  # Issue #775: 聚合状态变更，失效观测缓存

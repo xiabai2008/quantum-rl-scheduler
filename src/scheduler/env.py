@@ -377,7 +377,7 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
                           驱动仿真环境的噪声特征。需要真机噪声数据时应单独调用
                           ``attach_noise_extractor(env, backend=real_backend)``。
         """
-        self._cached_obs = None  # Issue #627: 客户端绑定可能改变机器状态，失效缓存
+        self._invalidate_obs_cache()  # Issue #627: 客户端绑定可能改变机器状态，失效缓存
         self._real_clients.update(clients)
         for m in self._machines:
             if m.name in clients:
@@ -395,7 +395,7 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
         Args:
             tracker: MultiTenantFairnessTracker 实例，或 None 清除。
         """
-        self._cached_obs = None  # Issue #627: 公平性跟踪器影响第17维观测
+        self._invalidate_obs_cache()  # Issue #627: 公平性跟踪器影响第17维观测
         self._fairness_tracker = tracker
 
     def inject_noise_profile(
@@ -417,7 +417,7 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
         """
         from loguru import logger
 
-        self._cached_obs = None  # Issue #627: 噪声注入改变机器保真度/噪声特征
+        self._invalidate_obs_cache()  # Issue #627: 噪声注入改变机器保真度/噪声特征
         self._injected_noise_profile = profile
         targets = [m for m in self._machines if machine_name is None or m.name == machine_name]
         if not targets:
@@ -560,7 +560,7 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
         rng = self.np_random
 
         # Issue #627: reset 会彻底重建状态，失效旧缓存
-        self._cached_obs = None
+        self._invalidate_obs_cache()
 
         # 重置步数和统计
         self._current_step = 0
@@ -796,7 +796,7 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
         # advance_time 后的状态（如 arrival_rate_ma 已更新），保证返回给 Agent
         # 的观测与原始实现语义一致（原实现返回 advance_time 后的观测）。
         # 先失效缓存，再通过 _get_observation() 计算新 obs 并写入缓存。
-        self._cached_obs = None
+        self._invalidate_obs_cache()
         return_obs = self._get_observation()
         return return_obs, reward, terminated, truncated, self._get_info()
 
@@ -978,6 +978,18 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
 
     def _pick_next_task(self) -> None:
         pick_next_task(self)
+
+    def _invalidate_obs_cache(self) -> None:
+        """失效观测聚合缓存（Issue #775）。
+
+        所有修改机器/聚合/队列状态的 mutator 在状态变更后必须调用，
+        确保后续 ``_get_observation()`` 返回最新观测而非过期缓存。
+
+        幂等：多次调用无副作用。该函数被 step()/reset() 及委托给子模块的
+        route_to_machine / recompute_aggregate / advance_time / pick_next_task
+        调用，避免外部绕开 step() 直接调用 mutator 时返回过期观测。
+        """
+        self._cached_obs = None
 
     def _get_observation(self) -> NDArray[Any]:
         # Issue #627: 优先返回缓存观测，避免热路径中重复构建 16/17 维向量
