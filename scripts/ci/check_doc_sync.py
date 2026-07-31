@@ -39,7 +39,7 @@ DOCS_WITH_TEST_COUNT: list[Path] = [
     _PROJECT_ROOT / "docs" / "authoritative_numbers.md",
     _PROJECT_ROOT / "docs" / "code_freeze.md",
     _PROJECT_ROOT / "docs" / "requirements_traceability.md",
-    _PROJECT_ROOT / "答辩PPT大纲.md",
+    # 注：答辩PPT大纲.md 已被 #891 文档清理删除，不再列入检查
 ]
 
 # 已废弃的旧测试数（文档中不应再出现，历史CHANGELOG段除外）
