@@ -37,7 +37,7 @@
 
 **技术栈**：Python ≥3.10 + Stable-Baselines3（DQN/PPO）+ Gymnasium + PyTorch + Qiskit + D-Wave Ocean SDK + FastAPI + Vue3 + Echarts
 
-**核心代码量**：约 17,900 行 Python（不含测试和文档），2278+ 个单元测试用例。
+**核心代码量**：约 17,900 行 Python（不含测试和文档），3500+ 个单元测试用例。
 
 ### 1.1 版本演进
 
@@ -1041,7 +1041,7 @@ config = load_config()
 
 ### 7.1 测试概览
 
-测试目录共 **~64 个测试文件**，**2278+ 个测试用例**，覆盖率 **91%**。
+测试目录共 **111 个测试文件**，**3500+ 个测试用例**，覆盖率 **91%**。
 
 | 测试文件 | 覆盖模块 |
 |---------|---------|
@@ -1073,7 +1073,7 @@ config = load_config()
 | [test_platform_compat.py](../tests/test_platform_compat.py) | 平台兼容（v7） |
 | [benchmarks/test_annealing_benchmark.py](../tests/benchmarks/test_annealing_benchmark.py) | 退火性能基准 |
 
-> 完整测试文件列表请参考 `tests/` 目录，共计 ~64 个测试文件覆盖全部源码模块。
+> 完整测试文件列表请参考 `tests/` 目录，共计 111 个测试文件覆盖全部源码模块。
 
 ### 7.2 运行测试
 

@@ -4,6 +4,8 @@
 > 当前答辩、README 和对外材料必须引用
 > `results/reports/strategy_comparison.md` 的多 Seed 权威结果（PPO 2746.94、
 > FCFS 1458.77、提升 88.3%）。
+> ⚠️ **DQN 模型已于 v9 删除**，本报告中 DQN 行使用 Random 策略数据占位，不代表 DQN 实测结果。
+
 
 **生成时间**: 2026-06-27 18:30:40
 
