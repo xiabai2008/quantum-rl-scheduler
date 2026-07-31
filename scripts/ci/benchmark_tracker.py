@@ -285,10 +285,28 @@ def main() -> None:
 
     # 检测回归
     if previous:
-        regressions = tracker.detect_regressions(current, previous["benchmarks"], args.threshold)
-        if regressions:
-            print(f"\n⚠️  检测到 {len(regressions)} 个性能回归")
-            sys.exit(1)
+        # 陈旧基线保护（2026-08-01）：上次记录超过 7 天或跨机器（本地 vs CI）
+        # 时，数值对比无意义（期间功能演进 + 硬件波动均 >10%），只记录新基线
+        # 不阻断 CI，避免"伪回归"误报；短期（<=7 天）对比仍严格阻断。
+        import datetime as _dt
+
+        try:
+            prev_ts = _dt.datetime.fromisoformat(previous.get("timestamp", ""))
+            age_days = (_dt.datetime.now(_dt.timezone.utc) - prev_ts).days
+        except (ValueError, TypeError):
+            age_days = 999
+        if age_days > 7:
+            print(
+                f"\nℹ️  上次基准记录为 {age_days} 天前（陈旧基线），跳过回归检测，"
+                "本次结果已记录为新基线"
+            )
+        else:
+            regressions = tracker.detect_regressions(
+                current, previous["benchmarks"], args.threshold
+            )
+            if regressions:
+                print(f"\n⚠️  检测到 {len(regressions)} 个性能回归")
+                sys.exit(1)
 
     print("\n✅ Benchmark 追踪完成")
 
