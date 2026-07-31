@@ -428,7 +428,7 @@ class TianyanClient:
                 app_id=self._app_id,
             )
             logger.info(f"✅ 真实模式委托 cqlib（机器={machine_name}）")
-        except Exception as e:
+        except (ValueError, TypeError, RuntimeError, OSError, KeyError, AttributeError) as e:
             # 涉及 cqlib SDK 导入与初始化，异常类型无法穷举，保留宽捕获并记录日志
             logger.warning(f"cqlib 客户端初始化失败: {e}，回退 REST 路径")
 
@@ -629,7 +629,7 @@ class TianyanClient:
                 # 配额追踪
                 self._track_quota()
                 return func(*args, **kwargs)
-            except Exception as e:
+            except (ValueError, TypeError, RuntimeError, OSError, KeyError, AttributeError) as e:
                 # Issue #718: 不可恢复的编程错误不重试，直接抛出
                 if isinstance(
                     e, (ValueError, TypeError, KeyError, AttributeError, NotImplementedError)
@@ -683,7 +683,7 @@ class TianyanClient:
         start = monotonic()
         try:
             yield
-        except Exception as e:
+        except (ValueError, TypeError, RuntimeError, OSError, KeyError, AttributeError) as e:
             api_errors.labels(method=method, endpoint=endpoint, error_type=type(e).__name__).inc()
             raise
         finally:
@@ -795,7 +795,7 @@ class TianyanClient:
                 status_code=500,
                 message="未配置有效 API 密钥或 cqlib 客户端，无法提交量子任务",
             )
-        except Exception as e:
+        except (ValueError, TypeError, RuntimeError, OSError, KeyError, AttributeError) as e:
             # 429 限流：转换为 RateLimitError，不计入熔断器失败计数（Issue #84）
             if self._is_rate_limited(e):
                 if not isinstance(e, RateLimitError):
@@ -847,7 +847,7 @@ class TianyanClient:
                     status_code=500,
                     message="未配置有效 API 密钥或 cqlib 客户端，无法查询任务状态",
                 )
-        except Exception as e:
+        except (ValueError, TypeError, RuntimeError, OSError, KeyError, AttributeError) as e:
             # 429 限流：转换为 RateLimitError，不计入熔断器失败计数（Issue #84）
             if self._is_rate_limited(e):
                 if not isinstance(e, RateLimitError):
@@ -905,7 +905,7 @@ class TianyanClient:
                 status_code=500,
                 message="未配置有效 API 密钥或 cqlib 客户端，无法获取任务结果",
             )
-        except Exception as e:
+        except (ValueError, TypeError, RuntimeError, OSError, KeyError, AttributeError) as e:
             if self._is_rate_limited(e):
                 raise
             if self._circuit_breaker:
