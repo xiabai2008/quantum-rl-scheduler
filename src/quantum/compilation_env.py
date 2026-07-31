@@ -185,12 +185,17 @@ class QuantumCompilationEnv(gym.Env):
         options: dict[str, Any] | None = None,
     ) -> tuple[NDArray[np.float32], dict[str, Any]]:
         super().reset(seed=seed)
-        self._mapping, self._reverse_map = {}, {}
-        self._mapped_gates, self._swap_count = 0, 0
-        self._step_count, self._current_depth = 0, 0
+        # Issue #883: 通过 _init_state 完整重置（含 _gates/_n_gates/_two_q_ratio），
+        # 避免复用同一 env 实例重置时残留上一电路的门列表。
+        self._init_state()
         return self._get_obs(), {}
 
     def step(self, action: int) -> tuple[NDArray[np.float32], float, bool, bool, dict[str, Any]]:
+        # Issue #883: 校验动作范围（Discrete(n_physical)），非法动作直接报错，
+        # 避免映射到不存在的物理比特后观测/奖励静默失真。
+        if not isinstance(action, (int, np.integer)) or not (0 <= int(action) < self.n_physical):
+            raise ValueError(f"非法动作 {action!r}：动作必须在 [0, {self.n_physical}) 范围内")
+        action = int(action)
         self._step_count += 1
         logical_idx = len(self._mapping)
         reward: float = 0.0

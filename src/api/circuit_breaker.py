@@ -342,49 +342,66 @@ class CircuitBreaker:
     def before_request(self) -> None:
         """请求前检查熔断器状态（兼容接口）
 
-        OPEN 状态下若已过 ``recovery_timeout`` 则转入 HALF_OPEN 并放行，
-        否则抛出 :class:`~src.exceptions.CircuitOpenError`。
-        CLOSED / HALF_OPEN 状态直接放行。
-
-        行为与原 ``tianyan_client.py`` 中的 ``CircuitBreaker.before_request`` 完全一致。
+        OPEN 状态下若已过 ``recovery_timeout`` 则转入 HALF_OPEN 并放行一次
+        试探调用，否则抛出 :class:`~src.exceptions.CircuitOpenError`。
+        CLOSED 状态直接放行；HALF_OPEN 状态仅放行一个并发试探请求
+        （Issue #867，与 :meth:`call` 主路径语义一致）。
 
         Raises:
-            CircuitOpenError: 熔断器处于 OPEN 状态且未到恢复超时时抛出。
+            CircuitOpenError: 熔断器处于 OPEN 状态且未到恢复超时，
+                或 HALF_OPEN 状态下已有试探请求在进行中。
         """
         with self._lock:
             if self.state == CircuitState.OPEN:
                 if time.monotonic() - self.last_failure_time >= self.recovery_timeout:
+                    # Issue #867: 进入 HALF_OPEN 并占住单试探名额，防止并发试探
                     self.state = CircuitState.HALF_OPEN
+                    self._half_open_trial_in_progress = True
                 else:
                     raise CircuitOpenError(
                         "Circuit breaker is open",
                         code="CIRCUIT_OPEN",
                         retryable=True,
                     )
+            elif self.state == CircuitState.HALF_OPEN:
+                # Issue #867: HALF_OPEN 仅允许一个试探请求并发执行
+                if self._half_open_trial_in_progress:
+                    raise CircuitOpenError(
+                        "Circuit breaker is half-open, trial in progress",
+                        code="CIRCUIT_HALF_OPEN_BUSY",
+                        retryable=True,
+                    )
+                self._half_open_trial_in_progress = True
 
     def on_success(self) -> None:
         """请求成功时重置状态（兼容接口）
 
-        清零 ``failure_count`` 并将状态设为 ``CLOSED``。
-        行为与原 ``tianyan_client.py`` 中的 ``CircuitBreaker.on_success`` 完全一致。
+        清零 ``failure_count``、释放试探名额并将状态设为 ``CLOSED``。
+        行为与原 ``tianyan_client.py`` 中的 ``CircuitBreaker.on_success`` 一致。
         """
         with self._lock:
+            self._half_open_trial_in_progress = False
             self.failure_count = 0
             self.state = CircuitState.CLOSED
 
     def on_failure(self) -> None:
         """请求失败时累加失败计数（兼容接口）
 
-        累加 ``failure_count``，更新 ``last_failure_time``，
-        达到 ``failure_threshold`` 时转为 OPEN 并发出告警。
+        累加 ``failure_count``，更新 ``last_failure_time``；
+        HALF_OPEN 试探失败直接重回 OPEN（对齐 :meth:`call` 路径）；
+        CLOSED 状态达到 ``failure_threshold`` 时转为 OPEN 并发出告警。
 
         告警使用 ``alert_error``（与原 ``tianyan_client.py`` 一致），
         而非 :meth:`call` 方法使用的 ``alert_critical``。
         """
         with self._lock:
+            self._half_open_trial_in_progress = False
             self.failure_count += 1
             self.last_failure_time = time.monotonic()
-            if self.failure_count >= self.failure_threshold:
+            if self.state == CircuitState.HALF_OPEN:
+                # Issue #867: 试探性调用失败，重回 OPEN
+                self.state = CircuitState.OPEN
+            elif self.failure_count >= self.failure_threshold:
                 self.state = CircuitState.OPEN
                 # 使用 alert_error 以与原 tianyan_client.py 行为一致
                 alert_error(

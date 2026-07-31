@@ -381,9 +381,7 @@ def generate_report(
         )
 
     if ppo_better_overall and stats_summary["significant"]:
-        stats_conclusion = (
-            f"PPO平均SWAP数显著低于SABRE(p<0.05)，{deep_conclusion_text}。"
-        )
+        stats_conclusion = f"PPO平均SWAP数显著低于SABRE(p<0.05)，{deep_conclusion_text}。"
     elif ppo_better_overall:
         stats_conclusion = (
             f"PPO平均SWAP数低于SABRE但差异未达统计显著性(p>0.05)，{deep_conclusion_text}，"

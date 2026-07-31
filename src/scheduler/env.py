@@ -696,14 +696,11 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
                         )
                 else:
                     # 兼容分配：计算执行奖励（复用步首缓存的 obs，避免重复构建观测）
+                    # Issue #783/#784: crosstalk_penalty 由 _compute_execution_reward 内部
+                    # 统一计算并扣减，此处不再外部重复扣减，避免双重惩罚。
                     crosstalk_risk = obs[OBS_CROSSTALK_RISK]
-                    crosstalk_penalty = crosstalk_risk * 2.0
-
-                    reward += (
-                        self._compute_execution_reward(
-                            task, action, rng, crosstalk_risk=crosstalk_risk
-                        )
-                        - crosstalk_penalty
+                    reward += self._compute_execution_reward(
+                        task, action, rng, crosstalk_risk=crosstalk_risk
                     )
                     self._total_scheduled += 1
 
@@ -975,6 +972,18 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
 
     def _pick_next_task(self) -> None:
         pick_next_task(self)
+
+    def _invalidate_obs_cache(self) -> None:
+        """失效观测聚合缓存（Issue #775）。
+
+        所有修改机器/聚合/队列状态的 mutator 在状态变更后必须调用，
+        确保后续 ``_get_observation()`` 返回最新观测而非过期缓存。
+
+        幂等：多次调用无副作用。该函数被 step()/reset() 及委托给子模块的
+        route_to_machine / recompute_aggregate / advance_time / pick_next_task
+        调用，避免外部绕开 step() 直接调用 mutator 时返回过期观测。
+        """
+        self._cached_obs = None
 
     def _get_observation(self) -> NDArray[Any]:
         # Issue #627: 优先返回缓存观测，避免热路径中重复构建 16/17 维向量

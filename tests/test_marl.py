@@ -237,11 +237,19 @@ class TestThreeMachineOutperformsSingle(unittest.TestCase):
         )
         agent = MultiAgentPPO(
             env,
-            n_steps=64,
+            # Issue #860: 训练稳定性修复（三处）：
+            # 1) n_steps 需 >= max_steps(100)，否则单个 rollout 无法覆盖完整
+            #    episode，GAE bootstrap 失真（64 -> 128）；
+            # 2) 奖励尺度大（数百/千）时 3e-4 学习率下 critic 波动剧烈、优势
+            #    噪声大导致 actor 漂移（3e-4 -> 1e-4，ent_coef 0.01 -> 0.05）；
+            # 3) 本测试验证"能否学到正奖励"而非学习率调度本身，用 constant
+            #    避免 linear 在 16384 步内把 lr 衰减到 0 导致后半程停止学习。
+            n_steps=128,
             batch_size=32,
             n_epochs=3,
-            learning_rate=3e-4,
-            ent_coef=0.01,
+            learning_rate=1e-4,
+            ent_coef=0.05,
+            lr_schedule="constant",
             seed=31,
             verbose=0,
         )
@@ -251,7 +259,10 @@ class TestThreeMachineOutperformsSingle(unittest.TestCase):
         pre_reward = pre_result["mean_reward"]
 
         # 训练（足够步数让多 Agent 协调收敛）
-        agent.train(total_timesteps=2048, eval_freq=0)
+        # Issue #860: 三机 MAPPO 需充分步数（128 个 rollout ≈ 16384 步）才能
+        # 从均匀随机探索收敛到稳定策略；2048 步仅 16 个 rollout 处于高熵漂移期，
+        # 8192 步仍不足，评估奖励不升反降（训练不稳定表象）。实测 16384 步收敛。
+        agent.train(total_timesteps=16384, eval_freq=0)
 
         # 训练后评估
         post_result = agent.evaluate(num_episodes=8, deterministic=True)

@@ -13,6 +13,7 @@ DAG Scheduler with Task Dependency Graph Support
 """
 
 import heapq
+import time
 from collections import deque
 from dataclasses import asdict, dataclass, field
 from itertools import pairwise
@@ -68,6 +69,10 @@ class DAGScheduler:
         completed: 已完成任务 ID 集合。
         failed: 已失败任务 ID 集合。
     """
+
+    # Issue #884: QUBO 退火变量数硬上限（time_horizon × 任务数）。
+    # 超过上限时回退经典调度，防止构造/求解超大 QUBO 长时间阻塞。
+    MAX_QUBO_VARIABLES = 2000
 
     def __init__(
         self,
@@ -625,6 +630,7 @@ class DAGScheduler:
         time_horizon: int = 10,
         num_reads: int = 100,
         fallback: bool = True,
+        timeout_seconds: float | None = None,
     ) -> list[dict[str, Any]]:
         """使用 neal 或内置 NumPy 模拟退火求解时间索引 DAG QUBO。
 
@@ -632,23 +638,46 @@ class DAGScheduler:
             time_horizon: 可选开始时间槽数量。
             num_reads: 独立退火读取次数，必须为正整数。
             fallback: 不可行或求解异常时是否回退到经典资源调度。
+            timeout_seconds: 求解超时上限（秒）。None 表示不设超时；
+                超过该时间仍未完成时抛出/回退（Issue #884）。
 
         Returns:
             与 :meth:`schedule_with_resources` 相同结构的调度列表。
 
         Raises:
-            RuntimeError: 求解失败或结果不可行且 ``fallback=False``。
+            RuntimeError: 求解失败或结果不可行且 ``fallback=False``，
+                或求解超时且 ``fallback=False``。
             ValueError: ``time_horizon`` 或 ``num_reads`` 非法。
         """
         if num_reads <= 0:
             raise ValueError("num_reads 必须为正整数")
+        if timeout_seconds is not None and timeout_seconds <= 0:
+            raise ValueError("timeout_seconds 必须为正数")
         qubo, variable_map = self.build_scheduling_qubo(time_horizon)
         if not variable_map:
             self._last_annealing_solver = None
             return []
 
+        # Issue #884: QUBO 变量数硬上限，防止 time_horizon × 任务数失控时
+        # 构造/求解超大 QUBO 导致长时间阻塞。
+        if qubo.shape[0] > self.MAX_QUBO_VARIABLES:
+            logger.warning(
+                "[DAG-QUBO] QUBO 变量数 {} 超过上限 {}，回退到经典资源调度",
+                qubo.shape[0],
+                self.MAX_QUBO_VARIABLES,
+            )
+            if not fallback:
+                raise RuntimeError(
+                    f"QUBO 变量数 {qubo.shape[0]} 超过上限 {self.MAX_QUBO_VARIABLES}"
+                )
+            self._last_annealing_solver = "classical_fallback"
+            return self.schedule_with_resources(self.max_qubits, available_machines=1)
+
+        deadline: float | None = None
+        if timeout_seconds is not None:
+            deadline = time.monotonic() + timeout_seconds
         try:
-            bits = self._solve_scheduling_qubo(qubo, num_reads)
+            bits = self._solve_scheduling_qubo(qubo, num_reads, deadline=deadline)
             schedule = self._decode_scheduling_solution(bits, variable_map)
             if self._is_scheduling_solution_feasible(schedule, time_horizon):
                 return schedule
@@ -660,8 +689,17 @@ class DAGScheduler:
             self._last_annealing_solver = "classical_fallback"
             return self.schedule_with_resources(self.max_qubits, available_machines=1)
 
-    def _solve_scheduling_qubo(self, qubo: np.ndarray, num_reads: int) -> np.ndarray:
-        """优先使用 neal，导入或求解失败时使用 NumPy 模拟退火。"""
+    def _solve_scheduling_qubo(
+        self, qubo: np.ndarray, num_reads: int, deadline: float | None = None
+    ) -> np.ndarray:
+        """优先使用 neal，导入或求解失败时使用 NumPy 模拟退火。
+
+        Args:
+            qubo: 对称 QUBO 矩阵。
+            num_reads: 退火读取次数。
+            deadline: 求解截止时间（time.monotonic 秒）；超过时抛出
+                RuntimeError（Issue #884）。
+        """
         try:
             import neal
 
@@ -674,6 +712,8 @@ class DAGScheduler:
                     coefficient = float(qubo[row, column] + qubo[column, row])
                     if abs(coefficient) > 1e-12:
                         qubo_dict[(row, column)] = coefficient
+            if deadline is not None and time.monotonic() >= deadline:
+                raise RuntimeError("DAG QUBO 求解超时")
             sampleset = neal.SimulatedAnnealingSampler().sample_qubo(
                 qubo_dict,
                 num_reads=num_reads,
@@ -688,17 +728,24 @@ class DAGScheduler:
         except Exception as exc:  # noqa: BLE001
             logger.warning("[DAG-QUBO] neal 不可用或求解失败：{}；使用 NumPy SA", exc)
             self._last_annealing_solver = "numpy_sa"
-            return self._numpy_scheduling_annealing(qubo, num_reads)
+            return self._numpy_scheduling_annealing(qubo, num_reads, deadline=deadline)
 
     def _numpy_scheduling_annealing(
         self,
         qubo: np.ndarray,
         num_reads: int,
+        deadline: float | None = None,
     ) -> np.ndarray:
         """轻量 NumPy 模拟退火兜底，不依赖 torch。
 
         Issue #354: 使用 ``self._annealing_seed`` 作为 RNG 种子，
         同 seed 两次运行结果一致，可复现。
+
+        Args:
+            qubo: 对称 QUBO 矩阵。
+            num_reads: 退火读取次数。
+            deadline: 求解截止时间（time.monotonic 秒）；超过时抛出
+                RuntimeError（Issue #884）。
         """
         n_variables = qubo.shape[0]
         rng = np.random.default_rng(self._annealing_seed)
@@ -708,6 +755,9 @@ class DAGScheduler:
         initial_temperature = max(1.0, float(np.max(np.abs(qubo))))
 
         for _ in range(num_reads):
+            # Issue #884: 每轮读取前检查超时截止点
+            if deadline is not None and time.monotonic() >= deadline:
+                raise RuntimeError("DAG QUBO 求解超时")
             current: np.ndarray = np.asarray(
                 rng.integers(0, 2, size=n_variables),
                 dtype=np.int8,

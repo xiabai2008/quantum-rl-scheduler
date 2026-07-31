@@ -2,6 +2,46 @@
 
 本文件记录项目的所有重要变更，按日期倒序排列。
 
+## [2026-08-01] - 三审修复批次：可复现性恢复 + P1 缺陷批 + 测试补齐
+
+### 修复（P0 可复现性）
+- **恢复一键可复现**：补回 `_invalidate_obs_cache` 方法定义（`src/scheduler/env.py`，Issue #775 合并时在 merge 冲突解决中丢失）——全量 pytest 从 276 failed 降至 0；`run_simulation.py --episodes 2` 恢复跑通
+- **修复 crosstalk 双重扣减回归**：`env.py` 兼容分配分支删除外部重复 `- crosstalk_penalty`（还原 #890 修复，避免量子路径多扣一次串扰惩罚）
+- **CI 红灯根因修复**：`ruff format` 2 文件 + `tianyan_client.py:431` BLE001 → ruff/mypy 清零
+
+### 修复（P0 熔断器）
+- **#867**：`CircuitBreaker.before_request()` 补齐 HALF_OPEN 单试探控制（OPEN→HALF_OPEN 占位 + 并发拒绝 + on_failure 重回 OPEN），对齐 `call()` 主路径
+- **#868**：`TianyanClient.submit_quantum_task` 编程错误（ValueError/TypeError/KeyError/AttributeError/NotImplementedError）不再计入熔断失败计数
+- 新增 6 个回归测试（test_circuit_breaker.py + test_api.py）
+
+### 修复（P1 缺陷批）
+- **#869**：`PPOAgent.evaluate()` 评估期间临时禁用决策缓存（结果反映真实模型性能）
+- **#871**：`PPOAgent` 超参数合法性校验（gamma∈(0,1)、clip_range∈(0,1]、全部正数）
+- **#872**：`QuotaTracker.consume()` 拒绝负值消费（防配额"充值"绕过）
+- **#880**：`CheckpointManager.register()/delete()` read-modify-write 加线程锁（防多线程丢更新）
+- **#881**：`training.py` auto_resume DQN 超参数对齐 `SchedulerAgent` 默认值（lr=1e-3/buffer=10000/learning_starts=100）
+- **#882**：`CqlibTianyanClient._retry_other_machine` 备用机 Platform 连接 try/finally 释放
+- **#883**：`compilation_env.py` step() 动作范围校验 + reset() 通过 `_init_state()` 完整重置（含门列表）
+- **#884**：`DAGScheduler.schedule_with_annealing` 新增 timeout_seconds 超时控制 + MAX_QUBO_VARIABLES=2000 硬上限
+- **#860**：MARL 三机训练稳定性修复——聚合层动作 3（QUANTUM_QEM）不再静默丢弃（根因）、n_steps≥max_steps、advantage 各 Agent 独立标准化（Issue #402 语义修正）、测试 lr/ent 参数调整
+
+### 测试补齐
+- **#876**：`PPOExplainer` 新增 tests/test_ppo_explainer.py（11 用例）+ 空批次重要性边界修复
+- **#875**：`ObsMaskWrapper`/D2 配置新增 tests/test_obs_mask_wrapper.py（14 用例）
+- **#874**：`compute_effect_size`/`bootstrap_improvement_ci`/`power_analysis_report` 新增 tests/test_stats_core_functions.py（14 用例，含手算对照）
+
+### 其他
+- **#830**：`docs/observation_dim_standard.md` 新增 17 维公平性观测章节
+- **P2-2**：`summarize_rewards` 小样本（n<30）CI 改用 t 分布临界值
+- **#807 遗留**：`check_doc_sync.py` 日期检查降为 warning（不阻断 CI）
+- 测试用例数文档统一为实测 3605（README/AGENTS/authoritative_numbers/code_freeze/requirements_traceability）
+- SECURITY.md bandit 状态更新（B614 已 nosec 处理，实测 0 Medium+）
+- 关闭 7 个已修复未关闭 issue：#829/#835/#842/#847/#849/#768/#858
+
+### 实测状态（2026-08-01）
+- pytest 全量（排 benchmark）：**3605 collected / 3557+ passed / 0 failed**（仅 test_platform_compat 因 worktree 目录名环境差异除外，CI 正常）
+- ruff check：src/ tests/ 0 error；ruff format：通过；mypy：Success（72 文件）；bandit：0 Medium+
+
 ## [2026-07-31] - v9.1 文档全面同步 + 自动文档同步检查机制
 
 ### 文档同步 (docs)

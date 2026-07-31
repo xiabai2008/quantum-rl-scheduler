@@ -147,6 +147,29 @@ class PPOAgent:
         self.seed = kwargs.get("seed")
         self.log_dir = kwargs.get("log_dir", "./logs/")
 
+        # Issue #871: PPO 核心超参数合法性校验——非法值（负 gamma、零
+        # batch_size 等）会在训练中产生静默错误或 NaN，尽早显式报错。
+        _invalid = {
+            "learning_rate": self.learning_rate,
+            "n_steps": self.n_steps,
+            "batch_size": self.batch_size,
+            "n_epochs": self.n_epochs,
+            "gamma": self.gamma,
+            "gae_lambda": self.gae_lambda,
+            "clip_range": self.clip_range,
+            "ent_coef": self.ent_coef,
+            "max_grad_norm": self.max_grad_norm,
+        }
+        for _name, _value in _invalid.items():
+            if _value is None or _value <= 0:
+                raise ValueError(f"PPO 超参数 {_name} 必须为正数，收到 {_value!r}")
+        if not 0.0 < self.gamma < 1.0:
+            raise ValueError(f"PPO 超参数 gamma 必须在 (0, 1) 区间，收到 {self.gamma!r}")
+        if not 0.0 < self.clip_range <= 1.0:
+            raise ValueError(f"PPO 超参数 clip_range 必须在 (0, 1] 区间，收到 {self.clip_range!r}")
+        if self.vf_coef is not None and self.vf_coef < 0:
+            raise ValueError(f"PPO 超参数 vf_coef 不能为负，收到 {self.vf_coef!r}")
+
         # LSTM 策略支持（阶段3）
         self.use_lstm = kwargs.get("use_lstm", False)
         self.n_lstm_layers = kwargs.get("n_lstm_layers", 1)
@@ -498,23 +521,31 @@ class PPOAgent:
         # Issue #669: 使用独立评估环境，避免评估 episode 的 reset/step 污染训练环境状态
         eval_env = self._create_eval_env()
 
-        episode_rewards = []
-        episode_success_rates = []
+        # Issue #869: 评估时临时禁用决策缓存——缓存命中返回的是历史最优决策，
+        # 会高估真实模型性能。评估必须反映策略网络本身的推理结果。
+        saved_cache = self.cache
+        self.cache = None
+        try:
+            episode_rewards = []
+            episode_success_rates = []
 
-        for _ep in range(num_episodes):
-            obs, info = eval_env.reset()
-            total_reward = 0.0
-            done = False
+            for _ep in range(num_episodes):
+                obs, info = eval_env.reset()
+                total_reward = 0.0
+                done = False
 
-            while not done:
-                action = self.predict(obs, deterministic=deterministic)
-                obs, reward, terminated, truncated, info = eval_env.step(action)
-                total_reward += float(reward)
-                done = terminated or truncated
+                while not done:
+                    action = self.predict(obs, deterministic=deterministic)
+                    obs, reward, terminated, truncated, info = eval_env.step(action)
+                    total_reward += float(reward)
+                    done = terminated or truncated
 
-            episode_rewards.append(total_reward)
-            completion_rate = info.get("completion_rate", 0.0)
-            episode_success_rates.append(completion_rate)
+                episode_rewards.append(total_reward)
+                completion_rate = info.get("completion_rate", 0.0)
+                episode_success_rates.append(completion_rate)
+        finally:
+            # 恢复决策缓存（无论评估是否异常）
+            self.cache = saved_cache
 
         # 关闭评估环境释放资源
         eval_env.close()

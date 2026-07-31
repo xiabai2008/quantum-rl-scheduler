@@ -266,6 +266,15 @@ class SubmissionValidator:
                 for slide in prs.slides:
                     if slide.shapes.title:
                         slide_titles.append(slide.shapes.title.text)
+                    # 无正式 title 占位符的幻灯片：收集全部文本作为标题候选，
+                    # 避免"标题在文本框中"的常见版式被误判为缺少必需页
+                    else:
+                        texts = []
+                        for shape in slide.shapes:
+                            if shape.has_text_frame and shape.text_frame.text.strip():
+                                texts.append(shape.text_frame.text)
+                        if texts:
+                            slide_titles.append("\n".join(texts))
 
                 missing = [
                     title for title in must_contain if not any(title in t for t in slide_titles)

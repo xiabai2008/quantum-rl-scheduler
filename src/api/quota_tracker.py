@@ -256,6 +256,11 @@ class QuotaTracker:
             "tasks": float(tasks),
             "wall_time_hours": float(wall_time_hours),
         }
+        # Issue #872: 负值参数会减少已用配额（变相"充值"），可绕过配额限制。
+        # 消费语义不允许负数，直接拒绝（返回 False，不抛异常以保持调用方契约）。
+        if any(v < 0.0 for v in request.values()):
+            logger.warning(f"[QuotaTracker] 拒绝负值消费: {request}（配额不允许负消费）")
+            return False
         with self._lock:
             for dim in _QUOTA_DIMENSIONS:
                 if self._used[dim] + request[dim] > self._total_quota[dim]:

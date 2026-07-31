@@ -543,7 +543,8 @@ class TestSummarizeRewardsCIAndSEM:
         - std(ddof=1) = sqrt(((1-3)²+(2-3)²+(3-3)²+(4-3)²+(5-3)²)/4)
                     = sqrt((4+1+0+1+4)/4) = sqrt(10/4) = sqrt(2.5) ≈ 1.5811
         - sem = std / sqrt(5) ≈ 1.5811 / 2.2361 ≈ 0.7071
-        - CI = mean ± 1.96 * sem ≈ 3.0 ± 1.96*0.7071 ≈ [1.614, 4.386]
+        - CI = mean ± t(0.975, df=4) * sem ≈ 3.0 ± 2.7764*0.7071 ≈ [1.0368, 4.9632]
+          （P2-2：n=5 < 30 使用 t 分布临界值，替代正态近似 ±1.96）
         """
         from src.evaluation.blind_test import summarize_rewards
 
@@ -555,10 +556,10 @@ class TestSummarizeRewardsCIAndSEM:
         assert "ci95_lower" in result
         assert "ci95_upper" in result
 
-        # 数值校验
+        # 数值校验（t 分布：df=4 临界值 2.7764）
         assert result["sem"] == pytest.approx(0.7071, rel=1e-3)
-        assert result["ci95_lower"] == pytest.approx(1.614, rel=1e-2)
-        assert result["ci95_upper"] == pytest.approx(4.386, rel=1e-2)
+        assert result["ci95_lower"] == pytest.approx(1.0368, rel=1e-2)
+        assert result["ci95_upper"] == pytest.approx(4.9632, rel=1e-2)
 
     @staticmethod
     def test_blind_summarize_rewards_n1_boundary() -> None:

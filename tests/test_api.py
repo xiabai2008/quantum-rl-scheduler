@@ -1187,6 +1187,28 @@ class TestTianyanClientCircuitBreaker(unittest.TestCase):
                 client.get_task_status("tid")
         self.assertEqual(client.get_circuit_state(), "closed")
 
+    def test_submit_programming_error_does_not_trigger_breaker(self):
+        """Issue #868: 编程错误（ValueError）不应计入熔断器失败计数。
+
+        客户端编程错误（如非法 QCIS）反映的是调用方 bug 而非服务故障，
+        累计到熔断器会误触发熔断，阻断后续正常任务。
+        """
+        self.client._cqlib.submit_quantum_task.side_effect = ValueError("invalid qcis")
+        for _ in range(10):
+            with self.assertRaises(ValueError):
+                self.client.submit_quantum_task(qcis="INVALID Q0", shots=32)
+        # 熔断器应保持 CLOSED，失败计数为 0
+        self.assertEqual(self.client.get_circuit_state(), "closed")
+        self.assertEqual(self.client._circuit_breaker.failure_count, 0)
+
+    def test_submit_service_error_does_trigger_breaker(self):
+        """Issue #868: 服务类错误（RuntimeError）仍应计入熔断器失败计数。"""
+        self.client._cqlib.submit_quantum_task.side_effect = RuntimeError("cqlib 网络异常")
+        for _ in range(5):
+            with self.assertRaises(RuntimeError):
+                self.client.submit_quantum_task(qcis="H Q0", shots=32)
+        self.assertEqual(self.client.get_circuit_state(), "open")
+
 
 class TestTianyanClientConfigAndMetrics(unittest.TestCase):
     """测试 TianyanClient 的可配置参数（Issue #74）与 Prometheus 指标埋点（Issue #73）。"""

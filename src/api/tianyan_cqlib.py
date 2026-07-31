@@ -518,12 +518,22 @@ class CqlibTianyanClient(QuantumHardwareBackend):
                 if self._app_id:
                     alt_kwargs["app_id"] = self._app_id
                 alt = self.cqlib.TianYanPlatform(**alt_kwargs)
-                result = alt.submit_experiment(
-                    circuit=qcis,
-                    name=task_name,
-                    num_shots=shots,
-                    is_verify=False,
-                )
+                try:
+                    result = alt.submit_experiment(
+                        circuit=qcis,
+                        name=task_name,
+                        num_shots=shots,
+                        is_verify=False,
+                    )
+                finally:
+                    # Issue #882: 备用机 Platform 连接用完即释放，避免多次
+                    # 重试累积连接泄漏（SDK 提供 close 时调用，缺失则忽略）。
+                    close = getattr(alt, "close", None)
+                    if callable(close):
+                        try:
+                            close()
+                        except Exception as close_err:  # noqa: BLE001
+                            logger.debug(f"[Cqlib] {machine} 连接释放失败: {close_err}")
                 if isinstance(result, list) and len(result) > 0:
                     tid = str(result[0])
                     logger.info(f"[Cqlib] {machine} 提交成功: {tid}")

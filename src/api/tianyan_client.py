@@ -428,7 +428,7 @@ class TianyanClient:
                 app_id=self._app_id,
             )
             logger.info(f"✅ 真实模式委托 cqlib（机器={machine_name}）")
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             # 涉及 cqlib SDK 导入与初始化，异常类型无法穷举，保留宽捕获并记录日志
             logger.warning(f"cqlib 客户端初始化失败: {e}，回退 REST 路径")
 
@@ -805,6 +805,15 @@ class TianyanClient:
                     )
                 logger.debug(f"submit_quantum_task 限流触发，不计入熔断器: {e}")
                 raise e
+            # Issue #868: 编程错误（参数/状态校验类）不计入熔断器失败计数——
+            # 它们反映的是调用方 bug 而非服务故障，计入会误触发熔断。
+            # 对齐 _call_with_retry 的不可恢复异常处理（ValueError/TypeError/
+            # KeyError/AttributeError/NotImplementedError 直接透传）。
+            if isinstance(
+                e, (ValueError, TypeError, KeyError, AttributeError, NotImplementedError)
+            ):
+                logger.debug(f"submit_quantum_task 编程错误，不计入熔断器: {type(e).__name__}: {e}")
+                raise
             # 其他异常计入熔断器失败计数，原异常重新抛出由上层处理
             logger.debug(f"submit_quantum_task 失败，已触发熔断器失败计数: {type(e).__name__}: {e}")
             if self._circuit_breaker:

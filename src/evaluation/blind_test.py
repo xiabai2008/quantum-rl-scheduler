@@ -224,7 +224,15 @@ def summarize_rewards(rewards: list[float]) -> dict[str, Any]:
 
     if n >= 2:
         sem = std_reward / math.sqrt(n)
-        margin = 1.96 * sem
+        # P2-2: 小样本（n<30）正态近似 ±1.96·sem 会低估 CI 宽度，
+        # 改用 t 分布临界值（df=n-1）更严谨；大样本时 t≈z 退化一致。
+        if n < 30:
+            from scipy import stats as _sp
+
+            critical = float(_sp.t.ppf(0.975, df=n - 1))
+        else:
+            critical = 1.96
+        margin = critical * sem
         ci95_lower = mean_reward - margin
         ci95_upper = mean_reward + margin
     else:

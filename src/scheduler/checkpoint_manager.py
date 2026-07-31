@@ -17,13 +17,17 @@ Issue #83：解决训练检查点散落在 ``models/`` 目录、无版本管理�
         * 元数据 JSON 持久化
         * 清理孤立条目（元数据引用了但文件已不存在）
 
-元数据以 JSON 文件持久化（默认 ``models/checkpoints.json``），单进程使用，
-不做线程安全保证。
-"""
+元数据以 JSON 文件持久化（默认 ``models/checkpoints.json``）。
+
+线程安全：register/delete/tag/untag/cleanup_orphans 等 read-modify-write
+操作由进程内 ``threading.Lock`` 串行化，避免同进程多线程并发丢失更新
+（Issue #880）。跨进程场景（多进程训练各自实例化本管理器）仍建议由
+训练入口统一串行化，或在外部使用文件锁。"""
 
 import json
 import os
 import tempfile
+import threading
 import uuid
 from dataclasses import asdict, dataclass, field, fields
 from datetime import datetime
@@ -137,6 +141,9 @@ class CheckpointManager:
             meta_file = os.path.join(_PROJECT_ROOT, meta_file)
         self.checkpoint_dir = checkpoint_dir
         self.meta_file = meta_file
+        # Issue #880: read-modify-write 序列（load→append→save）需要串行化，
+        # 防止同进程多线程并发注册/删除时丢失更新。
+        self._meta_lock = threading.Lock()
         os.makedirs(checkpoint_dir, exist_ok=True)
         logger.debug(f"[CheckpointManager] 初始化: dir={checkpoint_dir}, meta={meta_file}")
 
@@ -261,29 +268,31 @@ class CheckpointManager:
         Raises:
             ValueError: 显式提供的 ``version`` 已存在。
         """
-        checkpoints = self.load_meta()
-        existing_versions = {cp.version for cp in checkpoints}
+        # Issue #880: RMW 序列在锁内执行，防止并发注册丢失更新
+        with self._meta_lock:
+            checkpoints = self.load_meta()
+            existing_versions = {cp.version for cp in checkpoints}
 
-        if version is None:
-            version = self._generate_version()
-            while version in existing_versions:
+            if version is None:
                 version = self._generate_version()
-        elif version in existing_versions:
-            raise ValueError(f"版本号 {version} 已存在")
+                while version in existing_versions:
+                    version = self._generate_version()
+            elif version in existing_versions:
+                raise ValueError(f"版本号 {version} 已存在")
 
-        meta = CheckpointMeta(
-            version=version,
-            # Issue #705: 存储绝对路径，避免 CWD 变化后 cleanup_orphans/delete 路径失效
-            path=os.path.abspath(path) if not os.path.isabs(path) else path,
-            algorithm=algorithm,
-            timesteps=timesteps,
-            mean_reward=mean_reward,
-            std_reward=std_reward,
-            tags=list(tags) if tags is not None else [],
-            notes=notes,
-        )
-        checkpoints.append(meta)
-        self.save_meta(checkpoints)
+            meta = CheckpointMeta(
+                version=version,
+                # Issue #705: 存储绝对路径，避免 CWD 变化后 cleanup_orphans/delete 路径失效
+                path=os.path.abspath(path) if not os.path.isabs(path) else path,
+                algorithm=algorithm,
+                timesteps=timesteps,
+                mean_reward=mean_reward,
+                std_reward=std_reward,
+                tags=list(tags) if tags is not None else [],
+                notes=notes,
+            )
+            checkpoints.append(meta)
+            self.save_meta(checkpoints)
         logger.info(
             f"[CheckpointManager] 注册检查点 {version} "
             f"(algorithm={algorithm}, timesteps={timesteps}, "
@@ -403,21 +412,23 @@ class CheckpointManager:
         Returns:
             删除成功返回 ``True``；版本不存在返回 ``False``。
         """
-        checkpoints = self.load_meta()
-        target = self._find(checkpoints, version)
-        if target is None:
-            logger.warning(f"[CheckpointManager] 删除失败：版本 {version} 不存在")
-            return False
+        # Issue #880: RMW 序列在锁内执行，防止并发删除丢失更新
+        with self._meta_lock:
+            checkpoints = self.load_meta()
+            target = self._find(checkpoints, version)
+            if target is None:
+                logger.warning(f"[CheckpointManager] 删除失败：版本 {version} 不存在")
+                return False
 
-        if target.path and os.path.exists(target.path):
-            try:
-                os.remove(target.path)
-                logger.info(f"[CheckpointManager] 删除检查点文件: {target.path}")
-            except OSError as e:
-                logger.warning(f"[CheckpointManager] 删除检查点文件失败 {target.path}: {e}")
+            if target.path and os.path.exists(target.path):
+                try:
+                    os.remove(target.path)
+                    logger.info(f"[CheckpointManager] 删除检查点文件: {target.path}")
+                except OSError as e:
+                    logger.warning(f"[CheckpointManager] 删除检查点文件失败 {target.path}: {e}")
 
-        survivors = [cp for cp in checkpoints if cp.version != version]
-        self.save_meta(survivors)
+            survivors = [cp for cp in checkpoints if cp.version != version]
+            self.save_meta(survivors)
         logger.info(f"[CheckpointManager] 删除检查点元数据: {version}")
         return True
 

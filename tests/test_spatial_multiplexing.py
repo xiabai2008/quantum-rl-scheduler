@@ -27,6 +27,10 @@ def test_spatial_multiplexing():
         def _submit_to_real_machine(self, *args, **kwargs):
             pass
 
+        def _invalidate_obs_cache(self) -> None:
+            """对齐真实 env 的观测缓存失效接口（Issue #775）。"""
+            self._cached_obs = None
+
     env = MockEnv()
     rng = np.random.default_rng(42)
 

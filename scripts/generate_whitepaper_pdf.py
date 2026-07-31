@@ -736,8 +736,8 @@ def build_cover(styles, content_width):
 # 主函数
 # ============================================================
 def main():
-    # 路径设置
-    project_root = Path(r"c:\Users\HZR\Desktop\揭榜挂帅擂台赛\quantum-rl-scheduler")
+    # 路径设置：基于本脚本位置推算项目根目录（<root>/scripts/），避免硬编码
+    project_root = Path(__file__).resolve().parent.parent
     md_path = project_root / "docs" / "technical_whitepaper.md"
     pdf_path = project_root / "docs" / "technical_whitepaper.pdf"
 

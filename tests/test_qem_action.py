@@ -33,6 +33,10 @@ def test_qem_effects_direct():
         def _submit_to_real_machine(self, machine, task, *args, **kwargs):
             pass  # Mock real machine submission
 
+        def _invalidate_obs_cache(self) -> None:
+            """对齐真实 env 的观测缓存失效接口（Issue #775）。"""
+            self._cached_obs = None
+
     mock_env = MockEnv()
     rng = np.random.default_rng(42)
 

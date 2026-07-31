@@ -38,13 +38,26 @@
 | 14 | OBS_CROSSTALK_RISK | 串扰风险（基于空间并发） | 并发特征（v9新增） |
 | 15 | OBS_ARRIVAL_RATE_MA | 任务到达率滑动平均 | 时序特征（v9新增） |
 
-### 1.3 14维观测空间（编译层专用）
+### 1.3 17维观测空间（可选·公平性扩展）
+
+**定义文件**：`src/scheduler/env_types.py`（`OBS_FAIRNESS_INDEX = 16`，Issue #830）
+
+| 索引 | 常量名 | 含义 | 类别 |
+|:--|:--|:--|:--|
+| 16 | OBS_FAIRNESS_INDEX | Jain 公平性指数（0-1 归一化） | 公平性扩展 |
+
+- **开关**：`QuantumSchedulingEnv(include_fairness_obs=True)`（`src/scheduler/env.py:178`，默认 `False`）
+- **向后兼容**：设为 `False`（默认）时回退到 16 维，与 16 维交付模型 `ppo_best_model_16dim.zip` 完全兼容
+- **公平性惩罚**：`include_fairness_obs` 仅控制观测维度；公平性惩罚（Issue #587，`env_reward.py`）默认开启，不依赖本开关
+- **使用场景**：公平调度演示/评估需显式开启：`python scripts/evaluation/run_simulation.py --fairness-obs`（如支持）或直接传参
+
+### 1.4 14维观测空间（编译层专用）
 
 编译层PPO Agent（`ppo_compilation_agent.zip`）使用独立的14维观测空间，定义在`src/quantum/compilation_env.py`：
 - 包含：电路特征（深度、两比特门比例）、当前映射状态、耦合图拓扑特征、SWAP候选动作评估
 - 这与调度层的16维观测空间完全不同，是量子比特映射任务专用
 
-### 1.4 耦合图拓扑（v9更新）
+### 1.5 耦合图拓扑（v9更新）
 
 **定义文件**：`src/quantum/compilation_env.py`
 

@@ -213,7 +213,12 @@ def check_version(expected: str) -> list[CheckResult]:
 
 
 def check_agents_date(today: dt.date) -> CheckResult:
-    """检查 AGENTS.md 的'最后更新'日期是否为今天。"""
+    """检查 AGENTS.md 的'最后更新'日期是否为今天。
+
+    Issue #807 遗留：'最后更新'是手写日期，任何非当天提交都会触发不匹配，
+    若作为硬失败会让 CI 在非更新日必然红灯。改为 warning（信息性提醒），
+    由维护者在实质更新文档时顺手刷新日期。
+    """
     text = _read_text(AGENTS_MD)
     today_str = today.strftime("%Y-%m-%d")
     # 匹配 "最后更新**：2026-07-31" 或 "最后更新：2026-07-31"
@@ -226,7 +231,8 @@ def check_agents_date(today: dt.date) -> CheckResult:
     return CheckResult(
         "agents_update_date",
         False,
-        f"AGENTS.md 最后更新日期 {doc_date} != 今天 {today_str}（文档可能过时）",
+        f"AGENTS.md 最后更新日期 {doc_date} != 今天 {today_str}（文档可能过时；信息性提醒，不阻断 CI）",
+        warning=True,
     )
 
 

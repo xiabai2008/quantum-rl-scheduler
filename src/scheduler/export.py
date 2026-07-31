@@ -199,7 +199,7 @@ class ModelExporter:
             obs_space = model.observation_space
             if hasattr(obs_space, "shape") and obs_space.shape:
                 return tuple(obs_space.shape)
-        except (AttributeError, TypeError, ValueError) as e:
+        except Exception as e:  # noqa: BLE001 — 模型加载失败（损坏/版本不兼容等）均应回退默认形状
             logger.debug(f"输入形状推断失败，使用默认值 {_DEFAULT_INPUT_SHAPE}: {e}")
         return _DEFAULT_INPUT_SHAPE
 
@@ -228,7 +228,7 @@ class ModelExporter:
                         f"从模型观测空间推断输入形状: {inferred}（覆盖默认 {input_shape}）"
                     )
                     return inferred
-        except (AttributeError, TypeError, ValueError) as e:
+        except Exception as e:  # noqa: BLE001 — 模型加载失败（损坏/版本不兼容等）均应回退输入形状
             logger.debug(f"输出形状推断失败，使用输入值 {input_shape}: {e}")
         return input_shape
 

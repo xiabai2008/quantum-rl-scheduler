@@ -253,13 +253,17 @@ def auto_resume_train(
                 policy_kwargs={"net_arch": [128, 64]},
             )
         else:
+            # Issue #881: DQN 超参数与 SchedulerAgent 默认值对齐
+            # （agent.py: learning_rate=0.001, buffer_size=10000, batch_size=64,
+            #  gamma=0.99, learning_starts=100），确保 auto_resume 与正常训练
+            # 两条路径行为一致、结果可复现。
             model = DQN(
                 "MlpPolicy",
                 env,
                 verbose=0,
-                learning_starts=50,
-                buffer_size=1000,
-                learning_rate=3e-4,
+                learning_starts=100,
+                buffer_size=10000,
+                learning_rate=1e-3,
                 batch_size=64,
                 gamma=0.99,
                 policy_kwargs={"net_arch": [128, 64]},

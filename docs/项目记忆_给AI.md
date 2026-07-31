@@ -106,7 +106,7 @@ Python: python（建议通过 venv/.venv 虚拟环境）
 | 测试用例数 | 3523 |
 | 测试覆盖率 | 93.58% |
 
-> 旧数字（+88.3%、Cohen's d=5.64、真机284次、2824+测试用例等）已废弃，详见 `docs/authoritative_numbers.md` 黑名单。
+> 旧数字（+88.3%、旧 Cohen's d 口径、真机284次、2824+测试用例等）已废弃，详见 `docs/authoritative_numbers.md` 黑名单。
 
 ---
 

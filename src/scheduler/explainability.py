@@ -974,6 +974,10 @@ class PPOExplainer:
             batch = batch.reshape(1, -1)
 
         n_samples = batch.shape[0]
+        if n_samples == 0 or batch.shape[1] == 0:
+            # Issue #876: 空批次返回全零重要性（避免落入 z-score 兜底产生伪贡献）
+            return dict.fromkeys(self.feature_names, 0.0)
+
         accumulator = np.zeros(self.n_features, dtype=np.float64)
 
         for i in range(n_samples):

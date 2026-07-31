@@ -51,7 +51,12 @@ from src.scheduler.env import (
     OBS_DIM,
     QuantumSchedulingEnv,
 )
-from src.scheduler.env_types import N_ACTIONS
+from src.scheduler.env_types import (
+    ACTION_HYBRID,
+    ACTION_QUANTUM,
+    ACTION_QUANTUM_QEM,
+    N_ACTIONS,
+)
 from src.utils.lr_schedule import LRScheduleType, create_lr_schedule
 
 # ---------------------------------------------------------------------------
@@ -218,9 +223,12 @@ class MultiAgentEnvWrapper:
             if not m.available:
                 continue
             a = int(actions.get(name, 0))
-            if a == 1:
+            # Issue #860: 动作 3（QUANTUM_QEM，误差缓释）语义上是量子执行，
+            # 必须归入量子投票组；此前被静默丢弃（落入经典执行分支），
+            # 导致 MARL 策略学到动作 3 后量子任务全被经典处理、奖励崩溃。
+            if a in (ACTION_QUANTUM, ACTION_QUANTUM_QEM):
                 quantum_voters.append(idx)
-            elif a == 2:
+            elif a == ACTION_HYBRID:
                 hybrid_voters.append(idx)
 
         if quantum_voters:
@@ -1366,17 +1374,15 @@ class MultiAgentPPO:
         # 全局状态和回报对所有 Agent 共享
         global_states = self.buffer.global_states[:n]
         returns_arr = returns[:n]
-        # Issue #402: 使用各 Agent 的差异化优势（而非共享优势）
-        # 标准化在每个 Agent 的优势上独立进行，保持信用分配的差异性
-        advantages_shared = advantages_per_agent[0]
-        adv_mean = advantages_shared.mean()
-        adv_std: float = float(advantages_shared.std())
-        adv_std = float(np.maximum(adv_std, 1e-8))
-        # 预计算每个 Agent 的标准化优势
+        # Issue #402: 使用各 Agent 的差异化优势（而非共享优势）。
+        # 每个 Agent 的优势独立标准化（PPO 标准做法），保留各 Agent 的
+        # 信用分配差异性；统一使用同一均值/标准差反而会抹平不同机器
+        # 的收益差异（修复：原先错误地仅使用 agent 0 的统计量）。
         norm_advantages_per_agent: list[np.ndarray] = []
         for i in range(self.num_agents):
             adv_i = advantages_per_agent[i]
-            # 使用全局均值/标准差进行标准化（保持相对差异）
+            adv_mean = adv_i.mean()
+            adv_std = float(np.maximum(adv_i.std(), 1e-8))
             norm_adv_i = (adv_i - adv_mean) / adv_std
             norm_advantages_per_agent.append(norm_adv_i)
 

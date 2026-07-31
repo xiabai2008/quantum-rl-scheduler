@@ -527,6 +527,51 @@ class TestBeforeRequest(unittest.TestCase):
             cb.before_request()
             self.assertEqual(cb.state, CircuitState.HALF_OPEN)
 
+    def test_open_to_half_open_occupies_trial_slot(self):
+        """Issue #867: OPEN→HALF_OPEN 转换应占用单试探名额，防止并发试探。"""
+        with patch("src.api.circuit_breaker.time.monotonic") as mock_time:
+            mock_time.return_value = 100.0
+            cb = CircuitBreaker(failure_threshold=1, recovery_timeout=60.0)
+            cb.state = CircuitState.OPEN
+            cb.last_failure_time = 30.0
+            cb.before_request()
+            self.assertEqual(cb.state, CircuitState.HALF_OPEN)
+            self.assertTrue(cb._half_open_trial_in_progress)
+            # 并发第二个请求应被拒绝
+            with self.assertRaises(CircuitOpenError) as ctx:
+                cb.before_request()
+            self.assertEqual(ctx.exception.code, "CIRCUIT_HALF_OPEN_BUSY")
+
+    def test_half_open_rejects_concurrent_trial(self):
+        """Issue #867: HALF_OPEN 状态已有试探请求时，并发请求应被拒绝。"""
+        cb = CircuitBreaker(failure_threshold=1, recovery_timeout=60.0)
+        cb.state = CircuitState.HALF_OPEN
+        cb._half_open_trial_in_progress = True
+        with self.assertRaises(CircuitOpenError) as ctx:
+            cb.before_request()
+        self.assertEqual(ctx.exception.code, "CIRCUIT_HALF_OPEN_BUSY")
+        self.assertTrue(ctx.exception.retryable)
+
+    def test_half_open_trial_success_releases_slot(self):
+        """Issue #867: 试探成功后 on_success 应释放名额并回到 CLOSED。"""
+        cb = CircuitBreaker(failure_threshold=1, recovery_timeout=60.0)
+        cb.state = CircuitState.HALF_OPEN
+        cb._half_open_trial_in_progress = True
+        cb.on_success()
+        self.assertEqual(cb.state, CircuitState.CLOSED)
+        self.assertFalse(cb._half_open_trial_in_progress)
+
+    def test_half_open_trial_failure_reopens(self):
+        """Issue #867: 试探失败后 on_failure 应释放名额并重回 OPEN。"""
+        with patch("src.api.circuit_breaker.alert_error") as mock_alert:
+            cb = CircuitBreaker(failure_threshold=5, recovery_timeout=60.0)
+            cb.state = CircuitState.HALF_OPEN
+            cb._half_open_trial_in_progress = True
+            cb.on_failure()
+            self.assertEqual(cb.state, CircuitState.OPEN)
+            self.assertFalse(cb._half_open_trial_in_progress)
+            mock_alert.assert_not_called()  # HALF_OPEN 失败不触发新告警（主路径语义）
+
 
 class TestOnSuccess(unittest.TestCase):
     """测试 on_success() 兼容方法。"""
