@@ -1109,12 +1109,13 @@ class TianyanClient:
         start = monotonic()
         while monotonic() - start < timeout:
             status_info = self.get_task_status(task_id)
-            status = status_info.get("status", "unknown")
+            # Issue #829: 统一状态比较为大小写不敏感，兼容 mock（大写）和 cqlib（小写）返回
+            status = status_info.get("status", "unknown").upper()
 
-            if status == "completed":
+            if status == "COMPLETED":
                 logger.info(f"任务 {task_id} 已完成")
                 return self.get_task_result(task_id)
-            elif status in ("failed", "error", "query_error"):
+            elif status in ("FAILED", "ERROR", "QUERY_ERROR"):
                 error_msg = status_info.get("error", "未知错误")
                 raise TianyanAPIError(
                     status_code=400,

@@ -75,6 +75,7 @@ quantum:
 scheduler:
   algorithm: PPO
   batch_size: 64
+  crosstalk_penalty_factor: 2.0  # Issue #835: 串扰惩罚因子（原硬编码2.0，现可配置）
   epsilon_decay: 0.995
   epsilon_end: 0.01
   epsilon_start: 1.0

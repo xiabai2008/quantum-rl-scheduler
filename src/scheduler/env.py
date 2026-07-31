@@ -48,6 +48,7 @@ from src.scheduler.env_types import (
     ACTION_CLASSICAL,
     ACTION_HYBRID,
     ACTION_QUANTUM,
+    CROSSTALK_PENALTY_FACTOR,
     DEFAULT_MACHINE_CONFIGS,
     INITIAL_QUEUE_RANGE,
     MAX_QUEUE_SIZE,
@@ -99,6 +100,7 @@ __all__ = [
     "ACTION_CLASSICAL",
     "ACTION_HYBRID",
     "ACTION_QUANTUM",
+    "CROSSTALK_PENALTY_FACTOR",
     "DEFAULT_MACHINE_CONFIGS",
     "INITIAL_QUEUE_RANGE",
     "MAX_QUEUE_SIZE",
@@ -697,7 +699,8 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
                 else:
                     # 兼容分配：计算执行奖励（复用步首缓存的 obs，避免重复构建观测）
                     crosstalk_risk = obs[OBS_CROSSTALK_RISK]
-                    crosstalk_penalty = crosstalk_risk * 2.0
+                    # Issue #835: 使用参数化常量替代硬编码 2.0
+                    crosstalk_penalty = crosstalk_risk * CROSSTALK_PENALTY_FACTOR
 
                     reward += (
                         self._compute_execution_reward(
@@ -922,7 +925,8 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
         # _get_observation()。回退路径仍走 _cached_obs 缓存（Issue #627）。
         if crosstalk_risk is None:
             crosstalk_risk = self._get_observation()[OBS_CROSSTALK_RISK]
-        crosstalk_penalty = crosstalk_risk * 2.0  # 惩罚因子可调
+        # Issue #835: 使用参数化常量替代硬编码 2.0（原注释"惩罚因子可调"已落地）
+        crosstalk_penalty = crosstalk_risk * CROSSTALK_PENALTY_FACTOR
 
         # Issue #587: 公平性惩罚嵌入奖励函数
         # 若未显式传入 fairness_penalty，则根据 tenant_manager 是否存在决定是否计算

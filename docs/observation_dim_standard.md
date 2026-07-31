@@ -11,7 +11,8 @@
 
 | 维度 | 定义 | 实现方式 | 观测空间形状 | 状态 |
 |:--|:--|:--|:--|:--|
-| **16维（原生·当前标准）** | 完整状态空间，含物理噪声、拓扑特征、串扰风险、到达率MA | `QuantumSchedulingEnv`（`src/scheduler/env.py`） | `Box(0, 1, (16,))` | ✅ **交付标准** |
+| **17维（含公平性·当前默认）** | 16维 + 第17维Jain公平性指数（任务完成公平度） | `QuantumSchedulingEnv`（`include_fairness_obs=True`，Issue #654默认开启） | `Box(0, 1, (17,))` | ✅ **当前默认** |
+| **16维（原生·交付标准）** | 完整状态空间，含物理噪声、拓扑特征、串扰风险、到达率MA | `QuantumSchedulingEnv`（`include_fairness_obs=False`） | `Box(0, 1, (16,))` | ✅ **交付标准** |
 | **16维（截断·历史）** | 前14个维度，不含串扰风险和到达率MA | 旧版本兼容 | `Box(0, 1, (14,))` | ⚠️ 编译Agent使用；调度层已废弃 |
 | **10维（截断·历史）** | 前10个维度，不含物理噪声和拓扑特征 | `Obs10Wrapper` | `Box(0, 1, (10,))` | ⚠️ 历史基线对比 |
 
@@ -37,6 +38,9 @@
 | 13 | OBS_AVG_CONNECTIVITY | 平均连接度 | 拓扑特征 |
 | 14 | OBS_CROSSTALK_RISK | 串扰风险（基于空间并发） | 并发特征（v9新增） |
 | 15 | OBS_ARRIVAL_RATE_MA | 任务到达率滑动平均 | 时序特征（v9新增） |
+| 16 | OBS_FAIRNESS_INDEX | Jain公平性指数（任务完成公平度，`include_fairness_obs=True`时追加） | 公平性特征（Issue #588/#654新增） |
+
+> **Issue #588/#654 说明**：第17维（索引16）为可选公平性观测维度，仅在 `include_fairness_obs=True` 时追加到16维观测向量末尾。该维度反映当前任务完成分布的Jain公平性指数，取值范围[0, 1]，1表示完全公平。`include_fairness_obs` 自 Issue #654 起默认为 `True`，对应 `OBS_DIM_WITH_FAIRNESS=17`。交付模型 `ppo_best_model_16dim.zip` 训练时使用16维（不含公平性），但运行时环境默认输出17维，需通过 `observation_dim=16` 或 `include_fairness_obs=False` 截断以兼容交付模型。
 
 ### 1.3 14维观测空间（编译层专用）
 
