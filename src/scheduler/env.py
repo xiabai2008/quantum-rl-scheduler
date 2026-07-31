@@ -191,7 +191,15 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
         super().__init__()
 
         self.max_steps = max_steps
-        # #795: Warn if config max_queue_size differs from MAX_QUEUE_SIZE used for normalization        if hasattr(self, '_config') and self._config and getattr(self._config, 'max_queue_size', None):            cfg_qs = self._config.max_queue_size            if cfg_qs != MAX_QUEUE_SIZE:                warnings.warn(f"Config max_queue_size={cfg_qs} but MAX_QUEUE_SIZE={MAX_QUEUE_SIZE} used for observation normalization. Queue lengths may be misnormalized.", stacklevel=2)
+        # #795: Warn if config max_queue_size differs from MAX_QUEUE_SIZE used for normalization
+        if hasattr(self, '_config') and self._config and getattr(self._config, 'max_queue_size', None):
+            cfg_qs = self._config.max_queue_size
+            if cfg_qs != MAX_QUEUE_SIZE:
+                warnings.warn(
+                    f"Config max_queue_size={cfg_qs} but MAX_QUEUE_SIZE={MAX_QUEUE_SIZE} "
+                    "used for observation normalization. Queue lengths may be misnormalized.",
+                    stacklevel=2,
+                )
         self.max_qubits = max_qubits
         self.render_mode = render_mode
         self.real_submit_probability = float(real_submit_probability)
