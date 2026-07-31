@@ -77,7 +77,7 @@ def _check_websocket_origin(websocket: WebSocket) -> bool:
     """
     try:
         origin = websocket.headers.get("origin", "")
-    except Exception:
+    except Exception:  # noqa: BLE001
         # headers 不可读时放行（防御性，保证兼容性）
         return True
     # 非字符串 Origin（如测试 mock 对象）放行，避免破坏测试
@@ -110,7 +110,7 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
         logger.warning("[Web] WebSocket 连接被拒绝：Origin 不在允许列表中")
         try:
             await websocket.close(code=1008)  # Policy Violation
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.debug(f"[Web] 拒绝连接时 close 失败: {e}")
         return
 
@@ -193,7 +193,7 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
     except WebSocketDisconnect:
         # 客户端主动断开：正常流程，无需告警
         pass
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         # 非 WebSocketDisconnect 异常（如 RuntimeError / ConnectionError /
         # asyncio.CancelledError）：记录日志，避免静默泄漏（Issue #216）
         logger.warning(f"[Web] WebSocket 异常关闭: {type(e).__name__}: {e}")

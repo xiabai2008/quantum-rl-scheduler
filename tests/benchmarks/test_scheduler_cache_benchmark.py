@@ -30,6 +30,7 @@
 
 import os
 import sys
+from typing import Any
 
 import numpy as np
 import pytest
@@ -37,6 +38,31 @@ import pytest
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
 from src.scheduler.cache import SchedulerCache
+
+
+def _get_stat(stats: Any, key: str, default: float = 0.0) -> float:
+    """兼容 pytest-benchmark 4.x/5.x 的 stats 属性访问。
+
+    4.x: stats.mean / stats.median（直接属性）
+    5.x: stats 是 Metadata 对象，需通过 stats['mean'] 或 stats.stats.mean 访问；
+         在某些 5.x 版本下 stats 可能为 None，此时返回 default。
+    """
+    # 4.x: 直接属性访问
+    val = getattr(stats, key, None)
+    if val is not None:
+        return val
+    # 5.x: dict-like 访问
+    try:
+        return stats[key]
+    except (KeyError, TypeError, IndexError):
+        pass
+    # 5.x: 嵌套 Stats 对象
+    inner = getattr(stats, "stats", None)
+    if inner is not None:
+        val = getattr(inner, key, None)
+        if val is not None:
+            return val
+    return default
 
 
 def _build_populated_cache(
@@ -107,7 +133,8 @@ class TestSchedulerCacheBenchmark:
         assert result is None or isinstance(result, int)
         assert len(cache) <= n_entries
         # 性能回归阈值断言（Issue #729）：缓存 get() 中位数应 < 100ms（含全 miss 慢路径）
-        assert benchmark.stats["median"] < 0.1, (
-            f"cache.get() 中位数超阈值 (hit_rate={hit_rate}, dim={dim}): "
-            f"{benchmark.stats['median']:.4f}s"
+        # pytest-benchmark 5.x 兼容：stats 可能为 None / Metadata 对象，用 _get_stat 安全访问
+        median = _get_stat(benchmark.stats, "median", default=0.0)
+        assert median < 0.1, (
+            f"cache.get() 中位数超阈值 (hit_rate={hit_rate}, dim={dim}): {median:.4f}s"
         )
