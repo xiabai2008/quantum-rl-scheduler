@@ -175,7 +175,11 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
         quantum_task_ratio: float | None = None,
         real_machine_max_qubits: int = FREE_TIER_MAX_QUBITS,
         noise_profile: str | dict[str, Any] | None = None,
-        include_fairness_obs: bool = True,  # Issue #654: 默认开启公平性观测，展示公平调度能力
+        # Issue #781: 默认 False 以匹配 16 维交付模型 (ppo_best_model_16dim.zip)。
+        # 启用公平性观测需配合 17 维模型，否则会触发维度不匹配；
+        # 7.30 二审"公平调度默认开启"应通过显式配置 include_fairness_obs=True 实现，
+        # 而非破坏模型加载的默认值。
+        include_fairness_obs: bool = False,
         observation_dim: int | None = None,
         use_noise_profile: bool = False,
         max_poll_per_step: int = REAL_MACHINE_MAX_POLL_PER_STEP_DEFAULT,
@@ -696,14 +700,11 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
                         )
                 else:
                     # 兼容分配：计算执行奖励（复用步首缓存的 obs，避免重复构建观测）
+                    # Issue #783/#784: crosstalk_penalty 由 _compute_execution_reward 内部
+                    # 统一计算并扣减，此处不再外部重复扣减，避免双重惩罚。
                     crosstalk_risk = obs[OBS_CROSSTALK_RISK]
-                    crosstalk_penalty = crosstalk_risk * 2.0
-
-                    reward += (
-                        self._compute_execution_reward(
-                            task, action, rng, crosstalk_risk=crosstalk_risk
-                        )
-                        - crosstalk_penalty
+                    reward += self._compute_execution_reward(
+                        task, action, rng, crosstalk_risk=crosstalk_risk
                     )
                     self._total_scheduled += 1
 
