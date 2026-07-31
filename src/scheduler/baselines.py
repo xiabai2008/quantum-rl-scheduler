@@ -337,10 +337,10 @@ class RoundRobinScheduler(BaselineScheduler):
             return -1
         n = len(tasks)
         # 队列缩小修正：外部 pop 了上次选中的任务（位于指针之前），其后继元素前移
-        if n < self._last_n and 0 <= self._last_idx < self._pointer:
-            self._pointer -= 1
-        # 确保指针在当前队列合法范围内（防止外部任意增删导致越界）
-        self._pointer %= n
+        if n < self._last_n:
+            # Queue shrank: items before pointer shift down
+            # Conservative: assume removed items were before pointer
+            self._pointer = max(0, self._pointer - (self._last_n - n))
         idx = self._pointer
         # 推进指针（假设队列稳定；若下次调用发现队列缩小，会在上方修正）
         self._pointer = (self._pointer + 1) % n
