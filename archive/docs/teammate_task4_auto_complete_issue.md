@@ -1,3 +1,5 @@
+> **⚠️ DEPRECATED (Issue #792)**: This document contains outdated statistics (+88.3%/76.4%). Current verified values: +123.4% (PPO vs FCFS, N=250, p=1.032e-42). Refer to `results/reports/` for current data.
+
 # 队友第4个定时任务：每日自动认领并完成 ai-ready Issue
 
 > **此文件为独立的第4个任务，与之前3个任务文件分开。**
