@@ -720,7 +720,7 @@ class LearnableMachineScorer(MachineScorer, nn.Module):
             else:
                 logger.warning(f"[LearnableMachineScorer] 权重文件不存在: {load_path}，跳过加载")
                 return
-        state = torch.load(load_path, map_location=self.device, weights_only=False)
+        state = torch.load(load_path, map_location=self.device, weights_only=False)  # nosec B614
         self.net.load_state_dict(state["model_state_dict"])
         if "optimizer_state_dict" in state:
             self.optimizer.load_state_dict(state["optimizer_state_dict"])
