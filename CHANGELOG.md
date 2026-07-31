@@ -2,11 +2,20 @@
 
 本文件记录项目的所有重要变更，按日期倒序排列。
 
+## [2026-07-31] - 第三轮终审查 + 文档内容同步
+
+### 文档同步 (docs)
+- **#806 核心文档内容同步**：README.md/AGENTS.md 噪声反馈描述同步至 N=25 Wilcoxon signed-rank p=2.98e-08，Cohen's d_z=7.7089，噪声致奖励下降12.43%，事后功效1.0（取代旧"10seeds +6.1%未检验"探索性描述，消除量子→AI方向证据被埋没）；AGENTS.md 最后更新日期 2026-07-29→2026-07-31，PR/issue 状态同步至第三轮终审查快照（0 open PR / 30 个审查 issue #776-#805）；CHANGELOG.md fairness 默认值描述修正（默认关闭→默认开启，与 src/scheduler/env.py:178 `include_fairness_obs=True` 一致）
+
+### 审查 (review)
+- **第三轮终审查**：处理 30 个审查 issue (#776-#805)，覆盖文档同步/测试用例数/实验严谨性/盲测统计显著性等维度
+- **7.31 合并 8 个 PR** (#758-#765)
+
 ## [2026-07-29] - v9.1.0 权威数字更新 + 评审报告P0/P1修复
 
 ### v9.1 关键变更总览（相对于v8.x）
 - **16维观测空间**：新增串扰风险（OBS_CROSSTALK_RISK）、到达率滑动平均（OBS_ARRIVAL_RATE_MA）两维，OBS_DIM=14→16
-- **第17维可选公平性指数观测**：`include_fairness_obs`开关控制Jain公平性指数是否纳入状态（默认关闭保持向后兼容）
+- **第17维可选公平性指数观测**：`include_fairness_obs`开关控制Jain公平性指数是否纳入状态（默认开启，Issue #654，与 src/scheduler/env.py:178 一致）
 - **新增circuit_templates.py**：Bell/GHZ/VQE4/QAOA5标准量子电路模板
 - **新增noise_extractor.py**：NoiseModelExtractor真机噪声画像提取与注入
 - **噪声感知奖励整形**：低保真度惩罚/高保真度加成机制（NOISE_AWARD_*）
@@ -21,7 +30,7 @@
 - **MARL evaluate()修复**：训练-评估一致性修复，多智能体评估结果可复现
 - **Property-based测试 + 性能基准测试**：Hypothesis策略测试+ASV基准
 - **27个issues全部关闭**：所有P0/P1/P2 issues已处理
-- **测试3359通过，ruff/mypy 0 errors**
+- **测试3523通过，ruff/mypy 0 errors**
 
 ### 变更 (v9.0.0 → 9.1.0)
 - **权威数字更新**：基于16维交付模型 `ppo_best_model_16dim.zip` 重跑 N=250 多seed评估，PPO vs FCFS 提升 +88.3% → **+123.4%**（Welch t p=1.449e-66，Cohen's d=-2.14，CI[+113.3%, +133.5%]）；旧14维数字移入 `config/statistics.yaml` deprecated 段留痕
