@@ -138,6 +138,9 @@ class AlertManager:
         self._alerts: list[Alert] = []
         # Issue #706: 限制 _alerts 最大长度，避免长期运行内存泄漏
         self._max_alerts_stored: int = 1000
+        # Issue #849: Webhook 守护线程计数，避免告警风暴下线程累积
+        self._webhook_thread_count: int = 0
+        self._webhook_thread_limit: int = 10
 
     def alert(
         self,
@@ -185,12 +188,34 @@ class AlertManager:
         self._record_metric(alert)
         # Issue #707: Webhook 发送（含重试）可能阻塞调用线程数秒，
         # 放入守护线程异步执行，避免阻塞业务逻辑
+        # Issue #849: 加入线程计数限制，避免告警风暴下线程累积
         import threading
 
         if self.webhook_url:
-            t = threading.Thread(target=self._send_webhook, args=(alert,), daemon=True)
-            t.start()
+            if self._webhook_thread_count < self._webhook_thread_limit:
+                self._webhook_thread_count += 1
+                t = threading.Thread(target=self._send_webhook_tracked, args=(alert,), daemon=True)
+                t.start()
+            else:
+                logger.warning(
+                    f"Webhook线程达上限({self._webhook_thread_limit})，丢弃告警: "
+                    f"[{alert.level.value}] {alert.category}: {alert.message}"
+                )
         return alert
+
+    def _send_webhook_tracked(self, alert: Alert) -> None:
+        """发送 Webhook 并跟踪线程计数（Issue #849）。
+
+        在 _send_webhook 基础上增加线程计数管理，确保守护线程
+        在告警风暴下不会无限累积。
+
+        Args:
+            alert: 待发送的告警对象。
+        """
+        try:
+            self._send_webhook(alert)
+        finally:
+            self._webhook_thread_count -= 1
 
     def _log_alert(self, alert: Alert) -> None:
         """按告警级别使用 loguru 输出日志

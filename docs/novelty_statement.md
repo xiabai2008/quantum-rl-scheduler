@@ -57,11 +57,12 @@
 **为什么新**：现有量子RL研究普遍在理想仿真环境中训练策略，忽略了真机噪声对策略性能的影响。本系统创新性地建立了从真机噪声提取到RL策略校准的完整闭环，填补了"真机噪声→AI策略优化"方向的研究空白。
 
 **效果如何**：
-- 真机H门保真度~0.976（1025次测量，P(0)=0.4878, P(1)=0.5122）
-- 噪声校准后PPO等待时间代价 +6.1%（鲁棒性权衡，10seeds严谨实验）
-- 10-seed真机实验 Cohen's d=5.33, p<0.001（大效应量，混合环境96步含1步真机，非纯真机性能提升）
-- MBS保真度范围[0.671, 0.994]（10seeds，均值0.8863±0.0874）
-- 数据来源：`scripts/evaluation/quantum_noise_calibration.py`、`results/reports/quantum_noise_10seeds_*.md`
+- **N=25配对Wilcoxon检验（p=2.98e-08, Cohen's d_z=7.71）**，证明真机噪声分布对PPO策略奖励有显著影响（奖励变化-12.43%, CI[-19.49%, -4.69%]，事后功效1.0，权威源: `results/reports/quantum_noise_paired_canonical.md`）
+- ~~真机H门保真度~0.976（1025次测量，P(0)=0.4878, P(1)=0.5122）~~（deprecated，旧N=10校准值）
+- ~~噪声校准后PPO等待时间代价 +6.1%（鲁棒性权衡，10seeds严谨实验）~~（deprecated，旧10seeds探索性实验）
+- ~~10-seed真机实验 Cohen's d=5.33, p<0.001（大效应量，混合环境96步含1步真机，非纯真机性能提升）~~（deprecated，已被N=25配对检验取代）
+- ~~MBS保真度范围[0.671, 0.994]（10seeds，均值0.8863±0.0874）~~（deprecated，旧10seeds校准值）
+- 数据来源：`results/reports/quantum_noise_paired_canonical.md`（N=25权威源）、`scripts/evaluation/quantum_noise_calibration.py`
 
 ---
 
