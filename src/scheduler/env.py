@@ -6,6 +6,7 @@
 """
 
 import copy
+import warnings
 from collections.abc import Callable
 from typing import Any
 
@@ -78,6 +79,11 @@ from src.scheduler.env_types import (
     REAL_MACHINE_MAX_POLL_PER_STEP_DEFAULT,
     REAL_MACHINE_MAX_POLL_STEPS,
     REAL_MACHINE_MAX_SUBMISSIONS_DEFAULT,
+    CROSSTALK_PENALTY_FACTOR,
+    GENERIC_PENALTY,
+    MISMATCH_REQUEUE_FACTOR,
+    POISSON_ARRIVAL_LAMBDA,
+    BETA_DISTRIBUTION_MIN_AB,
     REAL_MACHINE_SUBMIT_INTERVAL,
     REAL_MACHINE_SUCCESS_BONUS,
     REAL_SUBMIT_PROBABILITY_DEFAULT,
@@ -185,6 +191,7 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
         super().__init__()
 
         self.max_steps = max_steps
+        # #795: Warn if config max_queue_size differs from MAX_QUEUE_SIZE used for normalization        if hasattr(self, '_config') and self._config and getattr(self._config, 'max_queue_size', None):            cfg_qs = self._config.max_queue_size            if cfg_qs != MAX_QUEUE_SIZE:                warnings.warn(f"Config max_queue_size={cfg_qs} but MAX_QUEUE_SIZE={MAX_QUEUE_SIZE} used for observation normalization. Queue lengths may be misnormalized.", stacklevel=2)
         self.max_qubits = max_qubits
         self.render_mode = render_mode
         self.real_submit_probability = float(real_submit_probability)
@@ -670,14 +677,14 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
                 if quantum_unavailable:
                     if action == ACTION_QUANTUM:
                         # 纯量子动作：任务重新排队，半个 mismatch 惩罚
-                        reward += REWARD_MISMATCH * 0.5
+                        reward += REWARD_MISMATCH * MISMATCH_REQUEUE_FACTOR  # #801: named constant
                         task.wait_steps += 1
                         if len(self._task_queue) < MAX_QUEUE_SIZE:
                             self._task_queue.append(task)
                         self._last_selected_machine = None
                         log_msg = (
                             f"[步骤{self._current_step}] 量子资源不可用，"
-                            f"任务{task.task_id} 重新入队，惩罚{REWARD_MISMATCH * 0.5:.1f}"
+                            f"任务{task.task_id} 重新入队，惩罚{REWARD_MISMATCH * MISMATCH_REQUEUE_FACTOR  # #801: named constant:.1f}"
                         )
                     else:
                         # 混合动作：降级为经典执行，避免系统空转
@@ -697,7 +704,7 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
                 else:
                     # 兼容分配：计算执行奖励（复用步首缓存的 obs，避免重复构建观测）
                     crosstalk_risk = obs[OBS_CROSSTALK_RISK]
-                    crosstalk_penalty = crosstalk_risk * 2.0
+                    crosstalk_penalty = crosstalk_risk * CROSSTALK_PENALTY_FACTOR  # #801: named constant
 
                     reward += (
                         self._compute_execution_reward(
@@ -753,7 +760,7 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
 
         else:
             # 无任务可调度，轻微惩罚
-            reward -= 1.0
+            reward -= GENERIC_PENALTY  # #801: named constant
             # 追踪连续无任务步数（Issue #400）
             self._consecutive_idle_steps += 1
 
@@ -848,7 +855,7 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
     def _get_arrival_lambda(self) -> float:
         """返回当前步的泊松到达率，供多负载评估使用。"""
         if self.arrival_lambda is None:
-            return 0.5  # Issue #678: 与权威实验配置一致（AGENTS.md: 泊松到达λ=0.5）
+            return POISSON_ARRIVAL_LAMBDA  # Issue #678: #801 named constant: 与权威实验配置一致（AGENTS.md: 泊松到达λ=0.5）
         if callable(self.arrival_lambda):
             value = float(self.arrival_lambda(self._current_step, self.max_steps))
             if value < 0.0:
@@ -1005,8 +1012,8 @@ def _beta_params_from_mean_std(mean: float, std: float, low: float, high: float)
         v = m * (1 - m) * 0.9
     a = m * (m * (1 - m) / v - 1)
     b = (1 - m) * (m * (1 - m) / v - 1)
-    a = max(a, 0.5)
-    b = max(b, 0.5)
+    a = max(a, BETA_DISTRIBUTION_MIN_AB)  # #801: named constant
+    b = max(b, BETA_DISTRIBUTION_MIN_AB)  # #801: named constant
     return {
         "distribution": "beta",
         "a": float(a),

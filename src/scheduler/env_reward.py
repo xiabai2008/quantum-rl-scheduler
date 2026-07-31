@@ -24,6 +24,7 @@ from src.scheduler.env_types import (
     REWARD_QUANTUM_BASE,
     REWARD_SUCCESS_BONUS,
     REWARD_WAIT_OVER_THRESHOLD,
+    CROSSTALK_PENALTY_FACTOR,
     Task,
 )
 

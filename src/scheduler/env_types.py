@@ -74,6 +74,12 @@ FAIRNESS_PENALTY_FACTOR = 2.0
 # 环境参数
 # ---------------------------------------------------------------------------
 MAX_QUEUE_SIZE = 30  # 队列最大长度（用于归一化）
+# --- #801: Magic number constants ---
+CROSSTALK_PENALTY_FACTOR: float = 2.0  # 串扰惩罚因子
+GENERIC_PENALTY: float = 1.0  # 通用惩罚基数
+MISMATCH_REQUEUE_FACTOR: float = 0.5  # 重新入队时惩罚减半因子
+POISSON_ARRIVAL_LAMBDA: float = 0.5  # 泊松到达率λ（与权威实验一致）
+BETA_DISTRIBUTION_MIN_AB: float = 0.5  # Beta分布参数a/b下限
 MAX_WAIT_STEPS = 50  # 最大等待步数（超过此阈值开始惩罚）
 MAX_STEPS_DEFAULT = 500  # 默认最大步数（一个 episode）
 QUBIT_UTIL_THRESHOLD = 0.3  # 量子比特利用率低阈值
