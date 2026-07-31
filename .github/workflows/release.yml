@@ -41,6 +41,7 @@ jobs:
           pip install -r requirements.txt
 
       - name: Run full test suite
+        shell: bash
         run: |
           python -m pytest tests/ \
             -v \
@@ -52,11 +53,13 @@ jobs:
             -W ignore::DeprecationWarning
 
       - name: Run submission validation
+        shell: bash
         run: |
           python scripts/ci/validate_submission.py --check \
             --manifest config/submission_manifest.yaml
 
       - name: Run authoritative metrics audit
+        shell: bash
         run: |
           python scripts/ci/audit_authoritative_metrics.py
 
