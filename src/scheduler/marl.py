@@ -372,7 +372,7 @@ class ActorNet(nn.Module):
     """
 
     def __init__(
-        self, obs_dim: int, action_dim: int = 3, hidden_sizes: tuple[int, ...] = (128, 64)
+        self, obs_dim: int, action_dim: int = 4, hidden_sizes: tuple[int, ...] = (128, 64)
     ):
         """
         初始化 Actor 网络。
