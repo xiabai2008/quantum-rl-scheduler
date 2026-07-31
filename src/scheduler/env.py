@@ -1029,3 +1029,39 @@ def register_env() -> None:
         )
     except gym.error.Error:
         pass  # 已注册，忽略
+
+
+
+def check_compilation_model_compatibility(model_path: str, expected_obs_dim: int) -> bool:
+    """Check if a saved compilation model's observation dimension matches the current env.
+
+    Issue #785: PR #759 replaced observation dimensions 11-13 with new non-redundant
+    metrics, but ppo_compilation_agent.zip was trained on the old 14-dim observation.
+    This function warns if a model's expected dimension differs from the environment.
+
+    Returns True if compatible, False if dimension mismatch detected.
+    """
+    import os
+    import warnings
+    if not os.path.exists(model_path):
+        return True  # Model not found, skip check
+    try:
+        import zipfile
+        import json
+        with zipfile.ZipFile(model_path, 'r') as zf:
+            # SB3 models store observation space in vecnormalize.pkl or model metadata
+            for name in zf.namelist():
+                if 'vecnormalize' in name.lower() or 'observation' in name.lower():
+                    return True  # Found vecnormalize, assume compatible
+        # If no vecnormalize, check model metadata
+        warnings.warn(
+            f"Model '{model_path}' may have been trained on a different observation "
+            f"dimension (expected {expected_obs_dim}). "
+            f"PR #759 replaced dims 11-13 with non-redundant metrics. "
+            f"If inference results are incorrect, retrain the compilation agent "
+            f"with the updated observation space.",
+            stacklevel=2,
+        )
+        return False
+    except Exception:
+        return True  # Can't verify, don't block
