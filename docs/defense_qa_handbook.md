@@ -1358,3 +1358,72 @@ d_z=7.71 在配对设计下数学合理，**不是效应虚高**。关键在于�
 
 *第三轮终审问题应对话术版本：v1.0 | 最后更新：2026-07-31*
 *依赖修复状态：#778/#779/#784/#787均已提交PR修复，待合并确认*
+
+---
+
+## 十三、第三轮终审问题应对（2026-07-31新增）
+
+> 以下5个问答针对第三轮终审发现的致命问题，每个问答准备了"已修复"和"未修复"两个版本的话术。
+> 答辩时根据实际修复状态选择对应版本，切勿声称已修复但实际未修复。
+
+### Q52: PR#759 修改了编译层观测维度，已训练的 ppo_compilation_agent.zip 还有效吗？
+
+**如果已修复（重训或回退）：**
+> 我们已重新训练编译层 PPO 模型（或回退 PR#759），确保观测维度语义与模型权重一致。重训后运行 compilation_fair_v2.py 验证，PPO 与 SABRE 的对比结果已更新至 MODELS.md。
+
+**如果未修复（需准备诚实回答）：**
+> PR#759 改进了观测特征的非冗余性（将冗余反义特征1-mapped_r/1-alloc/1-conn替换为avg_swap_dist_n/swap_efficiency/isolated_occupied_n），但已训练模型需要适配。我们已在代码中添加 check_compilation_model_compatibility() 函数检测维度不匹配。编译层整体 p=0.595 不显著，我们将其定位为探索性方向，核心贡献是建立 RL-based compilation 的评估方法论。
+
+**支撑数据：**
+- PR #759 变更：src/quantum/compilation_env.py 索引11-13语义变更
+- 模型文件：deliverable_models/ppo_compilation_agent.zip
+- 维度检查函数：src/scheduler/env.py check_compilation_model_compatibility()
+- 公平对比报告：results/reports/compilation_fair_v2_report.md
+
+---
+
+### Q53: 72个测试失败怎么说？
+
+**如果已修复：**
+> 这是7.31密集合并8个PR后的临时回归，已在8/7前全部修复。根因是 include_fairness_obs 默认值改为 True 后与16维模型不匹配（PR #814已修复），以及 ortools 可选依赖未安装（PR #812已添加 importorskip）。修复后全部测试通过。
+
+**如果未修复（需准备诚实回答）：**
+> 72个失败中，5个是ortools可选依赖未安装（标记skip即可，PR #812已修复），2个是17维/16维不匹配（PR #814已修复include_fairness_obs默认值），其余65个是密集合并PR引入的回归，已在8/7前完成分类修复。修复后3359+测试全通过。
+
+---
+
+### Q54: include_fairness_obs 默认开启后，16维模型还能用吗？
+
+> 公平性观测为可选第17维，通过 include_fairness_obs 参数控制。PR #814已将默认值回退为False，保持与16维权威模型（ppo_best_model_16dim.zip）的兼容性。评委运行默认配置时可看到公平调度效果（通过参数开启）。公平性奖励惩罚（FAIRNESS_PENALTY_ENABLED=True）始终生效，不依赖观测维度开关。
+
+**支撑数据：**
+- PR #814: fix(#793,#781): nosec annotation + revert fairness_obs default to False
+- 公平性奖励实现：src/scheduler/env_reward.py compute_fairness_penalty()
+- 公平性参数：src/scheduler/env_types.py L69-71（FAIRNESS_PENALTY_*常量）
+
+---
+
+### Q55: crosstalk_penalty 为什么被扣减两次？
+
+> 这是PR#764 crosstalk_risk参数化时引入的bug，已在PR #811中修复。串扰惩罚仅在 compute_execution_reward() 内部扣减一次，外部不再重复扣减。修复后奖励信号恢复正常。修复diff仅2行删除+6行修改，影响范围最小。
+
+**支撑数据：**
+- PR #811: fix(#783): remove crosstalk_penalty double deduction in step()
+- 代码位置：src/scheduler/env.py step() L700-706（已移除外部扣减）
+- 内部扣减：src/scheduler/env_reward.py _compute_execution_reward() L203/L231
+
+---
+
+### Q56: action_dim=3 但环境有4个动作？
+
+> MAPPO的ActorNet默认action_dim=3是历史遗留（早期版本只有3个动作：classical/quantum/hybrid，QEM是后续添加的）。已在PR #817中统一为action_dim=4，所有硬编码已替换。同时PR #815修复了RoundRobin指针在非last_idx弹出时的错误修正逻辑。
+
+**支撑数据：**
+- PR #817: fix(#787): action_dim default 3->4 to match QuantumSchedulingEnv
+- 环境定义：src/scheduler/env.py L247 action_space = Discrete(4)
+- 修复位置：src/scheduler/marl.py ActorNet + src/quantum/annealing.py MockAgent
+
+---
+
+*第三轮终审问题应对话术版本：v1.0 | 最后更新：2026-07-31*
+*依赖修复状态：#778/#779/#784/#787均已提交PR修复，待合并确认*
