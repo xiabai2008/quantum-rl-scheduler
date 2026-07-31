@@ -33,7 +33,9 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          # 2026-08-01: 3.11 在 Windows 测试中段错误（exit 139）且反复挂起，
+          # 与 CI 矩阵一致改用 3.12
+          python-version: "3.12"
 
       - name: Install dependencies
         run: |
