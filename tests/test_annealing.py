@@ -745,6 +745,9 @@ class TestNumpySimulatedAnnealing(unittest.TestCase):
         opt._sim_initial_temp = 1.0
         opt._sim_cooling_rate = 0.995
         opt._sim_num_sweeps = 3000
+        # Issue #391/#860: 显式固定 solver 随机种子（默认 None 时每次运行
+        # 结果不同，CI 跨版本偶发找不到全局最优导致数值断言失败）
+        opt.random_state = 0
         bitstring = opt.numpy_simulated_annealing(Q)
         x = np.array([float(int(b)) for b in bitstring])
         found = float(x @ Q @ x)
