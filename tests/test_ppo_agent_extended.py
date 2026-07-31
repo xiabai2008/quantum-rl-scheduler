@@ -16,10 +16,13 @@ LOG_DIR = "logs/test_ppo_agent"
 
 
 class TinyEnv:
-    """不触发真实训练的最小 Gym 风格环境。"""
+    """不触发真实训练的最小 Gym 风格环境。
+
+    Issue #787: 动作空间对齐主环境 QuantumSchedulingEnv 的 Discrete(4)。
+    """
 
     observation_space = spaces.Box(0.0, 1.0, shape=(4,), dtype=np.float32)
-    action_space = spaces.Discrete(3)
+    action_space = spaces.Discrete(4)
 
     def __init__(self) -> None:
         self.steps = 0
@@ -288,12 +291,12 @@ def test_save_load_config_and_repr(monkeypatch, tiny_env: TinyEnv) -> None:
 
     config = agent.get_config()
     assert config["observation_dim"] == 4
-    assert config["action_dim"] == 3
+    assert config["action_dim"] == 4
     assert config["architecture"] == "PPO"
     text = repr(agent)
     assert "PPOAgent" in text
     assert "状态维度=4" in text
-    assert "动作维度=3" in text
+    assert "动作维度=4" in text
 
 
 # ============================================================================
@@ -527,7 +530,7 @@ def test_get_config_returns_all_fields(tiny_env: TinyEnv) -> None:
     assert config["max_grad_norm"] == 0.3
     assert config["architecture"] == "PPO"
     assert config["observation_dim"] == 4
-    assert config["action_dim"] == 3
+    assert config["action_dim"] == 4
 
 
 # ============================================================================

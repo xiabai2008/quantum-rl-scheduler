@@ -53,12 +53,13 @@ except ImportError:
 class _DummyEnv(gym.Env):
     """测试用极简 Gymnasium 环境。
 
-    提供 4 维观测空间和 Discrete(3) 动作空间，每个 episode 5 步，
+    提供 4 维观测空间和 Discrete(4) 动作空间，每个 episode 5 步，
     用于快速验证模型导出逻辑，不依赖真实调度环境。
+    Issue #787: 动作空间对齐主环境 QuantumSchedulingEnv 的 Discrete(4)。
     """
 
     observation_space = spaces.Box(low=0.0, high=1.0, shape=(4,), dtype=np.float32)
-    action_space = spaces.Discrete(3)
+    action_space = spaces.Discrete(4)
 
     def __init__(self) -> None:
         """初始化测试环境。"""
@@ -96,7 +97,7 @@ class _ExportExtendedTestBase(unittest.TestCase):
         self.tmpdir = tempfile.mkdtemp(prefix="export_ext_test_")
         self.env = _DummyEnv()
         self.input_shape: tuple[int, ...] = (4,)
-        self.action_dim: int = 3
+        self.action_dim: int = 4
 
     def tearDown(self) -> None:
         """测试结束后清理临时目录。"""

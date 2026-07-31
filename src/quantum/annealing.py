@@ -2657,7 +2657,7 @@ if __name__ == "__main__":
     class MockAgent:
         """模拟的 RL 智能体，用于测试 optimize_policy 接口"""
 
-        def __init__(self, state_dim=8, action_dim=3):
+        def __init__(self, state_dim=8, action_dim=4):
             self.policy_net = nn.Sequential(
                 nn.Linear(state_dim, 16),
                 nn.ReLU(),
