@@ -144,8 +144,6 @@ class IonTrapBackend(QuantumHardwareBackend):
     .. note::
         当前为桩实现，``submit_circuit`` 返回模拟 task_id，
         不连接真实离子阱平台。
-
-    TODO: 接入真实离子阱平台（如 IonQ Aria / Quantinuum H2）
     """
 
     _SUPPORTED_GATES: ClassVar[list[str]] = [
@@ -210,7 +208,6 @@ class IonTrapBackend(QuantumHardwareBackend):
     ) -> str | None:
         """提交电路到离子阱后端（桩实现：返回模拟 task_id）。
 
-        TODO: 接入真实离子阱平台 API
 
         Args:
             circuit   : 电路描述（IonQ JSON 格式）
@@ -229,7 +226,6 @@ class IonTrapBackend(QuantumHardwareBackend):
     def get_task_status(self, task_id: str) -> dict[str, Any]:
         """查询任务状态（桩实现：立即返回 completed）。
 
-        TODO: 接入真实离子阱平台 API
 
         Args:
             task_id : 任务 ID
@@ -267,8 +263,6 @@ class PhotonicBackend(QuantumHardwareBackend):
     .. note::
         当前为桩实现，``submit_circuit`` 返回模拟 task_id，
         不连接真实光量子平台。
-
-    TODO: 接入真实光量子平台（如 Xanadu Borealis / 国盾量子）
     """
 
     _SUPPORTED_GATES: ClassVar[list[str]] = [
@@ -332,7 +326,6 @@ class PhotonicBackend(QuantumHardwareBackend):
     ) -> str | None:
         """提交电路到光量子后端（桩实现：返回模拟 task_id）。
 
-        TODO: 接入真实光量子平台 API
 
         Args:
             circuit   : 电路描述（哈密顿量格式）
@@ -351,7 +344,6 @@ class PhotonicBackend(QuantumHardwareBackend):
     def get_task_status(self, task_id: str) -> dict[str, Any]:
         """查询任务状态（桩实现：立即返回 completed）。
 
-        TODO: 接入真实光量子平台 API
 
         Args:
             task_id : 任务 ID

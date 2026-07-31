@@ -338,7 +338,7 @@ class AsyncAnnealingLoop:
                 )
                 self._fatal_error = e
                 break
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 # 退火与评估涉及优化器、网络推理、环境交互，其他异常视为可恢复
                 logger.error(f"[退火闭环] 步数 {step}: 退火或评估失败 ({type(e).__name__}: {e})")
                 alert_error("annealing", f"退火或评估失败: {type(e).__name__}: {e}", step=step)

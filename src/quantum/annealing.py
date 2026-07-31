@@ -538,7 +538,7 @@ class QuantumAnnealingOptimizer:
                         f"求解器={used_solver}"
                     )
                     return best_bitstring
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001
                     # 真机退火涉及 cqlib SDK，异常类型无法穷举，保留宽捕获并记录日志
                     logger.warning(
                         f"[退火][降级] 真机退火失败 ({type(e).__name__}: {e})，"
@@ -1071,7 +1071,7 @@ class QuantumAnnealingOptimizer:
                     if head_only and gradients is not None:
                         gradients = gradients[head_start_idx:]
                     logger.debug(f"  梯度计算成功, TD 误差均值={np.mean(np.abs(td_errors)):.4f}")
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001
                     # 梯度计算涉及 PyTorch 张量运算与 replay buffer，异常类型无法穷举，保留宽捕获并记录日志
                     logger.warning(f"  梯度计算失败: {e}, 退化为无梯度模式")
                     gradients = None
@@ -1337,7 +1337,7 @@ class QuantumAnnealingOptimizer:
                         )
                         if full_gradients is not None:
                             block_gradients = [full_gradients[i] for i in block_param_indices]
-                    except Exception:
+                    except Exception:  # noqa: BLE001
                         block_gradients = None
 
                 # --- 构造小块 QUBO ---
@@ -1821,7 +1821,7 @@ class QuantumAnnealingOptimizer:
         if hasattr(replay_buffer, "sample"):
             try:
                 batch = replay_buffer.sample(batch_size)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001
                 # replay buffer 采样异常类型因实现而异，保留宽捕获并记录原始异常
                 logger.debug(f"Replay buffer 采样失败: {type(e).__name__}: {e}")
                 raise ValueError("Replay buffer 采样失败") from None
