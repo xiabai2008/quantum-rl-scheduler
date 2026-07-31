@@ -315,6 +315,90 @@ class TestRoundRobinScheduler(unittest.TestCase):
         order = [scheduler.select_action(stable, _EMPTY_RESOURCES) for _ in range(4)]
         self.assertEqual(order, [0, 1, 2, 0])
 
+    # ------------------------------------------------------------------
+    # 指针修正边界条件测试（Issue #797）
+    # 契约：消费者在 select_action 返回后 pop 被选中的任务（位于返回 idx）。
+    # ------------------------------------------------------------------
+
+    def test_pop_selected_before_pointer_decrements(self):
+        """pop 选中元素位于指针之前时指针应回调一位（Issue #797 边界）。
+
+        队列 [A,B,C,D]，选 A(idx0) 后 pointer=1。pop A（位于 idx 0 < pointer=1），
+        B/C/D 前移，指针回调到 0，下次应选 B。
+        """
+        tasks = [_make_task("A"), _make_task("B"), _make_task("C"), _make_task("D")]
+        scheduler = RoundRobinScheduler()
+        idx_a = scheduler.select_action(tasks, _EMPTY_RESOURCES)  # idx=0, pointer→1
+        self.assertEqual(idx_a, 0)
+        # 按契约 pop 被选中的 A（idx 0，在 pointer=1 之前）
+        queue = [_make_task("B"), _make_task("C"), _make_task("D")]
+        idx = scheduler.select_action(queue, _EMPTY_RESOURCES)
+        # 指针回调一位：1→0，选 B(idx=0)
+        self.assertEqual(idx, 0)
+        self.assertEqual(queue[idx]["task_id"], "B")
+
+    def test_pop_selected_after_wrap_keeps_pointer(self):
+        """回绕后 pop 选中元素（位于指针之后）指针不变（Issue #797 边界）。
+
+        队列 [A,B,C]，依次选 A→B→C，选 C 时指针回绕到 0。pop C（位于 idx 2，
+        在 pointer=0 之后），指针不变=0，下次应选 A。
+        """
+        tasks = [_make_task("A"), _make_task("B"), _make_task("C")]
+        scheduler = RoundRobinScheduler()
+        scheduler.select_action(tasks, _EMPTY_RESOURCES)  # idx=0, pointer→1
+        scheduler.select_action(tasks, _EMPTY_RESOURCES)  # idx=1, pointer→2
+        idx_c = scheduler.select_action(tasks, _EMPTY_RESOURCES)  # idx=2, pointer→0
+        self.assertEqual(idx_c, 2)
+        # 按契约 pop 被选中的 C（idx 2，在 pointer=0 之后，回绕场景）
+        queue = [_make_task("A"), _make_task("B")]
+        idx = scheduler.select_action(queue, _EMPTY_RESOURCES)
+        # 指针不变=0，选 A
+        self.assertEqual(idx, 0)
+        self.assertEqual(queue[idx]["task_id"], "A")
+
+    def test_pop_selected_at_pointer_single_element(self):
+        """单元素队列 pop 选中元素后变空应返回 -1（Issue #797 边界）。
+
+        n=1 时 last_idx == pointer == 0，pop 后队列为空。
+        """
+        tasks = [_make_task("A")]
+        scheduler = RoundRobinScheduler()
+        idx = scheduler.select_action(tasks, _EMPTY_RESOURCES)
+        self.assertEqual(idx, 0)
+        # 按契约 pop A，队列为空
+        self.assertEqual(scheduler.select_action([], _EMPTY_RESOURCES), -1)
+
+    def test_queue_grows_pointer_modulo_valid(self):
+        """队列增长时指针仍应合法（Issue #797 边界）。
+
+        队列从 2 增长到 4，指针应通过取模保持在新范围内。
+        """
+        tasks = [_make_task("A"), _make_task("B")]
+        scheduler = RoundRobinScheduler()
+        scheduler.select_action(tasks, _EMPTY_RESOURCES)  # idx=0, pointer→1
+        # 队列增长（不触发缩小修正）
+        queue = [_make_task("A"), _make_task("B"), _make_task("C"), _make_task("D")]
+        idx = scheduler.select_action(queue, _EMPTY_RESOURCES)
+        # pointer%=4 → 1，选 B
+        self.assertEqual(idx, 1)
+        self.assertEqual(queue[idx]["task_id"], "B")
+
+    def test_full_drain_preserves_insertion_order(self):
+        """逐个 pop 选中任务直到清空，应严格按入队顺序调度（Issue #797 回归）。
+
+        覆盖 pop 在指针之前与回绕后两种场景的连续切换。
+        """
+        tasks = [_make_task("A"), _make_task("B"), _make_task("C"), _make_task("D")]
+        scheduler = RoundRobinScheduler()
+        queue = list(tasks)
+        selected_ids: list[str] = []
+        while queue:
+            idx = scheduler.select_action(queue, _EMPTY_RESOURCES)
+            self.assertGreaterEqual(idx, 0)
+            selected_ids.append(queue[idx]["task_id"])
+            queue.pop(idx)
+        self.assertEqual(selected_ids, ["A", "B", "C", "D"])
+
 
 # ============================================================
 # TestLIFOScheduler

@@ -51,6 +51,7 @@ from src.scheduler.env import (
     OBS_DIM,
     QuantumSchedulingEnv,
 )
+from src.scheduler.env_types import N_ACTIONS
 from src.utils.lr_schedule import LRScheduleType, create_lr_schedule
 
 # ---------------------------------------------------------------------------
@@ -366,20 +367,20 @@ class ActorNet(nn.Module):
     单个 Agent 的策略网络（Actor）。
 
     输入：本机局部观测（local_obs_dim 维）
-    输出：3 个离散动作的 logits（Categorical 分布）
+    输出：N_ACTIONS 个离散动作的 logits（Categorical 分布）
 
     使用 Tanh 激活函数（PPO 常用配置，训练稳定）。
     """
 
     def __init__(
-        self, obs_dim: int, action_dim: int = 3, hidden_sizes: tuple[int, ...] = (128, 64)
+        self, obs_dim: int, action_dim: int = N_ACTIONS, hidden_sizes: tuple[int, ...] = (128, 64)
     ):
         """
         初始化 Actor 网络。
 
         Args:
             obs_dim: 局部观测维度
-            action_dim: 动作维度，默认 3
+            action_dim: 动作维度，默认 N_ACTIONS(=4)
             hidden_sizes: 隐藏层尺寸
         """
         super().__init__()
@@ -1069,7 +1070,7 @@ class MultiAgentPPO:
 
         # 构建网络
         self.actors: list[ActorNet] = [
-            ActorNet(self.local_obs_dim, 3, actor_hidden).to(self.device)
+            ActorNet(self.local_obs_dim, N_ACTIONS, actor_hidden).to(self.device)
             for _ in range(self.num_agents)
         ]
         self.critic = CentralizedCritic(self.global_state_dim, critic_hidden).to(self.device)
