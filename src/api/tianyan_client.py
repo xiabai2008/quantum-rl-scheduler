@@ -1111,10 +1111,10 @@ class TianyanClient:
             status_info = self.get_task_status(task_id)
             status = status_info.get("status", "unknown")
 
-            if status == "completed":
+            if status.upper() == "COMPLETED":
                 logger.info(f"任务 {task_id} 已完成")
                 return self.get_task_result(task_id)
-            elif status in ("failed", "error", "query_error"):
+            elif status.upper() in ("FAILED", "ERROR", "QUERY_ERROR"):
                 error_msg = status_info.get("error", "未知错误")
                 raise TianyanAPIError(
                     status_code=400,
