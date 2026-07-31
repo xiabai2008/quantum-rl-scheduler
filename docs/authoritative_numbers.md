@@ -67,8 +67,8 @@
 | 指标 | 值 | 说明 |
 |------|-----|------|
 | 测试覆盖率 | **93.58%** | pytest-cov实测，CI门槛80%（fail_under=80） |
-| 测试文件数 | **76个** | pytest --collect-only统计 |
-| 测试用例数 | **2824+** | 同上 |
+| 测试文件数 | **94个** | pytest --collect-only统计 |
+| 测试用例数 | **3523** | 同上（2026-07-31 实测） |
 | Lint错误 | **0** | ruff check 全量通过 |
 | 类型错误 | **0** | mypy 全量通过 |
 
@@ -93,7 +93,7 @@
 
 ## 七、生成与校验
 
-- **生成日期**：2026-07-29
+- **生成日期**：2026-07-31
 - **下次全量复核**：代码冻结前（2026-08-15）
 - **CI校验**：`python scripts/ci/check_stats_consistency.py` 在每次PR时运行
 - **权威实验配置hash**：见 `results/multiseed_evaluation/rewards_multiseed.json` 中 `config.config_hash` 字段

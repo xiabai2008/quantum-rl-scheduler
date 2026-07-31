@@ -3,7 +3,7 @@
 > 本文件定义 **量子RL驱动的天衍云平台智能调度系统** 的安全规范与漏洞报告流程。
 > GitHub 会在仓库 Security tab 自动展示此文件内容。
 
-**最后更新**：2026-07-26（Issue #203：VISUALIZATION_API_KEY 统一为 VIZ_API_KEY，与 settings.py 一致）
+**最后更新**：2026-07-31（Issue #203：VISUALIZATION_API_KEY 统一为 VIZ_API_KEY；Issue #771：bandit 剩1处 B614 Medium 告警 marl.py:722 weights_only=False 待补 # nosec 注释）
 
 ---
 
@@ -170,7 +170,7 @@
 在 2026-08-15 代码冻结前，需确认：
 
 - [x] `.env` 不在版本控制中（`.gitignore` 已配置）
-- [x] 源代码中无硬编码凭证（Bandit 扫描通过，2026-07-25 修复 test_cqlib.py）
+- [x] 源代码中无硬编码凭证（Bandit 扫描通过，2026-07-25 修复 test_cqlib.py；2026-07-31 剩1处 B614 Medium 告警 marl.py:722 weights_only=False，由 #771 跟踪待补 # nosec 注释）
 - [ ] `requirements.txt` 依赖无已知漏洞（pip-audit 通过）
 - [x] 所有 API 调用都通过熔断器保护（2026-07-25 扩展至 submit_quantum_task）
 - [x] 所有真机调用都通过配额追踪

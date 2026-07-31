@@ -1,7 +1,7 @@
 # 权威模型检查点归档（MODELS.md）
 
 > 本文件说明本项目**可提交的训练好的模型检查点**，用于保证评审在克隆仓库后能复现论文中的实验结果（PPO vs FCFS +123.4% 等）。
-> 最后更新：2026-07-28
+> 最后更新：2026-07-31
 
 ## 为什么需要本目录
 
@@ -79,6 +79,7 @@ python scripts/evaluation/ablation_ppo_variants.py
 - PPO 权威调度模型为**16维标准MLP**（`ppo_best_model_16dim.zip`），是v9.1交付版本
 - 旧的10维/14维调度模型已清理，仅保留当前最优16维模型和编译优化Agent
 - 编译层Agent（`ppo_compilation_agent.zip`）为独立模型，使用14维观测空间（量子编译环境专用）
+- **PR #759 兼容性提示（Issue #772）**：2026-07-31 PR #759 将 `compilation_env.py` 观测维度 11-13 从冗余反义特征替换为非冗余指标（维度数仍为14，shape 不变），但 `ppo_compilation_agent.zip` 是在替换前训练的，行为上可能与新环境存在分布偏移。维度数兼容可正常加载，但若需严格复现公平对比v2结果，建议基于新观测定义重训编译层模型（由 #772 跟踪）
 - 如需重新训练并替换权威模型：使用对应训练脚本训练后将模型复制至 `deliverable_models/` 并同步更新本文件
 - `run_simulation.py` 默认加载 `deliverable_models/ppo_best_model_16dim.zip`
 - `models/` 目录（.gitignore忽略）存放训练过程中的临时checkpoint，不作为交付物

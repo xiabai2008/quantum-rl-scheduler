@@ -379,3 +379,38 @@ jobs:
             benchmark_results.json
             results/benchmark_history.jsonl
             results/reports/performance_trend.png
+
+  # ---------------------------------------------------------------------------
+  # Job 6: 文档同步检查 (doc-sync)
+  # 检测文档中的关键数字与项目实际状态是否一致，防止文档过时：
+  #   - 测试用例数 vs pytest --co -q
+  #   - 版本号 vs pyproject.toml
+  #   - AGENTS.md open PR/issue vs gh CLI
+  #   - AGENTS.md "最后更新"日期 vs 当天
+  # ---------------------------------------------------------------------------
+  doc-sync:
+    name: "Documentation Sync Check"
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: lint
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
+
+      - name: Run documentation sync check
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python scripts/ci/check_doc_sync.py

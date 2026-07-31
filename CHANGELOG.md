@@ -2,6 +2,46 @@
 
 本文件记录项目的所有重要变更，按日期倒序排列。
 
+## [2026-07-31] - v9.1 文档全面同步 + 自动文档同步检查机制
+
+### 文档同步 (docs)
+- **测试用例数统一为 3523**：AGENTS.md / README.md / docs/authoritative_numbers.md / docs/code_freeze.md / docs/requirements_traceability.md / 答辩PPT大纲.md 全部同步（旧值 2824+/3106/3359/3400+/3467 已清除）
+- **AGENTS.md 进度条更新**：PR审查 80%→100%（7.31合并8个PR含原7个待修改PR的等效修复）；提交校验 90%→80%（4 ERROR + 1 WARN 待8/15前补齐）；移除"39个open issues""7个待修改PR"等过时表述
+- **AGENTS.md 最后更新日期**：2026-07-29 → 2026-07-31
+- **docs/项目记忆_给AI.md**：从 v7（2026-07-01）整体刷新至 v9.1（2026-07-31）
+- **docs/defense_qa_handbook.md**：新增 Q52 编译层观测维度替换（PR #759）答辩话术，版本 v1.6→v1.7
+- **MODELS.md**：新增 PR #759 compilation_env 观测维度11-13替换说明 + 模型兼容性提示（#772）
+- **SECURITY.md**：更新 bandit 状态说明（剩1处 B614 Medium，#771跟踪）
+
+### 新增 (feat)
+- **scripts/ci/check_doc_sync.py**：CI 文档同步自动检查脚本，检测文档测试数 vs 实际 pytest 收集数、文档版本号 vs pyproject.toml、AGENTS.md open PR/issue vs gh CLI、最后更新日期 vs 当天
+- **.github/workflows/ci.yml**：新增 doc-sync job，调用 check_doc_sync.py 作为 CI 门禁
+
+## [2026-07-31] - 7.30-7.31 合并8个PR (#758-#765) 关闭所有历史issue
+
+### 合并的 PR
+- **#758** fix: tianyan_cqlib login_key私有化(#735)+wait_for_task错误计数修复(#719)
+- **#760** feat(#677,#738,#737): PPO早停机制+cache锁粒度优化+TTL主动清理
+- **#761** fix(#694,#734,#724): 线程泄漏+QUBO向量化+HEFT迭代化
+- **#762** fix: models qubit_count一致性(#732)+RoundRobin指针修复(#693)+multi_obj封装(#696)
+- **#763** fix: websocket异步I/O(#739)+skip DQN pretrain(#733)+CI benchmark阻断(#697)
+- **#759** fix: 替换compilation_env观测维度11-13冗余反义特征为非冗余指标 (#656)
+- **#764** perf: env.step热路径crosstalk_risk参数化(#746)+simulator状态访问器(#723)
+- **#765** refactor: test_visualization拆分(#730)+benchmark阈值断言(#729)
+- **#756** feat: 新增金融衍生品定价与药物分子模拟ROI分析场景 (Closes #741)
+- **#754** feat: 统一AGENTS.md真机口径为N=10 v2权威+CI黑名单防旧数据回归 (Closes #691)
+- **#755** fix(#715): _worker_loop区分致命异常(MemoryError/RuntimeError)与可恢复异常
+- **#753** fix(#725): 统一动作常量来源，消除baselines/hybrid_scheduler重复定义
+- **#752** fix(#695): ONNX导出后校验完整性+validate_export使用固定种子RNG
+- **#751** fix(#679): metrics.py Gauge从未set赋值，simulator同步运行时Gauge
+
+### 关闭的 issue
+- #741, #691, #715, #725, #695, #679, #735, #719, #677, #738, #737, #694, #734, #724, #732, #693, #696, #739, #733, #697, #656, #746, #723, #730, #729 等历史 issue 全部关闭
+
+### 当前状态
+- 0 open PR / 40 open issue（#766+批次，v9.1定稿前跟踪项持续创建中）
+- 3523 测试用例收集通过，ruff/mypy 0 errors，bandit 剩1处 B614 Medium（marl.py:722，#771跟踪）
+
 ## [2026-07-29] - v9.1.0 权威数字更新 + 评审报告P0/P1修复
 
 ### v9.1 关键变更总览（相对于v8.x）
