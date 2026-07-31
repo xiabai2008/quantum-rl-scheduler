@@ -145,3 +145,15 @@
 ---
 
 *Issue #129/#404 验收文件 | 2026-07-28 v9.1*
+
+## 17维（可选·公平性扩展）
+
+当 `include_fairness_obs=True`（默认，Issue #654）时，观测向量扩展为17维：
+
+| 索引 | 名称 | 描述 | 范围 |
+|------|------|------|------|
+| 16 | Jain公平性指数 | Jain's fairness index for tenant resource allocation | 0-1 (归一化) |
+
+- **开关**: `include_fairness_obs` 参数（默认 `True`，Issue #654）
+- **向后兼容**: 设为 `False` 时回退到16维标准观测
+- **CHANGELOG**: 见 CHANGELOG.md 第9行"第17维可选公平性指数观测"
