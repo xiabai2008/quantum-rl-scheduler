@@ -781,8 +781,12 @@ class DAGScheduler:
                 return False
             start = float(by_id[task_id]["start_time"])
             for dependency in task.dependencies:
-                # Issue #684: 前驱未在调度方案中分配时跳过，避免 KeyError 崩溃
+                # Issue #684: 区分悬空依赖（指向不存在的任务）和未分配前驱
+                if dependency not in self.tasks:
+                    # 悬空依赖：指向不在任务列表中的任务，方案不可行
+                    return False
                 if dependency not in by_id:
+                    # 前驱在 tasks 中但未在调度方案中分配，跳过避免 KeyError
                     continue
                 dependency_finish = float(by_id[dependency]["estimated_finish"])
                 if start + 1e-12 < dependency_finish:
