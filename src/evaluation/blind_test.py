@@ -11,6 +11,7 @@
 
 from __future__ import annotations
 
+import math
 from typing import Any, Protocol
 
 import numpy as np
@@ -62,7 +63,8 @@ class BlindTestEvaluator:
     """在留出测试集上评估模型性能。
 
     使用与训练阶段互斥的测试种子对模型进行盲测，收集逐 episode 累计奖励
-    并汇总统计量（均值、标准差、最值），确保评估结果不受训练数据泄漏影响。
+    并汇总统计量（均值、标准差、最值、SEM、95% CI），确保评估结果不受
+    训练数据泄漏影响。
 
     Args:
         deterministic: 推理时是否使用确定性策略，默认 True。
@@ -82,6 +84,7 @@ class BlindTestEvaluator:
         env: QuantumSchedulingEnv,
         test_seeds: list[int],
         episodes_per_seed: int = 5,
+        baseline_rewards: list[float] | None = None,
     ) -> dict[str, Any]:
         """在留出测试种子集上评估模型。
 
@@ -89,11 +92,16 @@ class BlindTestEvaluator:
         每个 episode 通过 ``env.reset(seed=...)`` 初始化，确保种子可复现。
         同一环境实例在各 episode 间通过 ``reset`` 重置，不携带跨 episode 状态。
 
+        当提供 ``baseline_rewards`` 时，额外返回与基线策略的统计显著性对比结果
+        （调用 ``stats_significance.compare_strategies`` 计算 p 值/效应量/CI）。
+
         Args:
             model: 待评估模型，需提供 ``predict(obs, deterministic=...)`` 方法。
             env: 调度环境实例（每个 episode 会调用 ``reset`` 重置）。
             test_seeds: 留出测试种子列表（须与训练种子互斥）。
             episodes_per_seed: 每个种子运行的 episode 数，默认 5。
+            baseline_rewards: 基线策略的奖励列表，传入时会计算与基线的
+                统计显著性对比；默认 ``None`` 不执行对比。
 
         Returns:
             包含以下键的评估结果字典：
@@ -101,8 +109,13 @@ class BlindTestEvaluator:
             - ``std_reward``: 奖励标准差（ddof=1）
             - ``min_reward``: 最小奖励
             - ``max_reward``: 最大奖励
+            - ``sem``: 标准误
+            - ``ci95_lower``: 均值 95% CI 下界
+            - ``ci95_upper``: 均值 95% CI 上界
             - ``all_rewards``: 逐 episode 奖励列表
             - ``num_episodes``: 总 episode 数
+            - ``baseline_comparison``: 可选，与基线策略的统计对比结果（仅当
+              ``baseline_rewards`` 不为 None 时存在）
 
         Raises:
             ValueError: ``test_seeds`` 为空或 ``episodes_per_seed`` 非正。
@@ -137,6 +150,14 @@ class BlindTestEvaluator:
                 all_rewards.append(episode_reward)
 
         result = summarize_rewards(all_rewards)
+
+        if baseline_rewards is not None:
+            from src.utils.stats_significance import compare_strategies
+
+            result["baseline_comparison"] = compare_strategies(
+                {"Target": all_rewards, "Baseline": baseline_rewards}
+            )
+
         logger.info(
             "盲测评估完成：{} episodes，mean_reward={:.2f} ± {:.2f}",
             result["num_episodes"],
@@ -182,7 +203,8 @@ def summarize_rewards(rewards: list[float]) -> dict[str, Any]:
 
     Returns:
         包含 ``mean_reward``/``std_reward``/``min_reward``/``max_reward``/
-        ``all_rewards``/``num_episodes`` 的字典。空列表时各统计量均为 0.0。
+        ``sem``/``ci95_lower``/``ci95_upper``/``all_rewards``/``num_episodes``
+        的字典。空列表时各统计量均为 0.0（sem/CI 为 nan）。
     """
     if not rewards:
         return {
@@ -190,16 +212,35 @@ def summarize_rewards(rewards: list[float]) -> dict[str, Any]:
             "std_reward": 0.0,
             "min_reward": 0.0,
             "max_reward": 0.0,
+            "sem": float("nan"),
+            "ci95_lower": float("nan"),
+            "ci95_upper": float("nan"),
             "all_rewards": [],
             "num_episodes": 0,
         }
     arr = np.array(rewards, dtype=np.float64)
-    std_reward = float(np.std(arr, ddof=1)) if len(arr) > 1 else 0.0
+    n = len(arr)
+    std_reward = float(np.std(arr, ddof=1)) if n > 1 else 0.0
+    mean_reward = float(np.mean(arr))
+
+    if n >= 2:
+        sem = std_reward / math.sqrt(n)
+        margin = 1.96 * sem
+        ci95_lower = mean_reward - margin
+        ci95_upper = mean_reward + margin
+    else:
+        sem = float("nan")
+        ci95_lower = float("nan")
+        ci95_upper = float("nan")
+
     return {
-        "mean_reward": float(np.mean(arr)),
+        "mean_reward": mean_reward,
         "std_reward": std_reward,
         "min_reward": float(np.min(arr)),
         "max_reward": float(np.max(arr)),
+        "sem": sem,
+        "ci95_lower": ci95_lower,
+        "ci95_upper": ci95_upper,
         "all_rewards": rewards,
         "num_episodes": len(rewards),
     }
