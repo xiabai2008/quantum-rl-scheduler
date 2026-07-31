@@ -214,6 +214,9 @@ def pick_next_task(env: "QuantumSchedulingEnv") -> None:
     Args:
         env: 调度环境实例
     """
+    # Issue #789: 本函数从 _task_queue 取出任务（队列长度变化）并更新 _current_task，
+    # 两者均影响观测向量，必须失效缓存。
+    env._cached_obs = None
     if not env._task_queue:
         env._current_task = None
         return
