@@ -446,10 +446,7 @@ class TestCacheHitRate:
                     "max_ms": max(timings),
                     "_result": None,
                 }
-                print(
-                    f"\n  [simple-timer] Cache {name}: "
-                    f"mean={stats['mean_ms']:.3f}ms"
-                )
+                print(f"\n  [simple-timer] Cache {name}: mean={stats['mean_ms']:.3f}ms")
             results[name] = stats
 
             if use_cache:

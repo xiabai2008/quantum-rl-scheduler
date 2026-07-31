@@ -373,9 +373,7 @@ class TestBoundaryCases:
 class TestObservation:
     """观测向量各维度含义验证。"""
 
-    def test_observation_dims_11_13_anti_sense(
-        self, env_no_circuit: QuantumCompilationEnv
-    ) -> None:
+    def test_observation_dims_11_13_anti_sense(self, env_no_circuit: QuantumCompilationEnv) -> None:
         """观测维度11-13为反义维度（1-x），与 PR #759 新维度设计不同。
 
         当前实现（与预训练 ppo_compilation_agent.zip 兼容）：
