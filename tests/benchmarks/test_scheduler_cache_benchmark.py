@@ -136,6 +136,5 @@ class TestSchedulerCacheBenchmark:
         # pytest-benchmark 5.x 兼容：stats 可能为 None / Metadata 对象，用 _get_stat 安全访问
         median = _get_stat(benchmark.stats, "median", default=0.0)
         assert median < 0.1, (
-            f"cache.get() 中位数超阈值 (hit_rate={hit_rate}, dim={dim}): "
-            f"{median:.4f}s"
+            f"cache.get() 中位数超阈值 (hit_rate={hit_rate}, dim={dim}): {median:.4f}s"
         )
