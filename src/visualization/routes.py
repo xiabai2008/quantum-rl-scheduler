@@ -300,7 +300,7 @@ async def ready() -> dict[str, Any]:
     try:
         metrics_body = generate_latest().decode("utf-8", errors="replace")
         checks["metrics"] = {"ok": len(metrics_body) > 0}
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         # Issue #516: 不泄露内部异常详情
         logger.debug(f"[Web] /ready metrics 检查失败: {e}")
         checks["metrics"] = {"ok": False, "error": "指标采集失败"}
@@ -309,7 +309,7 @@ async def ready() -> dict[str, Any]:
     try:
         model = _app._get_ppo_model()
         checks["ppo_model"] = {"ok": model is not None, "required": False}
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         # Issue #516: 不泄露内部异常详情
         logger.debug(f"[Web] /ready ppo_model 检查失败: {e}")
         checks["ppo_model"] = {"ok": False, "required": False, "error": "模型检查失败"}
@@ -318,7 +318,7 @@ async def ready() -> dict[str, Any]:
     try:
         tracker = _app._get_quota_tracker()
         checks["quota_tracker"] = {"ok": tracker is not None, "required": False}
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         # Issue #516: 不泄露内部异常详情
         logger.debug(f"[Web] /ready quota_tracker 检查失败: {e}")
         checks["quota_tracker"] = {"ok": False, "required": False, "error": "配额检查失败"}
@@ -546,7 +546,7 @@ async def get_quota(_auth: None = Depends(verify_api_key)) -> dict:
         return {"available": False, "message": "配额追踪未启用"}
     try:
         return {"available": True, **tracker.status()}
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.warning(f"[Web] 获取配额状态失败: {e}")
         # Issue #516: 不泄露内部异常详情
         return {"available": False, "message": "配额查询失败"}
@@ -621,7 +621,7 @@ async def get_tenants(_auth: None = Depends(verify_api_key)) -> dict:
 
         mgr = TenantQuotaManager.from_config(str(_app._PROJECT_ROOT / "config" / "tenants.yaml"))
         return {"tenants": mgr.get_all_tenants_info()}
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.debug(f"[Web] 租户状态查询失败: {e}")
         return {"tenants": []}
 
@@ -754,7 +754,7 @@ async def battle_start(
             "ppo_obs": battle["ppo_obs"].tolist()[:5],
             "fcfs_obs": battle["fcfs_obs"].tolist()[:5],
         }
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         logger.error(f"[Web] 对战启动失败: {e}")
         # Issue #516: 不泄露内部异常详情
         return {"success": False, "error": "对战启动失败"}
@@ -846,7 +846,7 @@ async def battle_step(
                 "fcfs_total": round(battle["fcfs_reward"], 2),
                 "gap": round(battle["ppo_reward"] - battle["fcfs_reward"], 2),
             }
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001
             logger.error(f"[Web] 对战步进失败: {e}")
             # Issue #516: 不泄露内部异常详情
             return {"error": "对战步进失败"}

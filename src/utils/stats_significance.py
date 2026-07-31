@@ -870,7 +870,7 @@ def compute_effect_size(group1: list[float], group2: list[float]) -> dict[str, A
         try:
             lev = stats.levene(arr1, arr2)
             equal_var = bool(lev.pvalue >= 0.05)
-        except Exception:
+        except Exception:  # noqa: BLE001
             equal_var = False
         recommended = "cohens_d" if equal_var else "cliffs_delta"
     else:
