@@ -697,13 +697,9 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
                 else:
                     # 兼容分配：计算执行奖励（复用步首缓存的 obs，避免重复构建观测）
                     crosstalk_risk = obs[OBS_CROSSTALK_RISK]
-                    crosstalk_penalty = crosstalk_risk * 2.0
 
-                    reward += (
-                        self._compute_execution_reward(
-                            task, action, rng, crosstalk_risk=crosstalk_risk
-                        )
-                        - crosstalk_penalty
+                    reward += self._compute_execution_reward(
+                        task, action, rng, crosstalk_risk=crosstalk_risk
                     )
                     self._total_scheduled += 1
 
