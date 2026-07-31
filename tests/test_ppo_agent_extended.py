@@ -5,11 +5,10 @@ from __future__ import annotations
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
+import gymnasium
 import numpy as np
 import pytest
 from gymnasium import spaces
-
-import gymnasium
 
 import src.scheduler.ppo_agent as ppo_module
 from src.scheduler.ppo_agent import PPOAgent

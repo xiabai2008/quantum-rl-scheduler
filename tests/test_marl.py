@@ -216,7 +216,7 @@ class TestThreeMachineOutperformsSingle(unittest.TestCase):
         self.assertGreater(
             multi_throughput,
             0.0,
-            f"三机环境吞吐量为 0，环境未正常工作",
+            "三机环境吞吐量为 0，环境未正常工作",
         )
 
         # 至少 2 台机器被实际调度（架构优势：多机协同而非退化为单机）
