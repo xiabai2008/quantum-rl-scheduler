@@ -35,6 +35,7 @@ from numpy.typing import NDArray
 # 全局状态读写统一走 state.py 访问器（Issue #723）。
 # 测试通过 patch("src.visualization.simulator._app", mock_app) 替换辅助函数引用。
 import src.visualization.app as _app
+from src.scheduler.env_types import MAX_QUEUE_SIZE
 from src.scheduler.explainability import DecisionExplainer
 from src.utils.metrics import update_runtime_gauges
 from src.visualization import state as viz_state
@@ -117,8 +118,8 @@ async def simulate_scheduler() -> None:
                         ),
                         # 真实平均等待时间（反归一化）
                         "average_wait_time": round(float(new_obs[2]) * 100, 1),
-                        # 队列长度从真实环境观测读取（obs[1] = queue_length / MAX_QUEUE_SIZE=30）
-                        "queue_length": round(float(new_obs[1]) * 30),
+                        # 队列长度从真实环境观测读取（obs[1] = queue_length / MAX_QUEUE_SIZE）
+                        "queue_length": round(float(new_obs[1]) * MAX_QUEUE_SIZE),
                         # Issue #673: 任务完成基于 episode 步数确定性计数，不使用随机数
                         # 每步完成一个任务（简化模型：每步处理队列头部任务）
                         "completed_tasks": status["completed_tasks"] + 1,

@@ -48,6 +48,7 @@ from src.scheduler.env_types import (
     ACTION_CLASSICAL,
     ACTION_HYBRID,
     ACTION_QUANTUM,
+    CROSSTALK_PENALTY_FACTOR,
     DEFAULT_MACHINE_CONFIGS,
     INITIAL_QUEUE_RANGE,
     MAX_QUEUE_SIZE,
@@ -81,6 +82,7 @@ from src.scheduler.env_types import (
     REAL_MACHINE_SUBMIT_INTERVAL,
     REAL_MACHINE_SUCCESS_BONUS,
     REAL_SUBMIT_PROBABILITY_DEFAULT,
+    REQUEUE_PENALTY_FACTOR,
     REWARD_CLASSICAL,
     REWARD_HYBRID,
     REWARD_LOW_QUBIT_UTIL,
@@ -674,14 +676,14 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
                 if quantum_unavailable:
                     if action == ACTION_QUANTUM:
                         # 纯量子动作：任务重新排队，半个 mismatch 惩罚
-                        reward += REWARD_MISMATCH * 0.5
+                        reward += REWARD_MISMATCH * REQUEUE_PENALTY_FACTOR
                         task.wait_steps += 1
                         if len(self._task_queue) < MAX_QUEUE_SIZE:
                             self._task_queue.append(task)
                         self._last_selected_machine = None
                         log_msg = (
                             f"[步骤{self._current_step}] 量子资源不可用，"
-                            f"任务{task.task_id} 重新入队，惩罚{REWARD_MISMATCH * 0.5:.1f}"
+                            f"任务{task.task_id} 重新入队，惩罚{REWARD_MISMATCH * REQUEUE_PENALTY_FACTOR:.1f}"
                         )
                     else:
                         # 混合动作：降级为经典执行，避免系统空转
@@ -923,7 +925,7 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
         # _get_observation()。回退路径仍走 _cached_obs 缓存（Issue #627）。
         if crosstalk_risk is None:
             crosstalk_risk = self._get_observation()[OBS_CROSSTALK_RISK]
-        crosstalk_penalty = crosstalk_risk * 2.0  # 惩罚因子可调
+        crosstalk_penalty = crosstalk_risk * CROSSTALK_PENALTY_FACTOR  # 惩罚因子可调
 
         # Issue #587: 公平性惩罚嵌入奖励函数
         # 若未显式传入 fairness_penalty，则根据 tenant_manager 是否存在决定是否计算

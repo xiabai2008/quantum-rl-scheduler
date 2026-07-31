@@ -336,9 +336,16 @@ class RoundRobinScheduler(BaselineScheduler):
             self._last_idx = -1
             return -1
         n = len(tasks)
-        # 队列缩小修正：外部 pop 了上次选中的任务（位于指针之前），其后继元素前移
-        if n < self._last_n and 0 <= self._last_idx < self._pointer:
-            self._pointer -= 1
+        # 队列缩小修正（Issue #797）：显式处理所有 pop 位置
+        # 契约：消费者在 select_action 返回后 pop 被选中的任务（位于返回 idx）
+        if n < self._last_n:
+            if 0 <= self._last_idx < self._pointer:
+                # pop 在指针之前：其后继元素前移一位，指针回调以避免跳过任务
+                self._pointer -= 1
+            elif 0 <= self._last_idx == self._pointer:
+                # pop 恰好在指针位置：下一个元素前移到指针位置，指针保持不变
+                pass
+            # pop 在指针之后：不影响指针位置，无需修正
         # 确保指针在当前队列合法范围内（防止外部任意增删导致越界）
         self._pointer %= n
         idx = self._pointer
