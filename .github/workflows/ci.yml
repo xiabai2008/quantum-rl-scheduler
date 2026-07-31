@@ -366,7 +366,10 @@ jobs:
 
       - name: Commit benchmark history
         # 仅在 main 分支推送时提交基准历史（PR 无写权限）
+        # 2026-08-01: main 分支保护（GH006）拒绝直接 push 时历史提交失败
+        # 不阻断 CI（基准检测本身已通过，历史记录尽力而为）
         if: success() && github.event_name == 'push' && github.ref == 'refs/heads/main'
+        continue-on-error: true
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
