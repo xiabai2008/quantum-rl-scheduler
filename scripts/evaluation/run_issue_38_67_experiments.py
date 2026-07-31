@@ -262,7 +262,7 @@ class RandomStrategy(BaseStrategy):
 
     name = "Random"
 
-    def __init__(self, action_dim: int = 3, seed: int | None = None):
+    def __init__(self, action_dim: int = 4, seed: int | None = None):
         self.rng = np.random.default_rng(seed)
         self.action_dim = action_dim
 
@@ -452,7 +452,7 @@ def build_strategies(
         strategies[-1].name = "DQN"
 
     strategies.append(FCFSStrategy())
-    strategies.append(RandomStrategy(action_dim=3, seed=42))
+    strategies.append(RandomStrategy(action_dim=4, seed=42))
     strategies.append(QuantumOnlyStrategy())
     strategies.append(ClassicalOnlyStrategy())
     strategies.append(GreedyStrategy())

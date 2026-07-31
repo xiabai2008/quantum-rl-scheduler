@@ -532,11 +532,11 @@ class TestNetworksAndBuffer(unittest.TestCase):
 
     def test_actor_outputs_valid_distribution(self):
         """Actor 输出的 logits 应能生成合法的 Categorical 分布。"""
-        actor = ActorNet(obs_dim=13, action_dim=3)
+        actor = ActorNet(obs_dim=13, action_dim=4)
         obs = torch.zeros(1, 13)
         with torch.no_grad():
             action, log_prob, entropy = actor.get_action(obs, deterministic=False)
-        self.assertIn(int(action.item()), (0, 1, 2))
+        self.assertIn(int(action.item()), (0, 1, 2, 3))
         self.assertTrue(torch.isfinite(log_prob))
         self.assertTrue(torch.isfinite(entropy))
         self.assertGreaterEqual(float(entropy.item()), 0.0)

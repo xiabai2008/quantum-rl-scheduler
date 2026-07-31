@@ -359,7 +359,7 @@ def test_gradient_flow() -> None:
     所有张量必须使用 double 精度（torch.float64）。
     """
     obs_dim = 4
-    action_dim = 3
+    action_dim = 4
     batch_size = 2
 
     # === Actor 梯度流：obs -> feature -> logits -> log_prob ===

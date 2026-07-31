@@ -50,7 +50,7 @@ def build_strategies(base_env_kwargs: dict):
 
     # 经典策略
     strategies.append(FCFSStrategy())
-    strategies.append(RandomStrategy(action_dim=3, seed=42))
+    strategies.append(RandomStrategy(action_dim=4, seed=42))
     strategies.append(QuantumOnlyStrategy())
     strategies.append(ClassicalOnlyStrategy())
     strategies.append(GreedyStrategy())
