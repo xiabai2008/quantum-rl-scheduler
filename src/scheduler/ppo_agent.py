@@ -34,6 +34,68 @@ from src.utils.helpers import load_annealing_config
 from src.utils.lr_schedule import LRScheduleType, create_lr_schedule
 
 
+class StopTrainingOnNoModelImprovementMinDelta(StopTrainingOnNoModelImprovement):
+    """带最小改善阈值（min_delta）的早停回调（Issue #799）。
+
+    SB3 的 ``StopTrainingOnNoModelImprovement`` 仅当 best_mean_reward 完全不变时
+    才计数无改善，对微小波动（如 0.001 的噪声级提升）仍视为"有改善"并重置计数器，
+    导致早停无法触发。本子类引入 ``min_delta`` 阈值：仅当改善幅度超过该值时
+    才视为真正改善并重置计数器，避免噪声级波动无限期推迟早停。
+
+    必须与 ``EvalCallback`` 配合使用（通过 ``callback_on_new_best`` 挂载）。
+    """
+
+    def __init__(
+        self,
+        max_no_improvement_evals: int,
+        min_evals: int = 0,
+        min_delta: float = 0.0,
+        verbose: int = 0,
+    ) -> None:
+        """初始化带 min_delta 的早停回调。
+
+        Args:
+            max_no_improvement_evals: 连续无改善评估次数阈值，超过则停止训练。
+            min_evals: 早停生效前的最少评估次数。
+            min_delta: 视为"有改善"的最小奖励提升幅度，默认 0.0（等价于父类行为）。
+            verbose: 日志详细程度。
+        """
+        super().__init__(max_no_improvement_evals, min_evals, verbose)
+        self.min_delta = min_delta
+
+    def _on_step(self) -> bool:
+        """重写 _on_step，使用 min_delta 阈值判断是否有改善。
+
+        仅当 ``best_mean_reward - last_best_mean_reward > min_delta`` 时
+        才视为有改善并重置计数器，否则计数无改善评估次数。
+        """
+        assert self.parent is not None, (
+            "``StopTrainingOnNoModelImprovementMinDelta`` callback must be used "
+            "with an ``EvalCallback``"
+        )
+
+        continue_training = True
+
+        if self.n_calls > self.min_evals:
+            improvement = self.parent.best_mean_reward - self.last_best_mean_reward
+            if improvement > self.min_delta:
+                self.no_improvement_evals = 0
+            else:
+                self.no_improvement_evals += 1
+                if self.no_improvement_evals > self.max_no_improvement_evals:
+                    continue_training = False
+
+        self.last_best_mean_reward = self.parent.best_mean_reward
+
+        if self.verbose >= 1 and not continue_training:
+            print(
+                f"Stopping training because there was no new best model "
+                f"in the last {self.no_improvement_evals:d} evaluations"
+            )
+
+        return continue_training
+
+
 class PPOAgent:
     """
     PPO (Proximal Policy Optimization) 调度智能体
@@ -242,6 +304,7 @@ class PPOAgent:
         extra_callbacks: list[Any] | None = None,
         early_stop_patience: int | None = 5,
         early_stop_min_evals: int = 3,
+        early_stop_min_delta: float = 0.0,
         **kwargs: Any,
     ) -> PPO | RecurrentPPO:
         """
@@ -256,6 +319,9 @@ class PPOAgent:
                 模型则提前停止训练，避免模型收敛后浪费计算资源。``None`` 或 ``<=0``
                 时禁用早停。默认 ``5``。
             early_stop_min_evals: 早停生效前的最少评估次数，默认 ``3``。
+            early_stop_min_delta: 视为"有改善"的最小奖励提升幅度（Issue #799）。
+                改善幅度未超过此值的评估计为无改善，默认 ``0.0``（等价于
+                SB3 原生行为：任何正向变化均视为改善）。
             **kwargs: 额外参数，支持以下真机抽样回调参数：
                 - real_callback_interval: 真机抽样间隔（步数），>0 时启用，默认 0（禁用）
                 - real_callback_prob    : 每次触发的提交概率，默认 0.15
@@ -289,16 +355,17 @@ class PPOAgent:
         # Issue #677: 早停机制 — 连续 patience 次评估无新最优模型则提前停止训练，
         # 避免模型收敛后继续训练浪费计算资源。通过 callback_on_new_best 挂载到
         # EvalCallback，仅当产生新最优模型时重置无改善计数。
-        early_stop_callback: StopTrainingOnNoModelImprovement | None = None
+        early_stop_callback: StopTrainingOnNoModelImprovementMinDelta | None = None
         if early_stop_patience is not None and early_stop_patience > 0:
-            early_stop_callback = StopTrainingOnNoModelImprovement(
+            early_stop_callback = StopTrainingOnNoModelImprovementMinDelta(
                 max_no_improvement_evals=early_stop_patience,
                 min_evals=early_stop_min_evals,
+                min_delta=early_stop_min_delta,
                 verbose=1,
             )
             logger.info(
                 f"[PPOAgent] 早停已启用: patience={early_stop_patience} "
-                f"min_evals={early_stop_min_evals}"
+                f"min_evals={early_stop_min_evals} min_delta={early_stop_min_delta}"
             )
 
         eval_callback = EvalCallback(

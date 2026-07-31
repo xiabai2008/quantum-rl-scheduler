@@ -1108,9 +1108,9 @@ class TestSchedulingStrategies(unittest.TestCase):
 
     def test_random_strategy(self):
         """测试随机策略"""
-        strategy = RandomStrategy(action_dim=3, seed=42)
+        strategy = RandomStrategy(action_dim=4, seed=42)
         actions = [strategy.select_action(self.obs) for _ in range(100)]
-        self.assertTrue(all(0 <= a < 3 for a in actions))
+        self.assertTrue(all(0 <= a < 4 for a in actions))
 
     def test_quantum_only_strategy(self):
         """测试仅量子策略"""

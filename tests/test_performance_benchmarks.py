@@ -120,19 +120,51 @@ if not HAS_BENCHMARK:
         return timer
 
 
+def _get_stat(stats: Any, key: str, default: float = 0.0) -> float:
+    """兼容 pytest-benchmark 4.x/5.x 的 stats 属性访问。
+
+    4.x: stats.mean / stats.median / stats.iterations（list）
+    5.x: stats 是 Metadata 对象，需通过 stats['mean'] 或 stats.stats.mean 访问
+    """
+    # 4.x: 直接属性访问
+    val = getattr(stats, key, None)
+    if val is not None:
+        return val
+    # 5.x: dict-like 访问
+    try:
+        return stats[key]
+    except (KeyError, TypeError, IndexError):
+        pass
+    # 5.x: 嵌套 Stats 对象
+    inner = getattr(stats, "stats", None)
+    if inner is not None:
+        val = getattr(inner, key, None)
+        if val is not None:
+            return val
+    return default
+
+
 def _run_benchmark(benchmark: Any, func: callable, name: str) -> dict[str, float]:
     """运行基准测试并返回统计指标字典（单位：毫秒）。"""
     result = benchmark(func)
     stats = benchmark.stats
-    iterations_ms = [t * 1000.0 for t in stats.iterations]
-    p95_ms = _percentile(iterations_ms, 0.95) if iterations_ms else stats.median * 1000.0
+    # pytest-benchmark 4.x/5.x 兼容：iterations 可能是 list（每次耗时）或 int（次数）
+    iterations_raw = _get_stat(stats, "iterations", [])
+    if isinstance(iterations_raw, (list, tuple)):
+        iterations_ms = [t * 1000.0 for t in iterations_raw]
+        median_val = _get_stat(stats, "median", 0.0)
+        p95_ms = _percentile(iterations_ms, 0.95) if iterations_ms else median_val * 1000.0
+    else:
+        # iterations 是 int（迭代次数），无法计算 p95，退化为 median
+        median_val = _get_stat(stats, "median", 0.0)
+        p95_ms = median_val * 1000.0
 
     metrics = {
-        "mean_ms": stats.mean * 1000.0,
-        "median_ms": stats.median * 1000.0,
+        "mean_ms": _get_stat(stats, "mean", 0.0) * 1000.0,
+        "median_ms": median_val * 1000.0,
         "p95_ms": p95_ms,
-        "min_ms": stats.min * 1000.0,
-        "max_ms": stats.max * 1000.0,
+        "min_ms": _get_stat(stats, "min", 0.0) * 1000.0,
+        "max_ms": _get_stat(stats, "max", 0.0) * 1000.0,
         "_result": result,
     }
 
@@ -391,7 +423,30 @@ class TestCacheHitRate:
                 return query_once
 
             fn = make_fn(queries, use_cache)
-            stats = _run_benchmark(benchmark, fn, f"Cache {name}")
+            # pytest-benchmark 5.x: 每个测试只能调用 benchmark() 一次
+            # 仅对关键场景（100% 命中）使用 benchmark fixture，其余用简单计时
+            if name == "cache_hit_100pct":
+                stats = _run_benchmark(benchmark, fn, f"Cache {name}")
+            else:
+                # 简单计时（不使用 benchmark fixture）
+                import time as _time
+
+                timings = []
+                for _ in range(50):
+                    fn()  # warmup
+                for _ in range(100):
+                    t0 = _time.perf_counter()
+                    fn()
+                    timings.append((_time.perf_counter() - t0) * 1000.0)
+                stats = {
+                    "mean_ms": sum(timings) / len(timings),
+                    "median_ms": sorted(timings)[len(timings) // 2],
+                    "p95_ms": _percentile(timings, 0.95),
+                    "min_ms": min(timings),
+                    "max_ms": max(timings),
+                    "_result": None,
+                }
+                print(f"\n  [simple-timer] Cache {name}: mean={stats['mean_ms']:.3f}ms")
             results[name] = stats
 
             if use_cache:

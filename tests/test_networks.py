@@ -29,7 +29,7 @@ from src.scheduler.networks import DuelingQNetwork
 
 def _make_network(
     obs_dim: int = 8,
-    action_dim: int = 3,
+    action_dim: int = 4,
     net_arch: list[int] | None = None,
 ) -> DuelingQNetwork:
     """Helper to build a DuelingQNetwork instance.
@@ -80,7 +80,7 @@ class TestDuelingQNetworkInit(unittest.TestCase):
         value_layers = [m for m in net.value_stream.modules() if isinstance(m, nn.Linear)]
         self.assertEqual(value_layers[-1].out_features, 1)
         adv_layers = [m for m in net.advantage_stream.modules() if isinstance(m, nn.Linear)]
-        self.assertEqual(adv_layers[-1].out_features, 3)
+        self.assertEqual(adv_layers[-1].out_features, 4)
 
 
 class TestDuelingQNetworkForward(unittest.TestCase):
@@ -88,11 +88,11 @@ class TestDuelingQNetworkForward(unittest.TestCase):
 
     def test_forward_output_shape(self):
         """Forward output shape should be (batch_size, action_dim)."""
-        net = _make_network(obs_dim=8, action_dim=3)
+        net = _make_network(obs_dim=8, action_dim=4)
         obs = th.randn(4, 8)
         with th.no_grad():
             output = net(obs)
-        self.assertEqual(output.shape, (4, 3))
+        self.assertEqual(output.shape, (4, 4))
 
     def test_q_value_decomposition(self):
         """Verify Q = V + A - mean(A) identity."""
@@ -118,9 +118,9 @@ class TestDuelingQNetworkForward(unittest.TestCase):
 
     def test_gradient_flow(self):
         """loss.backward() should produce non-None gradients."""
-        net = _make_network(obs_dim=8, action_dim=3)
+        net = _make_network(obs_dim=8, action_dim=4)
         obs = th.randn(4, 8)
-        target = th.randn(4, 3)
+        target = th.randn(4, 4)
         output = net(obs)
         loss = nn.MSELoss()(output, target)
         loss.backward()
@@ -137,7 +137,7 @@ class TestDuelingQNetworkBatchConsistency(unittest.TestCase):
 
     def test_single_vs_batch_output(self):
         """Single-sample forward should match first result of batch forward."""
-        net = _make_network(obs_dim=8, action_dim=3)
+        net = _make_network(obs_dim=8, action_dim=4)
         net.eval()
         obs_single = th.randn(1, 8)
         obs_batch = obs_single.expand(4, -1).clone()

@@ -125,6 +125,9 @@ def route_to_machine(
         rl_action_prob      : 该动作被选择的概率（默认 0.0）
         observation_snapshot: 观测向量摘要（默认 None）
     """
+    # Issue #789: 本函数修改 machine 队列/used_qubits/fidelity 等 obs 相关状态，
+    # 必须失效观测缓存，避免后续 _get_observation() 返回过期观测。
+    env._cached_obs = None
     if machine is None:
         env._last_selected_machine = None
         return
@@ -175,6 +178,7 @@ def route_to_machine(
         # QEM：执行时间乘 3，保真度提升（错误率减半）
         task.execution_time = int(task.execution_time * 3.0)
         machine.fidelity = 1.0 - ((1.0 - machine.fidelity) * 0.5)
+    env._invalidate_obs_cache()  # Issue #775: 路由改变机器/队列状态，失效观测缓存
 
 
 def recompute_aggregate(env: "QuantumSchedulingEnv") -> None:
@@ -191,6 +195,10 @@ def recompute_aggregate(env: "QuantumSchedulingEnv") -> None:
     Args:
         env: 调度环境实例
     """
+    # Issue #789: 重算 _quantum 聚合视图（available_ratio/fidelity/quantum_queue）
+    # 直接影响观测向量，必须失效缓存。同时覆盖此前 update_noise_features /
+    # update_topology_features 对 machine 状态的修改（二者总在本函数之前调用）。
+    env._cached_obs = None
     if not env._machines:
         return
     total_q = sum(m.total_qubits for m in env._machines)
@@ -202,3 +210,4 @@ def recompute_aggregate(env: "QuantumSchedulingEnv") -> None:
     env._quantum.fidelity = float(sum(m.fidelity * m.total_qubits for m in env._machines) / total_q)
     env._quantum.quantum_queue = sum(m.quantum_queue for m in env._machines)
     env._quantum_available = any(m.available for m in env._machines)
+    env._invalidate_obs_cache()  # Issue #775: 聚合状态变更，失效观测缓存

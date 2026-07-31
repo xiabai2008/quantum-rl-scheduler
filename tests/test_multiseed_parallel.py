@@ -45,10 +45,13 @@ def _make_mock_ppo_model(action: int = 1) -> MagicMock:
 
 
 class TinyEnv:
-    """不触发真实训练的最小 Gym 风格环境。"""
+    """不触发真实训练的最小 Gym 风格环境。
+
+    Issue #787: 动作空间对齐主环境 QuantumSchedulingEnv 的 Discrete(4)。
+    """
 
     observation_space = spaces.Box(0.0, 1.0, shape=(4,), dtype=np.float32)
-    action_space = spaces.Discrete(3)
+    action_space = spaces.Discrete(4)
 
     def __init__(self) -> None:
         self.steps = 0
@@ -277,7 +280,7 @@ class TestRunSingleSeed:
 
     def test_returns_correct_structure(self, monkeypatch) -> None:
         """测试返回值为4元组且结构正确。"""
-        simple_strategies = [FCFSStrategy(), RandomStrategy(action_dim=3, seed=42)]
+        simple_strategies = [FCFSStrategy(), RandomStrategy(action_dim=4, seed=42)]
 
         def mock_build_strategies(
             dqn_path: str | None = None,

@@ -84,6 +84,7 @@ select = [
     "I",    # isort
     "N",    # pep8-naming
     "B",    # flake8-bugbear
+    "BLE",  # flake8-blind-except (Issue #794: 过宽异常捕获检测)
     "SIM",  # flake8-simplify
     "C4",   # flake8-comprehensions
     "UP",   # pyupgrade
@@ -101,7 +102,7 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/*" = ["F401", "F811", "SIM117", "N806"]  # 测试文件允许未使用 import、重定义、嵌套 with、数学公式大写变量
+"tests/*" = ["F401", "F811", "SIM117", "N806", "BLE001"]  # 测试文件允许未使用 import、重定义、嵌套 with、数学公式大写变量、宽泛异常捕获
 "scripts/*" = ["E402", "N806"]            # 脚本文件允许顶部 import、数学公式大写变量
 
 # =============================================================================
