@@ -95,7 +95,7 @@
 | 真机调用次数 | 315 | `results/reports/`（Issue #540 已更新：原 284 为旧口径，统一为 315） |
 | 成功率 | 100% | 真机验证报告 |
 | 多 seed 真机 | 10 seeds × 3 策略 | `results/reports/multiseed_real_machine_report_10seeds_v2.md`（v2 权威，已替代 5seeds） |
-| PPO vs FCFS (真机) | Cohen's d = 5.33 (大效应)，p<0.001 | 同上（10seeds v2） |
+| PPO vs FCFS (真机) | Cohen's d = 5.33 (大效应)，p<0.001（小样本探索性结果，效应量异常大，需谨慎解读） | 同上（10seeds v2） |
 | 真机贡献比例 | 1/96 步（约 1.04%） | 混合评估环境，详见白皮书 5.2 节 Issue #538 |
 | 电路格式 | QCIS | `src/scheduler/env_real_machine.py` |
 

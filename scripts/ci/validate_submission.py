@@ -845,6 +845,69 @@ def prepare_submission(manifest_path: str, project_root: str = ".") -> None:
     print("=" * 60)
 
 
+def _is_excluded(rel: str, exclude_list: list[str]) -> bool:
+    """判断相对路径是否命中 exclude 前缀列表"""
+    return any(rel == exc or rel.startswith(exc + "/") for exc in exclude_list)
+
+
+def _add_zip_entry(
+    zipf: zipfile.ZipFile, root_path: Path, file: Path, exclude_list: list[str]
+) -> None:
+    """以根目录相对路径将文件写入 zip，命中 exclude 前缀时跳过"""
+    rel = str(file.relative_to(root_path)).replace("\\", "/")
+    if not _is_excluded(rel, exclude_list):
+        zipf.write(file, rel)
+
+
+def _build_code_archive(manifest_path: str, project_root: str) -> Path | None:
+    """按清单 CODE_ARCHIVE 项的 include/exclude 规则构建代码压缩包。
+
+    仅打包 include 列表中的路径，并排除 exclude 列表中的路径，
+    避免整仓递归（含 .git/、dist/）导致的体积失控与自包含问题。
+
+    Args:
+        manifest_path: 清单文件路径
+        project_root: 项目根目录
+
+    Returns:
+        生成的代码压缩包路径；清单中不存在 CODE_ARCHIVE 项时返回 None
+    """
+    with open(manifest_path, encoding="utf-8") as f:
+        manifest = yaml.safe_load(f)
+    root = Path(project_root)
+
+    for item in manifest["items"]:
+        if item["id"] != "CODE_ARCHIVE":
+            continue
+        archive_path = root / item["path"]
+        reqs = item.get("requirements", {})
+        include_list = reqs.get("include", [])
+        exclude_list = [exc.rstrip("/") for exc in reqs.get("exclude", [])]
+
+        archive_path.parent.mkdir(parents=True, exist_ok=True)
+
+        with zipfile.ZipFile(archive_path, "w", zipfile.ZIP_DEFLATED) as zipf:
+            if include_list:
+                for inc in include_list:
+                    inc_clean = inc.rstrip("/")
+                    inc_path = root / inc_clean
+                    if not inc_path.exists():
+                        continue
+                    if inc_path.is_file():
+                        _add_zip_entry(zipf, root, inc_path, exclude_list)
+                    else:
+                        for file in inc_path.rglob("*"):
+                            if file.is_file():
+                                _add_zip_entry(zipf, root, file, exclude_list)
+            else:
+                for file in root.rglob("*"):
+                    if file.is_file() and not file.as_posix().startswith("dist/"):
+                        _add_zip_entry(zipf, root, file, exclude_list)
+        print(f"  📦 代码压缩包: {archive_path}")
+        return archive_path
+    return None
+
+
 def package_submission(
     manifest_path: str, project_root: str = ".", skip_items: list[str] | None = None
 ) -> None:
@@ -856,6 +919,10 @@ def package_submission(
         skip_items: 跳过的提交物 id 列表（Issue #860）
     """
     validator = SubmissionValidator(manifest_path, project_root, skip_items=skip_items)
+
+    # 先构建代码压缩包（dist/quantum-rl-scheduler-v9.1.zip），再校验，
+    # 解决 CODE_ARCHIVE "先有鸡还是先有蛋" 的循环依赖
+    _build_code_archive(manifest_path, project_root)
 
     if not validator.validate_all():
         print("\n❌ 校验失败，拒绝打包")
@@ -871,10 +938,15 @@ def package_submission(
     version = validator.manifest["submission"]["version"]
     date_str = datetime.now().strftime("%Y%m%d")
     output_file = output_dir / f"submission_{version}_{date_str}.zip"
+    output_resolved = output_file.resolve()
 
     # 创建 ZIP 文件
     with zipfile.ZipFile(output_file, "w", zipfile.ZIP_DEFLATED) as zipf:
         for item in validator.manifest["items"]:
+            # git_tag 项（如 CODE_REPO, path="."）是整仓引用，
+            # 打包时跳过，避免递归包含 .git/ 与 dist/ 输出文件本身导致体积失控
+            if item["type"] == "git_tag":
+                continue
             path = Path(project_root) / item["path"]
             if path.exists():
                 if path.is_file():
@@ -882,8 +954,8 @@ def package_submission(
                     print(f"  ✅ 添加: {item['path']}")
                 elif path.is_dir():
                     for file in path.rglob("*"):
-                        if file.is_file():
-                            arcname = str(file.relative_to(project_root))
+                        if file.is_file() and file.resolve() != output_resolved:
+                            arcname = str(file.relative_to(project_root)).replace("\\", "/")
                             zipf.write(file, arcname)
                     print(f"  ✅ 添加目录: {item['path']}")
 

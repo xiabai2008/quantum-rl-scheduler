@@ -27,6 +27,7 @@ import numpy as np
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from src.scheduler.hybrid_scheduler import (
+    _RL_FAIL_THRESHOLD,
     ACTION_CLASSICAL,
     ACTION_HYBRID,
     ACTION_QUANTUM,
@@ -541,6 +542,134 @@ class TestHybridCoverageFiller(unittest.TestCase):
         result = scheduler.decide(task, state=state, context=ctx)
         self.assertEqual(result["source"], "fallback")
         self.assertEqual(result["action"], ACTION_CLASSICAL)
+
+
+# ============================================================
+# TestRLDegradedMode: Issue #873 RL 失败熔断
+# ============================================================
+class TestRLDegradedMode(unittest.TestCase):
+    """验证 RL 连续失败熔断与降级恢复（Issue #873）。"""
+
+    def _task_and_ctx(self):
+        """构造 universal 任务（不命中规则）与上下文。"""
+        task = _make_task(task_type="universal", priority=3, urgency=0.3, qubit_count=5)
+        ctx = {"available_qubits": 100, "queue_length": 5}
+        return task, ctx
+
+    def test_degrades_after_repeated_failures(self):
+        """RL 连续失败达到阈值后进入降级模式，predict 不再被调用。"""
+        rl_agent = Mock()
+        rl_agent.predict = Mock(side_effect=RuntimeError("未训练"))
+        scheduler = HybridScheduler(rl_agent=rl_agent)
+        task, ctx = self._task_and_ctx()
+        state = np.zeros(14, dtype=np.float32)
+
+        # 达到阈值前：每次尝试 RL 并失败
+        for _ in range(_RL_FAIL_THRESHOLD):
+            result = scheduler.decide(task, state=state, context=ctx)
+            self.assertEqual(result["source"], "fallback")
+
+        self.assertTrue(scheduler.get_stats()["rl_degraded"])
+        calls_before = rl_agent.predict.call_count
+
+        # 降级模式：predict 不应再被调用
+        for _ in range(5):
+            result = scheduler.decide(task, state=state, context=ctx)
+            self.assertEqual(result["source"], "fallback")
+        self.assertEqual(rl_agent.predict.call_count, calls_before)
+
+    def test_recovers_after_success(self):
+        """RL 成功后熔断计数清零并解除降级。"""
+        rl_agent = Mock()
+        rl_agent.predict = Mock(side_effect=RuntimeError("未训练"))
+        # 探针间隔=1：降级后下一次决策立即尝试 RL 探针（半开恢复）
+        scheduler = HybridScheduler(rl_agent=rl_agent, rl_probe_interval=1)
+        task, ctx = self._task_and_ctx()
+        state = np.zeros(14, dtype=np.float32)
+
+        for _ in range(_RL_FAIL_THRESHOLD):
+            scheduler.decide(task, state=state, context=ctx)
+        self.assertTrue(scheduler.get_stats()["rl_degraded"])
+
+        # 改为成功，验证恢复
+        rl_agent.predict.side_effect = None
+        rl_agent.predict.return_value = ACTION_QUANTUM
+        result = scheduler.decide(task, state=state, context=ctx)
+        self.assertEqual(result["source"], "rl")
+        stats = scheduler.get_stats()
+        self.assertFalse(stats["rl_degraded"])
+        self.assertEqual(stats["rl_fail_count"], 0)
+
+    def test_low_threshold_degrades_sooner(self):
+        """自定义阈值（1）使首次失败即进入降级。"""
+        rl_agent = Mock()
+        rl_agent.predict = Mock(side_effect=RuntimeError("未训练"))
+        scheduler = HybridScheduler(rl_agent=rl_agent, rl_fail_threshold=1)
+        task, ctx = self._task_and_ctx()
+        state = np.zeros(14, dtype=np.float32)
+
+        scheduler.decide(task, state=state, context=ctx)
+        self.assertTrue(scheduler.get_stats()["rl_degraded"])
+
+    def test_reset_stats_clears_degraded(self):
+        """reset_stats 清除熔断状态。"""
+        rl_agent = Mock()
+        rl_agent.predict = Mock(side_effect=RuntimeError("未训练"))
+        scheduler = HybridScheduler(rl_agent=rl_agent)
+        task, ctx = self._task_and_ctx()
+        state = np.zeros(14, dtype=np.float32)
+
+        for _ in range(_RL_FAIL_THRESHOLD):
+            scheduler.decide(task, state=state, context=ctx)
+        self.assertTrue(scheduler.get_stats()["rl_degraded"])
+
+        scheduler.reset_stats()
+        stats = scheduler.get_stats()
+        self.assertFalse(stats["rl_degraded"])
+        self.assertEqual(stats["rl_fail_count"], 0)
+
+
+# ============================================================
+# TestHybridSchedulerConcurrency: Issue #873 线程安全
+# ============================================================
+class TestHybridSchedulerConcurrency(unittest.TestCase):
+    """验证多线程并发调用 decide 时统计计数器正确（Issue #873）。"""
+
+    def _task_and_ctx(self):
+        """构造 universal 任务（不命中规则）与上下文。"""
+        task = _make_task(task_type="universal", priority=3, urgency=0.3, qubit_count=5)
+        ctx = {"available_qubits": 100, "queue_length": 5}
+        return task, ctx
+
+    def test_concurrent_decisions_no_counter_loss(self):
+        """并发调用后统计总数等于决策次数（计数器不丢失）。"""
+        import threading
+
+        rl_agent = Mock()
+        rl_agent.predict = Mock(return_value=ACTION_QUANTUM)
+        scheduler = HybridScheduler(rl_agent=rl_agent)
+        task, ctx = self._task_and_ctx()
+        state = np.zeros(14, dtype=np.float32)
+        errors: list[Exception] = []
+
+        def worker(_: int) -> None:
+            try:
+                for _ in range(50):
+                    scheduler.decide(task, state=state, context=ctx)
+            except Exception as e:
+                errors.append(e)
+
+        threads = [threading.Thread(target=worker, args=(i,)) for i in range(8)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        self.assertEqual(errors, [])
+        stats = scheduler.get_stats()
+        # 每线程 50 次 × 8 线程 = 400 次，全部走 RL 决策
+        self.assertEqual(stats["rl_decisions"], 400)
+        self.assertEqual(stats["total"], 400)
 
 
 # ============================================================
