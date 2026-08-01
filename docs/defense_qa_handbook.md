@@ -1365,5 +1365,28 @@ N=10 确实是小样本，我们**不回避这一局限**。需要分层看待�
 
 ---
 
+---
+
+### Q55: 公平调度为什么默认关闭？评委默认跑配置看不到公平效果？
+
+**背景**：`include_fairness_obs` 默认 `False`（`src/scheduler/env.py:178`），交付模型为 16 维观测（`ppo_best_model_16dim.zip`）；第 17 维公平性观测（Jain 指数）在 `include_fairness_obs=True` 时启用。
+
+**回答要点**：
+1. **16 维模型兼容性硬约束**：交付模型按 16 维观测训练（`OBS_DIM=16`）；若默认开启第 17 维公平观测，加载模型时会触发维度不匹配（`env_observation.py` 条件扩展）。默认关闭是**保证"克隆即跑"的工程决策**，而非功能缺失。
+2. **公平性能力默认可用**：①公平性惩罚（Issue #587，`env_reward.py`）默认开启，不依赖公平观测开关——训练期对等待过长的租户施加奖励惩罚；②公平性度量与监控（`MultiTenantFairnessTracker`）随时可挂载，输出 Jain 指数/max-min 比率等可审计指标。
+3. **演示与开启方式**：`python scripts/evaluation/run_fairness_demo.py` 一键复现公平性指标（租户不平衡 80/10/10 下 Jain 完成率公平性 0.9998、max/min 比率 0.9726）；显式公平感知（17 维观测 + 公平重训模型）作为扩展路线，见 `docs/observation_dim_standard.md` §1.3。
+4. **若评委要求现场演示**：现场运行演示脚本或传参 `include_fairness_obs=True` 展示第 17 维观测生效。
+
+**证据**：`results/fairness_demo_result.json`；`scripts/evaluation/run_fairness_demo.py`；`docs/observation_dim_standard.md`。
+
+### Q56: 编译层 PPO 全 60 电路 p=0.84 不显著，怎么还说"PPO 替代 SABRE"？
+
+**回答要点**：我们**不再宣称**编译层 PPO 统计显著优于 SABRE（公平对比 v2：全 60 电路 +16.5%，Wilcoxon p=8.40e-01 不显著；中+深 40 电路 +19.7%，p=5.99e-01）。编译层的定位是：
+1. **探索性验证 + 工程管线**：PPO 编译 Agent（14 维观测、4×4 2D 网格匹配天衍拓扑）作为可运行的编译优化管线，深电路（14-16q，n=20）SWAP 减少 +33.3% 为方向性信号（样本量不足，未宣称显著）。
+2. **调度层才是主证据**：AI→量子方向的主证据是调度层 PPO +123.4%（N=250，p=1.449e-66）——统计显著、可复现。
+3. **观测维度兼容**：PR #759 观测维度替换因保持预训练模型兼容已回退（Issue #841），模型与代码维度一致（14 维）。
+
+---
+
 *本手册由文档工程师生成，数据来源：`results/reports/`、`src/`、`docs/defense_ppt_outline.md`*
 *版本：v1.7 | 最后更新：2026-07-31（新增 Q52-Q54 第三轮终审致命问题，Issue #791）*
