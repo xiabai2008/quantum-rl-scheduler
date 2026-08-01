@@ -23,6 +23,19 @@ from scripts.ci.evidence_lineage import (
     scan_repository,
 )
 
+# Issue #861: 检测当前是否在 Git 仓库中，非 Git 环境跳过依赖 git 的测试
+_REPO_ROOT = Path(__file__).resolve().parents[1]
+_GIT_AVAILABLE = subprocess.run(
+    ["git", "rev-parse", "--git-dir"],
+    cwd=str(_REPO_ROOT),
+    capture_output=True,
+    timeout=10,
+)
+_SKIP_NO_GIT = pytest.mark.skipif(
+    _GIT_AVAILABLE.returncode != 0,
+    reason="非 Git 仓库环境，跳过依赖 git 的测试（Issue #861）",
+)
+
 # ---------------------------------------------------------------------------
 # 测试数据
 # ---------------------------------------------------------------------------
@@ -237,6 +250,7 @@ class TestIterTextFiles:
 class TestGitInfo:
     """get_git_info / git_blame_line 测试（依赖真实 git 仓库）"""
 
+    @_SKIP_NO_GIT
     def test_get_git_info_returns_strings(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]
         commit, branch = get_git_info(repo_root)
@@ -345,6 +359,7 @@ class TestScanRepository:
         metric_names = {occ.metric_name for occ in report.metric_occurrences}
         assert "PPO 平均奖励" in metric_names
 
+    @_SKIP_NO_GIT
     def test_scan_fills_blame_info_when_requested(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]
         report = scan_repository(repo_root, with_blame=True)
