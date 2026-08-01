@@ -29,6 +29,11 @@ from src.scheduler.env import (
     OBS_DIM,
     QuantumSchedulingEnv,
 )
+from src.scheduler.env_types import (
+    ACTION_HYBRID,
+    ACTION_QUANTUM,
+    ACTION_QUANTUM_QEM,
+)
 from src.scheduler.marl import (
     ActorNet,
     CentralizedCritic,
@@ -441,6 +446,46 @@ class TestActionAggregation(unittest.TestCase):
         # 无在线机器愿意执行 → 退化为经典
         self.assertEqual(env_action, 0)
         self.assertIsNone(chosen)
+
+    def test_qem_vote_counted_as_quantum(self):
+        """Issue #860: 动作 3（QUANTUM_QEM，误差缓释）应归入量子投票组。
+
+        回归保护：此前动作 3 在聚合层被静默丢弃（落入经典执行分支），
+        导致 MARL 策略学到动作 3 后量子任务全被经典处理、训练奖励崩溃。
+        """
+        for m in self.env._machines:
+            m.available = True
+        target = self.wrapper.machine_names[0]
+        # 唯一在线机器投动作 3（QEM），其余投 0
+        actions = {
+            name: (ACTION_QUANTUM_QEM if name == target else 0)
+            for name in self.wrapper.machine_names
+        }
+        env_action, chosen = self.wrapper.aggregate_actions(actions)
+        # 动作 3 应视为量子执行投票：env_action=1（量子）且选中该机器
+        self.assertEqual(env_action, ACTION_QUANTUM)
+        self.assertEqual(self.wrapper.machine_names[chosen], target)
+
+    def test_mixed_qem_and_classical_votes(self):
+        """Issue #860: QEM 投票与经典投票混合时，QEM 应主导为量子执行。"""
+        for m in self.env._machines:
+            m.available = True
+        names = self.wrapper.machine_names
+        actions = {names[0]: ACTION_QUANTUM_QEM, names[1]: 0, names[2]: 0}
+        env_action, chosen = self.wrapper.aggregate_actions(actions)
+        self.assertEqual(env_action, ACTION_QUANTUM)
+        self.assertIsNotNone(chosen)
+
+    def test_qem_vote_with_hybrid_others_picks_best_quantum_voter(self):
+        """Issue #860: QEM 与混合(2)投票混合时，量子组优先于混合组。"""
+        for m in self.env._machines:
+            m.available = True
+        names = self.wrapper.machine_names
+        # 机器 0 投 QEM、机器 1 投混合
+        actions = {names[0]: ACTION_QUANTUM_QEM, names[1]: ACTION_HYBRID, names[2]: 0}
+        env_action, chosen = self.wrapper.aggregate_actions(actions)
+        self.assertEqual(env_action, ACTION_QUANTUM)
+        self.assertEqual(self.wrapper.machine_names[chosen], names[0])
 
     def test_local_obs_dim_correct(self):
         """局部观测维度应为 OBS_DIM（全局）+ 3（本机）。"""

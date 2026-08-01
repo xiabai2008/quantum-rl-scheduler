@@ -28,7 +28,7 @@ except ImportError:
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from src.api import get_client, get_cqlib_client
-from src.api.circuit_breaker import CircuitState
+from src.api.circuit_breaker import CircuitBreaker, CircuitState
 from src.api.mock_client import MockTianyanClient, create_tianyan_client
 from src.api.tianyan_client import (
     QuotaTracker,
@@ -1208,6 +1208,46 @@ class TestTianyanClientCircuitBreaker(unittest.TestCase):
             with self.assertRaises(RuntimeError):
                 self.client.submit_quantum_task(qcis="H Q0", shots=32)
         self.assertEqual(self.client.get_circuit_state(), "open")
+
+    def test_programming_error_releases_half_open_trial_slot(self):
+        """Issue #868 泄漏缺陷：HALF_OPEN 试探中遇编程错误应释放试探名额。
+
+        熔断器处于 HALF_OPEN（未占位）→ before_request 占位放行 → try 内
+        编程错误透传（不调 on_failure/on_success）——若不释放标志，熔断器
+        将永久拒绝后续请求（CIRCUIT_HALF_OPEN_BUSY）。
+        """
+        cb = self.client._circuit_breaker
+        cb.state = CircuitState.HALF_OPEN
+        cb._half_open_trial_in_progress = False
+        self.client._cqlib.submit_quantum_task.side_effect = ValueError("invalid qcis")
+        with self.assertRaises(ValueError):
+            self.client.submit_quantum_task(qcis="INVALID", shots=32)
+        # before_request 已占位，编程错误分支应调用 release_trial 释放
+        self.assertFalse(cb._half_open_trial_in_progress)
+        # 且状态/计数未变（编程错误不计熔断）
+        self.assertEqual(cb.state, CircuitState.HALF_OPEN)
+        self.assertEqual(cb.failure_count, 0)
+
+    def test_half_open_trial_slot_timeout_fallback(self):
+        """Issue #868 超时兜底：标志占用超过 recovery_timeout 后应自动重新占位。"""
+        cb = CircuitBreaker(failure_threshold=3, recovery_timeout=60.0)
+        cb.state = CircuitState.HALF_OPEN
+        cb._half_open_trial_in_progress = True
+        cb._trial_started_at = 0.0  # 很早之前占用 → 视为过期
+        with patch("src.api.circuit_breaker.time.monotonic", return_value=100.0):
+            cb.before_request()  # 不应抛异常（过期自动重新占位）
+        self.assertTrue(cb._half_open_trial_in_progress)
+
+    def test_release_trial_only_clears_flag(self):
+        """release_trial 仅清标志，不改状态/计数/时间。"""
+        cb = CircuitBreaker(failure_threshold=3, recovery_timeout=60.0)
+        cb.state = CircuitState.HALF_OPEN
+        cb.failure_count = 1
+        cb._half_open_trial_in_progress = True
+        cb.release_trial()
+        self.assertFalse(cb._half_open_trial_in_progress)
+        self.assertEqual(cb.state, CircuitState.HALF_OPEN)
+        self.assertEqual(cb.failure_count, 1)
 
 
 class TestTianyanClientConfigAndMetrics(unittest.TestCase):

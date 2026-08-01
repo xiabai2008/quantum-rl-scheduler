@@ -2,6 +2,21 @@
 
 本文件记录项目的所有重要变更，按日期倒序排列。
 
+## [2026-08-01] - 四审修复批次：熔断器泄漏/audit编码/白皮书LSTM/锁补全/聚合测试
+
+### P0 修复（四审发现）
+- **熔断器 HALF_OPEN 标志位泄漏（#868 补充）**：编程错误透传路径释放试探名额——新增 `CircuitBreaker.release_trial()`（仅清标志）+ `before_request` 超时兜底（标志占用超过 recovery_timeout 自动重新占位）；`submit_quantum_task` 编程错误分支调用 release_trial。此前 HALF_OPEN 试探遇编程错误会导致熔断器**永久拒绝所有请求**（CIRCUIT_HALF_OPEN_BUSY）。新增 3 个回归测试
+- **release Quality Gate 编码**：`audit_authoritative_metrics.py` 中文 print 在 windows-latest（cp1252）触发 UnicodeEncodeError → 显式 UTF-8 reconfigure（与 check_doc_sync/validate_submission 同款）
+- **白皮书 §3.2 LSTM 描述矛盾（#834）**：全文 LSTM/RecurrentPPO 主架构描述重写为 **PPO-MLP 交付口径**（16→128→64→4），LSTM 降为消融对照并诚实声明；时序感知改述为观测中的到达率滑动平均特征。PDF 重新生成（21 页）
+
+### P1 修复（四审发现）
+- **#880 CheckpointManager 锁补全**：tag/untag/cleanup_orphans 三个 RMW 方法补 `_meta_lock`（此前仅 register/delete 加锁）；新增 8 线程×5 次并发注册无丢失更新测试（61 用例全过）
+- **#860 MARL 聚合测试补齐**：`aggregate_actions` 新增 3 个动作 3（QUANTUM_QEM）归入量子投票组的回归断言（此前无覆盖）
+
+### 实测状态
+- ruff/mypy/bandit 全绿；circuit_breaker+checkpoint+marl 168 用例全过
+- 白皮书 PDF 21 页（validate WHITEPAPER 保持达标）
+
 ## [2026-08-01] - 三审修复批次：可复现性恢复 + P1 缺陷批 + 测试补齐
 
 ### 修复（P0 可复现性）

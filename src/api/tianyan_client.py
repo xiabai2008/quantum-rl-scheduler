@@ -809,10 +809,14 @@ class TianyanClient:
             # 它们反映的是调用方 bug 而非服务故障，计入会误触发熔断。
             # 对齐 _call_with_retry 的不可恢复异常处理（ValueError/TypeError/
             # KeyError/AttributeError/NotImplementedError 直接透传）。
+            # 同时必须释放 HALF_OPEN 试探名额（before_request 已占位），
+            # 否则熔断器将永久拒绝后续请求（Issue #868 泄漏缺陷）。
             if isinstance(
                 e, (ValueError, TypeError, KeyError, AttributeError, NotImplementedError)
             ):
                 logger.debug(f"submit_quantum_task 编程错误，不计入熔断器: {type(e).__name__}: {e}")
+                if self._circuit_breaker:
+                    self._circuit_breaker.release_trial()
                 raise
             # 其他异常计入熔断器失败计数，原异常重新抛出由上层处理
             logger.debug(f"submit_quantum_task 失败，已触发熔断器失败计数: {type(e).__name__}: {e}")

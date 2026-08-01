@@ -10,6 +10,13 @@ import zipfile
 from pathlib import Path
 from xml.etree import ElementTree
 
+# Issue #860 补充: Windows 终端默认 cp1252 编码，中文 print 会抛
+# UnicodeEncodeError（release workflow Quality Gate 在 windows-latest 上
+# 因此失败）；显式切 UTF-8 输出（与 check_doc_sync.py 同款修复）。
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8")
+    sys.stderr.reconfigure(encoding="utf-8")
+
 TEXT_SUFFIXES = {".md", ".py", ".txt", ".rst", ".yaml", ".yml", ".json"}
 OFFICE_SUFFIXES: set[str] = set()  # 2026-07-26: 暂不审计docx/pptx二进制文件，待重新生成后纳入
 SKIP_DIRS = {

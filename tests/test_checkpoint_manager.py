@@ -925,6 +925,50 @@ class TestCheckpointCoverageFiller(unittest.TestCase):
             if os.path.exists(real_path):
                 os.unlink(real_path)
 
+    def test_concurrent_registration_no_lost_update(self):
+        """Issue #880: 多线程并发 register 不应丢失更新（RMW 已加锁）。"""
+        import threading
+
+        manager, _, _ = self._make_manager()
+        n_threads = 8
+        n_each = 5
+        errors: list[Exception] = []
+
+        def _register_batch(prefix: str) -> None:
+            try:
+                for i in range(n_each):
+                    fd, real_path = tempfile.mkstemp(suffix=".zip")
+                    os.close(fd)
+                    try:
+                        manager.register(
+                            algorithm="ppo",
+                            timesteps=100 + i,
+                            mean_reward=float(i),
+                            path=real_path,
+                            notes=f"{prefix}-{i}",
+                        )
+                    finally:
+                        if os.path.exists(real_path):
+                            os.unlink(real_path)
+            except Exception as e:
+                errors.append(e)
+
+        threads = [
+            threading.Thread(target=_register_batch, args=(f"t{tid}",)) for tid in range(n_threads)
+        ]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        self.assertEqual(errors, [])
+        checkpoints = manager.list_checkpoints()
+        # 8 线程 × 5 次 = 40 条，无丢失更新
+        self.assertEqual(len(checkpoints), n_threads * n_each)
+        # 版本号唯一
+        versions = [cp.version for cp in checkpoints]
+        self.assertEqual(len(set(versions)), len(versions))
+
 
 if __name__ == "__main__":
     unittest.main()

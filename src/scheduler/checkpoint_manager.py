@@ -447,14 +447,15 @@ class CheckpointManager:
         Raises:
             ValueError: 版本不存在。
         """
-        checkpoints = self.load_meta()
-        target = self._find(checkpoints, version)
-        if target is None:
-            raise ValueError(f"版本 {version} 不存在")
-        if tag not in target.tags:
-            target.tags.append(tag)
-            self.save_meta(checkpoints)
-            logger.info(f"[CheckpointManager] 为版本 {version} 添加标签: {tag}")
+        with self._meta_lock:
+            checkpoints = self.load_meta()
+            target = self._find(checkpoints, version)
+            if target is None:
+                raise ValueError(f"版本 {version} 不存在")
+            if tag not in target.tags:
+                target.tags.append(tag)
+                self.save_meta(checkpoints)
+                logger.info(f"[CheckpointManager] 为版本 {version} 添加标签: {tag}")
 
     def untag(self, version: str, tag: str) -> None:
         """从指定版本移除标签。
@@ -468,17 +469,19 @@ class CheckpointManager:
         Raises:
             ValueError: 版本不存在。
         """
-        checkpoints = self.load_meta()
-        target = self._find(checkpoints, version)
-        if target is None:
-            raise ValueError(f"版本 {version} 不存在")
-        if tag in target.tags:
-            target.tags.remove(tag)
-            self.save_meta(checkpoints)
-            logger.info(f"[CheckpointManager] 从版本 {version} 移除标签: {tag}")
+        with self._meta_lock:
+            checkpoints = self.load_meta()
+            target = self._find(checkpoints, version)
+            if target is None:
+                raise ValueError(f"版本 {version} 不存在")
+            if tag in target.tags:
+                target.tags.remove(tag)
+                self.save_meta(checkpoints)
+                logger.info(f"[CheckpointManager] 从版本 {version} 移除标签: {tag}")
 
-    # ------------------------------------------------------------------
-    # 清理
+        # ------------------------------------------------------------------
+        # 清理
+
     # ------------------------------------------------------------------
     def cleanup_orphans(self) -> list[str]:
         """清理元数据中引用了但文件不存在的孤立条目。
@@ -486,16 +489,17 @@ class CheckpointManager:
         Returns:
             被清理的版本号列表。
         """
-        checkpoints = self.load_meta()
-        orphan_versions = {cp.version for cp in checkpoints if not os.path.exists(cp.path)}
-        if not orphan_versions:
-            logger.debug("[CheckpointManager] 无孤立条目")
-            return []
-        survivors = [cp for cp in checkpoints if cp.version not in orphan_versions]
-        self.save_meta(survivors)
-        result = sorted(orphan_versions)
-        logger.info(f"[CheckpointManager] 清理 {len(result)} 个孤立检查点: {result}")
-        return result
+        with self._meta_lock:
+            checkpoints = self.load_meta()
+            orphan_versions = {cp.version for cp in checkpoints if not os.path.exists(cp.path)}
+            if not orphan_versions:
+                logger.debug("[CheckpointManager] 无孤立条目")
+                return []
+            survivors = [cp for cp in checkpoints if cp.version not in orphan_versions]
+            self.save_meta(survivors)
+            result = sorted(orphan_versions)
+            logger.info(f"[CheckpointManager] 清理 {len(result)} 个孤立检查点: {result}")
+            return result
 
 
 __all__ = ["CheckpointManager", "CheckpointMeta"]

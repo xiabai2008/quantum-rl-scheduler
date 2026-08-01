@@ -216,6 +216,7 @@ class CircuitBreaker:
         self.last_failure_time: float = 0.0
         # Issue #664: HALF_OPEN 状态下是否已有试探请求在进行中
         self._half_open_trial_in_progress: bool = False
+        self._trial_started_at: float | None = None  # Issue #868 补充：试探占用起始时间（超时兜底）
         # 线程锁：保护 state / failure_count / last_failure_time 的并发读写（Issue #213）
         # 使用 RLock 以允许同一线程内嵌套调用（如 call() 内部调用 reset()）
         self._lock = threading.RLock()
@@ -333,6 +334,7 @@ class CircuitBreaker:
             self.failure_count = 0
             self.last_failure_time = 0.0
             self._half_open_trial_in_progress = False
+            self._trial_started_at = None
 
     # ------------------------------------------------------------------
     # 兼容方法：供 TianyanClient 等外部调用方使用
@@ -357,6 +359,7 @@ class CircuitBreaker:
                     # Issue #867: 进入 HALF_OPEN 并占住单试探名额，防止并发试探
                     self.state = CircuitState.HALF_OPEN
                     self._half_open_trial_in_progress = True
+                    self._trial_started_at = time.monotonic()
                 else:
                     raise CircuitOpenError(
                         "Circuit breaker is open",
@@ -366,12 +369,22 @@ class CircuitBreaker:
             elif self.state == CircuitState.HALF_OPEN:
                 # Issue #867: HALF_OPEN 仅允许一个试探请求并发执行
                 if self._half_open_trial_in_progress:
+                    # 超时兜底（Issue #868 补充）：若试探标志占用超过
+                    # recovery_timeout（如编程错误泄漏路径），视为过期，
+                    # 允许新试探占位，避免熔断器永久拒绝服务。
+                    if self._trial_started_at is not None and (
+                        time.monotonic() - self._trial_started_at >= self.recovery_timeout
+                    ):
+                        self._half_open_trial_in_progress = True
+                        self._trial_started_at = time.monotonic()
+                        return
                     raise CircuitOpenError(
                         "Circuit breaker is half-open, trial in progress",
                         code="CIRCUIT_HALF_OPEN_BUSY",
                         retryable=True,
                     )
                 self._half_open_trial_in_progress = True
+                self._trial_started_at = time.monotonic()
 
     def on_success(self) -> None:
         """请求成功时重置状态（兼容接口）
@@ -381,8 +394,21 @@ class CircuitBreaker:
         """
         with self._lock:
             self._half_open_trial_in_progress = False
+            self._trial_started_at = None
             self.failure_count = 0
             self.state = CircuitState.CLOSED
+
+    def release_trial(self) -> None:
+        """释放 HALF_OPEN 试探名额（不改状态/计数）。
+
+        Issue #868 补充：兼容路径（before_request）中，编程错误（参数/状态
+        校验类异常）被调用方透传而不触发 on_failure/on_success——若不释放
+        试探标志，熔断器将永久拒绝后续请求（CIRCUIT_HALF_OPEN_BUSY）。
+        本方法供编程错误路径在透传异常前调用，仅清标志位。
+        """
+        with self._lock:
+            self._half_open_trial_in_progress = False
+            self._trial_started_at = None
 
     def on_failure(self) -> None:
         """请求失败时累加失败计数（兼容接口）
