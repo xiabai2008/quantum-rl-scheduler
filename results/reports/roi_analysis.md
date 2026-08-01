@@ -14,7 +14,7 @@
 
 | 指标 | PPO | FCFS | 提升 | 统计检验 |
 |:--|:--:|:--:|:--:|:--:|
-| 平均奖励 | 2746.94±1160.72 | 1458.77±60.47 | +88.3% | Mann-Whitney U p=1.032e-42, rank-biserial=-0.71 |
+| 平均奖励 | 2746.94±1160.72 | 1458.77±60.47 | +123.4% | Mann-Whitney U p=1.449e-66, Cohen's d=-2.14 |
 | 样本量 | N=250 | N=250 | — | 50 seeds × 5 episodes |
 
 ### 1.2 多seed真机验证（来源: 天衍-287 真机实验）
@@ -91,12 +91,12 @@
 |:--|:--:|:--|:--:|
 | PPO 仿真均值 | 2746.94 | AGENTS.md | ✅ 锁定 |
 | FCFS 仿真均值 | 1458.77 | AGENTS.md | ✅ 锁定 |
-| 仿真 p 值（Mann-Whitney U 检验） | 1.032e-42 | 仿真统计验证 | ✅ 锁定 |
+| 仿真 p 值（Mann-Whitney U 检验） | 1.449e-66 | 仿真统计验证 | ✅ 锁定 |
 | PPO 真机均值 | 1736.32 | multiseed_real_machine_report_20260724.md | ✅ 验证通过 |
 | FCFS 真机均值 | 383.00 | multiseed_real_machine_report_20260724.md | ✅ 验证通过 |
 | 真机 p 值 | 0.000683 | multiseed_real_machine_report_20260724.md | ✅ 锁定 |
 
-> 注：仿真 p 值使用 Mann-Whitney U 检验（p=1.032e-42），与 AGENTS.md 权威口径一致。
+> 注：仿真 p 值使用 Mann-Whitney U 检验（p=1.449e-66），与 AGENTS.md 权威口径一致。
 
 ---
 
