@@ -6,6 +6,8 @@ Unit Tests for src/utils/seeds.py
 - set_seed 返回值（显式参数、默认值）
 - Python random 模块确定性
 - NumPy 随机数生成器确定性（numpy 不可用时跳过）
+- Gymnasium 随机源设置（Issue #879）
+- PyTorch CUDA 种子设置（Issue #879）
 - 环境变量 QUANTUM_RL_SEED 覆盖参数
 """
 
@@ -13,6 +15,7 @@ import os
 import random
 import sys
 import unittest
+from unittest.mock import patch
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
@@ -24,6 +27,20 @@ try:
     NUMPY_AVAILABLE = True
 except ImportError:
     NUMPY_AVAILABLE = False
+
+try:
+    import gymnasium.utils.seeding as gym_seeding
+
+    GYM_AVAILABLE = True
+except ImportError:
+    GYM_AVAILABLE = False
+
+try:
+    import torch
+
+    TORCH_AVAILABLE = True
+except ImportError:
+    TORCH_AVAILABLE = False
 
 
 class TestSetSeed(unittest.TestCase):
@@ -74,6 +91,33 @@ class TestSetSeed(unittest.TestCase):
             self.assertEqual(set_seed(42), 42)
         finally:
             del os.environ["QUANTUM_RL_SEED"]
+
+    @unittest.skipUnless(GYM_AVAILABLE, "Gymnasium 未安装")
+    def test_set_seed_sets_gymnasium(self):
+        """set_seed(42) 后 gymnasium np_random 应可复现（Issue #879）。"""
+        set_seed(42)
+        rng1, _ = gym_seeding.np_random(42)
+        v1 = rng1.random()
+        set_seed(42)
+        rng2, _ = gym_seeding.np_random(42)
+        v2 = rng2.random()
+        self.assertEqual(v1, v2)
+
+    @unittest.skipUnless(TORCH_AVAILABLE, "PyTorch 未安装")
+    def test_set_seed_sets_torch_cpu(self):
+        """set_seed(42) 后 torch CPU 随机数应可复现（Issue #879）。"""
+        set_seed(42)
+        v1 = torch.rand(1).item()
+        set_seed(42)
+        v2 = torch.rand(1).item()
+        self.assertEqual(v1, v2)
+
+    @unittest.skipUnless(TORCH_AVAILABLE, "PyTorch 未安装")
+    def test_set_seed_invokes_cuda_manual_seed_all(self):
+        """set_seed 应调用 torch.cuda.manual_seed_all（Issue #879）。"""
+        with patch("torch.cuda.manual_seed_all") as mock_cuda:
+            set_seed(99)
+            mock_cuda.assert_called_with(99)
 
 
 if __name__ == "__main__":
