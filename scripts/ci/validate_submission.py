@@ -14,6 +14,7 @@ M5 最终提交物一键打包与版本校验脚本
 
 import argparse
 import json
+import shutil
 import subprocess
 import sys
 import zipfile
@@ -483,6 +484,10 @@ class SubmissionValidator:
     def _validate_git_tag(self, item: dict[str, Any], messages: list[str]) -> None:
         """校验 Git 标签
 
+        除标签存在性外，还会按 requirements 声明校验：
+        - ``must_pass_ci``：最新 CI 运行是否通过（Issue #912）
+        - ``must_have_readme``：指定目录下是否存在 README.md（Issue #912）
+
         Args:
             item: 提交物定义
             messages: 用于收集本项校验消息的列表
@@ -512,6 +517,95 @@ class SubmissionValidator:
                 self.errors.append(f"[{item['id']}] {msg}")
                 messages.append(msg)
                 print(f"  ❌ {msg}")
+
+        # 校验最新 CI 运行是否通过（Issue #912）
+        if reqs.get("must_pass_ci", False):
+            self._check_must_pass_ci(item["id"], messages)
+
+        # 校验 README.md 是否存在（Issue #912）
+        if reqs.get("must_have_readme", False):
+            self._check_must_have_readme(item["id"], item.get("path", "."), messages)
+
+    def _check_must_pass_ci(self, item_id: str, messages: list[str]) -> None:
+        """检查最新一次 CI 运行是否通过
+
+        通过 ``gh run list`` 查询最近一次 GitHub Actions 运行的状态。当 gh CLI
+        不可用时仅给出警告（不阻断校验）；当最近一次运行已结束但结论非 success
+        时记为错误；运行尚未完成时记为警告。
+
+        Args:
+            item_id: 提交物 id
+            messages: 用于收集本项校验消息的列表
+        """
+        gh_path = shutil.which("gh")
+        if gh_path is None:
+            msg = "gh CLI 不可用，跳过 CI 状态校验"
+            self.warnings.append(f"[{item_id}] {msg}")
+            messages.append(msg)
+            print(f"  ⚠️  {msg}")
+            return
+
+        try:
+            result = subprocess.run(
+                ["gh", "run", "list", "--limit", "1", "--json", "status,conclusion"],
+                capture_output=True,
+                text=True,
+                check=True,
+                cwd=self.project_root,
+            )
+            runs = json.loads(result.stdout)
+            if not runs:
+                msg = "未找到任何 CI 运行记录，跳过 CI 状态校验"
+                self.warnings.append(f"[{item_id}] {msg}")
+                messages.append(msg)
+                print(f"  ⚠️  {msg}")
+                return
+
+            latest = runs[0]
+            status = latest.get("status", "")
+            conclusion = latest.get("conclusion", "")
+
+            if status != "completed":
+                msg = f"最新 CI 运行尚未完成 (status={status})"
+                self.warnings.append(f"[{item_id}] {msg}")
+                messages.append(msg)
+                print(f"  ⚠️  {msg}")
+            elif conclusion == "success":
+                messages.append(f"最新 CI 运行通过 (conclusion={conclusion})")
+                print(f"  ✅ 最新 CI 运行通过 (conclusion={conclusion})")
+            else:
+                msg = f"最新 CI 运行未通过 (status={status}, conclusion={conclusion})"
+                self.errors.append(f"[{item_id}] {msg}")
+                messages.append(msg)
+                print(f"  ❌ {msg}")
+        except subprocess.CalledProcessError as e:
+            msg = f"gh run list 执行失败: {e}"
+            self.warnings.append(f"[{item_id}] {msg}")
+            messages.append(msg)
+            print(f"  ⚠️  {msg}")
+        except (json.JSONDecodeError, KeyError, TypeError) as e:
+            msg = f"gh run list 输出解析失败: {e}"
+            self.warnings.append(f"[{item_id}] {msg}")
+            messages.append(msg)
+            print(f"  ⚠️  {msg}")
+
+    def _check_must_have_readme(self, item_id: str, item_path: str, messages: list[str]) -> None:
+        """检查 README.md 是否存在于指定目录
+
+        Args:
+            item_id: 提交物 id
+            item_path: 提交物所在目录（相对项目根目录，如 "."）
+            messages: 用于收集本项校验消息的列表
+        """
+        readme_path = self.project_root / item_path / "README.md"
+        if readme_path.exists():
+            messages.append(f"README.md 存在: {readme_path}")
+            print(f"  ✅ README.md 存在: {readme_path}")
+        else:
+            msg = f"README.md 不存在: {readme_path}"
+            self.errors.append(f"[{item_id}] {msg}")
+            messages.append(msg)
+            print(f"  ❌ {msg}")
 
     def _validate_markdown(self, item: dict[str, Any], path: Path, messages: list[str]) -> None:
         """校验 Markdown 文件
