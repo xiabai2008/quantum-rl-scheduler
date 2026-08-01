@@ -1527,8 +1527,13 @@ class MultiAgentPPO:
         episode_rewards: list[float] = []
         episode_success: list[float] = []
 
-        for _ in range(num_episodes):
-            local_obs, _ = self.wrapper.reset()
+        # Issue #860 补充（四审复审）：reset 不传 seed 时评估使用训练后的全局
+        # 随机状态派生不同环境序列，导致 pre/post 评估高方差（双机收敛测试
+        # CI 偶发失败）。改为基于 eval_seed_base 的确定性种子序列——
+        # 每个 episode 使用 eval_seed_base + ep，pre/post 评估环境可控可复现。
+        eval_seed_base = int(self.seed) if self.seed is not None else 0
+        for ep in range(num_episodes):
+            local_obs, _ = self.wrapper.reset(seed=eval_seed_base + ep)
             total_reward = 0.0
             done = False
             steps = 0

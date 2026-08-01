@@ -130,7 +130,9 @@ class TestDoubleMachineConvergence(unittest.TestCase):
         )
 
         # 训练前评估（随机初始化策略，用 stochastic 评估反映分布质量）
-        pre_result = agent.evaluate(num_episodes=6, deterministic=False)
+        # Issue #860 补充（四审复审）：episodes 6→20 配合 evaluate 固定种子，
+        # 显著降低 pre/post 评估方差（此前 CI 偶发 post < pre×0.8-20 的 flaky）
+        pre_result = agent.evaluate(num_episodes=20, deterministic=False)
         pre_reward = pre_result["mean_reward"]
 
         # 训练（足够步数让策略分布向高奖励动作集中；n_steps=128 时
@@ -138,7 +140,7 @@ class TestDoubleMachineConvergence(unittest.TestCase):
         agent.train(total_timesteps=1024, eval_freq=0)
 
         # 训练后评估（同样用 stochastic 评估）
-        post_result = agent.evaluate(num_episodes=6, deterministic=False)
+        post_result = agent.evaluate(num_episodes=20, deterministic=False)
         post_reward = post_result["mean_reward"]
 
         # 收敛性：训练后策略分布应向高奖励动作集中，奖励不应显著退化
