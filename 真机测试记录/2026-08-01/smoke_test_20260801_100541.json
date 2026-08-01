@@ -1,0 +1,264 @@
+{
+  "test_type": "smoke_test",
+  "timestamp": "2026-08-01T10:05:41.382254+08:00",
+  "total_tasks": 12,
+  "completed": 0,
+  "failed": 12,
+  "success_rate": 0.0,
+  "avg_duration_sec": 40.47,
+  "avg_fidelity": 0.0,
+  "experiments": [
+    {
+      "experiment_id": "S1_H_gate_run_1",
+      "experiment_type": "S1_H_gate",
+      "machine": "tianyan176",
+      "qcis": "H Q0\nM Q0",
+      "shots": 1024,
+      "task_id": "2083374204300566530",
+      "submit_time": "2026-08-01T10:05:00.899391+08:00",
+      "complete_time": "2026-08-01T10:05:04.659857+08:00",
+      "duration_sec": 3.76,
+      "probability": {},
+      "raw_result": "{}",
+      "theoretical": {
+        "0": 0.5,
+        "1": 0.5
+      },
+      "measurement_error": null,
+      "fidelity": null,
+      "status": "failed",
+      "error": "Task failed on quantum machine: {}"
+    },
+    {
+      "experiment_id": "S1_H_gate_run_2",
+      "experiment_type": "S1_H_gate",
+      "machine": "tianyan176",
+      "qcis": "H Q0\nM Q0",
+      "shots": 1024,
+      "task_id": "2083374217265627138",
+      "submit_time": "2026-08-01T10:05:04.660044+08:00",
+      "complete_time": "2026-08-01T10:05:07.760828+08:00",
+      "duration_sec": 3.1,
+      "probability": {},
+      "raw_result": "{}",
+      "theoretical": {
+        "0": 0.5,
+        "1": 0.5
+      },
+      "measurement_error": null,
+      "fidelity": null,
+      "status": "failed",
+      "error": "Task failed on quantum machine: {}"
+    },
+    {
+      "experiment_id": "S1_H_gate_run_3",
+      "experiment_type": "S1_H_gate",
+      "machine": "tianyan176",
+      "qcis": "H Q0\nM Q0",
+      "shots": 1024,
+      "task_id": "2083374230284279810",
+      "submit_time": "2026-08-01T10:05:07.760924+08:00",
+      "complete_time": "2026-08-01T10:05:10.979106+08:00",
+      "duration_sec": 3.22,
+      "probability": {},
+      "raw_result": "{}",
+      "theoretical": {
+        "0": 0.5,
+        "1": 0.5
+      },
+      "measurement_error": null,
+      "fidelity": null,
+      "status": "failed",
+      "error": "Task failed on quantum machine: {}"
+    },
+    {
+      "experiment_id": "S2_Bell_state_run_1",
+      "experiment_type": "S2_Bell_state",
+      "machine": "tianyan176",
+      "qcis": "H Q0\nCZ Q0 Q1\nM Q0 Q1",
+      "shots": 1024,
+      "task_id": "2083374243727491074",
+      "submit_time": "2026-08-01T10:05:10.979322+08:00",
+      "complete_time": "2026-08-01T10:05:14.363724+08:00",
+      "duration_sec": 3.38,
+      "probability": {},
+      "raw_result": "{}",
+      "theoretical": {
+        "00": 0.5,
+        "11": 0.5
+      },
+      "measurement_error": null,
+      "fidelity": null,
+      "status": "failed",
+      "error": "Task failed on quantum machine: {}"
+    },
+    {
+      "experiment_id": "S2_Bell_state_run_2",
+      "experiment_type": "S2_Bell_state",
+      "machine": "tianyan176",
+      "qcis": "H Q0\nCZ Q0 Q1\nM Q0 Q1",
+      "shots": 1024,
+      "task_id": "2083374257727610882",
+      "submit_time": "2026-08-01T10:05:14.363972+08:00",
+      "complete_time": "2026-08-01T10:05:17.647056+08:00",
+      "duration_sec": 3.28,
+      "probability": {},
+      "raw_result": "{}",
+      "theoretical": {
+        "00": 0.5,
+        "11": 0.5
+      },
+      "measurement_error": null,
+      "fidelity": null,
+      "status": "failed",
+      "error": "Task failed on quantum machine: {}"
+    },
+    {
+      "experiment_id": "S2_Bell_state_run_3",
+      "experiment_type": "S2_Bell_state",
+      "machine": "tianyan176",
+      "qcis": "H Q0\nCZ Q0 Q1\nM Q0 Q1",
+      "shots": 1024,
+      "task_id": "2083374272223125505",
+      "submit_time": "2026-08-01T10:05:17.647146+08:00",
+      "complete_time": "2026-08-01T10:05:21.211968+08:00",
+      "duration_sec": 3.56,
+      "probability": {},
+      "raw_result": "{}",
+      "theoretical": {
+        "00": 0.5,
+        "11": 0.5
+      },
+      "measurement_error": null,
+      "fidelity": null,
+      "status": "failed",
+      "error": "Task failed on quantum machine: {}"
+    },
+    {
+      "experiment_id": "S3_GHZ_state_run_1",
+      "experiment_type": "S3_GHZ_state",
+      "machine": "tianyan176",
+      "qcis": "H Q0\nCZ Q0 Q1\nCZ Q1 Q2\nM Q0 Q1 Q2",
+      "shots": 1024,
+      "task_id": "2083374286857519106",
+      "submit_time": "2026-08-01T10:05:21.212153+08:00",
+      "complete_time": "2026-08-01T10:05:24.603694+08:00",
+      "duration_sec": 3.39,
+      "probability": {},
+      "raw_result": "{}",
+      "theoretical": {
+        "000": 0.5,
+        "111": 0.5
+      },
+      "measurement_error": null,
+      "fidelity": null,
+      "status": "failed",
+      "error": "Task failed on quantum machine: {}"
+    },
+    {
+      "experiment_id": "S3_GHZ_state_run_2",
+      "experiment_type": "S3_GHZ_state",
+      "machine": "tianyan176",
+      "qcis": "H Q0\nCZ Q0 Q1\nCZ Q1 Q2\nM Q0 Q1 Q2",
+      "shots": 1024,
+      "task_id": "2083374301029605377",
+      "submit_time": "2026-08-01T10:05:24.604002+08:00",
+      "complete_time": "2026-08-01T10:05:28.315718+08:00",
+      "duration_sec": 3.71,
+      "probability": {},
+      "raw_result": "{}",
+      "theoretical": {
+        "000": 0.5,
+        "111": 0.5
+      },
+      "measurement_error": null,
+      "fidelity": null,
+      "status": "failed",
+      "error": "Task failed on quantum machine: {}"
+    },
+    {
+      "experiment_id": "S3_GHZ_state_run_3",
+      "experiment_type": "S3_GHZ_state",
+      "machine": "tianyan176",
+      "qcis": "H Q0\nCZ Q0 Q1\nCZ Q1 Q2\nM Q0 Q1 Q2",
+      "shots": 1024,
+      "task_id": "2083374316964233217",
+      "submit_time": "2026-08-01T10:05:28.315821+08:00",
+      "complete_time": "2026-08-01T10:05:31.800973+08:00",
+      "duration_sec": 3.49,
+      "probability": {},
+      "raw_result": "{}",
+      "theoretical": {
+        "000": 0.5,
+        "111": 0.5
+      },
+      "measurement_error": null,
+      "fidelity": null,
+      "status": "failed",
+      "error": "Task failed on quantum machine: {}"
+    },
+    {
+      "experiment_id": "S4_T_gate_chain_run_1",
+      "experiment_type": "S4_T_gate_chain",
+      "machine": "tianyan176",
+      "qcis": "H Q0\nT Q0\nT Q0\nT Q0\nM Q0",
+      "shots": 1024,
+      "task_id": "2083374331400560641",
+      "submit_time": "2026-08-01T10:05:31.801190+08:00",
+      "complete_time": "2026-08-01T10:05:34.984391+08:00",
+      "duration_sec": 3.18,
+      "probability": {},
+      "raw_result": "{}",
+      "theoretical": {
+        "0": 0.8536,
+        "1": 0.1464
+      },
+      "measurement_error": null,
+      "fidelity": null,
+      "status": "failed",
+      "error": "Task failed on quantum machine: {}"
+    },
+    {
+      "experiment_id": "S4_T_gate_chain_run_2",
+      "experiment_type": "S4_T_gate_chain",
+      "machine": "tianyan176",
+      "qcis": "H Q0\nT Q0\nT Q0\nT Q0\nM Q0",
+      "shots": 1024,
+      "task_id": "2083374344511954945",
+      "submit_time": "2026-08-01T10:05:34.984493+08:00",
+      "complete_time": "2026-08-01T10:05:38.102396+08:00",
+      "duration_sec": 3.12,
+      "probability": {},
+      "raw_result": "{}",
+      "theoretical": {
+        "0": 0.8536,
+        "1": 0.1464
+      },
+      "measurement_error": null,
+      "fidelity": null,
+      "status": "failed",
+      "error": "Task failed on quantum machine: {}"
+    },
+    {
+      "experiment_id": "S4_T_gate_chain_run_3",
+      "experiment_type": "S4_T_gate_chain",
+      "machine": "tianyan176",
+      "qcis": "H Q0\nT Q0\nT Q0\nT Q0\nM Q0",
+      "shots": 1024,
+      "task_id": "2083374357854502913",
+      "submit_time": "2026-08-01T10:05:38.102556+08:00",
+      "complete_time": "2026-08-01T10:05:41.381670+08:00",
+      "duration_sec": 3.28,
+      "probability": {},
+      "raw_result": "{}",
+      "theoretical": {
+        "0": 0.8536,
+        "1": 0.1464
+      },
+      "measurement_error": null,
+      "fidelity": null,
+      "status": "failed",
+      "error": "Task failed on quantum machine: {}"
+    }
+  ]
+}

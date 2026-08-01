@@ -1379,7 +1379,7 @@ N=10 确实是小样本，我们**不回避这一局限**。需要分层看待�
 
 **证据**：`results/fairness_demo_result.json`；`scripts/evaluation/run_fairness_demo.py`；`docs/observation_dim_standard.md`。
 
-### Q56: 编译层 PPO 全 60 电路 p=0.84 不显著，怎么还说"PPO 替代 SABRE"？
+### Q56: 编译层 PPO 全 60 电路 p=0.84 不显著，怎么还定位为"PPO 编译 Agent（探索性验证）"？
 
 **回答要点**：我们**不再宣称**编译层 PPO 统计显著优于 SABRE（公平对比 v2：全 60 电路 +16.5%，Wilcoxon p=8.40e-01 不显著；中+深 40 电路 +19.7%，p=5.99e-01）。编译层的定位是：
 1. **探索性验证 + 工程管线**：PPO 编译 Agent（14 维观测、4×4 2D 网格匹配天衍拓扑）作为可运行的编译优化管线，深电路（14-16q，n=20）SWAP 减少 +33.3% 为方向性信号（样本量不足，未宣称显著）。

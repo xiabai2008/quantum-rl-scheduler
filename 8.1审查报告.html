@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>量子RL调度系统 - 8/1 冲刺期综合评审报告</title>
+<style>
+:root {
+  --bg: #0d1117; --surface: #161b22; --border: #30363d;
+  --text: #e6edf3; --text-dim: #8b949e; --accent: #58a6ff;
+  --red: #f85149; --green: #3fb950; --yellow: #d29922; --orange: #db6d28;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: var(--bg); color: var(--text); font-family: -apple-system, "Noto Sans CJK SC", "Microsoft YaHei", sans-serif; line-height: 1.7; padding: 24px; max-width: 1200px; margin: 0 auto; }
+h1 { font-size: 1.8em; border-bottom: 2px solid var(--border); padding-bottom: 12px; margin-bottom: 24px; color: var(--accent); }
+h2 { font-size: 1.4em; margin: 32px 0 16px; padding: 8px 0; border-bottom: 1px solid var(--border); color: var(--accent); }
+h3 { font-size: 1.15em; margin: 20px 0 12px; color: var(--text); }
+h4 { font-size: 1em; margin: 16px 0 8px; color: var(--text-dim); }
+table { width: 100%; border-collapse: collapse; margin: 12px 0 20px; font-size: 0.9em; }
+th, td { padding: 8px 12px; border: 1px solid var(--border); text-align: left; }
+th { background: var(--surface); color: var(--accent); font-weight: 600; }
+tr:nth-child(even) { background: rgba(22,27,34,0.5); }
+code { background: var(--surface); padding: 2px 6px; border-radius: 4px; font-family: "Cascadia Code", Consolas, monospace; font-size: 0.88em; color: var(--orange); }
+pre { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 14px; overflow-x: auto; margin: 12px 0; font-size: 0.85em; }
+.badge { display: inline-block; padding: 2px 10px; border-radius: 12px; font-size: 0.8em; font-weight: 600; }
+.badge-red { background: rgba(248,81,73,0.15); color: var(--red); border: 1px solid rgba(248,81,73,0.3); }
+.badge-green { background: rgba(63,185,80,0.15); color: var(--green); border: 1px solid rgba(63,185,80,0.3); }
+.badge-yellow { background: rgba(210,153,34,0.15); color: var(--yellow); border: 1px solid rgba(210,153,34,0.3); }
+.badge-orange { background: rgba(219,109,40,0.15); color: var(--orange); border: 1px solid rgba(219,109,40,0.3); }
+.alert { padding: 14px 18px; border-radius: 8px; margin: 16px 0; border-left: 4px solid; }
+.alert-red { background: rgba(248,81,73,0.08); border-color: var(--red); }
+.alert-yellow { background: rgba(210,153,34,0.08); border-color: var(--yellow); }
+.alert-green { background: rgba(63,185,80,0.08); border-color: var(--green); }
+.metric-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; margin: 16px 0; }
+.metric-card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 14px; text-align: center; }
+.metric-value { font-size: 1.6em; font-weight: 700; }
+.metric-label { font-size: 0.8em; color: var(--text-dim); margin-top: 4px; }
+.tag { display: inline-block; padding: 1px 8px; border-radius: 4px; font-size: 0.78em; margin: 1px; }
+.tag-p0 { background: rgba(248,81,73,0.2); color: var(--red); }
+.tag-p1 { background: rgba(219,109,40,0.2); color: var(--orange); }
+.tag-p2 { background: rgba(210,153,34,0.15); color: var(--yellow); }
+.toc { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 16px 24px; margin-bottom: 24px; }
+.toc a { color: var(--accent); text-decoration: none; }
+.toc a:hover { text-decoration: underline; }
+.toc ul { list-style: none; padding-left: 16px; }
+.toc > ul { padding-left: 0; }
+.summary-box { background: var(--surface); border: 2px solid var(--red); border-radius: 10px; padding: 20px; margin: 20px 0; }
+</style>
+</head>
+<body>
+
+<h1>量子RL调度系统 — 8/1 冲刺期综合评审报告</h1>
+<p style="color:var(--text-dim)">审查日期：2026-08-01 | 审查分支：feature/issue-850 (main=78df8e8) | Python 3.13.14 | v9.1.0</p>
+
+<div class="summary-box">
+<h3 style="color:var(--red); margin-top:0">核心结论：项目当前状态与提示词声明严重不符，存在 P0 级阻断问题</h3>
+<p>提示词声称"3593 passed / 1 failed"，实测为 <strong>74 failed / 3428 passed</strong>。根因是 <code>include_fairness_obs</code> 默认值被改为 <code>True</code>，导致环境观测维度从 16 变为 17，破坏了 35 个测试和 16 维 PPO 模型兼容性。此外，杠杆②③④均未实际落地，仿真和模型加载在 Python 3.13 下崩溃。必须在 8/15 冻结前修复这些问题。</p>
+</div>
+
+<div class="toc">
+<strong>目录</strong>
+<ul>
+<li><a href="#a">A. 状态全量复核（实测数据）</a></li>
+<li><a href="#b">B. 74 个测试失败分类与根因分析</a></li>
+<li><a href="#c">C. 提示词声明 vs 实测对比</a></li>
+<li><a href="#d">D. 14 个 Open Issue 处理建议</a></li>
+<li><a href="#e">E. 8/15 冻结冲刺计划（日粒度）</a></li>
+<li><a href="#f">F. 风险矩阵</a></li>
+<li><a href="#g">G. 优先修复建议</a></li>
+</ul>
+</div>
+
+<h2 id="a">A. 状态全量复核（实测数据）</h2>
+
+<h3>A.1 Git 状态</h3>
+<table>
+<tr><th>项目</th><th>提示词声明</th><th>实测</th><th>状态</th></tr>
+<tr><td>远端 main</td><td>ad767ed</td><td>无法 fetch（Connection reset）</td><td><span class="badge badge-yellow">网络不通</span></td></tr>
+<tr><td>本地 main</td><td>—</td><td>78df8e8（2026-07-31 04:49）</td><td><span class="badge badge-green">OK</span></td></tr>
+<tr><td>当前分支</td><td>—</td><td>feature/issue-850（+1 commit: award_roadmap.md）</td><td><span class="badge badge-green">OK</span></td></tr>
+<tr><td>v9.1-submission 标签</td><td>ce3c273</td><td>本地不存在</td><td><span class="badge badge-red">缺失</span></td></tr>
+<tr><td>工作区状态</td><td>—</td><td>3 个 untracked 文件（真机测试记录/）</td><td><span class="badge badge-yellow">需清理</span></td></tr>
+</table>
+
+<h3>A.2 静态检查</h3>
+<table>
+<tr><th>检查项</th><th>命令</th><th>结果</th><th>状态</th></tr>
+<tr><td>ruff check</td><td>ruff check src/ tests/ scripts/</td><td>All checks passed</td><td><span class="badge badge-green">通过</span></td></tr>
+<tr><td>ruff format</td><td>ruff format --check</td><td>314 files already formatted</td><td><span class="badge badge-green">通过</span></td></tr>
+<tr><td>mypy</td><td>mypy src/</td><td>Success: no issues found in 72 source files</td><td><span class="badge badge-green">通过</span></td></tr>
+<tr><td>bandit</td><td>bandit -r src/ -c pyproject.toml -ll</td><td>1 Medium (B614) + 27 Low, exit=1</td><td><span class="badge badge-red">阻断</span></td></tr>
+</table>
+
+<div class="alert alert-red">
+<strong>B614 详情</strong>：src/scheduler/marl.py:722 — torch.load(load_path, weights_only=False) 缺少 # nosec B614 注释。同文件 :1602 已有 nosec 注释。CI 使用相同命令，此问题会导致 CI bandit job 失败。
+</div>
+
+<h3>A.3 测试套件</h3>
+<div class="metric-grid">
+<div class="metric-card"><div class="metric-value" style="color:var(--green)">3428</div><div class="metric-label">passed</div></div>
+<div class="metric-card"><div class="metric-value" style="color:var(--red)">74</div><div class="metric-label">failed</div></div>
+<div class="metric-card"><div class="metric-value" style="color:var(--yellow)">21</div><div class="metric-label">skipped</div></div>
+<div class="metric-card"><div class="metric-value">3523</div><div class="metric-label">collected</div></div>
+<div class="metric-card"><div class="metric-value">277s</div><div class="metric-label">耗时</div></div>
+<div class="metric-card"><div class="metric-value" style="color:var(--red)">3.13</div><div class="metric-label">Python 版本</div></div>
+</div>
+
+<div class="alert alert-red">
+<strong>与提示词严重不符</strong>：提示词声称"3593 passed / 1 failed"，实测 74 failed / 3428 passed。差异原因：(1) include_fairness_obs=True 导致 35 个维度不匹配失败；(2) Mock 客户端状态大小写 8 个失败；(3) 缺 ortools 5 个失败；(4) Python 3.13 兼容性问题（CI 仅测 3.10/3.11/3.12）。
+</div>
+
+<h3>A.4 仿真与模型加载</h3>
+<table>
+<tr><th>项目</th><th>命令</th><th>结果</th><th>状态</th></tr>
+<tr><td>仿真</td><td>run_simulation.py --episodes 2</td><td>崩溃 (exit=0xC0000005, 访问违例)</td><td><span class="badge badge-red">崩溃</span></td></tr>
+<tr><td>公平性演示</td><td>run_fairness_demo.py</td><td>文件不存在</td><td><span class="badge badge-red">缺失</span></td></tr>
+<tr><td>PPO 模型加载</td><td>PPO.load(ppo_best_model_16dim.zip)</td><td>静默崩溃 (exit=1, 无输出)</td><td><span class="badge badge-red">崩溃</span></td></tr>
+<tr><td>编译层模型</td><td>PPO.load(ppo_compilation_agent.zip)</td><td>同上</td><td><span class="badge badge-red">崩溃</span></td></tr>
+</table>
+
+<div class="alert alert-yellow">
+<strong>根因推测</strong>：本地 venv 为 Python 3.13.14，CI 仅测试 3.10/3.11/3.12。PyTorch 2.13.0+cpu 在 Python 3.13 下可能存在兼容性问题，导致 torch.load 访问违例。建议使用 Python 3.12 环境复测。
+</div>
+
+<h3>A.5 提交物验证</h3>
+<table>
+<tr><th>项目</th><th>提示词声明</th><th>实测</th><th>状态</th></tr>
+<tr><td>validate_submission</td><td>1 ERROR + 0 WARN</td><td>3 ERROR + 2 WARN</td><td><span class="badge badge-red">不符</span></td></tr>
+<tr><td>ERROR: Git 标签</td><td>—</td><td>git 不在 PATH（环境问题）</td><td><span class="badge badge-yellow">环境</span></td></tr>
+<tr><td>ERROR: dist zip</td><td>"dist zip 重建"</td><td>dist/quantum-rl-scheduler-v9.1.zip 不存在</td><td><span class="badge badge-red">缺失</span></td></tr>
+<tr><td>ERROR: 演示视频</td><td>缺失（已知）</td><td>缺失</td><td><span class="badge badge-yellow">已知</span></td></tr>
+<tr><td>WARN: PyPDF2</td><td>0 WARN</td><td>未安装</td><td><span class="badge badge-yellow">环境</span></td></tr>
+<tr><td>WARN: python-pptx</td><td>0 WARN</td><td>未安装</td><td><span class="badge badge-yellow">环境</span></td></tr>
+</table>
+
+<h3>A.6 Docker 安全加固</h3>
+<div class="alert alert-red">
+<strong>杠杆④ 未落地</strong>：docker-compose.yml 中未找到任何安全加固配置（read_only / cap_drop / no-new-privileges / tmpfs）。Dockerfile 已使用非 root 用户（appuser），但 compose 层面无安全约束。
+</div>
+
+<h3>A.7 编译层叙事重构</h3>
+<div class="alert alert-red">
+<strong>杠杆③ 未完成</strong>：提示词声称"全仓 PPO 替代 SABRE 到 PPO 编译 Agent"，实测以下活跃文档仍使用"PPO 替代 SABRE"措辞：README.md L49、AGENTS.md L39/L124、答辩PPT大纲.md L55/L135、参赛总结报告-草案.md L56、docs/bidirectional_empowerment.md L18/L118、docs/novelty_statement.md L11、docs/defense_ppt_outline.md L20/L88。仅 MODELS.md 改为"PPO 编译优化 Agent"。
+</div>
+
+<h3>A.8 文档同步检查</h3>
+<div class="alert alert-red">
+<strong>check_doc_sync.py 不存在</strong>：提示词 A7 要求运行 scripts/ci/check_doc_sync.py，该文件在仓库中不存在。CI workflow（ci.yml）中也没有 doc-sync job。提示词声称的"doc-sync 自检，测试数 3612"无法验证。
+</div>
+
+<h2 id="b">B. 74 个测试失败分类与根因分析</h2>
+
+<table>
+<tr><th>分类</th><th>失败数</th><th>根因</th><th>严重度</th></tr>
+<tr><td>观测维度不匹配 (17不等于16)</td><td>20</td><td>include_fairness_obs=True 默认开启，环境产出 17 维但测试/模型期望 16 维</td><td><span class="tag tag-p0">P0</span></td></tr>
+<tr><td>MARL 形状不匹配 (20不等于19, 60不等于57)</td><td>15</td><td>同上根因，MARL wrapper 的 local obs 从 19 变为 20</td><td><span class="tag tag-p0">P0</span></td></tr>
+<tr><td>Mock 客户端状态大小写</td><td>8</td><td>mock_client.py 返回小写（pending/running/completed），测试期望大写</td><td><span class="tag tag-p1">P1</span></td></tr>
+<tr><td>API/熔断器行为</td><td>5</td><td>熔断器 reset 逻辑和超时行为与测试期望不一致</td><td><span class="tag tag-p1">P1</span></td></tr>
+<tr><td>缺少 ortools 依赖</td><td>5</td><td>ortools 未安装</td><td><span class="tag tag-p2">P2</span></td></tr>
+<tr><td>MARL 训练/评估崩溃</td><td>4</td><td>形状不匹配导致 mat1 and mat2 shapes cannot be multiplied</td><td><span class="tag tag-p0">P0</span></td></tr>
+<tr><td>其他</td><td>17</td><td>见下方详细列表</td><td><span class="tag tag-p2">P2</span></td></tr>
+</table>
+
+<h3>B.1 P0 根因：include_fairness_obs 默认值</h3>
+<pre># src/scheduler/env.py:178
+include_fairness_obs: bool = True,  # Issue #654: 默认开启公平性观测，展示公平调度能力
+
+# src/scheduler/env_types.py:43-47
+OBS_DIM = 16  # 状态空间维度
+OBS_DIM_WITH_FAIRNESS = 17  # include_fairness_obs=True 时使用</pre>
+<p>该默认值导致：</p>
+<ul style="padding-left:20px; margin:8px 0">
+<li>环境 observation_space 默认为 Box(17,) 而非 Box(16,)</li>
+<li>35 个测试断言 (16,) != (17,) 失败</li>
+<li>MARL local obs 从 19到20，global state 从 57到60</li>
+<li>16 维 PPO 模型（ppo_best_model_16dim.zip）与默认环境不兼容</li>
+<li>holdout 评估维度校验失败（obs_dim=16 vs 17）</li>
+</ul>
+<div class="alert alert-red">
+<strong>修复方案</strong>：将 include_fairness_obs 默认值改回 False。公平性观测应通过显式参数 include_fairness_obs=True 开启（如公平调度演示脚本中），而非作为默认行为。AGENTS.md 原文也写明"不影响默认 OBS_DIM=16，保持向后兼容"。
+</div>
+
+<h3>B.2 P1 根因：Mock 客户端状态大小写</h3>
+<pre># src/api/mock_client.py — 返回小写
+"status": "pending",    # 测试期望 "PENDING"
+"status": "running",    # 测试期望 "RUNNING"
+"status": "completed",  # 测试期望 "COMPLETED"</pre>
+<p>影响 8 个测试（test_api.py 6个 + test_integration.py 2个）。需确认是 mock 应改为大写还是测试应改为小写——取决于真实 API 返回的大小写格式。</p>
+
+<h3>B.3 其他失败项</h3>
+<table>
+<tr><th>测试文件</th><th>失败数</th><th>错误</th></tr>
+<tr><td>test_dag_scheduler.py</td><td>1</td><td>test_dangling_dependency_returns_false: True is not false（逻辑错误）</td></tr>
+<tr><td>test_ppo_agent_extended.py</td><td>2</td><td>Env 类型断言：Expected gymnasium.Env but got TinyEnv</td></tr>
+<tr><td>test_workload_patterns.py</td><td>1</td><td>0.5 == 1.2 断言失败</td></tr>
+<tr><td>test_evidence_lineage.py</td><td>2</td><td>Git info 返回 'unknown'（git 不在 PATH）</td></tr>
+<tr><td>test_marl.py (性能)</td><td>1</td><td>三机环境未优于单机（-125.68 not greater than -84.61）</td></tr>
+<tr><td>test_holdout_evaluation.py</td><td>1</td><td>obs_dim 不匹配（16 vs 17，同 P0 根因）</td></tr>
+</table>
+
+<h2 id="c">C. 提示词声明 vs 实测对比</h2>
+
+<table>
+<tr><th>提示词声明</th><th>实测结果</th><th>偏差等级</th></tr>
+<tr><td>CI 9/9 job 全绿</td><td>无法验证（网络不通）；本地 bandit exit=1</td><td><span class="badge badge-yellow">待验证</span></td></tr>
+<tr><td>3593 passed / 1 failed</td><td>74 failed / 3428 passed / 21 skipped</td><td><span class="badge badge-red">严重不符</span></td></tr>
+<tr><td>ruff/mypy/bandit 全绿</td><td>ruff OK mypy OK bandit FAIL (B614)</td><td><span class="badge badge-red">bandit 失败</span></td></tr>
+<tr><td>杠杆② run_fairness_demo.py 存在</td><td>文件不存在（所有分支均无）</td><td><span class="badge badge-red">未提交</span></td></tr>
+<tr><td>杠杆③ 全仓叙事重构</td><td>8+ 活跃文档仍用"PPO 替代 SABRE"</td><td><span class="badge badge-red">未完成</span></td></tr>
+<tr><td>杠杆④ Docker 安全加固</td><td>docker-compose.yml 无任何安全配置</td><td><span class="badge badge-red">未落地</span></td></tr>
+<tr><td>validate_submission 1 ERROR + 0 WARN</td><td>3 ERROR + 2 WARN</td><td><span class="badge badge-red">不符</span></td></tr>
+<tr><td>dist zip 重建</td><td>dist zip 不存在</td><td><span class="badge badge-red">缺失</span></td></tr>
+<tr><td>check_doc_sync.py 存在</td><td>文件不存在，CI 无 doc-sync job</td><td><span class="badge badge-red">不存在</span></td></tr>
+<tr><td>白皮书 21 页 / PPT 19 页</td><td>未验证（PyPDF2/python-pptx 未安装）</td><td><span class="badge badge-yellow">待验证</span></td></tr>
+</table>
+
+<h2 id="d">D. 14 个 Open Issue 处理建议</h2>
+
+<div class="alert alert-yellow">
+<strong>说明</strong>：因网络不通无法 fetch 远端，以下基于提示词信息和本地代码状态分析。GitHub Issues 页面需瑞哥手动核实最新状态。
+</div>
+
+<table>
+<tr><th>Issue</th><th>优先级</th><th>主题</th><th>建议处理</th><th>8/15 前</th></tr>
+<tr><td>#846</td><td><span class="tag tag-p1">P1</span></td><td>视频缺失（人工）</td><td>给出录制验收标准（见下）；其余 3 项已达标</td><td>是（人工）</td></tr>
+<tr><td>#873</td><td><span class="tag tag-p1">P1</span></td><td>HybridScheduler 线程安全 + RL 连续失败无熔断</td><td>验证 HybridScheduler 计数器加锁；RL 失败熔断阈值建议 5 次连续失败后降级</td><td>是</td></tr>
+<tr><td>#859</td><td><span class="tag tag-p1">P1</span></td><td>CQLib 电路字符串解析与真机任务提交</td><td>验证 QCIS 解析器；test_api.py 中 QCIS 非法指令: RAW_CIRCUIT_TEXT 失败需修复</td><td>是</td></tr>
+<tr><td>#766</td><td><span class="tag tag-p1">P1</span></td><td>+88.3% 残留</td><td>archive/docs/teammate_zyhsga_prompts.md 3 处未标注废弃，添加废弃声明</td><td>是</td></tr>
+<tr><td>#831</td><td><span class="tag tag-p1">P1</span></td><td>N=10/N=25 混用</td><td>实测 README.md 等已正确区分（N=10 真机 / N=25 噪声配对），仅需核实全部文档一致</td><td>是</td></tr>
+<tr><td>#861</td><td><span class="tag tag-p2">P2</span></td><td>P2 issue</td><td>分档至 8/15 后</td><td>否</td></tr>
+<tr><td>#863</td><td><span class="tag tag-p2">P2</span></td><td>P2 issue</td><td>分档至 8/15 后</td><td>否</td></tr>
+<tr><td>#878</td><td><span class="tag tag-p2">P2</span></td><td>P2 issue</td><td>分档至 8/15 后</td><td>否</td></tr>
+<tr><td>#879</td><td><span class="tag tag-p2">P2</span></td><td>P2 issue</td><td>分档至 8/15 后</td><td>否</td></tr>
+<tr><td>#885</td><td><span class="tag tag-p2">P2</span></td><td>P2 issue</td><td>分档至 8/15 后</td><td>否</td></tr>
+<tr><td>#886</td><td><span class="tag tag-p2">P2</span></td><td>P2 issue</td><td>分档至 8/15 后</td><td>否</td></tr>
+<tr><td>#887</td><td><span class="tag tag-p2">P2</span></td><td>P2 issue</td><td>分档至 8/15 后</td><td>否</td></tr>
+<tr><td>#888</td><td><span class="tag tag-p2">P2</span></td><td>P2 issue</td><td>分档至 8/15 后</td><td>否</td></tr>
+<tr><td>#889</td><td><span class="tag tag-p2">P2</span></td><td>P2 issue</td><td>分档至 8/15 后</td><td>否</td></tr>
+</table>
+
+<h3>#846 演示视频录制验收标准</h3>
+<ul style="padding-left:20px; margin:8px 0">
+<li>时长 4-5 分钟，1080p MP4 格式</li>
+<li>内容覆盖：(1) 系统架构 30s (2) PPO 调度演示 60s (3) 公平调度面板 60s (4) 编译层演示 60s (5) 真机验证 30s (6) 实验数据总结 30s</li>
+<li>文件命名：演示视频_量子RL调度系统.mp4</li>
+<li>放置路径：项目根目录</li>
+<li>验证命令：python scripts/ci/validate_submission.py --check 应从此 ERROR 消失</li>
+</ul>
+
+<h2 id="e">E. 8/15 冻结冲刺计划（日粒度）</h2>
+
+<table>
+<tr><th>日期</th><th>任务</th><th>责任人建议</th><th>交付物</th></tr>
+<tr><td><strong>8/1 (今)</strong></td><td>修复 P0：include_fairness_obs 默认值改回 False + 修复 bandit B614 nosec</td><td>AI 可执行</td><td>PR + 测试通过</td></tr>
+<tr><td>8/2</td><td>修复 Mock 客户端状态大小写 + 安装 ortools + 修复 test_dag_scheduler 逻辑</td><td>AI 可执行</td><td>PR + 测试 0 failed</td></tr>
+<tr><td>8/3</td><td>修复 API/熔断器 5 个失败 + test_ppo_agent_extended + test_workload_patterns</td><td>AI 可执行</td><td>PR + 测试 0 failed</td></tr>
+<tr><td>8/4</td><td>落地杠杆②：run_fairness_demo.py 编写 + 测试</td><td>AI 可执行</td><td>PR + 脚本可运行</td></tr>
+<tr><td>8/5</td><td>落地杠杆④：docker-compose.yml 安全加固 + 验证 build</td><td>AI 可执行</td><td>PR + docker build 通过</td></tr>
+<tr><td>8/6</td><td>落地杠杆③：全仓"PPO 替代 SABRE"到"PPO 编译 Agent（探索性验证）"替换</td><td>AI 可执行</td><td>PR + grep 验证</td></tr>
+<tr><td>8/7</td><td>处理 #873 HybridScheduler 线程安全 + RL 熔断</td><td>AI 可执行</td><td>PR + 测试</td></tr>
+<tr><td>8/8</td><td>处理 #859 CQLib 解析 + test_api QCIS 修复</td><td>AI 可执行</td><td>PR + 测试</td></tr>
+<tr><td>8/9</td><td>处理 #766/#831 文档残留修复</td><td>AI 可执行</td><td>PR + grep 验证</td></tr>
+<tr><td>8/10</td><td>演示视频录制启动 + 杠杆⑤ 可解释性可视化</td><td><strong>瑞哥人工</strong></td><td>视频草稿</td></tr>
+<tr><td>8/11</td><td>Python 3.12 环境验证（仿真 + 模型加载 + 全量测试）</td><td>AI 可执行</td><td>测试报告</td></tr>
+<tr><td>8/12</td><td>dist zip 构建 + validate_submission 0 ERROR</td><td>AI 可执行</td><td>zip + 验证通过</td></tr>
+<tr><td>8/13</td><td>答辩三件套终稿（白皮书/PPT/QA 手册数字一致性校验）</td><td><strong>瑞哥人工</strong></td><td>终稿文档</td></tr>
+<tr><td>8/14</td><td>最终全量验证：克隆即绿 + 0 ERROR + CI 全绿</td><td>全员</td><td>冻结签字</td></tr>
+<tr><td><strong>8/15</strong></td><td><strong>代码冻结</strong>：打 v9.1-submission 标签 + 打包</td><td><strong>瑞哥</strong></td><td>标签 + 提交</td></tr>
+</table>
+
+<h2 id="f">F. 风险矩阵</h2>
+
+<table>
+<tr><th>风险</th><th>概率</th><th>影响</th><th>风险等级</th><th>缓解措施</th></tr>
+<tr><td>P0: include_fairness_obs 不修复，35 测试持续失败 + 模型不兼容</td><td>高</td><td>致命</td><td><span class="badge badge-red">极高</span></td><td>8/1 立即修复，1 行代码改动</td></tr>
+<tr><td>Python 3.13 环境崩溃，仿真/模型加载不可用</td><td>高</td><td>高</td><td><span class="badge badge-red">极高</span></td><td>8/11 前用 Python 3.12 环境验证</td></tr>
+<tr><td>网络不通，无法 fetch/push/验证 CI</td><td>中</td><td>高</td><td><span class="badge badge-orange">高</span></td><td>配置代理或 VPN；瑞哥手动 push</td></tr>
+<tr><td>演示视频未录制，validate_submission 持续 ERROR</td><td>高</td><td>中</td><td><span class="badge badge-orange">高</span></td><td>8/10 前必须启动录制</td></tr>
+<tr><td>bandit B614，CI bandit job 失败</td><td>高</td><td>中</td><td><span class="badge badge-orange">高</span></td><td>添加 # nosec B614 注释</td></tr>
+<tr><td>杠杆②③④ 未落地，评委可见完成度不足</td><td>已确认</td><td>高</td><td><span class="badge badge-red">极高</span></td><td>8/4-8/6 逐项落地</td></tr>
+<tr><td>编译层 p=0.84 不显著，评委质疑创新性</td><td>已确认</td><td>中</td><td><span class="badge badge-yellow">中</span></td><td>诚实标注"探索性验证"，叙事重构</td></tr>
+<tr><td>真机 vs 仿真证据等级差异，评委质疑</td><td>中</td><td>中</td><td><span class="badge badge-yellow">中</span></td><td>严格区分可用性验证 vs 性能验证</td></tr>
+<tr><td>dist zip 缺失，提交物不完整</td><td>已确认</td><td>高</td><td><span class="badge badge-orange">高</span></td><td>8/12 前构建</td></tr>
+</table>
+
+<h2 id="g">G. 优先修复建议</h2>
+
+<h3>G.1 立即修复（8/1 今日）</h3>
+
+<h4>修复 1：include_fairness_obs 默认值 P0</h4>
+<pre># src/scheduler/env.py:178
+# 修改前：
+include_fairness_obs: bool = True,  # Issue #654: 默认开启公平性观测
+
+# 修改后：
+include_fairness_obs: bool = False,  # Issue #588: 默认关闭，保持 OBS_DIM=16 向后兼容</pre>
+<p>影响：修复 35 个测试（类别 1+2），恢复 16 维 PPO 模型兼容性。公平性演示时通过 include_fairness_obs=True 显式开启。</p>
+
+<h4>修复 2：bandit B614 nosec 注释 P0</h4>
+<pre># src/scheduler/marl.py:722
+# 修改前：
+state = torch.load(load_path, map_location=self.device, weights_only=False)
+
+# 修改后：
+state = torch.load(load_path, map_location=self.device, weights_only=False)  # nosec B614</pre>
+<p>影响：CI bandit job 恢复绿色。</p>
+
+<h3>G.2 8/2 修复</h3>
+
+<h4>修复 3：Mock 客户端状态大小写 P1</h4>
+<p>需确认真实 API 返回格式。如真实 API 返回大写，则修改 mock_client.py 中所有状态字符串为大写。如真实 API 返回小写，则修改测试期望值。</p>
+
+<h4>修复 4：安装 ortools P2</h4>
+<pre>pip install ortools</pre>
+
+<h3>G.3 8/4-8/6 落地</h3>
+
+<h4>杠杆②：创建 run_fairness_demo.py</h4>
+<p>该文件从未存在于任何分支，需从零创建。参考 run_simulation.py 结构，使用 include_fairness_obs=True 和 fairness_tracker 参数运行公平调度演示，输出 Jain 指数 JSON。</p>
+
+<h4>杠杆④：docker-compose.yml 安全加固</h4>
+<pre># docker-compose.yml — web 服务下添加：
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp
+      - /app/logs</pre>
+
+<h4>杠杆③：叙事重构</h4>
+<p>全仓 grep 替换 "PPO 替代 SABRE" 到 "PPO 编译 Agent（探索性验证）"，保留诚实数据（p=0.595 不显著）。</p>
+
+<hr style="margin: 32px 0; border: none; border-top: 1px solid var(--border)">
+<p style="color:var(--text-dim); font-size:0.85em">
+本报告由独立评审工具生成，基于 2026-08-01 实测数据。所有结论均有命令输出支撑，未采信文档自述。<br>
+审查环境：Python 3.13.14 / pytest 9.1.1 / ruff / mypy / bandit 1.9.4<br>
+因网络不通，GitHub CI 状态和远端 issue 状态需瑞哥手动核实。
+</p>
+
+</body>
+</html>
