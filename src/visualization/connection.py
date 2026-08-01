@@ -71,6 +71,33 @@ class ConnectionManager:
         with self._lock:
             return len(self.active_connections)
 
+    def drain_connections(self) -> list[WebSocket]:
+        """线程安全地取出全部活跃连接并清空列表（优雅关闭用，Issue #885）。
+
+        在锁内拷贝并清空活跃连接列表，返回待关闭的连接副本，
+        供调用方在锁外逐一 ``close()``，避免长时间持锁阻塞广播。
+
+        Returns:
+            待关闭的 WebSocket 连接列表（已从活跃列表中移除）
+        """
+        with self._lock:
+            drained = list(self.active_connections)
+            self.active_connections.clear()
+            return drained
+
+    async def close_all(self) -> None:
+        """关闭所有活跃 WebSocket 连接（优雅关闭，Issue #885）。
+
+        先线程安全地取出并清空活跃连接列表，再逐一发送 close 帧
+        （close code 1001 Going Away）。单个连接关闭失败不影响其余连接。
+        """
+        drained = self.drain_connections()
+        for connection in drained:
+            try:
+                await connection.close(code=1001)  # Going Away
+            except Exception as e:  # noqa: BLE001  # 防御性错误边界：close 在任意状态下可能抛异常
+                logger.debug(f"[Web] 优雅关闭 WebSocket 连接失败: {e}")
+
     async def broadcast(self, message: dict[str, Any]) -> None:
         """向所有连接的客户端广播消息（线程安全）"""
         with self._lock:
