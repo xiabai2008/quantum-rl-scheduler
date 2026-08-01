@@ -121,7 +121,7 @@ quantum-rl-scheduler/
 │   │   ├── annealing.py          # 量子退火优化器(探索性)
 
 │   │   └── annealing_loop.py     # 异步退火闭环控制器
-│   │   └── compilation_env.py  # 电路编译AI（PPO编译Agent，探索性验证）
+│   │   └── compilation_env.py  # 电路编译AI（PPO编译Agent（探索性验证））
 │   ├── evaluation/               # 评估模块（~4文件，Issue #170 防泄漏/OOD）
 │   │   ├── data_split.py         # 数据分割（防泄漏）
 │   │   ├── blind_test.py         # 留出盲测评估
