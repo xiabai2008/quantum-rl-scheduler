@@ -2,8 +2,8 @@
 
 > **历史快照（v4，已被取代）**：本报告仅用于追溯 2026-06-27 的单次实验，
 > 当前答辩、README 和对外材料必须引用
-> `results/reports/strategy_comparison.md` 的多 Seed 权威结果（PPO 2746.94、
-> FCFS 1458.77、提升 88.3%）。
+> `config/statistics.yaml` 的多 Seed 权威结果（16 维交付模型，PPO vs FCFS +123.4%，
+> N=250, Welch t p=1.449e-66；14 维旧口径 +88.3% 已废弃）。
 
 **生成时间**: 2026-06-27 18:30:40
 

@@ -55,7 +55,7 @@
 | 需求 ID | 需求描述（原文） | 类别 | 对应代码模块 | 实现状态 | 验证方式 | 答辩话术 | 证据文件 |
 |---------|----------------|------|-------------|---------|---------|---------|---------|
 | R-E-01 | 代码质量：类型检查 + 静态分析 | 工程 | `mypy.ini`<br>`pyproject.toml` | **已实现** | CI 流水线 | "mypy 8 项严格配置 + ruff 10 类规则集 + bandit 安全扫描" | `.github/workflows/ci.yml` |
-| R-E-02 | 测试覆盖率 ≥80% | 工程 | `tests/` | **已达成** | pytest-cov | "测试覆盖率 93.58%，3612 测试用例，94+ 个测试文件" | `tests/` 目录 |
+| R-E-02 | 测试覆盖率 ≥80% | 工程 | `tests/` | **已达成** | pytest-cov | "测试覆盖率 93.58%，3656 测试用例，94+ 个测试文件" | `tests/` 目录 |
 | R-E-03 | CI/CD 自动化 | 工程 | `.github/workflows/` | **已实现** | GitHub Actions | "4 Job 流水线：lint → test(3.10/3.11/3.12) → typecheck → benchmarks" | `.github/workflows/ci.yml` |
 | R-E-04 | 可观测性：Prometheus 指标 | 工程 | `src/utils/metrics.py` | **已实现** | 单元测试 | "7 个 Prometheus 指标覆盖调度、API、退火三个维度" | `src/utils/metrics.py` |
 | R-E-05 | 熔断器模式（API 容错） | 工程 | `src/api/circuit_breaker.py` | **已实现** | 单元测试 | "CLOSED/OPEN/HALF_OPEN 三态转换，防止 API 故障级联" | `src/api/circuit_breaker.py` |

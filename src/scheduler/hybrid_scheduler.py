@@ -18,6 +18,7 @@ Hybrid Scheduling Mode: Rule Engine + RL Fallback
     - 2 : 混合执行 (ACTION_HYBRID)
 """
 
+import threading
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
@@ -44,6 +45,10 @@ _RULE_CONFIDENCE = 1.0  # 规则决策
 _RL_CONFIDENCE = 0.8  # RL 决策
 _FALLBACK_CONFIDENCE = 0.3  # 兜底决策
 _DEFAULT_CONFIDENCE = 0.0  # 默认决策
+
+# RL 熔断器参数（Issue #873）
+_RL_FAIL_THRESHOLD = 10  # 连续失败次数达到该值后进入降级模式
+_RL_DEGRADE_LOG_INTERVAL = 50  # 降级模式下仅每 N 次决策打印一次日志，避免刷屏
 
 
 # ---------------------------------------------------------------------------
@@ -220,6 +225,8 @@ class HybridScheduler:
         rule_engine: RuleEngine | None = None,
         confidence_threshold: float = 0.6,
         fallback_to_rule: bool = True,
+        rl_fail_threshold: int = _RL_FAIL_THRESHOLD,
+        rl_probe_interval: int = _RL_DEGRADE_LOG_INTERVAL,
     ) -> None:
         """初始化混合调度器。"""
         self._rl_agent: Any | None = rl_agent
@@ -227,11 +234,68 @@ class HybridScheduler:
         self._confidence_threshold: float = confidence_threshold
         self._fallback_to_rule: bool = fallback_to_rule
 
-        # 决策统计
+        # 决策统计（Issue #873: 加锁保证 FastAPI 线程池并发调用下的线程安全）
+        self._stats_lock = threading.Lock()
         self._rule_decisions: int = 0
         self._rl_decisions: int = 0
         self._fallback_decisions: int = 0
         self._default_decisions: int = 0
+
+        # RL 失败熔断器（Issue #873: RL 连续失败时进入降级模式，避免每步重试浪费算力）
+        self._rl_fail_count: int = 0
+        self._rl_fail_threshold: int = rl_fail_threshold
+        self._rl_degraded: bool = False
+        self._degraded_decision_count: int = 0
+        # 降级模式下每隔多少步决策尝试一次 RL 探针（半开恢复，Issue #873）
+        self._rl_probe_interval: int = rl_probe_interval
+
+    def _increment_stats(self, name: str) -> None:
+        """线程安全地递增决策统计计数器（Issue #873）。"""
+        with self._stats_lock:
+            current = getattr(self, name)
+            setattr(self, name, current + 1)
+
+    def _record_rl_failure(self) -> None:
+        """记录一次 RL 失败，达到阈值后进入降级模式（Issue #873）。
+
+        降级模式下跳过 RL 推理，直接走规则兜底；RL 连续成功一次即恢复。
+        """
+        with self._stats_lock:
+            self._rl_fail_count += 1
+            if self._rl_fail_count >= self._rl_fail_threshold:
+                self._rl_degraded = True
+                self._degraded_decision_count = 0
+                logger.warning(
+                    f"RL 连续失败 {self._rl_fail_count} 次（阈值 {self._rl_fail_threshold}），"
+                    "进入降级模式：跳过 RL 推理，回退到经典调度"
+                )
+
+    def _record_rl_success(self) -> None:
+        """记录一次 RL 成功，清零失败计数并解除降级模式（Issue #873）。"""
+        with self._stats_lock:
+            self._rl_fail_count = 0
+            if self._rl_degraded:
+                self._rl_degraded = False
+                logger.info("RL 推理恢复成功，解除降级模式")
+
+    def _is_rl_degraded(self) -> bool:
+        """返回 RL 降级模式状态（线程安全只读）。"""
+        with self._stats_lock:
+            return self._rl_degraded
+
+    def _should_attempt_rl(self) -> bool:
+        """判断当前决策是否应尝试 RL 推理（Issue #873）。
+
+        正常模式下始终尝试；降级模式下按探针间隔周期性尝试（半开状态），
+        探针成功即恢复，探针失败则继续保持降级，避免每步都重试浪费算力。
+        """
+        if self._rl_agent is None:
+            return False
+        if not self._is_rl_degraded():
+            return True
+        with self._stats_lock:
+            self._degraded_decision_count += 1
+            return self._degraded_decision_count % self._rl_probe_interval == 0
 
     def decide(
         self,
@@ -259,7 +323,7 @@ class HybridScheduler:
         # 1. 规则引擎优先
         action = self._rule_engine.evaluate(task, ctx)
         if action is not None:
-            self._rule_decisions += 1
+            self._increment_stats("_rule_decisions")
             return {
                 "action": action,
                 "source": "rule",
@@ -268,9 +332,11 @@ class HybridScheduler:
             }
 
         # 2. RL 智能体决策（Issue #726: 使用实际推理置信度而非常量比较）
-        if self._rl_agent is not None and state is not None:
+        # Issue #873: 正常模式每步尝试；降级模式按探针间隔周期性尝试（半开恢复）
+        rl_agent = self._rl_agent
+        if rl_agent is not None and state is not None and self._should_attempt_rl():
             try:
-                raw_action = self._rl_agent.predict(state, deterministic=True)
+                raw_action = rl_agent.predict(state, deterministic=True)
                 # Issue #685: SB3 原生模型 predict 返回 (action, state) 元组
                 if isinstance(raw_action, tuple | list):
                     resolved_action = int(raw_action[0])
@@ -280,7 +346,7 @@ class HybridScheduler:
                 # Issue #726: 计算实际推理置信度（动作概率）
                 confidence = _RL_CONFIDENCE  # 默认高置信度
                 try:
-                    policy = getattr(self._rl_agent, "policy", None)
+                    policy = getattr(rl_agent, "policy", None)
                     if policy is not None:
                         import torch
 
@@ -294,7 +360,8 @@ class HybridScheduler:
 
                 # 使用实际置信度与阈值比较
                 if confidence >= self._confidence_threshold:
-                    self._rl_decisions += 1
+                    self._record_rl_success()
+                    self._increment_stats("_rl_decisions")
                     return {
                         "action": resolved_action,
                         "source": "rl",
@@ -306,17 +373,21 @@ class HybridScheduler:
                         f"RL 置信度 {confidence:.3f} < 阈值 {self._confidence_threshold}, 回退到规则"
                     )
             except RuntimeError:
-                # RL 未训练，走兜底
+                # RL 未训练，走兜底（Issue #873: 计入失败熔断）
+                self._record_rl_failure()
                 logger.debug("RL 智能体未训练（RuntimeError），回退到默认规则")
             except (ValueError, AttributeError) as e:
                 # Issue #389: 仅捕获可恢复的推理异常，避免捕获 MemoryError/SystemExit
                 # 原实现使用 except Exception 会捕获所有异常包括严重错误
+                self._record_rl_failure()
                 logger.warning(f"RL 推理失败，回退到经典调度: {type(e).__name__}: {e}")
 
         # 3. 默认规则兜底
         if self._fallback_to_rule:
+            if self._rl_degraded:
+                self._degraded_decision_count += 1
             fb_action = self._fallback_rule(task, ctx)
-            self._fallback_decisions += 1
+            self._increment_stats("_fallback_decisions")
             return {
                 "action": fb_action,
                 "source": "fallback",
@@ -325,7 +396,7 @@ class HybridScheduler:
             }
 
         # 4. 全部失败 → 默认动作
-        self._default_decisions += 1
+        self._increment_stats("_default_decisions")
         return {
             "action": ACTION_HYBRID,
             "source": "default",
@@ -377,7 +448,7 @@ class HybridScheduler:
             results.append(result)
         return results
 
-    def get_stats(self) -> dict[str, int]:
+    def get_stats(self) -> dict[str, int | bool]:
         """
         返回决策统计。
 
@@ -387,25 +458,35 @@ class HybridScheduler:
                 - rl_decisions       : RL 决策次数
                 - fallback_decisions : 兜底决策次数
                 - total              : 总决策次数
+                - rl_degraded        : RL 降级模式是否激活（Issue #873）
+                - rl_fail_count      : 当前 RL 连续失败次数（Issue #873）
         """
-        return {
-            "rule_decisions": self._rule_decisions,
-            "rl_decisions": self._rl_decisions,
-            "fallback_decisions": self._fallback_decisions,
-            "total": (
+        with self._stats_lock:
+            total = (
                 self._rule_decisions
                 + self._rl_decisions
                 + self._fallback_decisions
                 + self._default_decisions
-            ),
-        }
+            )
+            return {
+                "rule_decisions": self._rule_decisions,
+                "rl_decisions": self._rl_decisions,
+                "fallback_decisions": self._fallback_decisions,
+                "total": total,
+                "rl_degraded": self._rl_degraded,
+                "rl_fail_count": self._rl_fail_count,
+            }
 
     def reset_stats(self) -> None:
-        """重置所有决策统计计数器。"""
-        self._rule_decisions = 0
-        self._rl_decisions = 0
-        self._fallback_decisions = 0
-        self._default_decisions = 0
+        """重置所有决策统计计数器与熔断器状态（Issue #873）。"""
+        with self._stats_lock:
+            self._rule_decisions = 0
+            self._rl_decisions = 0
+            self._fallback_decisions = 0
+            self._default_decisions = 0
+            self._rl_fail_count = 0
+            self._rl_degraded = False
+            self._degraded_decision_count = 0
 
     def set_confidence_threshold(self, threshold: float) -> None:
         """
