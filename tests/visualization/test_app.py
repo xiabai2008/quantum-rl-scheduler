@@ -10,7 +10,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 import pytest_asyncio
-from fastapi import HTTPException
+from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
 from httpx import ASGITransport, AsyncClient
 from pydantic import ValidationError
@@ -268,3 +268,238 @@ def test_start_web_server_invokes_uvicorn(monkeypatch):
     assert captured["host"] == "127.0.0.1"
     assert captured["port"] == 9999
     assert captured["app"] is app_module.app
+
+
+# ============================================================
+# Issue #885：优雅关闭 + CORS 配置 + 请求体大小限制
+# ============================================================
+
+
+# ---- 配置读取：_get_cors_origins ----
+
+
+def test_get_cors_origins_default(monkeypatch):
+    """未设置 CORS_ORIGINS 时应返回默认来源列表。"""
+    monkeypatch.delenv("CORS_ORIGINS", raising=False)
+    result = app_module._get_cors_origins()
+    assert "http://localhost:3000" in result
+    assert "http://localhost:8000" in result
+
+
+def test_get_cors_origins_from_env(monkeypatch):
+    """CORS_ORIGINS 环境变量应解析为来源列表（去除首尾空白）。"""
+    monkeypatch.setenv("CORS_ORIGINS", "https://a.example.com, https://b.example.com")
+    result = app_module._get_cors_origins()
+    assert result == ["https://a.example.com", "https://b.example.com"]
+
+
+def test_get_cors_origins_strips_blanks(monkeypatch):
+    """空白来源项应被过滤。"""
+    monkeypatch.setenv("CORS_ORIGINS", "http://x.com,, ,http://y.com")
+    result = app_module._get_cors_origins()
+    assert result == ["http://x.com", "http://y.com"]
+
+
+# ---- 配置读取：_get_max_request_body_size ----
+
+
+def test_get_max_request_body_size_default(monkeypatch):
+    """未设置 MAX_REQUEST_BODY_SIZE 时应返回默认 10 MB。"""
+    monkeypatch.delenv("MAX_REQUEST_BODY_SIZE", raising=False)
+    assert app_module._get_max_request_body_size() == 10 * 1024 * 1024
+
+
+def test_get_max_request_body_size_from_env(monkeypatch):
+    """合法整数值应被使用。"""
+    monkeypatch.setenv("MAX_REQUEST_BODY_SIZE", "2048")
+    assert app_module._get_max_request_body_size() == 2048
+
+
+def test_get_max_request_body_size_invalid(monkeypatch):
+    """非法值应回退到默认 10 MB。"""
+    monkeypatch.setenv("MAX_REQUEST_BODY_SIZE", "not-a-number")
+    assert app_module._get_max_request_body_size() == 10 * 1024 * 1024
+
+
+def test_get_max_request_body_size_non_positive(monkeypatch):
+    """非正数应回退到默认 10 MB。"""
+    monkeypatch.setenv("MAX_REQUEST_BODY_SIZE", "0")
+    assert app_module._get_max_request_body_size() == 10 * 1024 * 1024
+
+
+# ---- ConnectionManager.close_all / drain_connections ----
+
+
+@pytest.mark.asyncio
+async def test_connection_manager_drain_connections_clears_list():
+    """drain_connections 应取出全部连接并清空活跃列表。"""
+    cm = ConnectionManager()
+    ws1 = MagicMock()
+    ws2 = MagicMock()
+    cm.active_connections = [ws1, ws2]
+    drained = cm.drain_connections()
+    assert drained == [ws1, ws2]
+    assert cm.active_connections == []
+
+
+@pytest.mark.asyncio
+async def test_connection_manager_close_all_closes_connections():
+    """close_all 应关闭所有活跃连接并清空列表。"""
+    cm = ConnectionManager()
+    ws1 = MagicMock()
+    ws1.close = AsyncMock()
+    ws2 = MagicMock()
+    ws2.close = AsyncMock()
+    cm.active_connections = [ws1, ws2]
+    await cm.close_all()
+    ws1.close.assert_awaited_once()
+    ws2.close.assert_awaited_once()
+    assert cm.active_connections == []
+
+
+@pytest.mark.asyncio
+async def test_connection_manager_close_all_swallows_errors():
+    """单个连接 close 失败不应影响其余连接关闭。"""
+    cm = ConnectionManager()
+    ws1 = MagicMock()
+    ws1.close = AsyncMock(side_effect=RuntimeError("boom"))
+    ws2 = MagicMock()
+    ws2.close = AsyncMock()
+    cm.active_connections = [ws1, ws2]
+    await cm.close_all()
+    ws2.close.assert_awaited_once()
+    assert cm.active_connections == []
+
+
+# ---- 请求体大小限制中间件 ----
+
+
+def _build_small_app(max_body_size: int) -> FastAPI:
+    """构建带请求体大小限制中间件的极简 FastAPI 应用。"""
+    small_app = FastAPI()
+
+    @small_app.post("/echo")
+    async def _echo() -> dict[str, str]:
+        return {"ok": "true"}
+
+    small_app.add_middleware(
+        app_module.RequestSizeLimitMiddleware,
+        max_body_size=max_body_size,
+    )
+    return small_app
+
+
+def test_request_size_limit_rejects_oversized():
+    """Content-Length 超过限制时应返回 413。"""
+    client = TestClient(_build_small_app(max_body_size=100))
+    resp = client.post("/echo", content="x" * 200)
+    assert resp.status_code == 413
+    assert "超过限制" in resp.json()["detail"]
+
+
+def test_request_size_limit_allows_within_limit():
+    """Content-Length 在限制内时应正常处理（200）。"""
+    client = TestClient(_build_small_app(max_body_size=1000))
+    resp = client.post("/echo", content="x" * 50)
+    assert resp.status_code == 200
+    assert resp.json() == {"ok": "true"}
+
+
+def test_request_size_limit_allows_without_content_length():
+    """无 Content-Length 头的请求应放行（如 GET）。"""
+    small_app = _build_small_app(max_body_size=100)
+
+    @small_app.get("/ping")
+    async def _ping() -> dict[str, str]:
+        return {"pong": "true"}
+
+    client = TestClient(small_app)
+    resp = client.get("/ping")
+    assert resp.status_code == 200
+
+
+# ---- CORS 集成（基于真实 app 实例）----
+
+
+@pytest.fixture
+def mock_scheduler(monkeypatch):
+    """Mock simulate_scheduler 避免 TestClient 启动时实际运行仿真循环。"""
+
+    async def _fake_simulate() -> None:
+        # 阻塞直到被取消（模拟后台任务）
+        await asyncio.Event().wait()
+
+    monkeypatch.setattr(app_module, "simulate_scheduler", _fake_simulate)
+
+
+def test_cors_header_for_allowed_origin(mock_scheduler):
+    """允许的 Origin 应在响应头返回 Access-Control-Allow-Origin。"""
+    with TestClient(app) as client:
+        resp = client.get("/health", headers={"Origin": "http://localhost:3000"})
+    assert resp.status_code == 200
+    assert resp.headers.get("access-control-allow-origin") == "http://localhost:3000"
+
+
+def test_cors_no_header_for_disallowed_origin(mock_scheduler):
+    """不允许的 Origin 不应返回 Access-Control-Allow-Origin。"""
+    with TestClient(app) as client:
+        resp = client.get("/health", headers={"Origin": "http://evil.example.com"})
+    assert resp.status_code == 200
+    assert "access-control-allow-origin" not in resp.headers
+
+
+def test_cors_preflight_options(mock_scheduler):
+    """预检 OPTIONS 请求应返回 CORS 预检响应。"""
+    with TestClient(app) as client:
+        resp = client.options(
+            "/api/tasks",
+            headers={
+                "Origin": "http://localhost:3000",
+                "Access-Control-Request-Method": "POST",
+                "Access-Control-Request-Headers": "content-type",
+            },
+        )
+    assert resp.status_code == 200
+    assert resp.headers.get("access-control-allow-origin") == "http://localhost:3000"
+    allow_methods = resp.headers.get("access-control-allow-methods", "")
+    assert "POST" in allow_methods
+
+
+# ---- 优雅关闭：lifespan ----
+
+
+def test_lifespan_graceful_shutdown_calls_close_all(mock_scheduler, monkeypatch):
+    """应用关闭时应调用 manager.close_all 优雅关闭 WebSocket 连接。"""
+    close_called = {"called": False}
+    original_close = app_module.manager.close_all
+
+    async def _tracking_close() -> None:
+        close_called["called"] = True
+        await original_close()
+
+    monkeypatch.setattr(app_module.manager, "close_all", _tracking_close)
+
+    with TestClient(app):
+        pass  # 进入触发 startup，退出触发 shutdown
+
+    assert close_called["called"] is True
+
+
+def test_lifespan_cancels_background_task(mock_scheduler, monkeypatch):
+    """优雅关闭应取消后台仿真任务。"""
+    cancel_seen = {"called": False}
+
+    async def _trackable_simulate() -> None:
+        try:
+            await asyncio.Event().wait()
+        except asyncio.CancelledError:
+            cancel_seen["called"] = True
+            raise
+
+    # 覆盖 mock_scheduler 注入的桩，使用可追踪取消事件的版本
+    monkeypatch.setattr(app_module, "simulate_scheduler", _trackable_simulate)
+
+    with TestClient(app):
+        pass  # 进入触发 startup，退出触发 shutdown
+
+    assert cancel_seen["called"] is True

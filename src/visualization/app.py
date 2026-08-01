@@ -39,13 +39,17 @@ import os
 import sys
 import uuid
 from collections.abc import AsyncGenerator
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from loguru import logger
+from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
+from starlette.responses import Response
+from starlette.types import ASGIApp
 
 # 确保项目根目录在 Python 路径中
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
@@ -304,13 +308,131 @@ def _get_quota_tracker() -> Any:
 # 应用生命周期与 FastAPI 实例
 # ============================================================
 
+#: 默认 CORS 允许来源（开发环境本地前端与后端端口）
+_DEFAULT_CORS_ORIGINS: str = "http://localhost:3000,http://localhost:8000"
+
+#: 默认请求体大小上限（10 MB）
+_DEFAULT_MAX_REQUEST_BODY_BYTES: int = 10 * 1024 * 1024
+
+
+def _get_cors_origins() -> list[str]:
+    """从环境变量 ``CORS_ORIGINS`` 读取 CORS 允许的来源列表（Issue #885）。
+
+    环境变量为逗号分隔的 Origin 列表；未配置时返回默认的本地开发来源。
+
+    Returns:
+        允许的 Origin 字符串列表（已去除空白项）
+    """
+    env_value = os.getenv("CORS_ORIGINS", _DEFAULT_CORS_ORIGINS)
+    return [origin.strip() for origin in env_value.split(",") if origin.strip()]
+
+
+def _get_max_request_body_size() -> int:
+    """从环境变量 ``MAX_REQUEST_BODY_SIZE`` 读取请求体大小上限（Issue #885）。
+
+    环境变量单位为字节；未配置或非法时返回默认 10 MB。
+
+    Returns:
+        请求体大小上限（字节）
+    """
+    env_value = os.getenv("MAX_REQUEST_BODY_SIZE", str(_DEFAULT_MAX_REQUEST_BODY_BYTES))
+    try:
+        size = int(env_value)
+    except (TypeError, ValueError):
+        logger.warning(
+            f"[Web] MAX_REQUEST_BODY_SIZE 非法值 {env_value!r}，使用默认 "
+            f"{_DEFAULT_MAX_REQUEST_BODY_BYTES} 字节"
+        )
+        return _DEFAULT_MAX_REQUEST_BODY_BYTES
+    if size <= 0:
+        logger.warning(
+            f"[Web] MAX_REQUEST_BODY_SIZE={size} 非正数，使用默认 "
+            f"{_DEFAULT_MAX_REQUEST_BODY_BYTES} 字节"
+        )
+        return _DEFAULT_MAX_REQUEST_BODY_BYTES
+    return size
+
+
+class RequestSizeLimitMiddleware(BaseHTTPMiddleware):
+    """限制 HTTP 请求体大小的中间件（Issue #885）。
+
+    通过检查请求的 ``Content-Length`` 头，在请求进入路由前拒绝过大的请求体，
+    超过限制时返回 ``413 Payload Too Large``，避免大体积请求消耗服务器资源。
+
+    Attributes:
+        max_body_size: 请求体大小上限（字节）
+    """
+
+    def __init__(self, app: ASGIApp, max_body_size: int) -> None:
+        """初始化请求体大小限制中间件。
+
+        Args:
+            app: 被包装的 ASGI 应用
+            max_body_size: 请求体大小上限（字节）
+        """
+        super().__init__(app)
+        self.max_body_size = max_body_size
+
+    async def dispatch(
+        self,
+        request: Request,
+        call_next: RequestResponseEndpoint,
+    ) -> Response:
+        """检查 Content-Length 并在超限时返回 413。
+
+        Args:
+            request: 进入的 HTTP 请求
+            call_next: 下一个中间件/路由处理函数
+
+        Returns:
+            ``413`` 响应（超限）或下游处理结果
+        """
+        content_length = request.headers.get("content-length")
+        if content_length:
+            try:
+                size = int(content_length)
+            except ValueError:
+                return JSONResponse(
+                    status_code=400,
+                    content={"detail": "无效的 Content-Length 头"},
+                )
+            if size > self.max_body_size:
+                logger.warning(
+                    f"[Web] 请求体过大被拒绝: Content-Length={size} "
+                    f"limit={self.max_body_size} path={request.url.path}"
+                )
+                return JSONResponse(
+                    status_code=413,
+                    content={"detail": (f"请求体大小 {size} 超过限制 {self.max_body_size} 字节")},
+                )
+        return await call_next(request)
+
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI) -> AsyncGenerator[None, None]:
-    """应用生命周期：启动时开启后台模拟任务"""
+    """应用生命周期：启动后台仿真任务，关闭时优雅清理资源（Issue #885）。
+
+    启动阶段：
+        - 创建后台仿真任务 ``simulate_scheduler``
+
+    关闭阶段（优雅关闭）：
+        - 取消后台仿真任务并等待其退出
+        - 关闭所有活跃 WebSocket 连接
+        - 记录关闭日志
+    """
     task = asyncio.create_task(simulate_scheduler())
-    yield
-    task.cancel()
+    logger.info("[Web] 应用启动，后台仿真任务已创建")
+    try:
+        yield
+    finally:
+        # 优雅关闭：取消后台任务并等待其退出
+        logger.info("[Web] 开始优雅关闭...")
+        task.cancel()
+        with suppress(asyncio.CancelledError):
+            await task
+        # 关闭所有活跃 WebSocket 连接
+        await manager.close_all()
+        logger.info("[Web] 优雅关闭完成")
 
 
 # Issue #721: 版本号从 pyproject.toml 读取，不再硬编码
@@ -323,6 +445,24 @@ if os.path.isdir(_dist_assets):
 
     app.mount("/assets", StaticFiles(directory=_dist_assets), name="assets")
     logger.info(f"[Web] 静态资源目录已挂载: {_dist_assets}")
+
+# ------------------------------------------------------------
+# 中间件（Issue #885）：请求体大小限制 + CORS
+# 添加顺序说明：Starlette 中后添加的中间件位于外层。此处先添加
+# 请求体大小限制，再添加 CORS，使 CORS 位于最外层——这样所有响应
+# （含 413/500 等错误响应）均会附带 CORS 头，浏览器可正常读取。
+# ------------------------------------------------------------
+app.add_middleware(
+    RequestSizeLimitMiddleware,
+    max_body_size=_get_max_request_body_size(),
+)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=_get_cors_origins(),
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 # ============================================================
