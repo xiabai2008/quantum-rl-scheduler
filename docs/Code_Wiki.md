@@ -1144,9 +1144,9 @@ docker-compose --profile production up
 
 | 服务 | 镜像 | 端口 | 资源限制 | profile |
 |------|------|------|---------|---------|
-| `web` | 本地 Dockerfile | 8000:8000 | 2 CPU / 4G 内存 | 默认 |
+| `web` | 本地 Dockerfile | 8000:8000 | 2 CPU / 2G 内存 | 默认 |
 | `tensorboard` | tensorboard/tensorboard | 6006:6006 | — | monitoring |
-| `redis` | redis:7-alpine | 6379:6379 | — | production |
+| `redis` | redis:7-alpine | 仅内部网络（expose 6379） | — | production |
 
 ### 8.3 健康检查
 
