@@ -10,7 +10,7 @@
 
 import json
 import os
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, ClassVar
 
 import numpy as np
 from loguru import logger
@@ -66,6 +66,8 @@ class TrainingMetricsLogger:
         }
         self._closed = False
         self._jsonl_path = os.path.join(log_dir, f"{experiment_name}.jsonl")
+        # Issue #888: JSONL 文件句柄缓存，避免高频记录时反复 open/close
+        self._jsonl_file: Any = None
 
         if _TENSORBOARD_AVAILABLE:
             self.use_tensorboard = True
@@ -91,9 +93,7 @@ class TrainingMetricsLogger:
         """
         record = {"tag": tag, "value": float(value), "step": int(step)}
         self._records["scalars"].append(record)
-        # Issue #670: 限制 _records 内存增长，避免长训练 OOM
-        if len(self._records["scalars"]) > 10000:
-            self._records["scalars"] = self._records["scalars"][-5000:]
+        self._trim_records()
         if self._writer is not None:
             self._writer.add_scalar(tag, float(value), int(step))
         else:
@@ -119,6 +119,7 @@ class TrainingMetricsLogger:
             "max": float(values_arr.max()) if has_data else 0.0,
         }
         self._records["histograms"].append(record)
+        self._trim_records()
         if self._writer is not None:
             if has_data:
                 self._writer.add_histogram(tag, values_arr, int(step))
@@ -147,6 +148,7 @@ class TrainingMetricsLogger:
         """
         record = {"tag": tag, "text": text, "step": int(step)}
         self._records["texts"].append(record)
+        self._trim_records()
         if self._writer is not None:
             self._writer.add_text(tag, text, int(step))
         else:
@@ -166,6 +168,7 @@ class TrainingMetricsLogger:
         metrics = metrics or {}
         record = {"params": dict(params), "metrics": dict(metrics)}
         self._records["hyperparams"].append(record)
+        self._trim_records()
         if self._writer is not None:
             flat_params = {
                 k: (v if isinstance(v, int | float | str | bool) else str(v))
@@ -203,16 +206,37 @@ class TrainingMetricsLogger:
             "info": dict(info) if info else {},
         }
         self._records["episodes"].append(record)
+        self._trim_records()
         if self._writer is not None:
             self._writer.add_scalar("episode/reward", float(reward), int(episode))
             self._writer.add_scalar("episode/length", int(length), int(episode))
         else:
             self._append_jsonl({"type": "episode", **record})
 
+    # Issue #888: 各类记录的内存上限（超过时保留最近的一半）
+    MAX_RECORDS: ClassVar[dict[str, int]] = {
+        "scalars": 10000,
+        "histograms": 1000,
+        "texts": 500,
+        "hyperparams": 500,
+        "episodes": 5000,
+    }
+
+    def _trim_records(self) -> None:
+        """统一裁剪各类内存记录，避免长训练 OOM（Issue #888/#670）。"""
+        for key, limit in self.MAX_RECORDS.items():
+            records = self._records.get(key)
+            if records is None:
+                continue
+            if len(records) > limit:
+                self._records[key] = records[-limit // 2 :]
+
     def flush(self) -> None:
         """刷新底层写入缓冲。"""
         if self._writer is not None:
             self._writer.flush()
+        if self._jsonl_file is not None:
+            self._jsonl_file.flush()
 
     def close(self) -> None:
         """关闭日志后端，释放资源。重复调用安全。"""
@@ -221,6 +245,10 @@ class TrainingMetricsLogger:
         if self._writer is not None:
             self._writer.flush()
             self._writer.close()
+        if self._jsonl_file is not None:
+            self._jsonl_file.flush()
+            self._jsonl_file.close()
+            self._jsonl_file = None
         self._closed = True
 
     def get_summary(self) -> dict[str, list[dict]]:
@@ -232,6 +260,9 @@ class TrainingMetricsLogger:
             按类型分组的指标记录字典
         """
         if not self.use_tensorboard and os.path.exists(self._jsonl_path):
+            # 先 flush 缓存句柄，确保已写入内容可被读取
+            if self._jsonl_file is not None:
+                self._jsonl_file.flush()
             return self._read_summary_from_jsonl()
         return {
             "scalars": list(self._records["scalars"]),
@@ -242,9 +273,12 @@ class TrainingMetricsLogger:
         }
 
     def _append_jsonl(self, record: dict[str, Any]) -> None:
-        """向 JSONL 降级文件追加一条记录。"""
-        with open(self._jsonl_path, "a", encoding="utf-8") as f:
-            f.write(json.dumps(record, ensure_ascii=False) + "\n")
+        """向 JSONL 降级文件追加一条记录（缓存文件句柄，避免反复 open/close）。"""
+        if self._jsonl_file is None:
+            os.makedirs(self.log_dir, exist_ok=True)
+            # Issue #888: 有意缓存句柄避免高频 open/close（SIM115 豁免）
+            self._jsonl_file = open(self._jsonl_path, "a", encoding="utf-8")  # noqa: SIM115
+        self._jsonl_file.write(json.dumps(record, ensure_ascii=False) + "\n")
 
     def _read_summary_from_jsonl(self) -> dict[str, list[dict]]:
         """从 JSONL 降级文件解析所有记录并按类型分组。"""
@@ -305,6 +339,9 @@ class TensorboardCallback(BaseCallback):
         self.metrics_logger = logger
         self.log_freq = max(1, int(log_freq))
         self._last_episode_count = 0
+        # Issue #888: 首次 Prometheus 指标采集失败后记录 warning 并置位，
+        # 避免每个 step 重复输出相同错误日志
+        self._prometheus_warned = False
 
     def _on_step(self) -> bool:
         """每步触发：每 log_freq 步记录训练标量，并检测 Episode 结束。
@@ -339,8 +376,14 @@ class TensorboardCallback(BaseCallback):
             if "grad_norm" in info:
                 GRADIENT_NORM.set(info["grad_norm"])
             TRAINING_STEPS.inc()
-        except Exception:  # noqa: BLE001
-            pass  # 指标采集失败不影响训练
+        except Exception as exc:  # noqa: BLE001
+            # Issue #888: 首次失败记录 warning 并置位，避免静默吞异常且
+            # 不重复输出相同错误日志
+            if not self._prometheus_warned:
+                self._prometheus_warned = True
+                logger.warning(
+                    f"[TrainingMetricsLogger] Prometheus 指标采集失败: {type(exc).__name__}: {exc}"
+                )
         return True
 
     def _check_episode_end(self) -> None:

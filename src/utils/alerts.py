@@ -26,7 +26,9 @@
     alert = alert_manager.alert(AlertLevel.WARNING, "annealing", "退火未收敛", step=100)
 """
 
+import copy
 import os
+import threading
 import time
 from collections import deque
 from dataclasses import dataclass, field
@@ -138,6 +140,9 @@ class AlertManager:
         self._alerts: list[Alert] = []
         # Issue #706: 限制 _alerts 最大长度，避免长期运行内存泄漏
         self._max_alerts_stored: int = 1000
+        # Issue #878: 保护 _alerts/_recent_timestamps 的并发访问，避免多线程
+        # alert() 时列表追加与裁剪竞态导致告警丢失
+        self._lock = threading.Lock()
 
     def alert(
         self,
@@ -162,12 +167,13 @@ class AlertManager:
         """
         # 速率限制：清理 60 秒外的时间戳，判断窗口内是否已达上限
         now = time.time()
-        while self._recent_timestamps and now - self._recent_timestamps[0] > 60.0:
-            self._recent_timestamps.popleft()
-        if len(self._recent_timestamps) >= self.max_alerts_per_minute:
-            logger.warning(f"告警速率限制触发，丢弃告警: [{level.value}] {category}: {message}")
-            return None
-        self._recent_timestamps.append(now)
+        with self._lock:
+            while self._recent_timestamps and now - self._recent_timestamps[0] > 60.0:
+                self._recent_timestamps.popleft()
+            if len(self._recent_timestamps) >= self.max_alerts_per_minute:
+                logger.warning(f"告警速率限制触发，丢弃告警: [{level.value}] {category}: {message}")
+                return None
+            self._recent_timestamps.append(now)
 
         alert = Alert(
             level=level,
@@ -177,16 +183,15 @@ class AlertManager:
             context=dict(context),
         )
 
-        self._alerts.append(alert)
-        # Issue #706: 超过上限时保留最近的告警，避免内存泄漏
-        if len(self._alerts) > self._max_alerts_stored:
-            self._alerts = self._alerts[-self._max_alerts_stored :]
+        with self._lock:
+            self._alerts.append(alert)
+            # Issue #706: 超过上限时保留最近的告警，避免内存泄漏
+            if len(self._alerts) > self._max_alerts_stored:
+                self._alerts = self._alerts[-self._max_alerts_stored :]
         self._log_alert(alert)
         self._record_metric(alert)
         # Issue #707: Webhook 发送（含重试）可能阻塞调用线程数秒，
         # 放入守护线程异步执行，避免阻塞业务逻辑
-        import threading
-
         if self.webhook_url:
             t = threading.Thread(target=self._send_webhook, args=(alert,), daemon=True)
             t.start()
@@ -264,16 +269,18 @@ class AlertManager:
                     )
 
     def get_alerts(self) -> list[Alert]:
-        """返回已记录的告警列表（拷贝，避免外部修改内部状态）"""
-        return list(self._alerts)
+        """返回已记录的告警列表（深拷贝，外部修改不影响内部状态）"""
+        with self._lock:
+            return [copy.deepcopy(a) for a in self._alerts]
 
     def clear(self) -> None:
         """清空已记录的告警与速率限制窗口
 
         主要用于测试场景下的状态隔离。
         """
-        self._alerts.clear()
-        self._recent_timestamps.clear()
+        with self._lock:
+            self._alerts.clear()
+            self._recent_timestamps.clear()
 
 
 # 模块级单例，供全局便捷访问

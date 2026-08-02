@@ -144,7 +144,7 @@ quantum-rl-scheduler/
 │       ├── alerts.py             # 告警
 │       └── seeds.py              # 随机种子管理
 
-├── tests/                        # 测试（94+ 文件，3612 用例）
+├── tests/                        # 测试（94+ 文件，3681 用例）
 │   ├── test_scheduler.py         # 调度环境测试
 │   ├── test_marl.py              # MAPPO 测试
 │   ├── test_annealing.py         # 量子启发式退火测试
@@ -259,7 +259,7 @@ quantum-rl-scheduler/
 ### 测试升级
 
 - 测试文件：5 → 76（+71个专用测试模块）
-- 测试用例：100+ → 3612（Issue #398 P1-4 统一口径，pytest --collect-only 实测，2026-08-01）
+- 测试用例：100+ → 3681（Issue #398 P1-4 统一口径，pytest --collect-only 实测，2026-08-01）
 - CI 强制覆盖率：40% → 80%（实际 93.58%，pyproject.toml `fail_under=80`）
 - 新增：property-based testing + 性能基准测试 + mutation testing + 统计显著性检验
 
@@ -362,7 +362,7 @@ quantum-rl-scheduler/
 
 ## 8. 当前进度
 
-> **仓库状态快照（2026-08-01 晚）**：0 open PR / 14 open issue（doc-sync 检查用；issue 数实时变化，仅作快照）
+> **仓库状态快照（2026-08-02）**：8 open PR / 14 open issue（doc-sync 检查用；PR/issue 数实时变化，仅作快照）
 
 ```
 v1 技术提升   ████████████████████ 100%（ruff 142→0 + mypy 26→0 + CI全严格阻断 + 覆盖率80%）

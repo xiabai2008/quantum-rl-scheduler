@@ -199,14 +199,24 @@ class TestEnvVarOverride(unittest.TestCase, TestEnvVarsMixin):
                     self.assertFalse(s.annealing_enabled, f"应解析为 False: {val!r}")
 
     def test_invalid_int_falls_back_to_default(self):
-        """无法转换为 int 的环境变量应回退到默认值。"""
-        os.environ["SCHEDULER_MAX_STEPS"] = "not_a_number"
+        """无法转换为 int 的非关键环境变量应回退到默认值。"""
+        os.environ["QUANTUM_SHOTS"] = "not_a_number"  # 非关键字段
         with tempfile.TemporaryDirectory() as tmp:
             s = load_settings(
                 config_path=os.path.join(tmp, "no.yaml"),
                 env_path=os.path.join(tmp, "no.env"),
             )
-            self.assertEqual(s.max_steps, 1000)
+            self.assertEqual(s.quantum_shots, 1024)
+
+    def test_invalid_critical_int_raises(self):
+        """Issue #887: 关键字段 max_steps 转换失败应抛 ValueError（fail-fast）。"""
+        os.environ["SCHEDULER_MAX_STEPS"] = "not_a_number"
+        with tempfile.TemporaryDirectory() as tmp:
+            with self.assertRaises(ValueError):
+                load_settings(
+                    config_path=os.path.join(tmp, "no.yaml"),
+                    env_path=os.path.join(tmp, "no.env"),
+                )
 
 
 class TestEnvFileOverride(unittest.TestCase, TestEnvVarsMixin):

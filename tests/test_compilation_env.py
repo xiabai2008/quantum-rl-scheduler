@@ -425,3 +425,174 @@ class TestObservation:
         assert stats["n_physical"] == 16
         assert stats["mapped_gates"] == 2
         assert stats["swap_count"] == 0
+
+
+# ---------------------------------------------------------------------------
+# Issue #889: 奖励系数参数化 / 向量化观测数值一致 / 可观测性
+# ---------------------------------------------------------------------------
+
+
+class TestIssue889RewardCoefficients:
+    """Issue #889: 奖励系数应可配置（默认保持既有行为）。"""
+
+    def test_default_coefficients_preserve_behavior(
+        self, env_no_circuit: QuantumCompilationEnv
+    ) -> None:
+        """默认系数下奖励数值应与既有实现一致。"""
+        env_no_circuit.reset(seed=42)
+        # 无冲突首次映射：+1（mapping_reward）
+        _, reward, _, _, _ = env_no_circuit.step(0)
+        assert reward == pytest.approx(1.0)
+
+    def test_custom_mapping_reward(self) -> None:
+        """自定义 mapping_reward 应生效。"""
+        env = QuantumCompilationEnv(circuit=None, max_steps=200, mapping_reward=3.0)
+        env.reset(seed=42)
+        _, reward, _, _, _ = env.step(0)
+        assert reward == pytest.approx(3.0)
+
+    def test_custom_swap_penalty(self) -> None:
+        """自定义 swap_penalty 应生效（冲突 SWAP 负奖励绝对值更大）。"""
+        env = QuantumCompilationEnv(circuit=None, max_steps=200, swap_penalty=5.0)
+        env.reset(seed=42)
+        env.step(0)
+        env.step(0)  # 冲突：-5 基础 + dist*2 + 1
+        _, reward, _, _, _ = env.step(0)  # 再次冲突
+        # 第二次冲突时 0 已被占用，冲突惩罚包含 swap_penalty
+        assert reward < -5.0
+
+    def test_custom_completion_reward_scale(self) -> None:
+        """自定义 completion_reward_scale 应影响完成奖励。"""
+        env = QuantumCompilationEnv(circuit=None, max_steps=200, completion_reward_scale=20.0)
+        env.n_logical = 1
+        env.reset(seed=42)
+        _, reward, terminated, _, _ = env.step(0)
+        assert terminated is True
+        # 完成奖励 = 20 * (1 - swap_ratio)；无 SWAP 时为 20，加上 mapping_reward 1
+        assert reward == pytest.approx(21.0)
+
+
+class TestIssue889VectorizedObs:
+    """Issue #889: 向量化 _get_obs 应与旧循环实现数值完全一致。"""
+
+    @staticmethod
+    def _reference_obs(env: QuantumCompilationEnv) -> np.ndarray:
+        """旧实现（循环版）的观测计算，用于数值等价验证。"""
+        nq_n = min(env.n_logical / 100.0, 1.0)
+        gate_n = min(env._n_gates / 500.0, 1.0)
+        two_q_n = env._two_q_ratio
+        conn = 0.0
+        if len(env._mapping) >= 2:
+            matched = 0
+            total_pairs = 0
+            mapped_physical = list(env._mapping.values())
+            for i, p1 in enumerate(mapped_physical):
+                for p2 in mapped_physical[i + 1 :]:
+                    total_pairs += 1
+                    if p2 in env.coupling_graph.get(p1, set()):
+                        matched += 1
+            conn = matched / max(1, total_pairs)
+        alloc = len(env._mapping) / env.n_physical
+        occupied = set(env._reverse_map.keys())
+        free_n = sum(
+            1
+            for q in range(env.n_physical)
+            if q not in occupied and any(n in occupied for n in env.coupling_graph.get(q, set()))
+        ) / max(1, env.n_physical)
+        boundary_count = 0
+        total_edges = 0
+        for q in range(env.n_physical):
+            for nb in env.coupling_graph.get(q, set()):
+                if q < nb:
+                    total_edges += 1
+                    if (q in occupied) != (nb in occupied):
+                        boundary_count += 1
+        frag = boundary_count / max(1, total_edges)
+        depth_n = min(env._current_depth / 100.0, 1.0)
+        mapped_r = min(env._mapped_gates / max(1, env._n_gates), 1.0)
+        swap_n = min(env._swap_count / max(1, env._n_gates), 1.0)
+        avg_swap_dist = 0.0
+        if env._swap_count > 0 and len(env._mapping) >= 2:
+            dists = []
+            for q in occupied:
+                min_d = min(
+                    (env._distance_cache.get((q, o), env.n_physical) for o in occupied if o != q),
+                    default=0,
+                )
+                dists.append(min_d)
+            avg_swap_dist = float(np.mean(dists)) if dists else 0.0
+        fid = max(1.0 - 0.01 * env._swap_count - 0.005 * avg_swap_dist, 0.0)
+        return np.array(
+            [
+                nq_n,
+                gate_n,
+                two_q_n,
+                conn,
+                alloc,
+                free_n,
+                frag,
+                depth_n,
+                mapped_r,
+                swap_n,
+                fid,
+                1.0 - mapped_r,
+                1.0 - alloc,
+                1.0 - conn,
+            ],
+            dtype=np.float32,
+        )
+
+    def test_vectorized_matches_reference_16(self, env_no_circuit: QuantumCompilationEnv) -> None:
+        """16 比特下向量化观测与参考实现逐位一致。"""
+        env_no_circuit.reset(seed=42)
+        for action in (0, 5, 0, 3, 9):
+            env_no_circuit.step(action)
+        new = env_no_circuit._get_obs()
+        ref = self._reference_obs(env_no_circuit)
+        np.testing.assert_array_equal(new, ref)
+
+    def test_vectorized_matches_reference_tianyan(self) -> None:
+        """天衍-287（110 比特）下向量化观测与参考实现逐位一致。"""
+        env = QuantumCompilationEnv(circuit=None, max_steps=200, n_physical=110)
+        env.reset(seed=42)
+        for action in (0, 1, 2, 100, 50, 0, 3):
+            env.step(action)
+        new = env._get_obs()
+        ref = self._reference_obs(env)
+        np.testing.assert_array_equal(new, ref)
+
+    def test_adj_matrix_is_symmetric(self) -> None:
+        """预计算邻接矩阵应关于对角线对称。"""
+        env = QuantumCompilationEnv(circuit=None, max_steps=200, n_physical=25)
+        np.testing.assert_array_equal(env._adj_matrix, env._adj_matrix.T)
+
+
+class TestIssue889Observability:
+    """Issue #889: get_metrics 可观测性补充。"""
+
+    def test_get_metrics_returns_key_fields(self, env_no_circuit: QuantumCompilationEnv) -> None:
+        """get_metrics 应返回 episode 关键指标。"""
+        env_no_circuit.reset(seed=42)
+        env_no_circuit.step(0)
+        env_no_circuit.step(1)
+        metrics = env_no_circuit.get_metrics()
+        for key in (
+            "mapped_gates",
+            "mapped_ratio",
+            "swap_count",
+            "swap_ratio",
+            "connectivity",
+            "fragmentation",
+            "fidelity",
+        ):
+            assert key in metrics, f"缺少指标 {key}"
+        assert metrics["mapped_gates"] == 2.0
+        assert metrics["swap_count"] == 0.0
+
+    def test_get_metrics_fragmentation_bounded(self, env_no_circuit: QuantumCompilationEnv) -> None:
+        """fragmentation 应在 [0,1] 范围。"""
+        env_no_circuit.reset(seed=42)
+        for _ in range(5):
+            env_no_circuit.step(0)
+        metrics = env_no_circuit.get_metrics()
+        assert 0.0 <= metrics["fragmentation"] <= 1.0

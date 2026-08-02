@@ -113,11 +113,23 @@ class QuantumCompilationEnv(gym.Env):
         coupling_graph: dict[int, set[int]] | None = None,
         grid_rows: int | None = None,
         grid_cols: int | None = None,
+        swap_penalty: float = 2.0,
+        distance_penalty: float = 2.0,
+        no_free_qubit_penalty: float = 50.0,
+        mapping_reward: float = 1.0,
+        completion_reward_scale: float = 10.0,
     ) -> None:
         super().__init__()
         self.max_steps = max_steps
         self.circuit = circuit
         self.n_logical = circuit.num_qubits if circuit else 8
+
+        # Issue #889: 奖励系数参数化（默认值保持既有行为，支持奖励消融实验）
+        self.swap_penalty = float(swap_penalty)
+        self.distance_penalty = float(distance_penalty)
+        self.no_free_qubit_penalty = float(no_free_qubit_penalty)
+        self.mapping_reward = float(mapping_reward)
+        self.completion_reward_scale = float(completion_reward_scale)
 
         # Issue #594: 可配置物理比特数和耦合图
         self.n_physical = n_physical if n_physical is not None else PHYSICAL_QUBITS
@@ -152,6 +164,21 @@ class QuantumCompilationEnv(gym.Env):
 
         # 预计算距离缓存（实例级别，支持自定义耦合图）
         self._distance_cache = _all_pairs_distances(self.coupling_graph)
+        # Issue #889: 预计算邻接矩阵，供 _get_obs 向量化连通性/边界/碎片化计算
+        self._adj_matrix: NDArray[np.float64] = np.zeros(
+            (self.n_physical, self.n_physical), dtype=np.float64
+        )
+        for q, neighbors in self.coupling_graph.items():
+            for nb in neighbors:
+                self._adj_matrix[q, nb] = 1.0
+        # Issue #889: 预计算距离矩阵（n×n），供 avg_swap_dist 向量化计算
+        self._dist_matrix: NDArray[np.float64] = np.array(
+            [
+                [self._distance_cache.get((i, j), self.n_physical) for j in range(self.n_physical)]
+                for i in range(self.n_physical)
+            ],
+            dtype=np.float64,
+        )
         self.observation_space = spaces.Box(low=0, high=1, shape=(14,), dtype=np.float32)
         self.action_space = spaces.Discrete(self.n_physical)
         self._gates: list[Any] = []
@@ -203,17 +230,17 @@ class QuantumCompilationEnv(gym.Env):
         truncated = self._step_count >= self.max_steps
         if action in self._reverse_map:
             self._swap_count += 1
-            reward -= 2
+            reward -= self.swap_penalty
             free = [q for q in range(self.n_physical) if q not in self._reverse_map]
             if free:
                 dist = min(self._distance_cache.get((action, fq), self.n_physical) for fq in free)
                 self._swap_count += dist
-                reward -= dist * 2
+                reward -= dist * self.distance_penalty
                 actual = min(
                     free, key=lambda fq: self._distance_cache.get((action, fq), self.n_physical)
                 )
             else:
-                reward -= 50
+                reward -= self.no_free_qubit_penalty
                 terminated = True
                 actual = action
         else:
@@ -222,58 +249,54 @@ class QuantumCompilationEnv(gym.Env):
         self._reverse_map[actual] = logical_idx
         self._mapped_gates += 1
         self._current_depth += 1
-        reward += 1
+        reward += self.mapping_reward
         if len(self._mapping) >= self.n_logical:
             terminated = True
             swap_ratio = self._swap_count / max(1, self._n_gates)
-            reward += 10 * (1 - min(swap_ratio, 1))
+            reward += self.completion_reward_scale * (1 - min(swap_ratio, 1))
         return self._get_obs(), reward, terminated, truncated, {}
 
     def _get_obs(self) -> NDArray[np.float32]:
-        """构建14维观测向量，包含电路特征、映射状态、拓扑指标和效率指标。"""
+        """构建14维观测向量，包含电路特征、映射状态、拓扑指标和效率指标。
+
+        Issue #889: 连通性/边界碎片化/平均SWAP距离均用预计算矩阵向量化，
+        将 _get_obs 的 O(n²) 逐元素循环改为 numpy 矩阵运算（天衍-287
+        n_physical=110 时从 ~12100 次 Python 迭代降至矩阵乘法），
+        数值结果与旧的循环实现完全一致，不改变观测语义。
+        """
         nq_n = min(self.n_logical / 100.0, 1.0)
         gate_n = min(self._n_gates / 500.0, 1.0)
         two_q_n = self._two_q_ratio
         conn = 0.0
         if len(self._mapping) >= 2:
-            matched = 0
-            total_pairs = 0
-            mapped_physical = list(self._mapping.values())
-            for i, p1 in enumerate(mapped_physical):
-                for p2 in mapped_physical[i + 1 :]:
-                    total_pairs += 1
-                    if p2 in self.coupling_graph.get(p1, set()):
-                        matched += 1
-            conn = matched / max(1, total_pairs)
+            mapped = np.asarray(list(self._mapping.values()), dtype=np.int64)
+            k = mapped.size
+            # 向量化连通性：sub_adj 对称且对角为 0，每条无向边被计两次；
+            # 原循环 total_pairs=k(k-1)/2、matched=边数，conn=matched/total_pairs
+            sub_adj = self._adj_matrix[np.ix_(mapped, mapped)]
+            conn = float(sub_adj.sum() / max(1, k * (k - 1)))
         alloc = len(self._mapping) / self.n_physical
         occupied = set(self._reverse_map.keys())
-        free_n = sum(
-            1
-            for q in range(self.n_physical)
-            if q not in occupied and any(n in occupied for n in self.coupling_graph.get(q, set()))
-        ) / max(1, self.n_physical)
-        boundary_count = 0
-        total_edges = 0
-        for q in range(self.n_physical):
-            for nb in self.coupling_graph.get(q, set()):
-                if q < nb:
-                    total_edges += 1
-                    if (q in occupied) != (nb in occupied):
-                        boundary_count += 1
+        occ_mask = np.zeros(self.n_physical, dtype=bool)
+        if occupied:
+            occ_mask[list(occupied)] = True
+        # 向量化 free_n：空闲且至少有一个被占用邻居的物理比特占比
+        has_occ_neighbor = self._adj_matrix @ occ_mask > 0
+        free_n = float(np.sum(~occ_mask & has_occ_neighbor) / max(1, self.n_physical))
+        # 向量化 frag：被占用状态不同的边界边数 / 总边数
+        upper = np.triu(self._adj_matrix, 1)
+        total_edges = float(upper.sum())
+        boundary_count = float(np.sum(upper * (occ_mask[:, None] != occ_mask[None, :])))
         frag = boundary_count / max(1, total_edges)
         depth_n = min(self._current_depth / 100.0, 1.0)
         mapped_r = min(self._mapped_gates / max(1, self._n_gates), 1.0)
         swap_n = min(self._swap_count / max(1, self._n_gates), 1.0)
         avg_swap_dist = 0.0
         if self._swap_count > 0 and len(self._mapping) >= 2:
-            dists = []
-            for q in occupied:
-                min_d = min(
-                    (self._distance_cache.get((q, o), self.n_physical) for o in occupied if o != q),
-                    default=0,
-                )
-                dists.append(min_d)
-            avg_swap_dist = float(np.mean(dists)) if dists else 0.0
+            occ_idx = np.asarray(sorted(occupied), dtype=np.int64)
+            sub_dist = self._dist_matrix[np.ix_(occ_idx, occ_idx)]
+            np.fill_diagonal(sub_dist, np.inf)
+            avg_swap_dist = float(np.mean(sub_dist.min(axis=1)))
         fid = max(1.0 - 0.01 * self._swap_count - 0.005 * avg_swap_dist, 0.0)
         # Issue #656/#841: 暂保留旧反义维度(1-mapped_r/1-alloc/1-conn)以匹配已训练的 ppo_compilation_agent.zip
         # 新维度(avg_swap_dist_n/swap_efficiency/isolated_occupied_n)虽更合理，但需重训练模型，8/15冻结前回退
@@ -303,4 +326,31 @@ class QuantumCompilationEnv(gym.Env):
             "n_physical": self.n_physical,
             "swap_count": self._swap_count,
             "mapped_gates": self._mapped_gates,
+        }
+
+    def get_metrics(self) -> dict[str, float]:
+        """返回 episode 关键指标（Issue #889 可观测性补充）。
+
+        包含映射完成率、SWAP 率、连通性、边界碎片化与保真度估计，
+        供训练循环/日志记录 episode 级性能。
+        """
+        mapped_r = min(self._mapped_gates / max(1, self._n_gates), 1.0)
+        swap_ratio = self._swap_count / max(1, self._n_gates)
+        conn = 0.0
+        if len(self._mapping) >= 2:
+            mapped = np.asarray(list(self._mapping.values()), dtype=np.int64)
+            k = mapped.size
+            sub_adj = self._adj_matrix[np.ix_(mapped, mapped)]
+            conn = float(sub_adj.sum() / max(1, k * (k - 1)))
+        occ_mask = np.asarray([q in self._reverse_map for q in range(self.n_physical)], dtype=bool)
+        upper = np.triu(self._adj_matrix, 1)
+        frag = float(np.sum(upper * (occ_mask[:, None] != occ_mask[None, :])) / max(1, upper.sum()))
+        return {
+            "mapped_gates": float(self._mapped_gates),
+            "mapped_ratio": mapped_r,
+            "swap_count": float(self._swap_count),
+            "swap_ratio": swap_ratio,
+            "connectivity": conn,
+            "fragmentation": frag,
+            "fidelity": max(1.0 - 0.01 * self._swap_count, 0.0),
         }
