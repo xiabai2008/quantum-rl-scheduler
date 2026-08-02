@@ -364,7 +364,7 @@ quantum-rl-scheduler/
 
 ## 8. 当前进度
 
-> **仓库状态快照（2026-08-02）**：6 open PR / 4 open issue（doc-sync 检查用；PR/issue 数实时变化，仅作快照）
+> **仓库状态快照（2026-08-02）**：4 open PR / 4 open issue（doc-sync 检查用；PR/issue 数实时变化，仅作快照）
 
 ```
 v1 技术提升   ████████████████████ 100%（ruff 142→0 + mypy 26→0 + CI全严格阻断 + 覆盖率80%）
