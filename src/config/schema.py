@@ -186,7 +186,18 @@ class AppConfig(BaseModel):
     @field_validator("tianyan", mode="after")
     @classmethod
     def _warn_mock_api_keys(cls, v: TianyanConfig) -> TianyanConfig:
-        """Mock 模式下空 API key 不报错，仅给出提示。"""
+        """Mock 模式下空 API key 不报错；真实模式下空 API key 记录 warning。"""
+        if not v.mock_mode:
+            missing = [
+                name
+                for name in ("api_key", "api_secret")
+                if not getattr(v, name, "") or str(getattr(v, name, "")).strip() == ""
+            ]
+            if missing:
+                logger.warning(
+                    f"真实模式（mock_mode=False）下 {', '.join(missing)} 为空，"
+                    "真机 API 调用可能静默失败，请配置后使用"
+                )
         return v
 
 

@@ -120,6 +120,12 @@ _TYPE_MAP: dict[str, type] = {
     "bool": bool,
 }
 
+# Issue #887: 关键配置字段——类型转换失败时采用 fail-fast（抛异常），
+# 避免系统以非预期默认值运行；非关键字段仍回退默认值保证健壮性。
+CRITICAL_FIELDS: frozenset[str] = frozenset(
+    {"max_qubits", "max_steps", "algorithm", "api_key", "api_timeout"}
+)
+
 
 # =============================================================================
 # 类型转换工具
@@ -414,6 +420,11 @@ def load_settings(
         try:
             field_values[fname] = _convert(value, target_type)
         except (ValueError, TypeError) as e:
+            if fname in CRITICAL_FIELDS:
+                # Issue #887: 关键配置项采用 fail-fast，避免静默回退默认值
+                raise ValueError(
+                    f"关键配置 {fname} 值 {value!r} 转换为 {target_type} 失败: {e}"
+                ) from e
             # Issue #709: 类型转换失败时记录告警，而非静默回退默认值
             logging.getLogger(__name__).warning(
                 f"配置项 {fname} 值 {value!r} 转换为 {target_type} 失败: {e}，"

@@ -233,5 +233,54 @@ class TestAnnealingConfigSection(unittest.TestCase):
             )
 
 
+class TestWarnMockApiKeys(unittest.TestCase):
+    """Issue #887: 真实模式下空 API key 应触发 warning 提示。"""
+
+    def _capture_loguru(self):
+        """捕获 loguru 输出。"""
+        from loguru import logger
+
+        captured: list[str] = []
+
+        def sink(message):
+            captured.append(str(message))
+
+        sink_id = logger.add(sink, level="WARNING")
+        return captured, sink_id, logger
+
+    def test_real_mode_empty_api_key_warns(self):
+        """mock_mode=False 且 api_key 为空时应记录 warning。"""
+        captured, sink_id, logger = self._capture_loguru()
+        try:
+            cfg = AppConfig(tianyan={"mock_mode": False, "api_key": "", "api_secret": ""})
+            _ = cfg
+        finally:
+            logger.remove(sink_id)
+        self.assertTrue(any("api_key" in m for m in captured), f"未捕获 warning: {captured}")
+
+    def test_real_mode_with_api_key_no_warn(self):
+        """mock_mode=False 且 api_key 已配置时不应警告。"""
+        captured, sink_id, logger = self._capture_loguru()
+        try:
+            cfg = AppConfig(
+                tianyan={"mock_mode": False, "api_key": "test-key", "api_secret": "test-secret"}
+            )
+            self.assertEqual(cfg.tianyan.api_key, "test-key")
+        finally:
+            logger.remove(sink_id)
+        self.assertFalse(
+            any("api_key" in m and "为空" in m for m in captured), f"误报 warning: {captured}"
+        )
+
+    def test_mock_mode_empty_api_key_no_warn(self):
+        """mock_mode=True 时空 API key 不应警告（允许 mock 模式）。"""
+        captured, sink_id, logger = self._capture_loguru()
+        try:
+            AppConfig(tianyan={"mock_mode": True})
+        finally:
+            logger.remove(sink_id)
+        self.assertFalse(any("为空" in m for m in captured), f"误报 warning: {captured}")
+
+
 if __name__ == "__main__":
     unittest.main()
