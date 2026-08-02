@@ -556,3 +556,107 @@ class TestEdgeCases:
         )
         assert callback.log_freq >= 1
         logger_obj.close()
+
+
+# ---------------------------------------------------------------------------
+# Issue #888: 内存裁剪 / JSONL 句柄缓存 / Prometheus 异常可见性
+# ---------------------------------------------------------------------------
+
+
+class TestIssue888MemoryTrim:
+    """Issue #888: 各类内存记录均有上限，避免长训练 OOM。"""
+
+    def test_all_record_types_have_limits(self) -> None:
+        """MAX_RECORDS 应覆盖 scalars/histograms/texts/hyperparams/episodes。"""
+        for key in ("scalars", "histograms", "texts", "hyperparams", "episodes"):
+            assert key in TrainingMetricsLogger.MAX_RECORDS
+
+    def test_scalars_trimmed_to_limit(self, tmp_path: str) -> None:
+        """scalars 超过上限时应裁剪，内存有界。"""
+        logger_obj = TrainingMetricsLogger(log_dir=str(tmp_path), experiment_name="trim1")
+        limit = TrainingMetricsLogger.MAX_RECORDS["scalars"]
+        for i in range(limit + 100):
+            logger_obj.log_scalar("x", float(i), i)
+        assert len(logger_obj._records["scalars"]) <= limit
+        logger_obj.close()
+
+    def test_histograms_trimmed(self, tmp_path: str) -> None:
+        """histograms 超过上限时应裁剪，内存有界。"""
+        logger_obj = TrainingMetricsLogger(log_dir=str(tmp_path), experiment_name="trim2")
+        limit = TrainingMetricsLogger.MAX_RECORDS["histograms"]
+        for i in range(limit + 50):
+            logger_obj.log_histogram("h", np.array([1.0, 2.0]), i)
+        assert len(logger_obj._records["histograms"]) <= limit
+        logger_obj.close()
+
+    def test_episodes_trimmed(self, tmp_path: str) -> None:
+        """episodes 超过上限时应裁剪，内存有界。"""
+        logger_obj = TrainingMetricsLogger(log_dir=str(tmp_path), experiment_name="trim3")
+        limit = TrainingMetricsLogger.MAX_RECORDS["episodes"]
+        for i in range(limit + 50):
+            logger_obj.log_episode(episode=i, reward=float(i), length=10)
+        assert len(logger_obj._records["episodes"]) <= limit
+        logger_obj.close()
+
+    def test_texts_trimmed(self, tmp_path: str) -> None:
+        """texts 超过上限时应裁剪，内存有界。"""
+        logger_obj = TrainingMetricsLogger(log_dir=str(tmp_path), experiment_name="trim4")
+        limit = TrainingMetricsLogger.MAX_RECORDS["texts"]
+        for i in range(limit + 20):
+            logger_obj.log_text("t", f"msg{i}", i)
+        assert len(logger_obj._records["texts"]) <= limit
+        logger_obj.close()
+
+
+class TestIssue888JsonlHandleCache:
+    """Issue #888: JSONL 文件句柄缓存，避免高频 open/close。"""
+
+    def test_handle_reused_after_first_write(
+        self, tmp_path: str, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """首次写入后文件句柄应被缓存并复用。"""
+        monkeypatch.setattr(tl_module, "_TENSORBOARD_AVAILABLE", False)
+        logger_obj = TrainingMetricsLogger(log_dir=str(tmp_path), experiment_name="handle1")
+        logger_obj.log_scalar("x", 1.0, 1)
+        first_handle = logger_obj._jsonl_file
+        assert first_handle is not None
+        logger_obj.log_scalar("x", 2.0, 2)
+        assert logger_obj._jsonl_file is first_handle, "句柄应被缓存复用"
+        logger_obj.close()
+
+    def test_handle_flushed_and_closed(
+        self, tmp_path: str, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """close() 应 flush 并关闭缓存句柄。"""
+        monkeypatch.setattr(tl_module, "_TENSORBOARD_AVAILABLE", False)
+        logger_obj = TrainingMetricsLogger(log_dir=str(tmp_path), experiment_name="handle2")
+        logger_obj.log_scalar("x", 1.0, 1)
+        assert logger_obj._jsonl_file is not None
+        logger_obj.close()
+        assert logger_obj._jsonl_file is None
+        assert logger_obj._closed is True
+
+
+class TestIssue888PrometheusWarning:
+    """Issue #888: Prometheus 指标采集异常应记录 warning（而非静默吞掉）。"""
+
+    def test_prometheus_error_logs_warning_once(
+        self, tmp_path: str, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """首次采集失败应记录 warning，后续不重复。"""
+        captured: list[str] = []
+        from loguru import logger
+
+        sink_id = logger.add(lambda m: captured.append(str(m)), level="WARNING")
+        try:
+            callback = _make_callback(
+                TrainingMetricsLogger(log_dir=str(tmp_path), experiment_name="pro1")
+            )
+            # model.logger 为 None → _on_step 内采集异常
+            callback._on_step()
+            callback._on_step()
+        finally:
+            logger.remove(sink_id)
+        assert callback._prometheus_warned is True
+        warn_count = sum(1 for m in captured if "Prometheus" in m)
+        assert warn_count == 1, f"应仅记录 1 次 warning，实际 {warn_count}: {captured}"
