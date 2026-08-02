@@ -100,7 +100,7 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       - name: Cache pip packages
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ${{ runner.os == 'Windows' && '~\AppData\Local\pip\Cache' || '~/.cache/pip' }}
           key: ${{ runner.os }}-pip-${{ matrix.python-version }}-${{ hashFiles('requirements.txt') }}
@@ -215,7 +215,7 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       - name: Cache pip packages
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.cache/pip
           key: ${{ runner.os }}-pip-smoke-${{ matrix.python-version }}-${{ hashFiles('requirements.txt') }}
@@ -259,7 +259,7 @@ jobs:
           python-version: "3.11"
 
       - name: Cache pip packages
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.cache/pip
           key: ${{ runner.os }}-pip-mypy-${{ hashFiles('requirements.txt') }}
