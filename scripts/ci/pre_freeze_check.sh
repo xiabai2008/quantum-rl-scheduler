@@ -55,7 +55,7 @@ echo ""
 # ---------------------------------------------------------------------------
 # 1. 获取最新代码
 # ---------------------------------------------------------------------------
-echo -e "${BOLD}[1/8]${NC} 检查代码是否最新..."
+echo -e "${BOLD}[1/11]${NC} 检查代码是否最新..."
 git fetch origin --quiet
 LOCAL=$(git rev-parse HEAD)
 REMOTE=$(git rev-parse origin/main)
@@ -72,7 +72,7 @@ fi
 # 2. 分支检查
 # ---------------------------------------------------------------------------
 echo ""
-echo -e "${BOLD}[2/8]${NC} 检查当前分支..."
+echo -e "${BOLD}[2/11]${NC} 检查当前分支..."
 BRANCH=$(git branch --show-current)
 if [ "$BRANCH" = "main" ]; then
     pass "当前在 main 分支"
@@ -92,7 +92,7 @@ fi
 # 3. CI 全绿检查
 # ---------------------------------------------------------------------------
 echo ""
-echo -e "${BOLD}[3/8]${NC} CI 状态检查..."
+echo -e "${BOLD}[3/11]${NC} CI 状态检查..."
 
 if command -v gh &> /dev/null; then
     if gh pr checks --required 2>/dev/null; then
@@ -106,36 +106,68 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# 4. 代码格式检查
+# 4. 代码格式检查（ruff format + ruff check）
 # ---------------------------------------------------------------------------
 echo ""
-echo -e "${BOLD}[4/8]${NC} 代码格式检查..."
+echo -e "${BOLD}[4/11]${NC} 代码格式检查..."
 
-if command -v black &> /dev/null; then
-    if black --check --quiet src/ scripts/ tests/ 2>/dev/null; then
-        pass "Black 格式检查通过"
+if command -v ruff &> /dev/null; then
+    if ruff format --check src/ scripts/ tests/ 2>/dev/null; then
+        pass "ruff format 格式检查通过"
     else
-        fail "Black 格式检查失败，请运行: black src/ scripts/ tests/"
+        fail "ruff format 格式检查失败，请运行: ruff format src/ scripts/ tests/"
     fi
 else
-    warn "Black 未安装，跳过格式检查"
+    warn "ruff 未安装，跳过格式检查"
 fi
 
-if command -v isort &> /dev/null; then
-    if isort --check-only --quiet src/ scripts/ tests/ 2>/dev/null; then
-        pass "isort 导入排序检查通过"
+if command -v ruff &> /dev/null; then
+    if ruff check src/ scripts/ tests/ 2>/dev/null; then
+        pass "ruff check 规则检查通过"
     else
-        fail "isort 检查失败，请运行: isort src/ scripts/ tests/"
+        fail "ruff check 检查失败，请运行: ruff check --fix src/ scripts/ tests/"
     fi
 else
-    warn "isort 未安装，跳过导入排序检查"
+    warn "ruff 未安装，跳过规则检查"
 fi
 
 # ---------------------------------------------------------------------------
-# 5. 单元测试 + 覆盖率
+# 5. 类型检查（mypy）
 # ---------------------------------------------------------------------------
 echo ""
-echo -e "${BOLD}[5/8]${NC} 运行单元测试..."
+echo -e "${BOLD}[5/11]${NC} 类型检查..."
+
+if command -v mypy &> /dev/null; then
+    if mypy src/ 2>/dev/null; then
+        pass "mypy 类型检查通过"
+    else
+        fail "mypy 类型检查失败，请运行: mypy src/"
+    fi
+else
+    warn "mypy 未安装，跳过类型检查"
+fi
+
+# ---------------------------------------------------------------------------
+# 6. 安全扫描（bandit）
+# ---------------------------------------------------------------------------
+echo ""
+echo -e "${BOLD}[6/11]${NC} 安全扫描..."
+
+if command -v bandit &> /dev/null; then
+    if bandit -r src/ -c pyproject.toml -ll 2>/dev/null; then
+        pass "bandit 安全扫描通过"
+    else
+        fail "bandit 安全扫描失败，请运行: bandit -r src/ -c pyproject.toml -ll"
+    fi
+else
+    warn "bandit 未安装，跳过安全扫描"
+fi
+
+# ---------------------------------------------------------------------------
+# 7. 单元测试 + 覆盖率
+# ---------------------------------------------------------------------------
+echo ""
+echo -e "${BOLD}[7/11]${NC} 运行单元测试..."
 
 if python -m pytest tests/ -q --cov=src --cov-fail-under=80 --timeout=120 -W ignore::DeprecationWarning 2>/dev/null; then
     pass "单元测试全部通过 (cov >= 80%)"
@@ -144,10 +176,10 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# 6. 提交物校验
+# 8. 提交物校验
 # ---------------------------------------------------------------------------
 echo ""
-echo -e "${BOLD}[6/8]${NC} 提交物校验..."
+echo -e "${BOLD}[8/11]${NC} 提交物校验..."
 
 if python scripts/ci/validate_submission.py --check --manifest config/submission_manifest.yaml 2>/dev/null; then
     pass "提交物校验通过"
@@ -156,10 +188,10 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# 7. 权威数字审计
+# 9. 权威数字审计
 # ---------------------------------------------------------------------------
 echo ""
-echo -e "${BOLD}[7/8]${NC} 权威数字一致性审计..."
+echo -e "${BOLD}[9/11]${NC} 权威数字一致性审计..."
 
 if python scripts/ci/audit_authoritative_metrics.py 2>/dev/null; then
     pass "权威数字审计通过（无旧值残留）"
@@ -168,10 +200,29 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# 8. 提交物确认
+# 10. Open PR 检查
 # ---------------------------------------------------------------------------
 echo ""
-echo -e "${BOLD}[8/8]${NC} 提交物文件确认..."
+echo -e "${BOLD}[10/11]${NC} Open PR 检查..."
+
+if command -v gh &> /dev/null; then
+    OPEN_PRS=$(gh pr list --state open --base main 2>/dev/null)
+    if [ -z "$OPEN_PRS" ]; then
+        pass "无未合并的 open PR"
+    else
+        warn "存在未合并的 open PR（冻结前需合并或关闭，仅文档类 PR 可接受）"
+        echo "$OPEN_PRS" | head -10
+    fi
+else
+    warn "gh CLI 未安装，跳过 open PR 检查"
+    echo "        请手动访问: https://github.com/xiabai2008/quantum-rl-scheduler/pulls"
+fi
+
+# ---------------------------------------------------------------------------
+# 11. 提交物确认
+# ---------------------------------------------------------------------------
+echo ""
+echo -e "${BOLD}[11/11]${NC} 提交物文件确认..."
 
 ROOT=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
 
@@ -212,10 +263,12 @@ if [ "$FAIL" -gt 0 ]; then
     echo -e "${RED}❌ 冻结前检查失败，请修复后重试。${NC}"
     echo ""
     echo "修复建议:"
-    echo "  1. 代码格式: black src/ scripts/ tests/ && isort src/ scripts/ tests/"
-    echo "  2. 运行测试: python -m pytest tests/ -v --cov=src --cov-fail-under=80"
-    echo "  3. 提交物校验: python scripts/ci/validate_submission.py --check"
-    echo "  4. 数字审计: python scripts/ci/audit_authoritative_metrics.py"
+    echo "  1. 代码格式: ruff format src/ scripts/ tests/ && ruff check --fix src/ scripts/ tests/"
+    echo "  2. 类型检查: mypy src/"
+    echo "  3. 安全扫描: bandit -r src/ -c pyproject.toml -ll"
+    echo "  4. 运行测试: python -m pytest tests/ -v --cov=src --cov-fail-under=80"
+    echo "  5. 提交物校验: python scripts/ci/validate_submission.py --check"
+    echo "  6. 数字审计: python scripts/ci/audit_authoritative_metrics.py"
     echo ""
     exit 1
 else
