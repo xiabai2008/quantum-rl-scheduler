@@ -70,5 +70,14 @@ def set_seed(seed: int = 42) -> int:
     except ImportError:
         logger.debug("PyTorch 未安装，跳过 torch.manual_seed 设置")
 
+    # Gymnasium 随机数生成器（如可用）
+    # Issue #879: gymnasium.utils.seeding 用于环境 reset(seed=...) 的底层随机源
+    try:
+        import gymnasium.utils.seeding as gym_seeding
+
+        gym_seeding.np_random(seed)
+    except ImportError:
+        logger.debug("Gymnasium 未安装，跳过 gymnasium 随机源设置")
+
     logger.info(f"随机种子已设置为 {seed}")
     return seed
