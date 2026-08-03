@@ -69,7 +69,7 @@ def run_rule(env: QuantumSchedulingEnv, engine: RuleEngine) -> dict:
             action = engine.evaluate(task, _ctx_from_env(env))
         if action is None:
             action = 0  # fallback：经典
-        obs, reward, terminated, truncated, _ = env.step(int(action))
+        _obs, reward, terminated, truncated, _ = env.step(int(action))
         total += float(reward)
         steps += 1
         done = terminated or truncated
@@ -106,7 +106,7 @@ def run_hybrid(env: QuantumSchedulingEnv, hybrid: HybridScheduler) -> dict:
             action = result["action"]
             source = result["source"]
         sources[source] = sources.get(source, 0) + 1
-        obs, reward, terminated, truncated, _ = env.step(int(action))
+        _obs, reward, terminated, truncated, _ = env.step(int(action))
         total += float(reward)
         steps += 1
         done = terminated or truncated
