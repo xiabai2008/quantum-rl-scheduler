@@ -176,6 +176,8 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
         real_machine_max_qubits: int = FREE_TIER_MAX_QUBITS,
         noise_profile: str | dict[str, Any] | None = None,
         include_fairness_obs: bool = False,  # Issue #588: 默认关闭，保持 OBS_DIM=16 向后兼容；显式开启时扩展到 17 维
+        tenant_weights: dict[str, float]
+        | None = None,  # Issue #928: 任务生成租户偏斜权重（None=均匀）
         observation_dim: int | None = None,
         use_noise_profile: bool = False,
         max_poll_per_step: int = REAL_MACHINE_MAX_POLL_PER_STEP_DEFAULT,
@@ -231,6 +233,8 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
 
         # Issue #588: 公平性观测开关（不影响默认 OBS_DIM=16，保持向后兼容）
         self._include_fairness_obs = bool(include_fairness_obs)
+        # Issue #928: 租户偏斜权重（不公平负载场景模拟，None 时均匀）
+        self._tenant_weights: dict[str, float] | None = tenant_weights
         # Issue #585: 消融实验支持截断观测空间
         self._observation_dim = observation_dim
 
@@ -849,7 +853,12 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
                 tid for tid in getattr(self._fairness_tracker, "_stats", {}) if tid != "unknown"
             ]
             if known:
-                task.tenant_id = str(rng.choice(known))
+                weights = self._tenant_weights
+                if weights and all(t in weights for t in known):
+                    # 按租户偏斜权重分配（不公平负载场景，Issue #928）
+                    task.tenant_id = str(rng.choice(known, p=[float(weights[t]) for t in known]))
+                else:
+                    task.tenant_id = str(rng.choice(known))
             self._fairness_tracker.record_submit(task.tenant_id)
         return task
 

@@ -52,6 +52,7 @@ def build_env(include_fairness: bool, seed: int) -> QuantumSchedulingEnv:
         machine_configs=DEFAULT_MACHINE_CONFIGS,
         seed=seed,
         include_fairness_obs=include_fairness,
+        tenant_weights=TENANT_WEIGHTS,  # Issue #928: 不公平租户负载（A 80%）
     )
     env.set_fairness_tracker(MultiTenantFairnessTracker(tenant_ids=TENANTS))
     return env
