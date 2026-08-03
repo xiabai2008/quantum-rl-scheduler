@@ -262,7 +262,7 @@ class PPOAgent:
         if getattr(env, "_include_fairness_obs", False) and env._fairness_tracker is not None:
             try:
                 eval_env.set_fairness_tracker(copy.deepcopy(env._fairness_tracker))
-            except Exception:  # 深拷贝失败时降级为无 tracker（公平维恒 0，不崩）
+            except (TypeError, AttributeError, RecursionError):
                 logger.warning("评估环境 fairness_tracker 深拷贝失败，公平维恒 0")
         return Monitor(eval_env)
 
