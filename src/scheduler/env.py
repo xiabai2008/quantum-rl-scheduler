@@ -846,9 +846,7 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
         # 租户从 tracker 已知租户池随机分配（generate_random_task 未设 tenant_id）
         if self._fairness_tracker is not None:
             known = [
-                tid
-                for tid in getattr(self._fairness_tracker, "_stats", {})
-                if tid != "unknown"
+                tid for tid in getattr(self._fairness_tracker, "_stats", {}) if tid != "unknown"
             ]
             if known:
                 task.tenant_id = str(rng.choice(known))
