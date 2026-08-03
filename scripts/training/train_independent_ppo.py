@@ -41,16 +41,26 @@ def main() -> None:
             seed=args.seed,
         )
         model = PPO(
-            "MlpPolicy", env, learning_rate=3e-4, n_steps=1024, batch_size=64,
-            gamma=0.99, gae_lambda=0.95, clip_range=0.2, ent_coef=0.01,
-            seed=args.seed, verbose=0,
+            "MlpPolicy",
+            env,
+            learning_rate=3e-4,
+            n_steps=1024,
+            batch_size=64,
+            gamma=0.99,
+            gae_lambda=0.95,
+            clip_range=0.2,
+            ent_coef=0.01,
+            seed=args.seed,
+            verbose=0,
         )
         t0 = time.time()
         model.learn(total_timesteps=args.timesteps_per_machine)
         save_path = f"models/independent_ppo_m{i}"
         model.save(save_path)
-        print(f"[独立PPO-{i}] {m['name']} 训练完成 "
-              f"({args.timesteps_per_machine} 步, {time.time()-t0:.1f}s) → {save_path}.zip")
+        print(
+            f"[独立PPO-{i}] {m['name']} 训练完成 "
+            f"({args.timesteps_per_machine} 步, {time.time() - t0:.1f}s) → {save_path}.zip"
+        )
 
 
 if __name__ == "__main__":
