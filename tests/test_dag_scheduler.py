@@ -1304,6 +1304,22 @@ class TestFeasibilityMissingDependency(unittest.TestCase):
         ]
         self.assertTrue(scheduler._is_scheduling_solution_feasible(schedule, 4))
 
+    def test_critical_path_priority_orders_critical_first(self):
+        """关键路径优先：就绪任务中关键路径上的先出（Issue #928）。"""
+        dag = DAGScheduler()
+        # 链：A(1) -> B(10) -> C(1)，B 是关键路径（estimated_time 最长）
+        dag.add_task(DAGTask(task_id="A", estimated_time=1))
+        dag.add_task(DAGTask(task_id="B", estimated_time=10))
+        dag.add_task(DAGTask(task_id="C", estimated_time=1))
+        dag.add_task(DAGTask(task_id="X", estimated_time=5))  # 旁路
+        dag.add_dependency("B", "A")
+        dag.add_dependency("C", "B")
+        dag.mark_completed("A")
+        dag.mark_completed("B")
+        ready = dag.get_ready_tasks(critical_path_priority=True)
+        # 关键路径（A->B->C）上的 C 应排在旁路 X 之前
+        self.assertEqual(ready[0].task_id, "C")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -238,12 +238,17 @@ class DAGScheduler:
     # 就绪任务
     # ----------------------------------------------------------
 
-    def get_ready_tasks(self) -> list[DAGTask]:
+    def get_ready_tasks(self, critical_path_priority: bool = False) -> list[DAGTask]:
         """返回依赖已全部完成的就绪任务。
+
+        Args:
+            critical_path_priority: Issue #928——True 时关键路径上的任务优先
+                （CPM 关键路径先行，减少项目总工期），False（默认）仅按
+                优先级降序，行为不变。
 
         Returns:
             状态为 pending 且所有依赖均 completed 的任务列表，
-            按优先级降序、task_id 升序排列。
+            按关键路径标记（可选）→ 优先级降序 → task_id 升序排列。
         """
         ready: list[DAGTask] = []
         for task in self.tasks.values():
@@ -251,7 +256,11 @@ class DAGScheduler:
                 continue
             if all(dep in self.completed for dep in task.dependencies if dep in self.tasks):
                 ready.append(task)
-        ready.sort(key=lambda t: (-t.priority, t.task_id))
+        if critical_path_priority and self.tasks:
+            cp = set(self.critical_path())
+            ready.sort(key=lambda t: (t.task_id not in cp, -t.priority, t.task_id))
+        else:
+            ready.sort(key=lambda t: (-t.priority, t.task_id))
         return ready
 
     # ----------------------------------------------------------
