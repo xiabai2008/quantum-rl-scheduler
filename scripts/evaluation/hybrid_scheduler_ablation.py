@@ -131,21 +131,30 @@ def main() -> None:
     engine = RuleEngine()
     hybrid = HybridScheduler(rl_agent=model, rule_engine=engine)
 
-    agg = {"rule": [], "rl": [], "hybrid": []}
+    hybrid_rp = HybridScheduler(rl_agent=model, rule_engine=engine, rl_priority=True)  # RL 优先
+
+    agg = {"rule": [], "rl": [], "hybrid": [], "hybrid_rl_priority": []}
     hybrid_sources_all: dict[str, int] = {}
+    hybrid_rp_sources_all: dict[str, int] = {}
     for ep in range(args.episodes):
         e_r = build_env(args.seed + ep)
         e_l = build_env(args.seed + ep)
         e_h = build_env(args.seed + ep)
+        e_hrp = build_env(args.seed + ep)
         e_r.reset(seed=args.seed + ep)
         e_l.reset(seed=args.seed + ep)
         e_h.reset(seed=args.seed + ep)
+        e_hrp.reset(seed=args.seed + ep)
         agg["rule"].append(run_rule(e_r, engine))
         agg["rl"].append(run_rl(e_l, model))
         h = run_hybrid(e_h, hybrid)
+        hrp = run_hybrid(e_hrp, hybrid_rp)
         agg["hybrid"].append(h)
+        agg["hybrid_rl_priority"].append(hrp)
         for k, v in h["sources"].items():
             hybrid_sources_all[k] = hybrid_sources_all.get(k, 0) + v
+        for k, v in hrp["sources"].items():
+            hybrid_rp_sources_all[k] = hybrid_rp_sources_all.get(k, 0) + v
 
     def mean(key: str) -> dict[str, float]:
         return {k: float(np.mean([x[key] for x in v])) for k, v in agg.items()}
@@ -153,11 +162,14 @@ def main() -> None:
     avg_reward = mean("avg_reward")
     total_sources = sum(hybrid_sources_all.values()) or 1
     source_pct = {k: v / total_sources * 100 for k, v in hybrid_sources_all.items()}
+    total_rp = sum(hybrid_rp_sources_all.values()) or 1
+    rp_source_pct = {k: v / total_rp * 100 for k, v in hybrid_rp_sources_all.items()}
 
     result = {
         "config": {"episodes": args.episodes, "max_steps": args.max_steps, "seed": args.seed},
         "avg_reward_per_step": avg_reward,
         "hybrid_source_distribution": source_pct,
+        "hybrid_rl_priority_source_distribution": rp_source_pct,
     }
 
     out_dir = Path("results/hybrid")
@@ -191,9 +203,10 @@ def main() -> None:
     print("=" * 60)
     print(
         f"  平均奖励/步: 规则 {avg_reward['rule']:.3f} | RL {avg_reward['rl']:.3f} | "
-        f"混合 {avg_reward['hybrid']:.3f}"
+        f"混合 {avg_reward['hybrid']:.3f} | RL优先混合 {avg_reward['hybrid_rl_priority']:.3f}"
     )
-    print(f"  混合来源分布: {json.dumps(source_pct, ensure_ascii=False)}")
+    print(f"  规则优先来源: {json.dumps(source_pct, ensure_ascii=False)}")
+    print(f"  RL优先来源: {json.dumps(rp_source_pct, ensure_ascii=False)}")
     print(f"  产出: {out_dir / 'hybrid_ablation_result.json'}")
     print("=" * 60)
 

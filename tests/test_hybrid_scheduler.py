@@ -441,6 +441,50 @@ class TestHybridScheduler(unittest.TestCase):
 # TestCoverageFiller 补充覆盖测试
 # 覆盖 hybrid_scheduler.py 中剩余未覆盖分支
 # ============================================================
+
+
+class TestRlPriorityMode(unittest.TestCase):
+    """Issue #928: RL 优先模式（rl_priority=True）测试。"""
+
+    def test_rl_priority_uses_rl_when_rule_would_hit(self):
+        """RL 优先：规则会命中（quantum 任务）但 RL 高置信度 → source=rl。"""
+        rl_agent = Mock()
+        rl_agent.predict = Mock(return_value=ACTION_QUANTUM)
+        scheduler = HybridScheduler(rl_agent=rl_agent, rl_priority=True)
+
+        task = _make_task(task_type="quantum", priority=3)
+        ctx = {"available_qubits": 100, "queue_length": 5}
+        result = scheduler.decide(task, state=np.zeros(14), context=ctx)
+
+        self.assertEqual(result["source"], "rl")
+        self.assertEqual(result["action"], ACTION_QUANTUM)
+        rl_agent.predict.assert_called_once()
+
+    def test_rl_priority_falls_back_to_rule_when_rl_unavailable(self):
+        """RL 优先但 RL 不可用（None）→ 规则兜底。"""
+        scheduler = HybridScheduler(rl_agent=None, rl_priority=True)
+
+        task = _make_task(task_type="classical", priority=3)
+        ctx = {"available_qubits": 100, "queue_length": 5}
+        result = scheduler.decide(task, state=np.zeros(14), context=ctx)
+
+        self.assertEqual(result["source"], "rule")
+        self.assertEqual(result["action"], ACTION_CLASSICAL)
+
+    def test_default_mode_still_rule_first(self):
+        """默认模式（rl_priority=False）保持规则优先（回归保护）。"""
+        rl_agent = Mock()
+        rl_agent.predict = Mock(return_value=ACTION_QUANTUM)
+        scheduler = HybridScheduler(rl_agent=rl_agent)  # 默认 rl_priority=False
+
+        task = _make_task(task_type="classical", priority=3)
+        ctx = {"available_qubits": 100, "queue_length": 5}
+        result = scheduler.decide(task, state=np.zeros(14), context=ctx)
+
+        self.assertEqual(result["source"], "rule")
+        rl_agent.predict.assert_not_called()
+
+
 class TestHybridCoverageFiller(unittest.TestCase):
     """补充覆盖 hybrid_scheduler.py 中剩余分支。"""
 

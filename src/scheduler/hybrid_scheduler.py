@@ -227,12 +227,26 @@ class HybridScheduler:
         fallback_to_rule: bool = True,
         rl_fail_threshold: int = _RL_FAIL_THRESHOLD,
         rl_probe_interval: int = _RL_DEGRADE_LOG_INTERVAL,
+        rl_priority: bool = False,
     ) -> None:
-        """初始化混合调度器。"""
+        """初始化混合调度器。
+
+        Args:
+            rl_agent            : RL 智能体（可选）。
+            rule_engine         : 规则引擎（默认 RuleEngine()）。
+            confidence_threshold: RL 置信度阈值。
+            fallback_to_rule    : 全部失败时是否回退规则。
+            rl_fail_threshold   : RL 连续失败熔断阈值。
+            rl_probe_interval   : 降级模式半开探针间隔。
+            rl_priority         : Issue #928——True 时 RL 优先（高置信度 RL 决策，
+                                规则仅作 RI 低置信度/不可用时的兑底）；
+                                False（默认）保持规则优先，行为不变。
+        """
         self._rl_agent: Any | None = rl_agent
         self._rule_engine: RuleEngine = rule_engine if rule_engine is not None else RuleEngine()
         self._confidence_threshold: float = confidence_threshold
         self._fallback_to_rule: bool = fallback_to_rule
+        self._rl_priority: bool = bool(rl_priority)
 
         # 决策统计（Issue #873: 加锁保证 FastAPI 线程池并发调用下的线程安全）
         self._stats_lock = threading.Lock()
@@ -297,19 +311,84 @@ class HybridScheduler:
             self._degraded_decision_count += 1
             return self._degraded_decision_count % self._rl_probe_interval == 0
 
+    def _try_rl_decision(self, state: NDArray[Any] | None) -> dict[str, Any] | None:
+        """尝试 RL 决策（Issue #928 重构抽出）。
+
+        返回完整决策结果（source=rl）或 None（RL 不可用/低置信度/异常）。
+
+        包含：熔断降级探针（_should_attempt_rl）、置信度计算（_RL_CONFIDENCE 默认）、
+        失败熔断（_record_rl_failure）、成功恢复（_record_rl_success）。
+        """
+        rl_agent = self._rl_agent
+        if rl_agent is None or state is None or not self._should_attempt_rl():
+            return None
+        try:
+            raw_action = rl_agent.predict(state, deterministic=True)
+            # Issue #685: SB3 原生模型 predict 返回 (action, state) 元组
+            if isinstance(raw_action, tuple | list):
+                resolved_action = int(raw_action[0])
+            else:
+                resolved_action = int(raw_action)
+
+            # Issue #726: 计算实际推理置信度（动作概率）
+            confidence = _RL_CONFIDENCE  # 默认高置信度
+            try:
+                policy = getattr(rl_agent, "policy", None)
+                if policy is not None:
+                    import torch
+
+                    obs_tensor = torch.as_tensor(state, dtype=torch.float32).unsqueeze(0)
+                    with torch.no_grad():
+                        dist = policy.get_distribution(obs_tensor)
+                        probs = dist.distribution.probs.squeeze(0)
+                        confidence = float(probs[resolved_action])
+            except (RuntimeError, ValueError, AttributeError, TypeError):
+                pass  # 无法计算置信度时使用默认值（含 Mock 等非标准对象）
+
+            if confidence >= self._confidence_threshold:
+                self._record_rl_success()
+                self._increment_stats("_rl_decisions")
+                return {
+                    "action": resolved_action,
+                    "source": "rl",
+                    "confidence": confidence,
+                    "reason": "RL 智能体决策",
+                }
+            logger.debug(
+                f"RL 置信度 {confidence:.3f} < 阈值 {self._confidence_threshold}, 回退到规则"
+            )
+            return None
+        except RuntimeError:
+            # RL 未训练，走兜底（Issue #873: 计入失败熔断）
+            self._record_rl_failure()
+            logger.debug("RL 智能体未训练（RuntimeError），回退到默认规则")
+            return None
+        except (ValueError, AttributeError) as e:
+            # Issue #389: 仅捕获可恢复的推理异常，避免捕获 MemoryError/SystemExit
+            # 原实现使用 except Exception 会捕获所有异常包括严重错误
+            self._record_rl_failure()
+            logger.warning(f"RL 推理失败，回退到经典调度: {type(e).__name__}: {e}")
+            return None
+
     def decide(
         self,
         task: Any,
         state: NDArray[Any] | None = None,
         context: dict[str, Any] | None = None,
+        rl_priority: bool | None = None,
     ) -> dict[str, Any]:
         """
-        核心决策方法：规则优先 → RL → 兜底 → 默认。
+        核心决策方法（Issue #928: 支持 RL 优先模式）。
+
+        默认模式（rl_priority=False）：规则优先 → RL → 兜底 → 默认。
+        RL 优先模式（rl_priority=True）：RL（高置信度）→ 规则 → 兜底 → 默认，
+        修复"规则优先锁死 RL"缺陷（规则引擎在量子友好负载下次优时压过 RL）。
 
         Args:
-            task    : 待调度任务对象
-            state   : RL 状态向量（规则未命中时传给 RL 智能体）
-            context : 调度上下文（available_qubits/queue_length 等）
+            task        : 待调度任务对象
+            state       : RL 状态向量
+            context     : 调度上下文（available_qubits/queue_length 等）
+            rl_priority : 覆盖构造时的模式（None 用构造值）
 
         Returns:
             决策结果字典：
@@ -319,68 +398,36 @@ class HybridScheduler:
                 - reason     : 决策原因说明
         """
         ctx: dict[str, Any] = context if context is not None else {}
+        use_rl_priority = self._rl_priority if rl_priority is None else bool(rl_priority)
 
-        # 1. 规则引擎优先
-        action = self._rule_engine.evaluate(task, ctx)
-        if action is not None:
-            self._increment_stats("_rule_decisions")
-            return {
-                "action": action,
-                "source": "rule",
-                "confidence": _RULE_CONFIDENCE,
-                "reason": f"规则引擎命中，动作={action}",
-            }
-
-        # 2. RL 智能体决策（Issue #726: 使用实际推理置信度而非常量比较）
-        # Issue #873: 正常模式每步尝试；降级模式按探针间隔周期性尝试（半开恢复）
-        rl_agent = self._rl_agent
-        if rl_agent is not None and state is not None and self._should_attempt_rl():
-            try:
-                raw_action = rl_agent.predict(state, deterministic=True)
-                # Issue #685: SB3 原生模型 predict 返回 (action, state) 元组
-                if isinstance(raw_action, tuple | list):
-                    resolved_action = int(raw_action[0])
-                else:
-                    resolved_action = int(raw_action)
-
-                # Issue #726: 计算实际推理置信度（动作概率）
-                confidence = _RL_CONFIDENCE  # 默认高置信度
-                try:
-                    policy = getattr(rl_agent, "policy", None)
-                    if policy is not None:
-                        import torch
-
-                        obs_tensor = torch.as_tensor(state, dtype=torch.float32).unsqueeze(0)
-                        with torch.no_grad():
-                            dist = policy.get_distribution(obs_tensor)
-                            probs = dist.distribution.probs.squeeze(0)
-                            confidence = float(probs[resolved_action])
-                except (RuntimeError, ValueError, AttributeError, TypeError):
-                    pass  # 无法计算置信度时使用默认值（含 Mock 等非标准对象）
-
-                # 使用实际置信度与阈值比较
-                if confidence >= self._confidence_threshold:
-                    self._record_rl_success()
-                    self._increment_stats("_rl_decisions")
-                    return {
-                        "action": resolved_action,
-                        "source": "rl",
-                        "confidence": confidence,
-                        "reason": "RL 智能体决策",
-                    }
-                else:
-                    logger.debug(
-                        f"RL 置信度 {confidence:.3f} < 阈值 {self._confidence_threshold}, 回退到规则"
-                    )
-            except RuntimeError:
-                # RL 未训练，走兜底（Issue #873: 计入失败熔断）
-                self._record_rl_failure()
-                logger.debug("RL 智能体未训练（RuntimeError），回退到默认规则")
-            except (ValueError, AttributeError) as e:
-                # Issue #389: 仅捕获可恢复的推理异常，避免捕获 MemoryError/SystemExit
-                # 原实现使用 except Exception 会捕获所有异常包括严重错误
-                self._record_rl_failure()
-                logger.warning(f"RL 推理失败，回退到经典调度: {type(e).__name__}: {e}")
+        if use_rl_priority:
+            # ---- RL 优先模式（Issue #928）----
+            rl_result = self._try_rl_decision(state)
+            if rl_result is not None:
+                return rl_result
+            action = self._rule_engine.evaluate(task, ctx)
+            if action is not None:
+                self._increment_stats("_rule_decisions")
+                return {
+                    "action": action,
+                    "source": "rule",
+                    "confidence": _RULE_CONFIDENCE,
+                    "reason": f"规则引擎兜底（RL 低置信度/不可用），动作={action}",
+                }
+        else:
+            # ---- 规则优先模式（默认，行为不变）----
+            action = self._rule_engine.evaluate(task, ctx)
+            if action is not None:
+                self._increment_stats("_rule_decisions")
+                return {
+                    "action": action,
+                    "source": "rule",
+                    "confidence": _RULE_CONFIDENCE,
+                    "reason": f"规则引擎命中，动作={action}",
+                }
+            rl_result = self._try_rl_decision(state)
+            if rl_result is not None:
+                return rl_result
 
         # 3. 默认规则兜底
         if self._fallback_to_rule:
@@ -392,7 +439,7 @@ class HybridScheduler:
                 "action": fb_action,
                 "source": "fallback",
                 "confidence": _FALLBACK_CONFIDENCE,
-                "reason": "RL 不可用，回退到默认规则",
+                "reason": "RL 与规则均未命中，使用兜底规则",
             }
 
         # 4. 全部失败 → 默认动作
@@ -401,7 +448,7 @@ class HybridScheduler:
             "action": ACTION_HYBRID,
             "source": "default",
             "confidence": _DEFAULT_CONFIDENCE,
-            "reason": "无可用决策路径，返回默认动作",
+            "reason": "无可用决策来源",
         }
 
     def _fallback_rule(self, task: Any, context: dict[str, Any]) -> int:
