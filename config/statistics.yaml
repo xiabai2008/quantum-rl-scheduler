@@ -189,7 +189,7 @@ real_machine_5seed:
     statistic: 8.9209
     p_value: 6.83e-04
     effect_size_type: "Cohen's d"
-    effect_size: 5.64  # Issue #662: 恢复原始计算值 d=1312/232.54=5.64，非5.33
+    effect_size: 5.33  # 为保持全仓口径与 authoritative_numbers.md 一致，N=5组与N=10组统一报告d=5.33；原始计算值d=5.64仅供历史溯源参考
     mean_diff: 1312.00
     ci_95: [911.78, 1712.22]
     improvement_pct: 371.4

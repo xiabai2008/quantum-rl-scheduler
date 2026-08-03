@@ -1,6 +1,6 @@
 # 14维 DQN vs PPO vs FCFS 三策略完整对比
 
-> **⚠️ 历史报告冻结声明（2026-08-01）**：本报告基于 14 维旧模型（已删除）产出，+88.3%、p=1.032e-42 等为旧口径，**已废弃**。现行权威口径为 16 维交付模型：PPO vs FCFS **+123.4%**（N=250, Welch t p=1.449e-66），见 `config/statistics.yaml`。本报告仅作历史存档，禁止在答辩/白皮书/PPT 中直接引用其数字。
+> **⚠️ 历史报告冻结声明（2026-07-29）**：本报告基于 14 维旧模型（ppo_best_model_14dim.zip，已删除）产出，+88.3%、p=1.032e-42、2746.94/1458.77 等为旧口径，**已废弃**。现行权威口径为 16 维交付模型：PPO vs FCFS **+123.4%**（N=250, Welch t p=1.449e-66, Cohen's d=-2.1353），见 `docs/authoritative_numbers.md` 与 `config/statistics.yaml`。本报告定性结论仍可参考，但具体数字禁止在答辩/白皮书/PPT 中直接引用。
 
 > Issue #96 | 生成时间: 2026-07-24 13:15:36
 > 环境: 14维 QuantumSchedulingEnv + SimulationEnv, 10 seeds x 5 episodes = 50 runs/strategy

@@ -1,9 +1,11 @@
 # 完成率-奖励 Pareto 分析报告
 
+> **⚠️ 历史报告冻结声明（2026-07-29）**：本报告基于 14 维旧模型（ppo_best_model_14dim.zip，已删除）产出，+88.3%、p=1.032e-42、2746.94/1458.77 等为旧口径，**已废弃**。现行权威口径为 16 维交付模型：PPO vs FCFS **+123.4%**（N=250, Welch t p=1.449e-66, Cohen's d=-2.1353），见 `docs/authoritative_numbers.md` 与 `config/statistics.yaml`。本报告定性结论仍可参考，但具体数字禁止在答辩/白皮书/PPT 中直接引用。
+
 > **Issue #142**: 完成率Pareto分析：完成率vs奖励权衡曲线（+3分，用现有数据）
 > **数据源**: 现有50-seed实验数据，无需额外训练
 > **图表**: `results/completion_reward_pareto.png`
-> **权威口径**: PPO平均奖励2746.94（8策略50seed，N=250，来源: `config/statistics.yaml`）
+> **历史口径（14维旧模型，已废弃）**: PPO平均奖励2746.94（8策略50seed，N=250，来源: `config/statistics.yaml`）
 
 ---
 
