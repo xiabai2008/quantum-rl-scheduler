@@ -117,8 +117,7 @@ def compute_statistics(sabre_swaps: list[int], ppo_swaps: list[int]) -> dict[str
     cohens_dz = mean_diff / std_diff if std_diff > 0 else 0.0
 
     return {
-        "n_pairs": n,
-        "mean_sabre_swap": float(np.mean(sabre_arr)),
+        "n_pairs": n,        "mean_sabre_swap": float(np.mean(sabre_arr)),
         "mean_ppo_swap": float(np.mean(ppo_arr)),
         "mean_diff": float(np.mean(diff)),
         "std_diff": float(np.std(diff, ddof=1)) if n > 1 else 0.0,
@@ -129,7 +128,7 @@ def compute_statistics(sabre_swaps: list[int], ppo_swaps: list[int]) -> dict[str
         "ttest_p_value": float(t_p),
         "significant_p05": bool(p_value < 0.05),
         "significant_p01": bool(p_value < 0.01),
-        "cohens_dz": float(np.mean(diff) / (np.std(diff, ddof=1) if n > 1 else 1.0)),
+        "cohens_dz": float(cohens_dz),
         "bootstrap_ci_low_pct": ci_low,
         "bootstrap_ci_high_pct": ci_high,
     }
