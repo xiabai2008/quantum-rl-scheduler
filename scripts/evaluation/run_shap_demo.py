@@ -116,7 +116,7 @@ def plot_single_step(record: dict, path: Path) -> None:
 
     fig, ax = plt.subplots(figsize=(9, 5))
     ax.barh(names, values, color=colors)
-    ax.set_xlabel("特征贡献度（对决策动作 action=%d 的推动/抑制程度）" % record["action"])
+    ax.set_xlabel(f"特征贡献度（对决策动作 action={record['action']} 的推动/抑制程度）")
     ax.set_title(f"单步调度决策解释 — Episode {record['episode']} Step {record['step']}")
     ax.axvline(0, color="black", linewidth=0.8)
     fig.tight_layout()
@@ -137,7 +137,7 @@ def plot_global_importance(records: list[dict], path: Path) -> None:
 
     fig, ax = plt.subplots(figsize=(9, 6))
     ax.barh(names, values, color="#2c7fb8")
-    ax.set_xlabel("归一化平均贡献度（聚合 %d 个决策步）" % len(records))
+    ax.set_xlabel(f"归一化平均贡献度（聚合 {len(records)} 个决策步）")
     ax.set_title("PPO 调度决策全局特征重要性排名（SHAP 风格）")
     fig.tight_layout()
     fig.savefig(path, dpi=150)

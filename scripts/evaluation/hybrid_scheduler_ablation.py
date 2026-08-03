@@ -62,7 +62,7 @@ def run_rule(env: QuantumSchedulingEnv, engine: RuleEngine) -> dict:
     steps = 0
     done = False
     while not done and steps < env._max_steps:
-        obs = env._get_observation()
+        env._get_observation()
         task = env._current_task
         action = None
         if task is not None:
@@ -96,13 +96,13 @@ def run_hybrid(env: QuantumSchedulingEnv, hybrid: HybridScheduler) -> dict:
     done = False
     sources: dict[str, int] = {}
     while not done and steps < env._max_steps:
-        obs = env._get_observation()
+        _obs = env._get_observation()
         task = env._current_task
         if task is None:
             action = 0
             source = "default"
         else:
-            result = hybrid.decide(task, state=obs, context=_ctx_from_env(env))
+            result = hybrid.decide(task, state=_obs, context=_ctx_from_env(env))
             action = result["action"]
             source = result["source"]
         sources[source] = sources.get(source, 0) + 1

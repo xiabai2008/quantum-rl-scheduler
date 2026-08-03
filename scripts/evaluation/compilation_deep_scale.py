@@ -117,7 +117,8 @@ def compute_statistics(sabre_swaps: list[int], ppo_swaps: list[int]) -> dict[str
     cohens_dz = mean_diff / std_diff if std_diff > 0 else 0.0
 
     return {
-        "n_pairs": n,        "mean_sabre_swap": float(np.mean(sabre_arr)),
+        "n_pairs": n,
+        "mean_sabre_swap": float(np.mean(sabre_arr)),
         "mean_ppo_swap": float(np.mean(ppo_arr)),
         "mean_diff": float(np.mean(diff)),
         "std_diff": float(np.std(diff, ddof=1)) if n > 1 else 0.0,
@@ -151,7 +152,7 @@ def main() -> None:
     ppo_results = evaluate_ppo(pool, model_path=MODEL_PATH, max_steps=args.max_steps)
 
     rows: list[dict[str, Any]] = []
-    for s, p in zip(sabre_results, ppo_results):
+    for s, p in zip(sabre_results, ppo_results, strict=True):
         rows.append(
             {
                 "index": s["index"],

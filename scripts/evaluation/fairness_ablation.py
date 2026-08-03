@@ -68,9 +68,8 @@ def run_episode(model, env: QuantumSchedulingEnv, tenant_rng: np.random.Generato
     while not done and steps < env._max_steps:
         action, _ = model.predict(obs, deterministic=True)
         # 模拟任务提交：每次 step 前按租户权重提交任务
-        tenant = tenant_rng.choice(TENANTS, p=[TENANT_WEIGHTS[t] for t in TENANTS])
         env._tenant_manager = None  # 公平跟踪器独立于 tenant_manager 记录
-        obs, reward, terminated, truncated, info = env.step(int(action))
+        obs, reward, terminated, truncated, _info = env.step(int(action))
         total_reward += float(reward)
         steps += 1
         done = terminated or truncated
