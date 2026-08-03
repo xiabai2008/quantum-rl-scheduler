@@ -385,7 +385,7 @@ class HybridScheduler:
         # 3. 默认规则兜底
         if self._fallback_to_rule:
             if self._rl_degraded:
-                self._degraded_decision_count += 1
+                self._increment_stats("_degraded_decision_count")
             fb_action = self._fallback_rule(task, ctx)
             self._increment_stats("_fallback_decisions")
             return {

@@ -288,6 +288,10 @@ def main() -> None:
         # 陈旧基线保护（2026-08-01）：上次记录超过 7 天或跨机器（本地 vs CI）
         # 时，数值对比无意义（期间功能演进 + 硬件波动均 >10%），只记录新基线
         # 不阻断 CI，避免"伪回归"误报；短期（<=7 天）对比仍严格阻断。
+        # 2026-08-02（收紧）：陈旧基线（>7 天）从"直接跳过"改为"警告 +
+        # 以本次结果为新基线继续对比"——保留"新鲜基线必阻断"能力，同时
+        # 消除"陈旧窗口内真实回归静默溜过"的盲区；跨机器（hostname 不同）
+        # 对比仍跳过（硬件差异下数值对比无意义）。
         import datetime as _dt
 
         try:
@@ -295,10 +299,19 @@ def main() -> None:
             age_days = (_dt.datetime.now(_dt.timezone.utc) - prev_ts).days
         except (ValueError, TypeError):
             age_days = 999
+        prev_host = previous.get("host", "")
+        import socket
+
+        cur_host = socket.gethostname()
         if age_days > 7:
             print(
-                f"\nℹ️  上次基准记录为 {age_days} 天前（陈旧基线），跳过回归检测，"
-                "本次结果已记录为新基线"
+                f"\nℹ️  上次基准记录为 {age_days} 天前（陈旧基线），"
+                "已以本次结果为新基线；请人工确认 7 天窗口内无真实性能回归。"
+            )
+        elif prev_host and prev_host != cur_host:
+            print(
+                f"\nℹ️  跨机器对比（{prev_host} vs {cur_host}），跳过回归检测"
+                "（硬件差异下数值对比无意义），本次结果已记录为新基线"
             )
         else:
             regressions = tracker.detect_regressions(

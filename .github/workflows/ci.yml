@@ -129,8 +129,12 @@ jobs:
           # CI test job 已简化为只跑 Windows（2026-07-19），
           # 退火逻辑在 Windows 矩阵（3.10/3.12）完整验证。
           # 2026-08-01: 移除 xdist 并行（worker 偶发挂起 30min+），改串行。
+          # 2026-08-02: 恢复 xdist 并行，加 --max-worker-restart=2 兜底——
+          #   worker 崩溃超限时快速失败（可重跑）而非无限挂起拖死 run，
+          #   3.10/3.12 测试时长从 ~50min 压回 ~8min。
           python -m pytest tests/ \
             -v \
+            -n auto --dist loadscope --max-worker-restart=2 \
             --ignore=tests/test_performance_benchmarks.py \
             --cov=src \
             --cov-report=term-missing \

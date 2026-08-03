@@ -255,7 +255,15 @@ class PPOAgent:
             real_submit_probability=env.real_submit_probability,
             use_real_machine=False,
             noise_profile=env.noise_profile,
+            # Issue #588/#928: 公平感知训练（17 维）时评估环境必须保持同构，
+            # 否则 eval 期观测 16 维 vs 训练 17 维导致 ValueError
+            include_fairness_obs=getattr(env, "_include_fairness_obs", False),
         )
+        if getattr(env, "_include_fairness_obs", False) and env._fairness_tracker is not None:
+            try:
+                eval_env.set_fairness_tracker(copy.deepcopy(env._fairness_tracker))
+            except Exception:  # 深拷贝失败时降级为无 tracker（公平维恒 0，不崩）
+                logger.warning("评估环境 fairness_tracker 深拷贝失败，公平维恒 0")
         return Monitor(eval_env)
 
     def _build_model(self) -> PPO | RecurrentPPO:
