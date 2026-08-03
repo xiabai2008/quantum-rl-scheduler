@@ -156,6 +156,12 @@ def advance_time(env: "QuantumSchedulingEnv", rng: np.random.Generator) -> None:
                 m.active_tasks.remove(t)
                 m.used_qubits -= getattr(t, "qubit_count", 0)
                 m.quantum_queue = max(0, m.quantum_queue - 1)
+                # Issue #928: 公平性跟踪器事件驱动——任务完成记录，
+                # 使 Jain 完成率公平指数基于真实完成事件（此前恒 0）
+                if getattr(env, "_fairness_tracker", None) is not None:
+                    env._fairness_tracker.record_complete(
+                        getattr(t, "tenant_id", None), exec_steps=1
+                    )
 
             m.used_qubits = max(0, m.used_qubits)
         else:

@@ -840,7 +840,20 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
         return float(rng.uniform(0.85, 0.99))
 
     def _generate_random_task(self, rng: np.random.Generator, task_id: int) -> Task:
-        return generate_random_task(rng, task_id, self.quantum_task_ratio)
+        task = generate_random_task(rng, task_id, self.quantum_task_ratio)
+        # Issue #928: 公平性跟踪器事件驱动——任务首次生成即记录提交，
+        # 使公平观测/惩罚基于真实租户完成率（此前 tracker 无事件恒 0）。
+        # 租户从 tracker 已知租户池随机分配（generate_random_task 未设 tenant_id）
+        if self._fairness_tracker is not None:
+            known = [
+                tid
+                for tid in getattr(self._fairness_tracker, "_stats", {})
+                if tid != "unknown"
+            ]
+            if known:
+                task.tenant_id = str(rng.choice(known))
+            self._fairness_tracker.record_submit(task.tenant_id)
+        return task
 
     def _get_arrival_lambda(self) -> float:
         """返回当前步的泊松到达率，供多负载评估使用。"""
