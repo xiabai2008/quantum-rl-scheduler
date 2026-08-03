@@ -46,7 +46,7 @@ def run_fcfs_on_wrapper(agent: MultiAgentPPO, seed: int, max_steps: int) -> floa
     steps = 0
     while not done and steps < max_steps:
         actions = dict.fromkeys(agent.wrapper.machine_names, 2)  # FCFS hybrid
-        local_obs, reward, terminated, truncated, _ = agent.wrapper.step(actions)
+        _lo, reward, terminated, truncated, _ = agent.wrapper.step(actions)
         total += float(reward)
         done = bool(terminated or truncated)
         steps += 1
