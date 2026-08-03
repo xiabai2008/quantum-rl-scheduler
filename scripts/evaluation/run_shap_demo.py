@@ -28,7 +28,6 @@ import matplotlib
 
 matplotlib.use("Agg")  # 无 GUI 环境出图
 import matplotlib.pyplot as plt
-
 import numpy as np
 
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
@@ -40,7 +39,7 @@ if hasattr(sys.stdout, "reconfigure"):
     sys.stderr.reconfigure(encoding="utf-8")
 
 from src.scheduler.env import QuantumSchedulingEnv
-from src.scheduler.explainability import PPOExplainer, STATE_FEATURE_NAMES
+from src.scheduler.explainability import STATE_FEATURE_NAMES, PPOExplainer
 
 MODEL_PATH = "deliverable_models/ppo_best_model_16dim.zip"
 OUT_DIR = Path("results/shap")

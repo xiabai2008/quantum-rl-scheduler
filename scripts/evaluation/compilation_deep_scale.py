@@ -39,17 +39,16 @@ if hasattr(sys.stdout, "reconfigure"):
     sys.stderr.reconfigure(encoding="utf-8")
 
 # 复用 fair_v2 的核心评测与统计函数（同池配对 + 固定种子协议）
-from scripts.evaluation.compilation_fair_v2 import (  # noqa: E402
+# 复刻 fair_v2 的电路池生成（深电路难度参数完全一致）
+from qiskit.circuit.random import random_circuit
+
+from scripts.evaluation.compilation_fair_v2 import (
     CATEGORIES,
-    COUPLING,
     MODEL_PATH,
     SEED,
     evaluate_ppo,
     evaluate_sabre,
 )
-
-# 复刻 fair_v2 的电路池生成（深电路难度参数完全一致）
-from qiskit.circuit.random import random_circuit  # noqa: E402
 
 DEEP = CATEGORIES["deep"]
 
