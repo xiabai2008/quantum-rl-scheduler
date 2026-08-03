@@ -51,9 +51,7 @@ def _ctx_from_env(env: QuantumSchedulingEnv) -> dict:
     return {
         "available_qubits": getattr(env, "_available_qubits", 0)
         if hasattr(env, "_available_qubits")
-        else sum(
-            getattr(m, "total_qubits", 0) for m in getattr(env, "_machines", [])
-        ),
+        else sum(getattr(m, "total_qubits", 0) for m in getattr(env, "_machines", [])),
         "queue_length": len(env._task_queue),
         "task_type": task.task_type if task is not None else None,
     }
@@ -150,9 +148,7 @@ def main() -> None:
             hybrid_sources_all[k] = hybrid_sources_all.get(k, 0) + v
 
     def mean(key: str) -> dict[str, float]:
-        return {
-            k: float(np.mean([x[key] for x in v])) for k, v in agg.items()
-        }
+        return {k: float(np.mean([x[key] for x in v])) for k, v in agg.items()}
 
     avg_reward = mean("avg_reward")
     total_sources = sum(hybrid_sources_all.values()) or 1
@@ -180,9 +176,9 @@ def main() -> None:
 
 | 策略 | 平均奖励/步 |
 |:--|:--|
-| 纯规则（RuleEngine） | {avg_reward['rule']:.3f} |
-| 纯 RL（PPO deterministic） | {avg_reward['rl']:.3f} |
-| **混合（HybridScheduler）** | **{avg_reward['hybrid']:.3f}** |
+| 纯规则（RuleEngine） | {avg_reward["rule"]:.3f} |
+| 纯 RL（PPO deterministic） | {avg_reward["rl"]:.3f} |
+| **混合（HybridScheduler）** | **{avg_reward["hybrid"]:.3f}** |
 
 **混合策略决策来源分布**：{json.dumps(source_pct, ensure_ascii=False)}
 
@@ -193,8 +189,10 @@ def main() -> None:
     (report_dir / "hybrid_ablation_report.md").write_text(report, encoding="utf-8")
 
     print("=" * 60)
-    print(f"  平均奖励/步: 规则 {avg_reward['rule']:.3f} | RL {avg_reward['rl']:.3f} | "
-          f"混合 {avg_reward['hybrid']:.3f}")
+    print(
+        f"  平均奖励/步: 规则 {avg_reward['rule']:.3f} | RL {avg_reward['rl']:.3f} | "
+        f"混合 {avg_reward['hybrid']:.3f}"
+    )
     print(f"  混合来源分布: {json.dumps(source_pct, ensure_ascii=False)}")
     print(f"  产出: {out_dir / 'hybrid_ablation_result.json'}")
     print("=" * 60)

@@ -101,9 +101,16 @@ def main() -> None:
     fair = PPO.load(FAIR_MODEL)
 
     rng = np.random.default_rng(args.seed)
-    baseline_stats = {k: [] for k in ("total_reward", "avg_reward_per_step",
-                                      "jain_completion_fairness", "jain_wait_fairness",
-                                      "max_min_ratio")}
+    baseline_stats = {
+        k: []
+        for k in (
+            "total_reward",
+            "avg_reward_per_step",
+            "jain_completion_fairness",
+            "jain_wait_fairness",
+            "max_min_ratio",
+        )
+    }
     fair_stats = {k: [] for k in baseline_stats}
 
     for ep in range(args.episodes):
@@ -124,15 +131,21 @@ def main() -> None:
     # 相对变化（效率维度：奖励越高越好；公平维度：Jain 越高越好）
     delta = {
         "avg_reward_per_step_pct": (f_sum["avg_reward_per_step"] - b_sum["avg_reward_per_step"])
-        / abs(b_sum["avg_reward_per_step"]) * 100,
+        / abs(b_sum["avg_reward_per_step"])
+        * 100,
         "jain_completion_fairness_delta": f_sum["jain_completion_fairness"]
         - b_sum["jain_completion_fairness"],
         "max_min_ratio_delta": f_sum["max_min_ratio"] - b_sum["max_min_ratio"],
     }
 
     result = {
-        "config": {"episodes": args.episodes, "max_steps": args.max_steps, "seed": args.seed,
-                   "tenants": TENANTS, "tenant_weights": TENANT_WEIGHTS},
+        "config": {
+            "episodes": args.episodes,
+            "max_steps": args.max_steps,
+            "seed": args.seed,
+            "tenants": TENANTS,
+            "tenant_weights": TENANT_WEIGHTS,
+        },
         "baseline_16dim": b_sum,
         "fairness_17dim": f_sum,
         "delta": delta,
@@ -155,9 +168,9 @@ def main() -> None:
 
 | 指标 | 16 维基线 | 17 维公平 | 变化 |
 |:--|:--|:--|:--|
-| Jain 完成率公平指数 | {b_sum['jain_completion_fairness']:.4f} | {f_sum['jain_completion_fairness']:.4f} | {delta['jain_completion_fairness_delta']:+.4f} |
-| max/min 完成率比率 | {b_sum['max_min_ratio']:.4f} | {f_sum['max_min_ratio']:.4f} | {delta['max_min_ratio_delta']:+.4f} |
-| 平均奖励/步 | {b_sum['avg_reward_per_step']:.3f} | {f_sum['avg_reward_per_step']:.3f} | {delta['avg_reward_per_step_pct']:+.1f}% |
+| Jain 完成率公平指数 | {b_sum["jain_completion_fairness"]:.4f} | {f_sum["jain_completion_fairness"]:.4f} | {delta["jain_completion_fairness_delta"]:+.4f} |
+| max/min 完成率比率 | {b_sum["max_min_ratio"]:.4f} | {f_sum["max_min_ratio"]:.4f} | {delta["max_min_ratio_delta"]:+.4f} |
+| 平均奖励/步 | {b_sum["avg_reward_per_step"]:.3f} | {f_sum["avg_reward_per_step"]:.3f} | {delta["avg_reward_per_step_pct"]:+.1f}% |
 
 **结论解读**：
 - 公平感知模型应显著提升 Jain 完成率公平指数（公平性维度）
@@ -167,12 +180,18 @@ def main() -> None:
     (report_dir / "fairness_ablation_report.md").write_text(report, encoding="utf-8")
 
     print("=" * 60)
-    print(f"  Jain 完成率公平指数: 基线 {b_sum['jain_completion_fairness']:.4f} → "
-          f"公平 {f_sum['jain_completion_fairness']:.4f} ({delta['jain_completion_fairness_delta']:+.4f})")
-    print(f"  平均奖励/步: 基线 {b_sum['avg_reward_per_step']:.3f} → "
-          f"公平 {f_sum['avg_reward_per_step']:.3f} ({delta['avg_reward_per_step_pct']:+.1f}%)")
-    print(f"  产出: {out_dir / 'fairness_ablation_result.json'} / "
-          f"{report_dir / 'fairness_ablation_report.md'}")
+    print(
+        f"  Jain 完成率公平指数: 基线 {b_sum['jain_completion_fairness']:.4f} → "
+        f"公平 {f_sum['jain_completion_fairness']:.4f} ({delta['jain_completion_fairness_delta']:+.4f})"
+    )
+    print(
+        f"  平均奖励/步: 基线 {b_sum['avg_reward_per_step']:.3f} → "
+        f"公平 {f_sum['avg_reward_per_step']:.3f} ({delta['avg_reward_per_step_pct']:+.1f}%)"
+    )
+    print(
+        f"  产出: {out_dir / 'fairness_ablation_result.json'} / "
+        f"{report_dir / 'fairness_ablation_report.md'}"
+    )
     print("=" * 60)
 
 

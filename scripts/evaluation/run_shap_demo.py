@@ -49,12 +49,27 @@ OUT_DIR = Path("results/shap")
 def build_env(seed: int = 31) -> QuantumSchedulingEnv:
     """构造调度层环境（与 run_simulation 一致的 3 机配置，16 维观测）。"""
     machine_configs = [
-        {"name": "tianyan_l", "total_qubits": 10, "fidelity": 0.98, "available": True,
-         "supported_gates": ("H", "CNOT", "M")},
-        {"name": "tianyan_s", "total_qubits": 6, "fidelity": 0.96, "available": True,
-         "supported_gates": ("H", "CNOT", "M")},
-        {"name": "tianyan_sw", "total_qubits": 4, "fidelity": 0.95, "available": True,
-         "supported_gates": ("H", "CNOT", "M")},
+        {
+            "name": "tianyan_l",
+            "total_qubits": 10,
+            "fidelity": 0.98,
+            "available": True,
+            "supported_gates": ("H", "CNOT", "M"),
+        },
+        {
+            "name": "tianyan_s",
+            "total_qubits": 6,
+            "fidelity": 0.96,
+            "available": True,
+            "supported_gates": ("H", "CNOT", "M"),
+        },
+        {
+            "name": "tianyan_sw",
+            "total_qubits": 4,
+            "fidelity": 0.95,
+            "available": True,
+            "supported_gates": ("H", "CNOT", "M"),
+        },
     ]
     return QuantumSchedulingEnv(max_steps=100, machine_configs=machine_configs, seed=seed)
 
@@ -65,9 +80,7 @@ def run_demo(episodes: int, max_steps: int) -> list[dict]:
 
     model = PPO.load(MODEL_PATH)
     env = build_env()
-    explainer = PPOExplainer(
-        model=model, feature_names=STATE_FEATURE_NAMES, method="heuristic"
-    )
+    explainer = PPOExplainer(model=model, feature_names=STATE_FEATURE_NAMES, method="heuristic")
 
     records: list[dict] = []
     for ep in range(episodes):
@@ -75,9 +88,7 @@ def run_demo(episodes: int, max_steps: int) -> list[dict]:
         for step in range(max_steps):
             action, _ = model.predict(obs, deterministic=True)
             # PPOExplainer.explain(observation, action) -> dict[特征名, 贡献度]
-            contributions = explainer.explain(
-                np.asarray(obs, dtype=np.float64), int(action)
-            )
+            contributions = explainer.explain(np.asarray(obs, dtype=np.float64), int(action))
             ranked = sorted(contributions.items(), key=lambda kv: kv[1], reverse=True)
             records.append(
                 {
@@ -156,9 +167,7 @@ def main() -> None:
     print(f"全局特征重要性图: {imp_path}")
 
     json_path = OUT_DIR / "shap_records.json"
-    json_path.write_text(
-        json.dumps(records, ensure_ascii=False, indent=2), encoding="utf-8"
-    )
+    json_path.write_text(json.dumps(records, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"决策记录: {json_path}")
     print(f"模型: {MODEL_PATH} | 特征: {len(STATE_FEATURE_NAMES)} 维（调度层）")
 

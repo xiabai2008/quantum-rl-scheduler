@@ -205,11 +205,7 @@ def main() -> None:
         json.dumps(stats_summary, ensure_ascii=False, indent=2), encoding="utf-8"
     )
 
-    verdict = (
-        "显著（p<0.05）"
-        if stats_summary["significant_p05"]
-        else "不显著（维持探索性结论）"
-    )
+    verdict = "显著（p<0.05）" if stats_summary["significant_p05"] else "不显著（维持探索性结论）"
     report = f"""# 编译层深电路样本扩充实验报告
 
 - **协议**: 与 compilation_fair_v2 同池配对 + 固定种子（seed={args.seed}）
@@ -218,12 +214,12 @@ def main() -> None:
 
 | 指标 | 值 |
 |:--|:--|
-| SABRE 平均 SWAP | {stats_summary['mean_sabre_swap']:.1f} |
-| PPO 平均 SWAP | {stats_summary['mean_ppo_swap']:.1f} |
-| 平均改善 | {stats_summary['improvement_pct']:+.1f}%（逐电路配对） |
-| Wilcoxon p 值 | {stats_summary['p_value']:.2e} |
-| Cohen's d_z | {stats_summary['cohens_dz']:.2f} |
-| Bootstrap 95% CI | [{stats_summary['bootstrap_ci_low_pct']:+.1f}%, {stats_summary['bootstrap_ci_high_pct']:+.1f}%] |
+| SABRE 平均 SWAP | {stats_summary["mean_sabre_swap"]:.1f} |
+| PPO 平均 SWAP | {stats_summary["mean_ppo_swap"]:.1f} |
+| 平均改善 | {stats_summary["improvement_pct"]:+.1f}%（逐电路配对） |
+| Wilcoxon p 值 | {stats_summary["p_value"]:.2e} |
+| Cohen's d_z | {stats_summary["cohens_dz"]:.2f} |
+| Bootstrap 95% CI | [{stats_summary["bootstrap_ci_low_pct"]:+.1f}%, {stats_summary["bootstrap_ci_high_pct"]:+.1f}%] |
 
 **结论**: {verdict}
 
@@ -247,18 +243,26 @@ __TIER_ROWS__
     )
 
     print("=" * 60)
-    print(f"  N={len(rows)} 深电路: 改善 {stats_summary['improvement_pct']:+.1f}% "
-          f"(p={stats_summary['p_value']:.2e})")
+    print(
+        f"  N={len(rows)} 深电路: 改善 {stats_summary['improvement_pct']:+.1f}% "
+        f"(p={stats_summary['p_value']:.2e})"
+    )
     print(f"  Cohen's d_z = {stats_summary['cohens_dz']:.2f}")
-    print(f"  Bootstrap 95% CI: [{stats_summary['bootstrap_ci_low_pct']:+.1f}%, "
-          f"{stats_summary['bootstrap_ci_high_pct']:+.1f}%]")
+    print(
+        f"  Bootstrap 95% CI: [{stats_summary['bootstrap_ci_low_pct']:+.1f}%, "
+        f"{stats_summary['bootstrap_ci_high_pct']:+.1f}%]"
+    )
     print(f"  结论: {verdict}")
     for tier_name, v in stats_summary.get("tier_robustness", {}).items():
-        print(f"  分层[{tier_name}]: N={v['n']} 改善 {v['improvement_pct']:+.1f}% (p={v['p_value']:.2e})")
+        print(
+            f"  分层[{tier_name}]: N={v['n']} 改善 {v['improvement_pct']:+.1f}% (p={v['p_value']:.2e})"
+        )
     print("=" * 60)
-    print(f"产出: {out_dir / 'deep_scale_per_circuit.json'} / "
-          f"{out_dir / 'deep_scale_summary.json'} / "
-          f"{report_dir / 'compilation_deep_scale_report.md'}")
+    print(
+        f"产出: {out_dir / 'deep_scale_per_circuit.json'} / "
+        f"{out_dir / 'deep_scale_summary.json'} / "
+        f"{report_dir / 'compilation_deep_scale_report.md'}"
+    )
 
 
 if __name__ == "__main__":
