@@ -749,5 +749,50 @@ class TestActionConstantsConsistency(unittest.TestCase):
         self.assertEqual(len(values), 3)
 
 
+class TestAdaptiveMode(unittest.TestCase):
+    """Issue #928: 自适应接管（adaptive=True）测试。"""
+
+    def _mk_adaptive(self, rl_agent):
+        return HybridScheduler(rl_agent=rl_agent, adaptive=True, rl_priority=False)
+
+    def test_adaptive_prefers_rl_when_rl_wins(self):
+        """RL 历史奖励 > 规则 → 自适应切换到 RL 优先。"""
+        rl_agent = Mock()
+        rl_agent.predict = Mock(return_value=ACTION_QUANTUM)
+        scheduler = self._mk_adaptive(rl_agent)
+        # 喂奖励：RL 高、规则低（各 6 个，超窗口最小样本 5）
+        for _ in range(6):
+            scheduler.report_reward("rl", 100.0)
+            scheduler.report_reward("rule", 10.0)
+        task = _make_task(task_type="quantum", priority=3)
+        ctx = {"available_qubits": 100, "queue_length": 5}
+        result = scheduler.decide(task, state=np.zeros(14), context=ctx)
+        self.assertEqual(result["source"], "rl")  # 自适应 RL 优先
+
+    def test_adaptive_prefers_rule_when_rule_wins(self):
+        """规则历史奖励 > RL → 自适应回退规则优先。"""
+        rl_agent = Mock()
+        rl_agent.predict = Mock(return_value=ACTION_QUANTUM)
+        scheduler = self._mk_adaptive(rl_agent)
+        for _ in range(6):
+            scheduler.report_reward("rl", 10.0)
+            scheduler.report_reward("rule", 100.0)
+        task = _make_task(task_type="quantum", priority=3)
+        ctx = {"available_qubits": 100, "queue_length": 5}
+        result = scheduler.decide(task, state=np.zeros(14), context=ctx)
+        self.assertEqual(result["source"], "rule")  # 自适应规则优先
+
+    def test_adaptive_window_insufficient_uses_default(self):
+        """窗口未满（<5）时回退固定 rl_priority=False（规则优先）。"""
+        rl_agent = Mock()
+        rl_agent.predict = Mock(return_value=ACTION_QUANTUM)
+        scheduler = self._mk_adaptive(rl_agent)
+        scheduler.report_reward("rl", 100.0)  # 仅 1 个样本，窗口不足
+        task = _make_task(task_type="quantum", priority=3)
+        ctx = {"available_qubits": 100, "queue_length": 5}
+        result = scheduler.decide(task, state=np.zeros(14), context=ctx)
+        self.assertEqual(result["source"], "rule")
+
+
 if __name__ == "__main__":
     unittest.main()

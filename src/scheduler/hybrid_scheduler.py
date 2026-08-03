@@ -228,6 +228,7 @@ class HybridScheduler:
         rl_fail_threshold: int = _RL_FAIL_THRESHOLD,
         rl_probe_interval: int = _RL_DEGRADE_LOG_INTERVAL,
         rl_priority: bool = False,
+        adaptive: bool = False,
     ) -> None:
         """初始化混合调度器。
 
@@ -239,14 +240,22 @@ class HybridScheduler:
             rl_fail_threshold   : RL 连续失败熔断阈值。
             rl_probe_interval   : 降级模式半开探针间隔。
             rl_priority         : Issue #928——True 时 RL 优先（高置信度 RL 决策，
-                                规则仅作 RI 低置信度/不可用时的兑底）；
+                                规则仅作 RL 低置信度/不可用时的兑底）；
                                 False（默认）保持规则优先，行为不变。
+            adaptive            : Issue #928——True 时基于 RL/规则历史奖励
+                                动态切换接管优先级（滑动窗口均值比较），
+                                覆盖 rl_priority 固定模式。
         """
         self._rl_agent: Any | None = rl_agent
         self._rule_engine: RuleEngine = rule_engine if rule_engine is not None else RuleEngine()
         self._confidence_threshold: float = confidence_threshold
         self._fallback_to_rule: bool = fallback_to_rule
         self._rl_priority: bool = bool(rl_priority)
+        # Issue #928: 自适应接管——RL/规则历史奖励滑动窗口
+        self._adaptive: bool = bool(adaptive)
+        self._rl_rewards: list[float] = []
+        self._rule_rewards: list[float] = []
+        self._adaptive_window: int = 20
 
         # 决策统计（Issue #873: 加锁保证 FastAPI 线程池并发调用下的线程安全）
         self._stats_lock = threading.Lock()
@@ -370,6 +379,37 @@ class HybridScheduler:
             logger.warning(f"RL 推理失败，回退到经典调度: {type(e).__name__}: {e}")
             return None
 
+    def report_reward(self, source: str, reward: float) -> None:
+        """报告一次决策后的环境奖励（Issue #928 自适应接管）。
+
+        调度循环在 env.step 后调用：source 为决策来源（"rl"/"rule"），
+        用于维护 RL/规则的历史奖励滑动窗口，供自适应模式判断接管优先级。
+        """
+        if not self._adaptive:
+            return
+        if source == "rl":
+            self._rl_rewards.append(float(reward))
+            if len(self._rl_rewards) > self._adaptive_window:
+                self._rl_rewards.pop(0)
+        elif source == "rule":
+            self._rule_rewards.append(float(reward))
+            if len(self._rule_rewards) > self._adaptive_window:
+                self._rule_rewards.pop(0)
+
+    def _adaptive_rl_priority(self) -> bool:
+        """自适应判定：RL 最近平均奖励 > 规则 → RL 优先。
+
+        窗口未满（<5 样本）时保守回退到固定 rl_priority；窗口内
+        RL 表现更好则返回 True（RL 优先），否则 False（规则优先）。
+        """
+        if not self._adaptive:
+            return self._rl_priority
+        if len(self._rl_rewards) < 5 or len(self._rule_rewards) < 5:
+            return self._rl_priority
+        rl_avg = sum(self._rl_rewards) / len(self._rl_rewards)
+        rule_avg = sum(self._rule_rewards) / len(self._rule_rewards)
+        return rl_avg > rule_avg
+
     def decide(
         self,
         task: Any,
@@ -398,7 +438,7 @@ class HybridScheduler:
                 - reason     : 决策原因说明
         """
         ctx: dict[str, Any] = context if context is not None else {}
-        use_rl_priority = self._rl_priority if rl_priority is None else bool(rl_priority)
+        use_rl_priority = self._adaptive_rl_priority() if rl_priority is None else bool(rl_priority)
 
         if use_rl_priority:
             # ---- RL 优先模式（Issue #928）----
