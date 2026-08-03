@@ -1401,7 +1401,12 @@ class MultiAgentPPO:
                 gs_batch = self._to_tensor(global_states[batch_idx])
                 returns_batch = self._to_tensor(returns_arr[batch_idx])
                 values_pred = self.critic(gs_batch)
-                critic_loss = nn.functional.mse_loss(values_pred, returns_batch)
+                # Issue #928: critic 收敛优化——按 returns 方差缩放 MSE。
+                # 奖励尺度大（returns 数百-数千）导致 critic_loss 高达 2.5 万、
+                # value 学习不稳定；除以方差等价于"标准化目标 + 梯度缩放"，
+                # 不改变模型语义（训练目标仍是原始 returns），无需预测反标准化。
+                returns_std = float(np.maximum(returns_arr[batch_idx].std(), 1e-8))
+                critic_loss = nn.functional.mse_loss(values_pred, returns_batch) / (returns_std**2)
 
                 self.critic_optimizer.zero_grad()
                 critic_loss.backward()
