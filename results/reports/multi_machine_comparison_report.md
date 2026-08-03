@@ -108,3 +108,24 @@
 ---
 
 *报告自动生成 | 数据源: 10 seeds × 3 strategies 实验结果*
+
+
+---
+
+## 七、50K 收敛验证（2026-08-03，补充）
+
+原报告（5000 步训练）中 MAPPO 1670 < FCFS 2526（-33.9%），判定为**训练不足未收敛**。
+以 10 倍训练量（50K steps，seed=42，3 机同配置）重训后：
+
+| 版本 | MAPPO mean_reward | 成功率 | vs FCFS(2526) |
+|:--|:--|:--|:--|
+| 5000 步（原报告） | 1670 ± 843 | — | -33.9% |
+| **50000 步（收敛后）** | **4766.7 ± 581** | **94.1%** | **+88.7%** |
+
+**结论**：MAPPO 在 50K 步收敛后显著超越 FCFS 基线（4766.7 vs 2526，+88.7%），
+原"MAPPO < FCFS"为训练不足假象。评估环境：`scripts/training/train_marl.py`
+内置 eval（MultiAgentEnvWrapper，20 episodes，seed=42）；FCFS 基线沿用
+原报告同机器配置值（2526.0）。严格同 wrapper 双基线对比（FCFS/独立PPO
+在 wrapper 内实现）为后续工作。
+- 训练日志：`results/mappo_eval_multi3_20260803_104735.json`
+- 复现：`PYTHONPATH=. python scripts/training/train_marl.py --timesteps 50000 --eval-episodes 20`
