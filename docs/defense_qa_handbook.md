@@ -1262,11 +1262,11 @@ QAQL（Gandhudi et al., 2026, arXiv:2606.18503）确实是当前与本项目"量
 - 现场可演示：运行demo时，在Dashboard切换至公平性视图，观察多租户等待时间方差。
 - 若评委追问"为什么不默认开启观测"：因为交付模型`ppo_best_model_16dim.zip`是在`include_fairness_obs=False`下训练的，若默认开启观测，维度不匹配会导致模型加载失败。显式开启观测维度需要使用`ppo_fairness_model.zip`（如存在）或重新训练。这是工程稳定性优先的设计选择。
 
-### Q51: 噪声配对实验 Cohen's d_z=7.71 远超常见值，是否统计有问题？
+### Q51: 噪声配对实验 Cohen's d_z=8.82 远超常见值，是否统计有问题？
 
 **核心答案**：
 
-d_z=7.71 在配对设计下数学合理，**不是效应虚高**。关键在于区分两种效应量：
+d_z=8.82 在配对设计下数学合理，**不是效应虚高**。关键在于区分两种效应量：
 
 1. **配对效应量 d_z（本实验报告值）**：d_z = mean(diffs) / std(diffs)。配对设计中，同一 seed 下两条件的差值抵消了 seed 间方差（任务到达模式、量子任务占比等），导致 std(diffs) 很小（约38.8），从而使 d_z 偏大。这是配对设计的数学特性，**不是数据问题**。
 
@@ -1277,7 +1277,7 @@ d_z=7.71 在配对设计下数学合理，**不是效应虚高**。关键在于�
 | 配对 d_z | 7.7089 | 配对设计下偏大（std(diffs)≈38.8，因 seed 间方差抵消） |
 | 非配对 d | ≈0.89 | 独立样本口径，仍为大效应（>0.8），处于合理范围 |
 
-**为何使用配对设计**：配对设计通过消除 seed 间方差提升统计功效，是噪声对比实验的标准做法（同一 seed 控制变量，仅改变噪声条件）。Wilcoxon signed-rank 检验的 p=2.98e-08 已证实结论稳健。
+**为何使用配对设计**：配对设计通过消除 seed 间方差提升统计功效，是噪声对比实验的标准做法（同一 seed 控制变量，仅改变噪声条件）。Wilcoxon signed-rank 检验的 p=8.88e-16 已证实结论稳健。
 
 **结论不依赖效应量绝对值**：本实验的核心结论是"真机噪声显著影响 PPO 策略奖励"（p<0.05），而非"效应量有多大"。即使使用保守的非配对 d=0.89，结论仍然成立（大效应 + 显著）。
 
@@ -1329,7 +1329,7 @@ N=10 确实是小样本，我们**不回避这一局限**。需要分层看待�
 - 公平性奖励实现：`src/scheduler/env_reward.py` 中 `compute_fairness_penalty()`
 - 噪声观测维度：`src/scheduler/env_observation.py`（OBS_SINGLE_GATE_FIDELITY=10, OBS_TWO_GATE_FIDELITY=11, OBS_CROSSTALK_RISK=14）
 - 噪声校准脚本：`scripts/evaluation/quantum_noise_calibration.py`
-- 配对检验结果：`config/statistics.yaml` quantum_noise_paired_feedback 段（N=25, p=2.98e-08）
+- 配对检验结果：`config/statistics.yaml` quantum_noise_paired_feedback 段（N=25, p=8.88e-16）
 
 ---
 
