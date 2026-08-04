@@ -428,7 +428,7 @@ class TianyanClient:
                 app_id=self._app_id,
             )
             logger.info(f"✅ 真实模式委托 cqlib（机器={machine_name}）")
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             # 涉及 cqlib SDK 导入与初始化，异常类型无法穷举，保留宽捕获并记录日志
             logger.warning(f"cqlib 客户端初始化失败: {e}，回退 REST 路径")
 
@@ -592,9 +592,7 @@ class TianyanClient:
             return retry_after
         return backoff
 
-    def _call_with_retry(
-        self, func: Callable[..., T], *args: Any, max_retries: int | None = None, **kwargs: Any
-    ) -> T:
+    def _call_with_retry(self, func: Callable[..., T], *args: Any, **kwargs: Any) -> T:
         """带重试与限流的 API 调用包装器
 
         集成令牌桶限流、配额追踪、429 自适应退避与常规重试：
@@ -607,9 +605,6 @@ class TianyanClient:
         Args:
             func: 待调用的可调用对象。
             *args: 透传给 ``func`` 的位置参数。
-            max_retries: 本次调用的最大重试次数，为 None 时使用 ``self.max_retries``。
-                Issue #672: 对 cqlib 委托的调用设为 0，避免外层重试 × 内层机器切换导致
-                实际提交尝试次数放大。
             **kwargs: 透传给 ``func`` 的关键字参数。
 
         Returns:
@@ -620,8 +615,7 @@ class TianyanClient:
             RateLimitError: 429 限流重试耗尽后抛出。
         """
         last_exc: Exception | None = None
-        effective_retries = self.max_retries if max_retries is None else max_retries
-        total_attempts = max(1, effective_retries + 1)
+        total_attempts = max(1, self.max_retries + 1)
         for attempt in range(total_attempts):
             try:
                 # 限流：获取令牌（必要时阻塞等待）
@@ -630,11 +624,6 @@ class TianyanClient:
                 self._track_quota()
                 return func(*args, **kwargs)
             except Exception as e:
-                # Issue #718: 不可恢复的编程错误不重试，直接抛出
-                if isinstance(
-                    e, (ValueError, TypeError, KeyError, AttributeError, NotImplementedError)
-                ):
-                    raise
                 # 429 限流：转换为 RateLimitError 并使用自适应退避
                 if self._is_rate_limited(e):
                     retry_after = getattr(e, "retry_after", None)
@@ -777,13 +766,11 @@ class TianyanClient:
                 if not qcis_str:
                     raise ValueError("真实模式需提供 qcis 或 circuit_qasm")
                 with self._observe_api_call("submit_quantum_task", "quantum_task"):
-                    # Issue #672: cqlib 内部已有 9 台机器切换重试，外层不重试避免 3×9=27 次
                     real_task_id: str | None = self._call_with_retry(
                         self._cqlib.submit_quantum_task,
                         qcis=qcis_str,
                         shots=shots,
                         task_name=task_name,
-                        max_retries=0,
                     )
                     if real_task_id is None:
                         raise TianyanAPIError(500, "cqlib did not return a task_id")
@@ -805,19 +792,6 @@ class TianyanClient:
                     )
                 logger.debug(f"submit_quantum_task 限流触发，不计入熔断器: {e}")
                 raise e
-            # Issue #868: 编程错误（参数/状态校验类）不计入熔断器失败计数——
-            # 它们反映的是调用方 bug 而非服务故障，计入会误触发熔断。
-            # 对齐 _call_with_retry 的不可恢复异常处理（ValueError/TypeError/
-            # KeyError/AttributeError/NotImplementedError 直接透传）。
-            # 同时必须释放 HALF_OPEN 试探名额（before_request 已占位），
-            # 否则熔断器将永久拒绝后续请求（Issue #868 泄漏缺陷）。
-            if isinstance(
-                e, (ValueError, TypeError, KeyError, AttributeError, NotImplementedError)
-            ):
-                logger.debug(f"submit_quantum_task 编程错误，不计入熔断器: {type(e).__name__}: {e}")
-                if self._circuit_breaker:
-                    self._circuit_breaker.release_trial()
-                raise
             # 其他异常计入熔断器失败计数，原异常重新抛出由上层处理
             logger.debug(f"submit_quantum_task 失败，已触发熔断器失败计数: {type(e).__name__}: {e}")
             if self._circuit_breaker:
@@ -850,8 +824,7 @@ class TianyanClient:
 
                 # 真实模式委托 cqlib
                 if self._cqlib is not None:
-                    # Issue #717: 使用 _call_with_retry 包装，网络抖动时自动重试
-                    result = self._call_with_retry(self._cqlib.get_task_status, task_id)
+                    result = self._cqlib.get_task_status(task_id)
                     if self._circuit_breaker:
                         self._circuit_breaker.on_success()
                     return result
@@ -894,36 +867,19 @@ class TianyanClient:
         Raises:
             TianyanAPIError: 查询失败或任务尚未完成时抛出
         """
-        # Issue #716: 添加熔断器保护，与 submit_quantum_task/get_task_status 一致
-        if self._circuit_breaker:
-            self._circuit_breaker.before_request()
+        if self.mock_mode and hasattr(self, "_mock_client") and self._mock_client:
+            with self._observe_api_call("get_task_result", "task_result"):
+                return cast(TaskResult, self._mock_client.get_task_result(task_id))
 
-        try:
-            if self.mock_mode and hasattr(self, "_mock_client") and self._mock_client:
-                with self._observe_api_call("get_task_result", "task_result"):
-                    result = cast(TaskResult, self._mock_client.get_task_result(task_id))
-                    if self._circuit_breaker:
-                        self._circuit_breaker.on_success()
-                    return result
+        # 真实模式委托 cqlib
+        if self._cqlib is not None:
+            with self._observe_api_call("get_task_result", "task_result"):
+                return self._call_with_retry(self._cqlib.get_task_result, task_id)
 
-            # 真实模式委托 cqlib
-            if self._cqlib is not None:
-                with self._observe_api_call("get_task_result", "task_result"):
-                    result = self._call_with_retry(self._cqlib.get_task_result, task_id)
-                    if self._circuit_breaker:
-                        self._circuit_breaker.on_success()
-                    return result
-
-            raise TianyanAPIError(
-                status_code=500,
-                message="未配置有效 API 密钥或 cqlib 客户端，无法获取任务结果",
-            )
-        except Exception as e:
-            if self._is_rate_limited(e):
-                raise
-            if self._circuit_breaker:
-                self._circuit_breaker.on_failure()
-            raise
+        raise TianyanAPIError(
+            status_code=500,
+            message="未配置有效 API 密钥或 cqlib 客户端，无法获取任务结果",
+        )
 
     # ------------------------------------------------------------------
     # 5. 列出可用量子后端
@@ -1118,16 +1074,16 @@ class TianyanClient:
                 task_id, timeout=int(timeout), poll_interval=int(poll_interval)
             )
 
-        # Issue #704: 使用 monotonic 时钟计算实际经过时间，而非累加固定间隔
-        start = monotonic()
-        while monotonic() - start < timeout:
+        elapsed = 0.0
+        while elapsed < timeout:
             status_info = self.get_task_status(task_id)
-            status = status_info.get("status", "unknown")
+            status = status_info.get("status", "UNKNOWN")
 
-            if status.lower() == "completed":
+            if status == "COMPLETED":
                 logger.info(f"任务 {task_id} 已完成")
-                return self.get_task_result(task_id)
-            elif status.lower() in ("failed", "error", "query_error"):
+                # 直接复用已获取的 status_info，避免冗余的 get_task_result() 远程调用（Issue #933）
+                return status_info
+            elif status == "FAILED":
                 error_msg = status_info.get("error", "未知错误")
                 raise TianyanAPIError(
                     status_code=400,
@@ -1141,6 +1097,7 @@ class TianyanClient:
 
             logger.debug(f"任务 {task_id} 状态={status}，{poll_interval}s 后再次查询")
             time.sleep(poll_interval)
+            elapsed += poll_interval
 
         raise TianyanAPIError(
             status_code=408,

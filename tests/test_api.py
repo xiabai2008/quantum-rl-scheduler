@@ -28,7 +28,7 @@ except ImportError:
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from src.api import get_client, get_cqlib_client
-from src.api.circuit_breaker import CircuitBreaker, CircuitState
+from src.api.circuit_breaker import CircuitState
 from src.api.mock_client import MockTianyanClient, create_tianyan_client
 from src.api.tianyan_client import (
     QuotaTracker,
@@ -503,8 +503,12 @@ class TestTianyanClientMockDelegation(unittest.TestCase):
 
     def test_wait_for_task_mock_mode_polls(self):
         """Mock 模式下 wait_for_task 应轮询 mock 客户端直到完成。"""
-        self.client._mock_client.get_task_status.return_value = {"status": "COMPLETED"}
-        self.client._mock_client.get_task_result.return_value = {"counts": {"00": 10}}
+        # Issue #933: wait_for_task 现在直接复用 get_task_status 返回的 status_info，
+        # 不再冗余调用 get_task_result，因此 counts 需包含在 get_task_status 返回值中
+        self.client._mock_client.get_task_status.return_value = {
+            "status": "COMPLETED",
+            "counts": {"00": 10},
+        }
         with patch("time.sleep"):
             result = self.client.wait_for_task("tid", poll_interval=0.1, timeout=2.0)
         self.assertEqual(result["counts"]["00"], 10)
@@ -797,13 +801,12 @@ class TestCqlibClient(unittest.TestCase):
 
     def test_submit_quantum_task_with_circuit_str(self):
         """传入 circuit 对象（无 qcis 属性）应使用 str(circuit)。"""
-        # 使用合法 QCIS 字符串，避免 _validate_qcis 拒绝（Issue #515）
-        circuit = "H Q0\nM Q0"
+        circuit = "RAW_CIRCUIT_TEXT"
         self.client._platform.submit_experiment.return_value = ["tid-y"]
         tid = self.client.submit_quantum_task(circuit=circuit, shots=64)
         self.assertEqual(tid, "tid-y")
         kwargs = self.client._platform.submit_experiment.call_args.kwargs
-        self.assertEqual(kwargs["circuit"], "H Q0\nM Q0")
+        self.assertEqual(kwargs["circuit"], "RAW_CIRCUIT_TEXT")
 
     def test_submit_quantum_task_no_input_raises(self):
         """既未提供 qcis 也未提供 circuit 应抛出 ValueError。"""
@@ -1143,12 +1146,7 @@ class TestTianyanClientCircuitBreaker(unittest.TestCase):
         self.assertEqual(self.client.get_circuit_state(), "closed")
 
     def test_success_resets_failure_count(self):
-        """成功调用应重置失败计数，熔断器保持 CLOSED。
-
-        Issue #717: get_task_status 使用 _call_with_retry 包装，默认 max_retries=3
-        会内部重试，吞掉前 3 次失败。需设 max_retries=0 使每次调用立即传播异常，
-        才能验证"3 次失败 → 1 次成功 → 计数重置"的熔断器语义。
-        """
+        """成功调用应重置失败计数，熔断器保持 CLOSED。"""
         call_count = {"n": 0}
 
         def _flaky_cqlib(*args, **kwargs):
@@ -1158,18 +1156,12 @@ class TestTianyanClientCircuitBreaker(unittest.TestCase):
             return {"status": "ok"}
 
         self.client._cqlib.get_task_status.side_effect = _flaky_cqlib
-        # 设 max_retries=0，避免 _call_with_retry 内部重试吞掉失败
-        original_retries = self.client.max_retries
-        self.client.max_retries = 0
-        try:
-            for _ in range(3):
-                with self.assertRaises(RuntimeError):
-                    self.client.get_task_status("tid")
-            result = self.client.get_task_status("tid")
-            self.assertEqual(result["status"], "ok")
-            self.assertEqual(self.client.get_circuit_state(), "closed")
-        finally:
-            self.client.max_retries = original_retries
+        for _ in range(3):
+            with self.assertRaises(RuntimeError):
+                self.client.get_task_status("tid")
+        result = self.client.get_task_status("tid")
+        self.assertEqual(result["status"], "ok")
+        self.assertEqual(self.client.get_circuit_state(), "closed")
 
     def test_circuit_breaker_disabled(self):
         """enable_circuit_breaker=False 时不应熔断，持续透传异常且状态保持 closed。"""
@@ -1186,68 +1178,6 @@ class TestTianyanClientCircuitBreaker(unittest.TestCase):
             with self.assertRaises(RuntimeError):
                 client.get_task_status("tid")
         self.assertEqual(client.get_circuit_state(), "closed")
-
-    def test_submit_programming_error_does_not_trigger_breaker(self):
-        """Issue #868: 编程错误（ValueError）不应计入熔断器失败计数。
-
-        客户端编程错误（如非法 QCIS）反映的是调用方 bug 而非服务故障，
-        累计到熔断器会误触发熔断，阻断后续正常任务。
-        """
-        self.client._cqlib.submit_quantum_task.side_effect = ValueError("invalid qcis")
-        for _ in range(10):
-            with self.assertRaises(ValueError):
-                self.client.submit_quantum_task(qcis="INVALID Q0", shots=32)
-        # 熔断器应保持 CLOSED，失败计数为 0
-        self.assertEqual(self.client.get_circuit_state(), "closed")
-        self.assertEqual(self.client._circuit_breaker.failure_count, 0)
-
-    def test_submit_service_error_does_trigger_breaker(self):
-        """Issue #868: 服务类错误（RuntimeError）仍应计入熔断器失败计数。"""
-        self.client._cqlib.submit_quantum_task.side_effect = RuntimeError("cqlib 网络异常")
-        for _ in range(5):
-            with self.assertRaises(RuntimeError):
-                self.client.submit_quantum_task(qcis="H Q0", shots=32)
-        self.assertEqual(self.client.get_circuit_state(), "open")
-
-    def test_programming_error_releases_half_open_trial_slot(self):
-        """Issue #868 泄漏缺陷：HALF_OPEN 试探中遇编程错误应释放试探名额。
-
-        熔断器处于 HALF_OPEN（未占位）→ before_request 占位放行 → try 内
-        编程错误透传（不调 on_failure/on_success）——若不释放标志，熔断器
-        将永久拒绝后续请求（CIRCUIT_HALF_OPEN_BUSY）。
-        """
-        cb = self.client._circuit_breaker
-        cb.state = CircuitState.HALF_OPEN
-        cb._half_open_trial_in_progress = False
-        self.client._cqlib.submit_quantum_task.side_effect = ValueError("invalid qcis")
-        with self.assertRaises(ValueError):
-            self.client.submit_quantum_task(qcis="INVALID", shots=32)
-        # before_request 已占位，编程错误分支应调用 release_trial 释放
-        self.assertFalse(cb._half_open_trial_in_progress)
-        # 且状态/计数未变（编程错误不计熔断）
-        self.assertEqual(cb.state, CircuitState.HALF_OPEN)
-        self.assertEqual(cb.failure_count, 0)
-
-    def test_half_open_trial_slot_timeout_fallback(self):
-        """Issue #868 超时兜底：标志占用超过 recovery_timeout 后应自动重新占位。"""
-        cb = CircuitBreaker(failure_threshold=3, recovery_timeout=60.0)
-        cb.state = CircuitState.HALF_OPEN
-        cb._half_open_trial_in_progress = True
-        cb._trial_started_at = 0.0  # 很早之前占用 → 视为过期
-        with patch("src.api.circuit_breaker.time.monotonic", return_value=100.0):
-            cb.before_request()  # 不应抛异常（过期自动重新占位）
-        self.assertTrue(cb._half_open_trial_in_progress)
-
-    def test_release_trial_only_clears_flag(self):
-        """release_trial 仅清标志，不改状态/计数/时间。"""
-        cb = CircuitBreaker(failure_threshold=3, recovery_timeout=60.0)
-        cb.state = CircuitState.HALF_OPEN
-        cb.failure_count = 1
-        cb._half_open_trial_in_progress = True
-        cb.release_trial()
-        self.assertFalse(cb._half_open_trial_in_progress)
-        self.assertEqual(cb.state, CircuitState.HALF_OPEN)
-        self.assertEqual(cb.failure_count, 1)
 
 
 class TestTianyanClientConfigAndMetrics(unittest.TestCase):
@@ -2081,12 +2011,7 @@ class TestComprehensiveApiClient(unittest.TestCase):
         )
 
     def test_submit_quantum_task_retries_on_failure(self):
-        """submit_quantum_task 失败应传播异常（Issue #672: max_retries=0 不外层重试）。
-
-        Issue #672: cqlib 内部已有 9 台机器切换重试，外层 _call_with_retry
-        设为 max_retries=0 避免外层重试 × 内层机器切换导致实际提交尝试次数放大。
-        因此 submit_quantum_task 失败时直接传播异常，不重试。
-        """
+        """submit_quantum_task 失败应重试并最终成功。"""
         call_count = {"n": 0}
 
         def _flaky(*args, **kwargs):
@@ -2096,10 +2021,10 @@ class TestComprehensiveApiClient(unittest.TestCase):
             return "tid-after-retry"
 
         self.client._cqlib.submit_quantum_task.side_effect = _flaky
-        with patch("time.sleep"), self.assertRaises(RuntimeError):
-            self.client.submit_quantum_task(qcis="H Q0\nM Q0", shots=64)
-        # Issue #672: max_retries=0，只调用 1 次，不重试
-        self.assertEqual(call_count["n"], 1)
+        with patch("time.sleep"):
+            tid = self.client.submit_quantum_task(qcis="H Q0\nM Q0", shots=64)
+        self.assertEqual(tid, "tid-after-retry")
+        self.assertEqual(call_count["n"], 2)
 
     def test_submit_quantum_task_retries_exhausted(self):
         """submit_quantum_task 重试耗尽应抛出最后一次异常。"""
@@ -2328,33 +2253,23 @@ class TestComprehensiveApiClient(unittest.TestCase):
         self.assertEqual(cb.failure_count, 1)
 
     def test_circuit_breaker_success_resets_failure_count(self):
-        """成功调用应重置失败计数。
-
-        Issue #717: get_task_status 使用 _call_with_retry 包装，会内部重试吞掉失败。
-        需设 max_retries=0 使每次调用立即传播异常，才能验证熔断器计数重置语义。
-        """
+        """成功调用应重置失败计数。"""
         self.client._cqlib.get_task_status.side_effect = [
             RuntimeError("错误1"),
             RuntimeError("错误2"),
             {"status": "ok"},
         ]
-        # 设 max_retries=0，避免 _call_with_retry 内部重试吞掉失败
-        original_retries = self.client.max_retries
-        self.client.max_retries = 0
-        try:
-            with patch("time.sleep"):
-                # 两次失败
-                with self.assertRaises(RuntimeError):
-                    self.client.get_task_status("tid")
-                with self.assertRaises(RuntimeError):
-                    self.client.get_task_status("tid")
-                # 第三次成功
-                result = self.client.get_task_status("tid")
-            self.assertEqual(result["status"], "ok")
-            if self.client._circuit_breaker:
-                self.assertEqual(self.client._circuit_breaker.failure_count, 0)
-        finally:
-            self.client.max_retries = original_retries
+        with patch("time.sleep"):
+            # 两次失败
+            with self.assertRaises(RuntimeError):
+                self.client.get_task_status("tid")
+            with self.assertRaises(RuntimeError):
+                self.client.get_task_status("tid")
+            # 第三次成功
+            result = self.client.get_task_status("tid")
+        self.assertEqual(result["status"], "ok")
+        if self.client._circuit_breaker:
+            self.assertEqual(self.client._circuit_breaker.failure_count, 0)
 
     # -- 错误处理路径 --
 

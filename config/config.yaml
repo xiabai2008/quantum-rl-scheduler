@@ -90,6 +90,8 @@ tianyan:
   api_key: ${TIANYAN_API_KEY}
   api_secret: ${TIANYAN_API_SECRET}
   base_url: https://api.tianyanyun.cn/v1
+  # Issue #933: 后端信息TTL缓存有效期（秒），0=禁用缓存
+  backend_cache_ttl_seconds: 30
   mock_delay: 90.0
   mock_delay_note: 2026-06-30 真机实测：s=124s, sw=48s, tn=89s
   mock_failure_rate: 0.0

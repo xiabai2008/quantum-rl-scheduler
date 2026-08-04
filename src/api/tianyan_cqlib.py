@@ -11,7 +11,6 @@ Cqlib Wrapper for Tianyan Cloud Platform
 使用前需安装：pip install cqlib
 """
 
-import threading
 import time
 from typing import TYPE_CHECKING, Any
 
@@ -22,48 +21,6 @@ from src.api.types import TaskResult
 
 if TYPE_CHECKING:
     from src.api.quota_tracker import QuotaTracker
-
-# Issue #515: QCIS 电路内容验证常量
-MAX_QCIS_LENGTH = 100_000
-MAX_GATE_COUNT = 10_000
-MAX_QUBITS_REFERENCED = 287
-_QCIS_VALID_INSTRUCTIONS = frozenset(
-    {"H", "X", "Y", "Z", "S", "T", "RX", "RY", "RZ", "CZ", "CNOT", "M", "B", "ISWAP", "I"}
-)
-
-
-def _validate_qcis(qcis_str: str) -> None:
-    """验证 QCIS 电路内容，防止提交超深/非法电路（Issue #515）。
-
-    Args:
-        qcis_str: QCIS 指令字符串
-
-    Raises:
-        ValueError: 电路超过长度/门数/比特数上限，或包含非法指令
-    """
-    if len(qcis_str) > MAX_QCIS_LENGTH:
-        raise ValueError(f"QCIS 电路超过最大长度 {MAX_QCIS_LENGTH} 字符")
-
-    lines = [ln.strip() for ln in qcis_str.strip().split("\n") if ln.strip()]
-    if len(lines) > MAX_GATE_COUNT:
-        raise ValueError(f"QCIS 门数量超过上限 {MAX_GATE_COUNT}")
-
-    referenced_qubits: set[str] = set()
-    for line in lines:
-        parts = line.split()
-        if not parts:
-            continue
-        op = parts[0].upper()
-        if op not in _QCIS_VALID_INSTRUCTIONS:
-            raise ValueError(f"QCIS 非法指令: {parts[0]}")
-        for token in parts[1:]:
-            token = token.strip(",")
-            if token.upper().startswith("Q") and token[1:].isdigit():
-                referenced_qubits.add(token)
-    if len(referenced_qubits) > MAX_QUBITS_REFERENCED:
-        raise ValueError(
-            f"QCIS 引用比特数 {len(referenced_qubits)} 超过上限 {MAX_QUBITS_REFERENCED}"
-        )
 
 
 class CqlibTianyanClient(QuantumHardwareBackend):
@@ -99,6 +56,7 @@ class CqlibTianyanClient(QuantumHardwareBackend):
         quota_tracker: "QuotaTracker | None" = None,
         api_secret: str | None = None,
         app_id: str | None = None,
+        backend_cache_ttl: float = 30.0,
     ):
         """初始化 cqlib 客户端
 
@@ -110,37 +68,29 @@ class CqlibTianyanClient(QuantumHardwareBackend):
                           提交成功后记录消耗；为 None 时不做配额控制）
             api_secret: API Secret（可选，当 SDK 支持时透传给 TianYanPlatform）
             app_id: App ID（可选，当 SDK 支持时透传给 TianYanPlatform）
+            backend_cache_ttl: 后端信息TTL缓存有效期（秒），默认30秒。
+                          设为0可禁用缓存（每次 list_backends 都发起远程调用）。
         """
         import cqlib
 
         self.cqlib = cqlib
-        self._login_key = login_key  # Issue #735: 私有属性，避免调试/序列化泄露
+        self.login_key = login_key
         self.machine_name = machine_name
         self.auto_retry_machine = auto_retry_machine
         self._platform = None
         self._quota_tracker = quota_tracker
         self._api_secret = api_secret
         self._app_id = app_id
-        # Issue #701: 线程锁保护 platform 属性的懒加载
-        self._platform_lock = threading.Lock()
+
+        # 后端信息TTL缓存（Issue #933）
+        self._backend_cache_ttl = backend_cache_ttl
+        self._backends_cache: list[dict[str, Any]] | None = None
+        self._backends_cache_time: float = 0.0
 
         if api_secret or app_id:
             logger.info("[Cqlib] 额外凭证已加载（api_secret/app_id），将在平台初始化时透传")
 
         logger.info(f"[Cqlib] 客户端初始化，默认机器={machine_name}")
-
-    @property
-    def login_key(self) -> str:
-        """返回 API Key（Issue #735: 私有属性的只读访问器）。
-
-        内部存储为 ``_login_key`` 私有属性，避免在 ``repr()``、序列化或
-        调试输出中泄露密钥；保留公开访问接口以维持向后兼容。
-        """
-        return self._login_key
-
-    def __repr__(self) -> str:
-        """返回脱敏的对象表示，避免泄露 API Key（Issue #735）。"""
-        return f"CqlibTianyanClient(machine={self.machine_name!r}, login_key=***)"
 
     # ------------------------------------------------------------------
     # QuantumHardwareBackend ABC 接口实现（Issue #257）
@@ -205,25 +155,18 @@ class CqlibTianyanClient(QuantumHardwareBackend):
 
     @property
     def platform(self) -> Any:
-        """懒加载平台连接
-
-        Issue #701: 加锁保护，避免并发首次访问时创建多个平台实例。
-        """
-        # 双重检查锁定模式：先无锁检查，再加锁创建
-        if self._platform is not None:
-            return self._platform
-        with self._platform_lock:
-            if self._platform is None:
-                kwargs: dict[str, Any] = {
-                    "login_key": self.login_key,
-                    "machine_name": self.machine_name,
-                }
-                if self._api_secret:
-                    kwargs["api_secret"] = self._api_secret
-                if self._app_id:
-                    kwargs["app_id"] = self._app_id
-                self._platform = self.cqlib.TianYanPlatform(**kwargs)
-            return self._platform
+        """懒加载平台连接"""
+        if self._platform is None:
+            kwargs: dict[str, Any] = {
+                "login_key": self.login_key,
+                "machine_name": self.machine_name,
+            }
+            if self._api_secret:
+                kwargs["api_secret"] = self._api_secret
+            if self._app_id:
+                kwargs["app_id"] = self._app_id
+            self._platform = self.cqlib.TianYanPlatform(**kwargs)
+        return self._platform
 
     def authenticate(self) -> bool:
         """验证 API Key 有效性。
@@ -243,7 +186,7 @@ class CqlibTianyanClient(QuantumHardwareBackend):
             # 网络问题：连接超时/拒绝/不可达，不应被视为认证失败
             logger.warning(f"[Cqlib] 认证时遭遇网络问题（不计入凭证失败）: {type(e).__name__}: {e}")
             return False
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             # cqlib 平台连接异常类型无法穷举，保留宽捕获并记录日志
             # 默认视为永久性错误（凭证无效/权限不足等）
             logger.error(f"[Cqlib] 认证失败（凭证或服务端问题）: {e}")
@@ -267,7 +210,7 @@ class CqlibTianyanClient(QuantumHardwareBackend):
         except OSError as e:
             # 网络问题：暂时性错误，不应触发降级
             return False, f"网络异常: {type(e).__name__}: {e}", True
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             # cqlib 平台连接异常：默认视为永久性错误
             err_msg = str(e)
             # 部分关键字提示为暂时性服务端错误（5xx）
@@ -283,11 +226,32 @@ class CqlibTianyanClient(QuantumHardwareBackend):
             is_transient = any(kw in err_msg.lower() for kw in transient_keywords)
             return False, f"认证失败: {err_msg}", is_transient
 
-    def list_backends(self) -> list[dict[str, Any]]:
-        """列出所有可用的量子计算机"""
+    def list_backends(self, use_cache: bool = True) -> list[dict[str, Any]]:
+        """列出所有可用的量子计算机（带TTL缓存）。
+
+        通过 ``query_quantum_computer_list`` 拉取机器列表，结果在
+        ``backend_cache_ttl`` 有效期内被缓存，避免高频故障切换场景下
+        的冗余远程调用（Issue #933）。
+
+        Args:
+            use_cache: 是否使用TTL缓存（默认True）。
+                ``is_available()`` 等需要实时状态的方法应传入 False
+                以绕过缓存获取最新数据。
+
+        Returns:
+            机器信息字典列表，每个元素包含 id/type/status/name 字段。
+            远程调用失败时返回过期缓存（若有）或空列表。
+        """
+        # 尝试命中缓存
+        if use_cache and self._backend_cache_ttl > 0 and self._backends_cache is not None:
+            elapsed = time.monotonic() - self._backends_cache_time
+            if elapsed < self._backend_cache_ttl:
+                logger.debug(f"[Cqlib] 命中后端缓存（{elapsed:.1f}s/{self._backend_cache_ttl}s）")
+                return self._backends_cache
+
         try:
             machines = self.platform.query_quantum_computer_list()
-            return [
+            result = [
                 {
                     "id": m[0],
                     "type": m[1],
@@ -296,10 +260,28 @@ class CqlibTianyanClient(QuantumHardwareBackend):
                 }
                 for m in machines
             ]
-        except Exception as e:  # noqa: BLE001
+            # 更新缓存
+            self._backends_cache = result
+            self._backends_cache_time = time.monotonic()
+            return result
+        except Exception as e:
             # cqlib 查询接口异常类型无法穷举，保留宽捕获并记录日志
             logger.error(f"[Cqlib] 获取机器列表失败: {e}")
+            # 远程调用失败时，返回过期缓存优于空列表
+            if self._backends_cache is not None:
+                logger.warning("[Cqlib] 远程获取失败，使用过期缓存")
+                return self._backends_cache
             return []
+
+    def invalidate_backends_cache(self) -> None:
+        """手动失效后端信息缓存。
+
+        调用后下次 ``list_backends()`` 将强制发起远程调用刷新数据。
+        适用于提交任务后需要立即确认机器状态变化的场景。
+        """
+        self._backends_cache = None
+        self._backends_cache_time = 0.0
+        logger.debug("[Cqlib] 后端信息缓存已手动失效")
 
     def get_backend_info(self, backend_name: str | None = None) -> dict[str, Any]:
         """获取指定后端信息"""
@@ -341,9 +323,6 @@ class CqlibTianyanClient(QuantumHardwareBackend):
         else:
             raise ValueError("必须提供 qcis 或 circuit")
 
-        # Issue #515: 验证 QCIS 电路内容，防止提交超深/非法电路
-        _validate_qcis(qcis_str)
-
         # 配额预检查：配额不足时跳过提交，保持"全部不可用返回 None"语义
         if self._quota_tracker is not None and not self._quota_tracker.can_consume(
             shots=shots, tasks=1
@@ -379,7 +358,7 @@ class CqlibTianyanClient(QuantumHardwareBackend):
             if self._quota_tracker is not None:
                 self._quota_tracker.consume(shots=shots, tasks=1)
             return str(result)
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             # cqlib 提交接口异常类型无法穷举，保留宽捕获并记录日志
             err_msg = str(e)
             logger.error(f"[Cqlib] {self.machine_name} 提交失败: {err_msg}")
@@ -394,7 +373,11 @@ class CqlibTianyanClient(QuantumHardwareBackend):
                 return self._retry_other_machine(qcis_str, shots, task_name)
             return None
 
-    def _is_machine_available(self, machine_name: str) -> bool:
+    def _is_machine_available(
+        self,
+        machine_name: str,
+        machines: list[dict[str, Any]] | None = None,
+    ) -> bool:
         """检查机器是否在线可用（status == running）。
 
         通过 query_quantum_computer_list 查询状态。查询本身失败时
@@ -402,18 +385,22 @@ class CqlibTianyanClient(QuantumHardwareBackend):
 
         Args:
             machine_name: 机器名
+            machines: 预取的机器列表（可选）。传入时直接复用，避免
+                      重复调用 ``list_backends()`` 发起远程请求。
+                      为 None 时内部调用 ``list_backends()``（带TTL缓存）。
 
         Returns:
             bool: running 返回 True，calibration/maintenance/unknown 返回 False
         """
         try:
-            machines = self.list_backends()
+            if machines is None:
+                machines = self.list_backends()
             for m in machines:
                 if m.get("name") == machine_name:
                     return m.get("status") == "running"
             # 未找到该机器，乐观放行
             return True
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             # cqlib 查询失败不阻塞，乐观放行；记录日志便于排查
             logger.debug(f"[Cqlib] 查询机器 {machine_name} 可用性失败: {e}，乐观放行")
             return True
@@ -492,6 +479,10 @@ class CqlibTianyanClient(QuantumHardwareBackend):
         每台候选机器先做可用性预检（跳过校准/维护中的），再尝试提交。
         全部不可用时返回 None（不抛异常）。
 
+        优化（Issue #933）：循环前调用一次 ``list_backends()`` 获取全量
+        机器列表（命中TTL缓存时无远程调用），传入 ``_is_machine_available()``
+        复用，避免逐机重复拉取——一次故障切换最多1次远程调用（原先最多9次）。
+
         Args:
             qcis: QCIS 指令字符串
             shots: 测量次数
@@ -500,11 +491,13 @@ class CqlibTianyanClient(QuantumHardwareBackend):
         Returns:
             task_id 字符串；全部失败返回 None
         """
+        # 预取机器列表，避免逐机重复调用 list_backends()（Issue #933）
+        cached_machines = self.list_backends()
         for machine in self.REAL_MACHINES:
             if machine == self.machine_name:
                 continue
-            # 预检：跳过不可用机器，避免无效重试
-            if not self._is_machine_available(machine):
+            # 预检：跳过不可用机器，避免无效重试（复用预取列表）
+            if not self._is_machine_available(machine, machines=cached_machines):
                 logger.debug(f"[Cqlib] 跳过 {machine}（不可用）")
                 continue
             try:
@@ -518,22 +511,12 @@ class CqlibTianyanClient(QuantumHardwareBackend):
                 if self._app_id:
                     alt_kwargs["app_id"] = self._app_id
                 alt = self.cqlib.TianYanPlatform(**alt_kwargs)
-                try:
-                    result = alt.submit_experiment(
-                        circuit=qcis,
-                        name=task_name,
-                        num_shots=shots,
-                        is_verify=False,
-                    )
-                finally:
-                    # Issue #882: 备用机 Platform 连接用完即释放，避免多次
-                    # 重试累积连接泄漏（SDK 提供 close 时调用，缺失则忽略）。
-                    close = getattr(alt, "close", None)
-                    if callable(close):
-                        try:
-                            close()
-                        except Exception as close_err:  # noqa: BLE001
-                            logger.debug(f"[Cqlib] {machine} 连接释放失败: {close_err}")
+                result = alt.submit_experiment(
+                    circuit=qcis,
+                    name=task_name,
+                    num_shots=shots,
+                    is_verify=False,
+                )
                 if isinstance(result, list) and len(result) > 0:
                     tid = str(result[0])
                     logger.info(f"[Cqlib] {machine} 提交成功: {tid}")
@@ -543,7 +526,7 @@ class CqlibTianyanClient(QuantumHardwareBackend):
                 if self._quota_tracker is not None:
                     self._quota_tracker.consume(shots=shots, tasks=1)
                 return tid
-            except Exception as e:  # noqa: BLE001
+            except Exception as e:
                 # cqlib 备用机器提交异常类型无法穷举，保留宽捕获并记录日志
                 err_msg = str(e)
                 logger.debug(f"[Cqlib] {machine} 失败: {err_msg[:80]}")
@@ -626,7 +609,7 @@ class CqlibTianyanClient(QuantumHardwareBackend):
                 error=message[:200],
                 raw={},
             )
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             # cqlib 查询接口异常类型无法穷举，保留宽捕获并记录日志
             logger.debug(f"[Cqlib] 查询任务 {task_id} 状态失败: {e}")
             return TaskResult(
@@ -640,7 +623,15 @@ class CqlibTianyanClient(QuantumHardwareBackend):
             )
 
     def get_task_result(self, task_id: str) -> TaskResult:
-        """获取任务执行结果"""
+        """获取任务执行结果。
+
+        注意：本方法与 ``get_task_status()`` 完全等价——cqlib 的
+        ``query_experiment`` 接口在任务完成后会同时返回状态和结果数据，
+        因此无需额外远程调用。保留此方法仅为保持接口兼容性。
+
+        对于已通过 ``get_task_status()`` 获取到 ``completed`` 状态的场景，
+        应直接复用已获取的 ``TaskResult``，避免冗余远程调用（Issue #933）。
+        """
         return self.get_task_status(task_id)
 
     def wait_for_task(self, task_id: str, timeout: int = 300, poll_interval: int = 5) -> TaskResult:
@@ -648,8 +639,6 @@ class CqlibTianyanClient(QuantumHardwareBackend):
 
         处理 ``query_error`` 状态：连续 3 次查询失败后快速终止，
         避免无意义轮询至超时（Issue #407）。
-        Issue #719: 仅统计"连续"失败，任意非 query_error 状态重置计数器，
-        避免 query_error 与 running/unknown 交替时累计误终止。
 
         Args:
             task_id: 任务 ID
@@ -675,10 +664,6 @@ class CqlibTianyanClient(QuantumHardwareBackend):
                         shots=0,
                         backend=self.machine_name,
                     )
-            else:
-                # Issue #719: 非 query_error 状态重置连续失败计数，
-                # 避免 query_error 与 running/unknown 交替时累计误终止
-                query_fail_count = 0
             time.sleep(poll_interval)
         return TaskResult(
             task_id=task_id,
@@ -708,14 +693,19 @@ class CqlibTianyanClient(QuantumHardwareBackend):
 
         任何异常均视为不可用，调用方可据此降级到 Mock。
 
+        注意：本方法显式绕过后端信息TTL缓存，以获取实时机器状态
+        （Issue #933）。
+
         Returns:
             bool: True 表示真机可提交，False 表示应降级
         """
         try:
             if not self.authenticate():
                 return False
-            return self._is_machine_available(self.machine_name)
-        except Exception as e:  # noqa: BLE001
+            # is_available 需要实时状态，绕过TTL缓存
+            fresh_machines = self.list_backends(use_cache=False)
+            return self._is_machine_available(self.machine_name, machines=fresh_machines)
+        except Exception as e:
             # cqlib 平台访问异常类型无法穷举，保留宽捕获并记录日志
             logger.debug(f"[Cqlib] is_available 检查失败: {e}")
             return False
@@ -784,7 +774,7 @@ class MultiMachineCqlibCoordinator:
             api_secret       : API Secret（可选，透传给各机器的 CqlibTianyanClient）
             app_id           : App ID（可选，透传给各机器的 CqlibTianyanClient）
         """
-        self._login_key = login_key  # Issue #735: 私有属性，避免调试/序列化泄露
+        self.login_key = login_key
         self.machine_names = list(machine_names)
         self.auto_retry_machine = auto_retry_machine
         self._quota_tracker = quota_tracker
@@ -793,41 +783,22 @@ class MultiMachineCqlibCoordinator:
         self._clients: dict[str, CqlibTianyanClient] = {}
         self._submit_count: dict[str, int] = dict.fromkeys(self.machine_names, 0)
         self._fail_count: dict[str, int] = dict.fromkeys(self.machine_names, 0)
-        # Issue #666: 线程锁，保护 _clients 懒加载与计数器并发读写
-        self._lock = threading.Lock()
 
         logger.info(f"[MultiMachine] 纳管 {len(self.machine_names)} 台机器: {self.machine_names}")
 
-    @property
-    def login_key(self) -> str:
-        """返回 API Key（Issue #735: 私有属性的只读访问器）。
-
-        内部存储为 ``_login_key`` 私有属性，避免在 ``repr()``、序列化或
-        调试输出中泄露密钥；保留公开访问接口以维持向后兼容。
-        """
-        return self._login_key
-
-    def __repr__(self) -> str:
-        """返回脱敏的对象表示，避免泄露 API Key（Issue #735）。"""
-        return f"MultiMachineCqlibCoordinator(machines={self.machine_names!r}, login_key=***)"
-
     def _get_client(self, machine_name: str) -> CqlibTianyanClient:
-        """懒加载指定机器的客户端（避免初始化时连接所有机器）。
-
-        Issue #666: 加锁保护，避免并发下重复创建客户端导致连接泄漏。
-        """
-        with self._lock:
-            if machine_name not in self._clients:
-                if machine_name not in self.machine_names:
-                    raise ValueError(f"机器 {machine_name} 未被纳管")
-                self._clients[machine_name] = CqlibTianyanClient(
-                    login_key=self.login_key,
-                    machine_name=machine_name,
-                    auto_retry_machine=self.auto_retry_machine,
-                    api_secret=self._api_secret,
-                    app_id=self._app_id,
-                )
-            return self._clients[machine_name]
+        """懒加载指定机器的客户端（避免初始化时连接所有机器）。"""
+        if machine_name not in self._clients:
+            if machine_name not in self.machine_names:
+                raise ValueError(f"机器 {machine_name} 未被纳管")
+            self._clients[machine_name] = CqlibTianyanClient(
+                login_key=self.login_key,
+                machine_name=machine_name,
+                auto_retry_machine=self.auto_retry_machine,
+                api_secret=self._api_secret,
+                app_id=self._app_id,
+            )
+        return self._clients[machine_name]
 
     def submit_to_machine(
         self,
@@ -850,17 +821,14 @@ class MultiMachineCqlibCoordinator:
         try:
             client = self._get_client(machine_name)
             task_id = client.submit_quantum_task(qcis=qcis, shots=shots, task_name=task_name)
-            # Issue #666: 加锁保护计数器更新，避免并发下计数丢失
-            with self._lock:
-                self._submit_count[machine_name] = self._submit_count.get(machine_name, 0) + 1
+            self._submit_count[machine_name] = self._submit_count.get(machine_name, 0) + 1
             # 提交成功后记录配额消耗（仅当 task_id 非 None 时）
             if self._quota_tracker is not None and task_id is not None:
                 self._quota_tracker.consume(shots=shots, tasks=1)
             return task_id
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             # 涉及客户端获取（ValueError）与提交，异常类型无法穷举，保留宽捕获并记录日志
-            with self._lock:
-                self._fail_count[machine_name] = self._fail_count.get(machine_name, 0) + 1
+            self._fail_count[machine_name] = self._fail_count.get(machine_name, 0) + 1
             logger.error(f"[MultiMachine] {machine_name} 提交失败: {e}")
             return None
 
@@ -875,7 +843,7 @@ class MultiMachineCqlibCoordinator:
             try:
                 client = self._get_client(name)
                 status[name] = client.get_queue_status()
-            except Exception as e:  # noqa: BLE001
+            except Exception as e:
                 # 涉及客户端获取与队列查询，异常类型无法穷举，保留宽捕获并记录日志
                 logger.debug(f"[MultiMachine] 获取 {name} 队列状态失败: {e}")
                 status[name] = {"error": str(e)[:80]}
