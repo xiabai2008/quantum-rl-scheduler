@@ -56,19 +56,24 @@ def run_fcfs_on_wrapper(agent: MultiAgentPPO, seed: int, max_steps: int) -> floa
 def run_independent_ppo_on_wrapper(
     agent: MultiAgentPPO, models: list, seed: int, max_steps: int
 ) -> float:
-    """3 独立 PPO（无协同投票）：每步轮流用第 i 个独立模型决策，直接 env.step。
+    """3 独立 PPO（同协议）：每步 3 个独立模型各自决策，走 wrapper 同仲裁。
 
-    与 MAPPO 的区别：不走 aggregate_actions 投票仲裁，单个模型动作直接执行。
+    与 MAPPO 唯一差异：策略为独立训练（每机单机 env），评估走相同的
+    wrapper.step（aggregate_actions 投票仲裁）、相同全局观测输入、相同
+    种子与步数——保证"协同 vs 独立"严格可归因（8.3 审查协议修正）。
     """
     _lo0, _ = agent.wrapper.reset(seed=seed)
     total = 0.0
     done = False
     steps = 0
     while not done and steps < max_steps:
-        model = models[steps % len(models)]  # 轮流（step 0→m0, 1→m1, 2→m2, ...）
-        action, _ = model.predict(agent.wrapper.env._get_observation(), deterministic=True)
-        obs, reward, terminated, truncated, _ = agent.wrapper.env.step(int(action))
-        _lo1 = agent.wrapper.get_local_observations(obs)
+        # 三模型同歩决策（各自基于同一全局观测，与独立训练口径一致）
+        global_obs = agent.wrapper.env._get_observation()
+        actions = {}
+        for i, name in enumerate(agent.wrapper.machine_names):
+            a, _ = models[i].predict(global_obs, deterministic=True)
+            actions[name] = int(a)
+        _lo1, reward, terminated, truncated, _ = agent.wrapper.step(actions)
         total += float(reward)
         done = bool(terminated or truncated)
         steps += 1

@@ -156,6 +156,17 @@ class MultiTenantFairnessTracker:
         self._stats[tid].tasks_submitted += 1
         self._stats[tid].total_wait_steps += wait_steps
 
+    def record_wait(self, tenant_id: str | None, steps: int = 1) -> None:
+        """记录租户任务在队列中的等待步数（8.3 审查修复：真实等待时间）。
+
+        由调度循环在每步推进时对在队列任务调用；此前等待时间恒 0，
+        导致等待维度公平性（Jain 等待公平指数）无意义。
+        """
+        tid = tenant_id or "unknown"
+        if tid not in self._stats:
+            self._stats[tid] = TenantFairnessStats(tenant_id=tid)
+        self._stats[tid].total_wait_steps += int(steps)
+
     def record_complete(self, tenant_id: str | None, exec_steps: int = 0) -> None:
         """记录任务完成。
 

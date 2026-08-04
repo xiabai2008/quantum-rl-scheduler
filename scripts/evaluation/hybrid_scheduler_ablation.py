@@ -107,6 +107,8 @@ def run_hybrid(env: QuantumSchedulingEnv, hybrid: HybridScheduler) -> dict:
             source = result["source"]
         sources[source] = sources.get(source, 0) + 1
         _obs, reward, terminated, truncated, _ = env.step(int(action))
+        # 8.3 审查修复：adaptive 闭环——向调度器报告决策后奖励（仅 adaptive 模式消费）
+        hybrid.report_reward(source, float(reward))
         total += float(reward)
         steps += 1
         done = terminated or truncated
@@ -132,8 +134,11 @@ def main() -> None:
     hybrid = HybridScheduler(rl_agent=model, rule_engine=engine)
 
     hybrid_rp = HybridScheduler(rl_agent=model, rule_engine=engine, rl_priority=True)  # RL 优先
+    hybrid_adp = HybridScheduler(
+        rl_agent=model, rule_engine=engine, adaptive=True
+    )  # 自适应（8.3 审查补充）
 
-    agg = {"rule": [], "rl": [], "hybrid": [], "hybrid_rl_priority": []}
+    agg = {"rule": [], "rl": [], "hybrid": [], "hybrid_rl_priority": [], "hybrid_adaptive": []}
     hybrid_sources_all: dict[str, int] = {}
     hybrid_rp_sources_all: dict[str, int] = {}
     for ep in range(args.episodes):
@@ -141,16 +146,20 @@ def main() -> None:
         e_l = build_env(args.seed + ep)
         e_h = build_env(args.seed + ep)
         e_hrp = build_env(args.seed + ep)
+        e_hadp = build_env(args.seed + ep)
         e_r.reset(seed=args.seed + ep)
         e_l.reset(seed=args.seed + ep)
         e_h.reset(seed=args.seed + ep)
         e_hrp.reset(seed=args.seed + ep)
+        e_hadp.reset(seed=args.seed + ep)
         agg["rule"].append(run_rule(e_r, engine))
         agg["rl"].append(run_rl(e_l, model))
         h = run_hybrid(e_h, hybrid)
         hrp = run_hybrid(e_hrp, hybrid_rp)
+        hadp = run_hybrid(e_hadp, hybrid_adp)
         agg["hybrid"].append(h)
         agg["hybrid_rl_priority"].append(hrp)
+        agg["hybrid_adaptive"].append(hadp)
         for k, v in h["sources"].items():
             hybrid_sources_all[k] = hybrid_sources_all.get(k, 0) + v
         for k, v in hrp["sources"].items():
@@ -203,7 +212,8 @@ def main() -> None:
     print("=" * 60)
     print(
         f"  平均奖励/步: 规则 {avg_reward['rule']:.3f} | RL {avg_reward['rl']:.3f} | "
-        f"混合 {avg_reward['hybrid']:.3f} | RL优先混合 {avg_reward['hybrid_rl_priority']:.3f}"
+        f"混合 {avg_reward['hybrid']:.3f} | RL优先混合 {avg_reward['hybrid_rl_priority']:.3f} | "
+        f"自适应混合 {avg_reward['hybrid_adaptive']:.3f}"
     )
     print(f"  规则优先来源: {json.dumps(source_pct, ensure_ascii=False)}")
     print(f"  RL优先来源: {json.dumps(rp_source_pct, ensure_ascii=False)}")

@@ -188,6 +188,11 @@ def advance_time(env: "QuantumSchedulingEnv", rng: np.random.Generator) -> None:
     # 队列中任务等待步数 +1
     for task in env._task_queue:
         task.wait_steps += 1
+        # 8.3 审查修复：真实等待时间——在队列任务每步向公平性跟踪器
+        # 累加等待步数（此前等待恒 0，Jain 等待公平指数无意义）
+        _tracker = getattr(env, "_fairness_tracker", None)
+        if _tracker is not None and getattr(task, "tenant_id", None):
+            _tracker.record_wait(task.tenant_id, 1)
 
     # 随机生成新任务。默认泊松均值 1.2；评估脚本可注入固定或周期到达率。
     new_task_count = int(rng.poisson(env._get_arrival_lambda()))

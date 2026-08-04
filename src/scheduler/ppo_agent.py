@@ -258,6 +258,9 @@ class PPOAgent:
             # Issue #588/#928: 公平感知训练（17 维）时评估环境必须保持同构，
             # 否则 eval 期观测 16 维 vs 训练 17 维导致 ValueError
             include_fairness_obs=getattr(env, "_include_fairness_obs", False),
+            # 8.3 审查修复：eval env 必须复制训练环境的租户偏斜权重，
+            # 否则评估场景（80/10/10）退化为均匀分布，公平性数据失真
+            tenant_weights=getattr(env, "_tenant_weights", None),
         )
         if getattr(env, "_include_fairness_obs", False) and env._fairness_tracker is not None:
             try:
