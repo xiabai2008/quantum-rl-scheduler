@@ -36,7 +36,6 @@
 | 指标 | 数值 |
 |------|------|
 | 核心代码量 | 约 1.2 万行 Python（src/ 68 文件） |
-| 测试文件 | 94+ 个文件，3696 测试用例（pytest --collect-only 实测，2026-08-01） |
 | 测试文件 | 94+ 个文件，3696 测试用例（pytest --collect-only 实测，2026-08-02） |
 | CI 强制覆盖率 | 80%（实际 93.58%，pyproject.toml `fail_under=80`） |
 | 观测空间维度 | **16维**（新增串扰风险、任务到达率MA） |
@@ -347,7 +346,7 @@ python scripts/ci/validate_submission.py --pack
 
 | 编号 | 名称 | 类型 | 状态 |
 |:--:|:--|:--:|:--:|
-| CODE_REPO | 代码仓库（Git 标签 v9.1-submission） | git_tag | 8/15 冻结后创建 |
+| CODE_REPO | 代码仓库（Git 标签 v9.1-submission） | git_tag | tag 已存在（临时版）；8/15 冻结时更新指向验收 HEAD |
 | CODE_ARCHIVE | 代码压缩包 | zip | 冻结后 --pack 生成 |
 | WHITEPAPER | 技术白皮书（20-50页 PDF） | pdf | docx→PDF 转换 |
 | PRESENTATION | 答辩 PPT（15-20页，deliverable_models/答辩PPT.pptx） | pptx | ✅ 初版已生成 |
@@ -368,7 +367,7 @@ python scripts/ci/validate_submission.py --pack
 1. 确认所有 CI 检查全绿
 2. 运行 `python scripts/ci/pre_freeze_check.sh` 执行冻结前检查
 3. 运行 `python scripts/ci/validate_submission.py --check` 确认通过
-4. 创建标签：`git tag -a v9.1-submission -m "v9.1 提交版本" && git push origin v9.1-submission`
+4. 更新标签：`git tag -f -a v9.1-submission -m "v9.1 提交版本（冻结最终版）" && git push origin v9.1-submission --force`
 5. 打包：`python scripts/ci/validate_submission.py --pack`
 6. 提交压缩包至比赛平台
 
