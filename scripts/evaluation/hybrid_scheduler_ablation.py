@@ -200,11 +200,15 @@ def main() -> None:
 | 纯规则（RuleEngine） | {avg_reward["rule"]:.3f} |
 | 纯 RL（PPO deterministic） | {avg_reward["rl"]:.3f} |
 | **混合（HybridScheduler）** | **{avg_reward["hybrid"]:.3f}** |
+| **混合（RL 优先，Issue #928）** | **{avg_reward["hybrid_rl_priority"]:.3f}** |
+| 混合（自适应，8.3 审查补充） | {avg_reward["hybrid_adaptive"]:.3f} |
 
-**混合策略决策来源分布**：{json.dumps(source_pct, ensure_ascii=False)}
+**规则优先混合来源分布**：{json.dumps(source_pct, ensure_ascii=False)}
+**RL 优先混合来源分布**：{json.dumps(rp_source_pct, ensure_ascii=False)}
 
 **解读**：
-- 混合策略应不差于最优单策略（规则兜底 + RL 补盲），来源分布说明规则/RL 各自承担的比例
+- RL 优先模式（Issue #928）：RL 高置信度优先 + 规则兜底，修复"规则优先锁死 RL"
+- 自适应模式：基于 RL/规则历史奖励滑动窗口自动切换接管优先级
 - 完整数据：`results/hybrid/hybrid_ablation_result.json`
 """
     (report_dir / "hybrid_ablation_report.md").write_text(report, encoding="utf-8")
