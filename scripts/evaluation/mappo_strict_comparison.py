@@ -2,7 +2,7 @@
 MAPPO 同环境严格双基线对比（#3 收尾，Issue #928）
 
 在同一个 MultiAgentEnvWrapper（同机器配置、同种子序列）下严格对比：
-- MAPPO（协同多智能体，models/mappo.pt，50K 收敛）
+- MAPPO（协同多智能体，deliverable_models/mappo/mappo.pt，50K 收敛）
 - FCFS（每 agent 固定 hybrid 动作，任务排序由 env 内部 FCFS 完成）
 
 消除"不同评估环境/不同种子"的混杂，得到可归因的协同算法优势。
@@ -35,7 +35,7 @@ if hasattr(sys.stdout, "reconfigure"):
 
 from src.scheduler.marl import MultiAgentPPO
 
-MODEL_PATH = "models/mappo.pt"
+MODEL_PATH = "deliverable_models/mappo/mappo.pt"
 
 
 def run_fcfs_on_wrapper(agent: MultiAgentPPO, seed: int, max_steps: int) -> float:
@@ -140,7 +140,7 @@ def main() -> None:
     # 3 独立 PPO（无协同投票，同 wrapper 同种子）
     from stable_baselines3 import PPO as SB3PPO
 
-    indep_models = [SB3PPO.load(f"models/independent_ppo_m{i}") for i in range(3)]
+    indep_models = [SB3PPO.load(f"deliverable_models/mappo/independent_ppo_m{i}") for i in range(3)]
     indep_rewards = []
     for ep in range(args.episodes):
         indep_rewards.append(

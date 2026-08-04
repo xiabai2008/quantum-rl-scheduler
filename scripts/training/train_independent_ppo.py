@@ -33,7 +33,7 @@ def main() -> None:
     args = parser.parse_args()
 
     machines = DEFAULT_MACHINE_CONFIGS[:3]
-    os.makedirs("models", exist_ok=True)
+    os.makedirs("deliverable_models/mappo", exist_ok=True)
     for i, m in enumerate(machines):
         env = QuantumSchedulingEnv(
             max_steps=100,
@@ -55,7 +55,7 @@ def main() -> None:
         )
         t0 = time.time()
         model.learn(total_timesteps=args.timesteps_per_machine)
-        save_path = f"models/independent_ppo_m{i}"
+        save_path = f"deliverable_models/mappo/independent_ppo_m{i}"
         model.save(save_path)
         print(
             f"[独立PPO-{i}] {m['name']} 训练完成 "
