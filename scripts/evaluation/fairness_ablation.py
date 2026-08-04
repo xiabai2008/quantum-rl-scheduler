@@ -113,6 +113,7 @@ def main() -> None:
     }
     fair_stats = {k: [] for k in baseline_stats}
 
+    per_episode: list[dict] = []
     for ep in range(args.episodes):
         env_b = build_env(False, args.seed + ep)
         env_f = build_env(True, args.seed + ep)
@@ -121,6 +122,10 @@ def main() -> None:
         for k in baseline_stats:
             baseline_stats[k].append(sb[k])
             fair_stats[k].append(sf[k])
+        # 8.3 清单：逐 episode 原始数据（可重算汇总/检验）
+        per_episode.append(
+            {"episode": ep, "seed": args.seed + ep, "baseline_16dim": sb, "fairness_17dim": sf}
+        )
 
     def summarize(rows: dict[str, list[float]]) -> dict[str, float]:
         return {k: float(np.mean(v)) for k, v in rows.items()}
@@ -149,6 +154,7 @@ def main() -> None:
         "baseline_16dim": b_sum,
         "fairness_17dim": f_sum,
         "delta": delta,
+        "per_episode": per_episode,
     }
 
     out_dir = Path("results/fairness")
