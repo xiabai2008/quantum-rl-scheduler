@@ -2,17 +2,19 @@
 # Issue #383: 为影响实验可复现性的核心依赖添加上限约束，防止大版本变化破坏
 # 随机数生成行为或 API 兼容性。完整可复现请使用 pip freeze > requirements.lock
 # 并通过 pip install -r requirements.lock 安装。
-numpy>=1.24.0,<3.0.0
+# 8.4 审查收紧：numpy 2.5.x/torch 2.13.x/sb3 2.9.x+ 组合触发 PPO.load
+# SIGSEGV（ABI 跨大版本），已验证兼容区间上限收窄（torch 2.7.1 / numpy 2.2.5 OK）。
+numpy>=1.24.0,<2.4.0
 pandas>=2.0.0,<4.0.0
 scipy>=1.10.0,<2.0.0
 
 # === 强化学习 ===
 # SB3/Gymnasium 大版本升级常伴随 API breaking change，锁定主版本上限
 gymnasium>=0.28.0,<2.0.0
-stable-baselines3>=2.0.0,<3.0.0
-sb3-contrib>=2.0.0,<3.0.0
-# torch 主版本升级（如 2.x → 3.x）会改变 RNG 行为，锁定主版本上限
-torch>=2.0.0,<3.0.0
+stable-baselines3>=2.0.0,<2.10.0
+sb3-contrib>=2.0.0,<2.10.0
+# torch 版本直接影响 PPO.load 反序列化兼容性（8.4 审查：2.13.x SIGSEGV）
+torch>=2.0.0,<2.8.0
 tensorboard>=2.14.0,<3.0.0
 
 # === 量子计算 ===
