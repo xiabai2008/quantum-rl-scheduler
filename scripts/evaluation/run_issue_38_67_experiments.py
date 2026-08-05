@@ -261,7 +261,6 @@ class FCFSStrategy(BaseStrategy):
 
     def select_action(self, obs: np.ndarray) -> int:
         try:
-            from src.scheduler.baselines import EnvBasedFCFSScheduler
             from src.scheduler.env_types import (
                 OBS_QUBIT_AVAILABILITY,
                 OBS_TASK_TYPE_CLASSICAL,
