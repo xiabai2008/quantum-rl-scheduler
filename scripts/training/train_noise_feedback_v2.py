@@ -111,7 +111,10 @@ def evaluate_model(model_path: str, seed: int, noise_profile: str | None) -> dic
 
 
 def run_full_experiment(
-    seeds: list[int], train_only: bool = False, eval_only: bool = False
+    seeds: list[int],
+    train_only: bool = False,
+    eval_only: bool = False,
+    timesteps: int = TRAIN_TIMESTEPS,
 ) -> dict:
     """运行完整实验：训练 + 评估 + 统计检验。"""
     conditions = [
@@ -131,7 +134,7 @@ def run_full_experiment(
         if not eval_only:
             for i, seed in enumerate(seeds):
                 print(f"  [{i + 1}/{len(seeds)}] Training {label} seed={seed}...", flush=True)
-                mp = train_model(seed, noise_profile, label, timesteps=args.timesteps)
+                mp = train_model(seed, noise_profile, label, timesteps=timesteps)
                 model_paths[seed] = mp
 
         if train_only:
@@ -333,7 +336,8 @@ def main():
     MODEL_DIR.mkdir(parents=True, exist_ok=True)
     LOG_DIR.mkdir(parents=True, exist_ok=True)
 
-    data = run_full_experiment(seeds, train_only=args.train_only, eval_only=args.eval_only)
+    data = run_full_experiment(seeds, train_only=args.train_only, eval_only=args.eval_only,
+        timesteps=args.timesteps)
 
     json_path = RESULTS_DIR / "noise_feedback_v2_results.json"
     with open(json_path, "w", encoding="utf-8") as f:
