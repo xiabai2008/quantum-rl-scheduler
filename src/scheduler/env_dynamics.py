@@ -199,7 +199,14 @@ def advance_time(env: "QuantumSchedulingEnv", rng: np.random.Generator) -> None:
     for _ in range(new_task_count):
         if len(env._task_queue) < MAX_QUEUE_SIZE:
             new_id = env._total_scheduled + len(env._task_queue)
-            env._task_queue.append(env._generate_random_task(rng, task_id=new_id))
+            new_task = env._generate_random_task(rng, task_id=new_id)
+            env._task_queue.append(new_task)
+            # C2 修复（8.5 审查）：_classical.queue 此前恒 0——经典任务到达时同步计数，
+            # 使经典队列观测反映经典任务排队。注意：`_classical.queue` 为模拟水位
+            # （到达累加 + 下方 20% 模拟完成释放），与真实 `_task_queue` 中 classical
+            # 任务数存在偏差（模拟完成快于真实执行），观测语义已在此注明。
+            if new_task.task_type == "classical":
+                env._classical.queue += 1
 
     # 更新任务到达率历史（支持 LSTM 突发流量预测）
     if hasattr(env, "arrival_history"):

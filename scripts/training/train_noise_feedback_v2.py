@@ -37,7 +37,7 @@ from src.scheduler.env import DEFAULT_MACHINE_CONFIGS, QuantumSchedulingEnv
 REAL_NOISE_PROFILE = "real_machine"
 SEEDS_FULL = list(range(42, 42 + 50))
 SEEDS_QUICK = [42, 123, 456, 789, 1024]
-TRAIN_TIMESTEPS = 500000
+TRAIN_TIMESTEPS = 500000  # 可由 --timesteps 覆盖（8.5 快速验证用 150K）
 EVAL_EPISODES = 5
 MAX_STEPS = 500
 MODEL_DIR = PROJECT_ROOT / "models" / "noise_feedback_v2"
@@ -45,7 +45,7 @@ RESULTS_DIR = PROJECT_ROOT / "results" / "noise_feedback_v2"
 LOG_DIR = PROJECT_ROOT / "logs" / "noise_feedback_v2"
 
 
-def train_model(seed: int, noise_profile: str | None, label: str) -> str:
+def train_model(seed: int, noise_profile: str | None, label: str, timesteps: int = TRAIN_TIMESTEPS) -> str:
     """训练单个 PPO 模型，返回模型路径。"""
     MODEL_DIR.mkdir(parents=True, exist_ok=True)
     log_subdir = LOG_DIR / label / f"seed{seed}"
@@ -74,7 +74,7 @@ def train_model(seed: int, noise_profile: str | None, label: str) -> str:
 
     t0 = time.time()
     agent.train(
-        total_timesteps=TRAIN_TIMESTEPS,
+        total_timesteps=timesteps,
         eval_freq=TRAIN_TIMESTEPS,
         n_eval_episodes=EVAL_EPISODES,
         log_dir=str(log_subdir),
@@ -131,7 +131,7 @@ def run_full_experiment(
         if not eval_only:
             for i, seed in enumerate(seeds):
                 print(f"  [{i + 1}/{len(seeds)}] Training {label} seed={seed}...", flush=True)
-                mp = train_model(seed, noise_profile, label)
+                mp = train_model(seed, noise_profile, label, timesteps=args.timesteps)
                 model_paths[seed] = mp
 
         if train_only:
@@ -317,6 +317,8 @@ def generate_report(data: dict) -> str:
 def main():
     parser = argparse.ArgumentParser(description="噪声反馈 v2 训练与对照实验")
     parser.add_argument("--quick", action="store_true", help="快速模式：仅 5 seeds")
+    parser.add_argument("--timesteps", type=int, default=TRAIN_TIMESTEPS,
+                        help="每模型训练步数（8.5 快速验证建议 150000）")
     parser.add_argument("--train-only", action="store_true", help="仅训练模型，不做评估")
     parser.add_argument("--eval-only", action="store_true", help="仅加载已有模型评估")
     args = parser.parse_args()

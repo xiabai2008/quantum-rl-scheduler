@@ -948,6 +948,11 @@ class EnvBasedFCFSScheduler(EnvBasedScheduler):
     若当前任务是量子类型且量子资源可用，选择量子动作；
     若是经典类型，选择经典动作；
     无当前任务时选择经典动作（空操作）。
+
+    口径说明（8.5 审查）："FCFS"指**动作选择**语义（先服务当前任务）。
+    任务选取（pick_next_task）由 env 统一以紧急度（priority、wait_steps、
+    urgency）优先——所有基线（含 PPO）共用同一任务选取逻辑，相对提升不受影响；
+    该命名沿用历史约定，任务选取语义见 env_dynamics.pick_next_task。
     """
 
     def __init__(self) -> None:
