@@ -38,3 +38,29 @@
 - open PR：8 → **0**
 - open issue：14 → **4**（#766/#873/#903 关闭——均为假 Open，附验证评论；剩 #846 演示视频人工项）
 - 测试数统一：3689（pytest --co 实测，5 个文档同步，doc-sync 11/11 全绿）
+
+---
+
+## 2026-08-05 — 8.5-v2 审查批次（13 份外部审查结果 → 数字诚信大修）
+
+### 触发
+外部 8.5-v2 审查（13 份报告）聚焦"数字诚信"：+123.4% 残留、利用率 +7.9% 假数据、N=4 中间品提交、奖励偏向（Reward Hopping）、噪声反馈恒等式。
+
+### 处理（5 个 commit）
+| Commit | 内容 | 关键风险 |
+|:--|:--|:--|
+| 32b71bd | **A 类数字诚信**：+123.4→+20.2 全仓清理 69 处（README/AGENTS/白皮书/QA/PPT 生成器/archive）；利用率 +7.9→-3.3（N=250 真实）；等待时间换 N=250（25.46/-14%）；删 N=4 中间报告 2 份；编译层 README 同步 N=80（+38.5% p=2.75e-02）；check_stats_consistency 加内部冲突检测 | CI Lint 失败（ruff format/E741）→ c6bb333 修复 |
+| 5c32f8f | **B 类话术**：Q58/Q59（奖励函数诚实披露 + 噪声反馈证据边界）；30vs315 口径澄清；MAPPO 未收敛注；CI QUBO/Codecov 条件 3.11→3.12 | 同上 Lint 失败 |
+| 33f7cca | **C 类真修**：C2 classical.queue 恒 0 修复（到达累加）+ C1 FCFS 命名语义注明 + train_noise_feedback_v2 --timesteps | 低 |
+| 7601d49 | train_noise_feedback_v2 参数传递链修复 | 低 |
+| c6bb333 | Lint 修复（ruff format 2 文件 + E741） | 无 |
+
+### 预判回归风险
+- **中**：数字口径全仓替换（+123.4→+20.2）——若 statistics.yaml/历史报告被外部引用旧口径会不一致；已在 statistics.yaml history 段保留旧值并加"已废弃"标注
+- **中**：check_stats_consistency 新内部冲突检查——已测冲突样本 exit=1、诚实披露豁免、真实仓 0 冲突
+- **低**：C2 改 env_dynamics（到达计数）——224 相关测试通过；C1 纯注释
+- **待验证**：B2 噪声注入训练（train_noise_feedback_v2 后台跑，~90min）——若结果支持则"双向赋能"升级
+
+### 批后状态
+- CI：5c32f8f/32b71bd 因 Lint 失败 → c6bb333 修复推送，CI 重跑中
+- 权威数字：+20.2%（vs 真实 FCFS，N=250）、利用率 -3.3%、等待 -14%、编译层 +38.5%（N=80）
