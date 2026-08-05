@@ -53,7 +53,17 @@ INTERNAL_CONFLICTS: list[tuple[list[str], str]] = [
     (["25.46", "57.27"], "等待时间 25.46（N=250）与 57.27（N=4 中间品）并存"),
     (["+38.5%", "+33.3%"], "编译层深电路 +38.5%（N=80 显著）与 +33.3%（N=20 旧样本）并存"),
 ]
-_DISCLOSURE_MARK = ("废弃", "错误数据", "中间产物", "审查修正", "8.5 审查", "已废弃", "无法支撑", "非统计证据", "历史")
+_DISCLOSURE_MARK = (
+    "废弃",
+    "错误数据",
+    "中间产物",
+    "审查修正",
+    "8.5 审查",
+    "已废弃",
+    "无法支撑",
+    "非统计证据",
+    "历史",
+)
 
 # 排除的文件/目录（权威报告本身，不检查自身）
 EXCLUDE_PATHS = {
@@ -434,13 +444,15 @@ def scan_markdown_file(
 
     # 8.5 审查：权威数值内部冲突（A8）
     for vals, conflict_msg in INTERNAL_CONFLICTS:
-        if not vals[0] in text and not vals[1] in text:
+        if vals[0] not in text and vals[1] not in text:
             continue
         hits = [v for v in vals if v in text]
-        if len(hits) >= 2 and not any(any(mark in line for mark in _DISCLOSURE_MARK) for line in lines):
+        if len(hits) >= 2 and not any(
+            any(mark in line for mark in _DISCLOSURE_MARK) for line in lines
+        ):
             warnings.append(f"  文件级冲突: {conflict_msg}")
             for v in hits:
-                warn_lines = [i for i, l in enumerate(lines, 1) if v in l]
+                warn_lines = [i for i, ln in enumerate(lines, 1) if v in ln]
                 warnings.append(f"    -> '{v}' 出现于 L{warn_lines[:3]}")
 
     return warnings

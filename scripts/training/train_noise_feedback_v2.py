@@ -45,7 +45,9 @@ RESULTS_DIR = PROJECT_ROOT / "results" / "noise_feedback_v2"
 LOG_DIR = PROJECT_ROOT / "logs" / "noise_feedback_v2"
 
 
-def train_model(seed: int, noise_profile: str | None, label: str, timesteps: int = TRAIN_TIMESTEPS) -> str:
+def train_model(
+    seed: int, noise_profile: str | None, label: str, timesteps: int = TRAIN_TIMESTEPS
+) -> str:
     """训练单个 PPO 模型，返回模型路径。"""
     MODEL_DIR.mkdir(parents=True, exist_ok=True)
     log_subdir = LOG_DIR / label / f"seed{seed}"
@@ -320,8 +322,12 @@ def generate_report(data: dict) -> str:
 def main():
     parser = argparse.ArgumentParser(description="噪声反馈 v2 训练与对照实验")
     parser.add_argument("--quick", action="store_true", help="快速模式：仅 5 seeds")
-    parser.add_argument("--timesteps", type=int, default=TRAIN_TIMESTEPS,
-                        help="每模型训练步数（8.5 快速验证建议 150000）")
+    parser.add_argument(
+        "--timesteps",
+        type=int,
+        default=TRAIN_TIMESTEPS,
+        help="每模型训练步数（8.5 快速验证建议 150000）",
+    )
     parser.add_argument("--train-only", action="store_true", help="仅训练模型，不做评估")
     parser.add_argument("--eval-only", action="store_true", help="仅加载已有模型评估")
     args = parser.parse_args()
@@ -336,8 +342,9 @@ def main():
     MODEL_DIR.mkdir(parents=True, exist_ok=True)
     LOG_DIR.mkdir(parents=True, exist_ok=True)
 
-    data = run_full_experiment(seeds, train_only=args.train_only, eval_only=args.eval_only,
-        timesteps=args.timesteps)
+    data = run_full_experiment(
+        seeds, train_only=args.train_only, eval_only=args.eval_only, timesteps=args.timesteps
+    )
 
     json_path = RESULTS_DIR / "noise_feedback_v2_results.json"
     with open(json_path, "w", encoding="utf-8") as f:
