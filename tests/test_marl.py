@@ -272,7 +272,11 @@ class TestThreeMachineOutperformsSingle(unittest.TestCase):
         # Issue #860: 三机 MAPPO 需充分步数（128 个 rollout ≈ 16384 步）才能
         # 从均匀随机探索收敛到稳定策略；2048 步仅 16 个 rollout 处于高熵漂移期，
         # 8192 步仍不足，评估奖励不升反降（训练不稳定表象）。实测 16384 步收敛。
-        agent.train(total_timesteps=16384, eval_freq=0)
+        # 8.5 加固：16384→20480 步（+25%）——量子侧完成逻辑 rng 消费随队列
+        # 数变化（既有设计），训练轨迹存在跨 torch 版本/硬件方差，CI 上
+        # post_reward 偶发 45.5 < 50（阈值边缘）。更多步数提高收敛余量，
+        # 使"学到显著正奖励（>50）"断言稳定通过。
+        agent.train(total_timesteps=20480, eval_freq=0)
 
         # 训练后评估
         post_result = agent.evaluate(num_episodes=8, deterministic=True)
