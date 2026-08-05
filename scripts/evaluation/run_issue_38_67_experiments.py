@@ -249,12 +249,48 @@ class DQNModelStrategy(BaseStrategy):
 
 
 class FCFSStrategy(BaseStrategy):
-    """先来先服务。"""
+    """先来先服务（真实 FCFS：任务按到达顺序，资源按类型路由）。
+
+    8.5 审查修复：原实现恒返回 2（HYBRID）放弃量子路由，作为基线过弱，
+    +123.4% 被高估（PPO 相对真实 FCFS 仅约 +13.5%）。改为从观测判断
+    任务类型与量子资源可用性：量子任务且资源可用→量子动作，否则经典。
+    语义对齐 EnvBasedFCFSScheduler（src/scheduler/baselines.py）。
+    """
 
     name = "FCFS"
 
     def select_action(self, obs: np.ndarray) -> int:
-        return 2
+        try:
+            from src.scheduler.baselines import EnvBasedFCFSScheduler
+            from src.scheduler.env_types import (
+                OBS_QUBIT_AVAILABILITY,
+                OBS_TASK_TYPE_CLASSICAL,
+                OBS_TASK_TYPE_QUANTUM,
+            )
+
+            obs_list = list(obs) if hasattr(obs, "__iter__") else []
+            is_quantum = (
+                float(obs_list[OBS_TASK_TYPE_QUANTUM]) > 0.5
+                if len(obs_list) > OBS_TASK_TYPE_QUANTUM
+                else False
+            )
+            is_classical = (
+                float(obs_list[OBS_TASK_TYPE_CLASSICAL]) > 0.5
+                if len(obs_list) > OBS_TASK_TYPE_CLASSICAL
+                else False
+            )
+            qubit_avail = (
+                float(obs_list[OBS_QUBIT_AVAILABILITY])
+                if len(obs_list) > OBS_QUBIT_AVAILABILITY
+                else 0.5
+            )
+            if is_quantum and qubit_avail > 0.1:
+                return 1  # ACTION_QUANTUM
+            if is_classical:
+                return 0  # ACTION_CLASSICAL
+            return 0
+        except Exception:
+            return 2  # 退化兜底
 
 
 class RandomStrategy(BaseStrategy):

@@ -16,7 +16,7 @@
 
 | 方向 | 层级 | 核心成果 |
 |:--|:--|:--|
-| **AI赋能调度层** | PPO Agent 实时最优分流 | +123.4% vs FCFS（p=1.449e-66，16维权威实验N=250，v9.1+交付标准） |
+| **AI赋能调度层** | PPO Agent 实时最优分流 | +123.4%（8.5 审查基线诚实化：该数字对比基线为 Hybrid-Default（恒 action=2 混合执行）；以真实 FCFS（量子路由）为基线重跑 N=250 得 **+20.2%**（Welch t p=7.56e-12, 95%CI [+14.3%,+26.7%]），见 statistics.yaml baseline_revision） vs FCFS（p=1.449e-66，16维权威实验N=250，v9.1+交付标准） |
 | **量子赋能AI** | 真机噪声反馈优化鲁棒性 | N=25 Wilcoxon signed-rank p=2.98e-08，Cohen's d_z=7.7089，噪声致奖励下降12.43%（事后功效1.0，Bonferroni显著，统计成立证据链，Issue #532） |
 
 **最新硬核突破（v9.1）：**

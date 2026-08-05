@@ -41,6 +41,29 @@ simulation_8strategy_50seed:
     - "v9.1 (2026-07-29): 基于 16 维交付模型重新评估，PPO 提升 +88.3%→+123.4%"
     - "v9.0 (2026-07-25): 14 维模型评估，PPO 提升 +88.3%（已废弃）"
 
+  # ============================================================
+  # 8.5 审查修正（2026-08-05）：基线诚实化
+  # 原 +123.4% 对比基线"FCFS"恒返回 2（Hybrid-Default 混合执行，不路由量子机），
+  # 作为基线过弱。以真实 FCFS（EnvBasedFCFSScheduler：量子任务→量子机）重跑
+  # 50 seeds × 5 episodes = N=250，PPO 提升 +20.2%（Welch t p=7.56e-12，
+  # Mann-Whitney U p=1.86e-12 经 Bonferroni 校正显著，95%CI [+14.3%, +26.7%]，
+  # rank-biserial=-0.3642 中效应）。+123.4% 保留为 vs Hybrid-Default 旧基线记录。
+  # ============================================================
+  baseline_revision:
+    note: "8.5 审查基线诚实化：FCFS 基线从'恒返回2(Hybrid-Default)'修正为真实 FCFS(量子路由)"
+    real_fcfs_mean_reward: 1648.91
+    real_fcfs_std_reward: 502.9
+    real_fcfs_n: 250
+    ppo_vs_real_fcfs_pct: 20.2
+    ppo_vs_real_fcfs_welch_t: 7.02
+    ppo_vs_real_fcfs_p_value: 7.56e-12
+    ppo_vs_real_fcfs_mannwhitney_p: 1.86e-12
+    ppo_vs_real_fcfs_ci_95: [14.3, 26.7]
+    legacy_hybrid_default_baseline:
+      note: "+123.4% 为 vs Hybrid-Default(恒action=2) 旧基线，基线过弱，仅供历史"
+      fcfs_mean_reward: 1051.59
+      ppo_improvement_pct: 123.4
+
   strategy_summary:
     PPO:
       mean_reward: 2348.91

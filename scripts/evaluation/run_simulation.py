@@ -276,19 +276,47 @@ class DQNModelStrategy(BaseStrategy):
 
 
 class FCFSStrategy(BaseStrategy):
-    """策略 B：先来先服务（FCFS）。
+    """策略 B：先来先服务（FCFS）——8.5 审查修复。
 
-    说明：环境内部已按 wait_steps/arrival_time 排序取队首任务（FCFS 任务排序），
-    本策略负责资源分配决策。此处选择 action=2（混合执行）作为默认资源策略，
-    因为混合执行兼容所有任务类型，是最保守的资源分配方式。
-    因此本基线更准确的含义是"FCFS任务排序 + 混合资源默认策略"（Hybrid-Default）。
+    任务排序由环境内部按 wait_steps/arrival_time 完成；资源分配从观测判断
+    任务类型与量子资源可用性（量子→量子动作，经典→经典），对齐
+    EnvBasedFCFSScheduler。原实现恒返回 2（HYBRID）放弃量子路由，
+    作为基线过弱导致 +123.4% 高估（真实 FCFS 下 PPO 提升约 +13.5%）。
     """
 
     name = "FCFS"
 
     def select_action(self, obs: np.ndarray) -> int:
-        # FCFS：任务排序由环境内部完成，资源分配选择混合执行（最高兼容性）
-        return 2
+        try:
+            from src.scheduler.env_types import (
+                OBS_QUBIT_AVAILABILITY,
+                OBS_TASK_TYPE_CLASSICAL,
+                OBS_TASK_TYPE_QUANTUM,
+            )
+
+            obs_list = list(obs) if hasattr(obs, "__iter__") else []
+            is_quantum = (
+                float(obs_list[OBS_TASK_TYPE_QUANTUM]) > 0.5
+                if len(obs_list) > OBS_TASK_TYPE_QUANTUM
+                else False
+            )
+            is_classical = (
+                float(obs_list[OBS_TASK_TYPE_CLASSICAL]) > 0.5
+                if len(obs_list) > OBS_TASK_TYPE_CLASSICAL
+                else False
+            )
+            qubit_avail = (
+                float(obs_list[OBS_QUBIT_AVAILABILITY])
+                if len(obs_list) > OBS_QUBIT_AVAILABILITY
+                else 0.5
+            )
+            if is_quantum and qubit_avail > 0.1:
+                return 1
+            if is_classical:
+                return 0
+            return 0
+        except Exception:
+            return 2
 
 
 class RandomStrategy(BaseStrategy):
