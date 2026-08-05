@@ -69,3 +69,9 @@
 - **C3**（保真度漂移方向）：模拟设计（衰减+恢复），有 noise_profile 时零漂移；判定不改（低价值、改动影响所有基准）
 - **C4**（QEM 动作语义）：N_ACTIONS=4 但默认 env 无 QEM 分支，action=3 静默=经典执行 → env_types/env.py 显式语义注明（不改行为避免模型兼容风险）；QEM 为真机模块专用设计
 - **残留清理**：Code_Wiki/annealing_significance-defense +123.4 清零（7 处）；AGENTS/Code_Wiki p 值 1.449e-66→7.56e-12（vs 真实 FCFS 口径，8 处）
+
+### 追加（8.5 深夜低威胁批，657ac86/后续）
+- **数字治理收尾**：statistics.yaml strategy_summary 统一 N=250 真实值（PPO 1982.69/+20.24%）；validate_authoritative_numbers 期望值 1982.69/1648.91/7.56e-12；check_stats 取消关键源排除；14 个当前口径文档旧数字清零（sota/value_quant/defense_qa/whitepaper 等 122 行）；14 个历史报告冻结横幅指向新权威；strategy_comparison 更新新权威
+- **诚实化**：退火 defense 撤回 +6.4% 宣传（20seeds -5.6% 逆转）；完成率=派单率语义注明（env_observation）；噪声口径统一 N=25/p=2.98e-08 权威；QUBO 全非负局限注明；覆盖率 93.58% 改为"以 CI 为准"
+- **工程**：test_contains_project_name 去硬编码；manifest 补 MAPPO/fairness17；测试数 3717 口径
+- 三大门禁 validate/stats/docsync 全绿；469 关键测试通过；PDF/PPT 重生成（旧数字 0 残留）
