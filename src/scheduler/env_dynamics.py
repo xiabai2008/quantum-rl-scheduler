@@ -177,10 +177,12 @@ def advance_time(env: "QuantumSchedulingEnv", rng: np.random.Generator) -> None:
     # 经典资源波动
     env._classical.load = np.clip(env._classical.load + rng.uniform(-0.15, 0.15), 0.0, 1.0)
     # 经典队列完成一些任务
-    completed_c = 0
-    for _ in range(env._classical.queue):
-        if rng.random() < 0.2:  # 20% 概率完成一个经典任务
-            completed_c += 1
+    # 8.5 修复（RNG 稳定性）：原实现 for _ in range(queue) 逐任务 rng.random()，
+    # 消耗 rng 次数随 queue 变化——C2 修复使 classical.queue 从恒 0 变为 >0 后，
+    # 每步多消耗 N 次 rng，随机流偏移导致 MAPPO 收敛测试发散（-0.42 vs >50）。
+    # 改为确定性期望完成数 int(queue * 0.2)（不消耗 rng，期望完成率与原一致），
+    # rng 消费序列与 queue 值解耦，训练/评估随机流稳定。
+    completed_c = int(env._classical.queue * 0.2)
     env._classical.queue = max(0, env._classical.queue - completed_c)
     # 完成任务后释放负载
     env._classical.load = np.clip(env._classical.load - 0.05 * completed_c, 0.0, 1.0)
