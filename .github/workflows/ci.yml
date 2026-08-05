@@ -132,15 +132,29 @@ jobs:
           # 2026-08-02: 恢复 xdist 并行，加 --max-worker-restart=2 兜底——
           #   worker 崩溃超限时快速失败（可重跑）而非无限挂起拖死 run，
           #   3.10/3.12 测试时长从 ~50min 压回 ~8min。
+          # 8.5 修复：MAPPO 训练测试（test_marl.py 含 32768 步长训练）从 xdist
+          # 并行排除——长训练测试在 xdist worker 上反复挂起（3.11 先例 30min+、
+          # 3.12 复现），改为下方独立串行 step。
           python -m pytest tests/ \
             -v \
             -n auto --dist loadscope --max-worker-restart=2 \
             --ignore=tests/test_performance_benchmarks.py \
+            --ignore=tests/test_marl.py \
             --cov=src \
             --cov-report=term-missing \
             --cov-report=xml \
             --cov-fail-under=80 \
             --timeout=120 \
+            -W ignore::DeprecationWarning
+
+      - name: Run MAPPO training tests (serial)
+        # 8.5 新增：长训练测试独立串行跑（避免 xdist worker 挂起 + CPU 争抢
+        # 导致收敛断言 flaky）；测试本身已固定 seed + 32768 步收敛余量。
+        shell: bash
+        run: |
+          python -m pytest tests/test_marl.py \
+            -q \
+            --timeout=600 \
             -W ignore::DeprecationWarning
 
       - name: QUBO formal/property verification
