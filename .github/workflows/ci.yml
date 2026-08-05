@@ -147,10 +147,11 @@ jobs:
         # Issue #253: 将 QUBO 数学验证纳入 CI。
         # 运行 QUBO 的形式化/属性测试（tests/test_qubo_optimization.py 中
         # 方法名含 formal / property 的用例，均为纯 numpy + 标准库实现）。
-        # 仅在 3.11 + Windows 组合运行一次，避免矩阵重复执行。
+        # 8.5 修复：矩阵已移除 3.11（Windows+xdist 挂起），if 条件 3.11 恒假
+        # 导致该 job 从未运行——改为 3.12（矩阵实际版本）。
         # 退出码处理：pytest 返回 5（无命中测试）视为“验证待补充”而通过；
         # 返回非 0（测试失败）则显式回显反例（counterexample）后退出 1。
-        if: matrix.python-version == '3.11' && matrix.os == 'windows-latest'
+        if: matrix.python-version == '3.12' && matrix.os == 'windows-latest'
         shell: bash
         run: |
           pytest tests/test_qubo_optimization.py -k "formal or property"
@@ -166,8 +167,8 @@ jobs:
       - name: Upload coverage to Codecov
         # Issue #185: 条件需匹配矩阵中实际运行的 OS（windows-latest），
         # 避免引用未定义的 matrix.os 或恒假的 ubuntu 条件。
-        # 仅在 Python 3.11 + windows-latest 组合上传一次，避免重复上传。
-        if: matrix.python-version == '3.11' && matrix.os == 'windows-latest'
+        # 8.5 修复：矩阵无 3.11，改为 3.12（实际版本）上传一次，避免重复上传。
+        if: matrix.python-version == '3.12' && matrix.os == 'windows-latest'
         uses: codecov/codecov-action@v4
         with:
           file: ./coverage.xml
