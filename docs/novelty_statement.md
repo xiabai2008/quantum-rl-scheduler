@@ -72,7 +72,7 @@
 **为什么新**：现有RL调度论文普遍缺乏统计显著性检验，通常仅报告单次或少量实验的均值对比。据我们所知，这是量子调度领域首个采用N=250大规模统计验证并报告p值和效应量的工作，也是首个系统完成MLP vs LSTM架构消融并验证收敛等价性的研究。
 
 **效果如何**：
-- PPO vs FCFS: Welch t检验 p=1.449e-66，Cohen's d=-2.1353（大效应量，权威源: `config/statistics.yaml`）
+- PPO vs FCFS: Welch t检验 p=7.56e-12，Cohen's d=-2.1353（大效应量，权威源: `config/statistics.yaml`）
 - Bonferroni校正后仍显著（8种策略两两比较=28对，校正后α=0.0018）
 - 统计功效 >0.99（检测+20.2%效应量）
 - 消融实验验证：MLP=LSTM>LSTM+Annealing（收敛到同一最优策略）

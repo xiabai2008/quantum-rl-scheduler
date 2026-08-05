@@ -1,6 +1,6 @@
 # 权威模型检查点归档（MODELS.md）
 
-> 本文件说明本项目**可提交的训练好的模型检查点**，用于保证评审在克隆仓库后能复现论文中的实验结果（PPO vs FCFS +123.4% 等）。
+> 本文件说明本项目**可提交的训练好的模型检查点**，用于保证评审在克隆仓库后能复现论文中的实验结果（PPO vs FCFS +20.2% 等）。
 > Version: 9.1.0
 > 最后更新：2026-07-31
 
@@ -60,12 +60,12 @@ python scripts/evaluation/ablation_ppo_variants.py
 
 | 指标 | 数值 | 统计检验 |
 |:--|:--|:--|
-| PPO vs FCFS 提升 | **+123.4%** | Welch t, p=1.449e-66, Cohen's d=-2.1353（16维权威实验, N=250, config/statistics.yaml） |
+| PPO vs FCFS 提升 | **+20.2%** | Welch t, p=7.56e-12, Cohen's d=-2.1353（16维权威实验, N=250, config/statistics.yaml） |
 | 编译层PPO vs SABRE | 公平对比v2（4×4 2D网格, 60电路同池配对, Issue #451）+ 深电路N=80扩充（Issue #559） | **深电路(14-16q)N=80：+38.5%（p=2.75e-02显著, t检验p=2.49e-03, seed=7交叉验证+43.4% p=8.52e-03）**；规模化效应sabre>=10：+63.2%（p=8.44e-08）；全60电路p=8.40e-01不显著（简单/混合电路无优势，诚实披露） |
 | 2D网格拓扑优势 | SABRE在2D网格上SWAP比线性链少~62% | 拓扑消融实验（ablation_compilation_env.py） |
 | 真机验证 | 315次SDK调用100%成功率 | 可用性验证 |
 
-> **注意**：+123.4% 权威数字基于16维交付模型 ppo_best_model_16dim.zip（v9.1+，OBS_DIM=16，50seed×5episodes=250次独立运行），已在 config/statistics.yaml 中锁定。
+> **注意**：+20.2% 权威数字基于16维交付模型 ppo_best_model_16dim.zip（v9.1+，OBS_DIM=16，50seed×5episodes=250次独立运行），已在 config/statistics.yaml 中锁定。
 
 ## 训练脚本索引
 

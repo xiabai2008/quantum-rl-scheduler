@@ -215,8 +215,12 @@ def get_info(env: "QuantumSchedulingEnv") -> dict[str, Any]:
         ],
     }
     # 任务完成率（Issue #400）：成功调度数 / (成功调度数 + 队列剩余任务数)
+    # 8.5 审查诚实化：本 env 为"派单即成功"抽象（无运行中任务队列），
+    # 该指标实为"派单率"（调度成功率），非真实任务完成率——文档/报告引用
+    # completion_rate 时须注明此语义（env_dynamics 中任务完成是 15% 概率模拟）。
     total_seen = env._total_scheduled + len(env._task_queue)
     info["completion_rate"] = env._total_scheduled / total_seen if total_seen > 0 else 0.0
+    info["completion_rate_semantics"] = "派单率（调度成功/已见任务），非真实完成率"  # 8.5
     if env._current_task is not None:
         info["current_task"] = {
             "task_id": env._current_task.task_id,

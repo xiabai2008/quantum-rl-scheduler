@@ -1,6 +1,6 @@
 # Issue #457: 105 数据比特规模跨规模泛化分析报告
 
-> **⚠️ 历史报告冻结声明（2026-07-29）**：本报告基于 14 维旧模型（ppo_best_model_14dim.zip，已删除）产出，+88.3%、p=1.032e-42 等为旧口径，**已废弃**。现行权威口径为 16 维交付模型：PPO vs FCFS **+123.4%**（N=250, Welch t p=1.449e-66），见 `config/statistics.yaml`。本报告仅作历史存档，禁止在答辩/白皮书/PPT 中直接引用其数字；跨规模复跑请使用 `scripts/evaluation/run_issue_457_105_qubits_validation.py`（已对齐 123.4 基准）。
+> **⚠️ 历史报告冻结声明（2026-07-29）**：本报告基于 14 维旧模型（ppo_best_model_14dim.zip，已删除）产出，+88.3%、p=1.032e-42 等为旧口径，**已废弃**。现行权威口径为 16 维交付模型：PPO vs 真实 FCFS **+20.2%**（N=250, Welch t p=7.56e-12, 8.5 基线诚实化；旧 +123.4% 为 vs Hybrid-Default 弱基线），见 `config/statistics.yaml`。本报告仅作历史存档，禁止在答辩/白皮书/PPT 中直接引用其数字；跨规模复跑请使用 `scripts/evaluation/run_issue_457_105_qubits_validation.py`（已对齐 123.4 基准）。
 
 > **实验配置**: 10 seeds × 5 episodes = 50 次独立运行
 > **仿真规模**: max_qubits=105（天衍-287 真实数据比特数）

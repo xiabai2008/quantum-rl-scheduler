@@ -50,7 +50,7 @@
 | v5 | 多机器调度 + 真机验证 | 多机器 PPO 奖励 +4,294（+86.3%），17 个任务成功提交天衍云真机 |
 | v6 | MAPPO 多智能体 + 异步退火闭环 + 16维状态 + 多目标奖励 | 新增 ~3,600 行代码 + 71 测试用例 |
 | v7 | ruff 142→0 + mypy 26→0 + CI全严格阻断 + 覆盖率门槛提升至80%（实际91%） | 49个测试文件1663+用例，CI lint/typecheck从baseline升级为strict |
-| v8 | 50seed N=250验证 + 多seed真机实验 | PPO=2348.91±857.25, +20.2%, p=7.56e-12, Cohen's d=-2.1353；多seed真机PPO=1736.32±355.78 vs FCFS=383.00±49.13, d=5.33（效应量异常大，小样本探索性结果，需进一步验证）| | FCFS: 1051.59±58.34
+| v8 | 50seed N=250验证 + 多seed真机实验 | PPO=1982.69±557.25, +20.2%, p=7.56e-12, Cohen's d=-2.1353；多seed真机PPO=1736.32±355.78 vs FCFS=383.00±49.13, d=5.33（效应量异常大，小样本探索性结果，需进一步验证）| | FCFS: 1648.91±502.95
 | v9 | **Dynamic QEM + Crosstalk-Aware + Sequence-Aware (LSTM)** | 状态空间扩充至 **16维**（新增串扰风险、任务到达率MA），动作空间扩充至 **4维**（新增量子误差缓释动作）。实现空间并发与 LSTM 时序流量感知。 |
 | v9.1 | **16维交付模型 + 公平性特性 + 编译环境可配置 + N=250统计验证** | 标准PPO-MLP交付模型（ppo_best_model_16dim.zip），公平性惩罚机制(#587)+公平性观测开关(#588)+观测维度消融配置(#585)，编译环境支持自定义拓扑(#594/#616)，50seed N=250 vs 真实 FCFS：Welch t p=7.56e-12（8.5 基线诚实化，旧 p=1.449e-66 对应 Hybrid-Default 基线），CI 覆盖率≥80%（强制），3717 测试用例 |
 
@@ -1111,7 +1111,7 @@ PYTHONUTF8=1 python -m mypy src
 pytest tests/benchmarks/test_annealing_benchmark.py --benchmark-only
 
 # 8 策略对比（多 Seed 权威结果，16维交付模型）
-# 排名：PPO(2348.91) > SJF(1060.30) > FCFS(1051.59) > DQN/Random(891.53)
+# 排名：PPO(1982.69) > SJF(1060.30) > FCFS(1648.91) > DQN/Random(891.53)
 #       > Greedy(-134.18) > Quantum-Only(-940.56) > Classical-Only(-1128.79)
 ```
 

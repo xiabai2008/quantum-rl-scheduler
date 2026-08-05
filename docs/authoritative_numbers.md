@@ -18,11 +18,11 @@
 
 | 指标 | 值 | 定义 | 数据源 | 统计口径 |
 |------|-----|------|--------|----------|
-| PPO 平均奖励 | **2348.91 ± 857.25** | 16维交付模型 + 新奖励参数，50seeds × 5episodes | `results/multiseed_evaluation/rewards_multiseed.json` | 均值 ± 标准差（N=250） |
-| FCFS 平均奖励 | **1051.59 ± 58.34** | 同上，基线策略 | 同上 | 均值 ± 标准差（N=250） |
+| PPO 平均奖励 | **1982.69 ± 557.25** | 16维交付模型 + 新奖励参数，50seeds × 5episodes | `results/multiseed_evaluation/rewards_multiseed.json` | 均值 ± 标准差（N=250） |
+| FCFS 平均奖励 | **1648.91 ± 502.95** | 同上，基线策略 | 同上 | 均值 ± 标准差（N=250） |
 | PPO vs FCFS 奖励提升 | **+20.2%** | (PPO_mean - FCFS_mean) / FCFS_mean | `results/reports/statistical_validation.md` | 百分比提升 |
 | 95% 置信区间 | **[+113.3%, +133.5%]** | PPO vs FCFS 奖励差的bootstrap CI | 同上 | 双侧95% CI |
-| p 值 | **1.449e-66** | Welch t 检验 | 同上 | Bonferroni校正α=0.0018（28次比较） |
+| p 值 | **7.56e-12** | Welch t 检验 | 同上 | Bonferroni校正α=0.0018（28次比较） |
 | 效应量 | **Cohen's d = -2.1353** | PPO vs FCFS 效应量 | 同上 | ≥0.8为大效应 |
 
 ---

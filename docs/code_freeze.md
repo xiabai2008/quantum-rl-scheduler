@@ -338,7 +338,7 @@ bash scripts/ci/pre_freeze_check.sh
 # 创建 annotated tag（推荐，可包含详细说明）
 git tag -a v9.1-submission -m "v9.1 提交版本 (2026-08-15)
 
-八策略对比权威数字: PPO (16维) vs FCFS +123.4%
+八策略对比权威数字: PPO (16维) vs FCFS +20.2%
 量子占比敏感性: 50% 时 PPO 提升最高 +94.1%
 50 seed 统计显著 p<0.001
 
@@ -570,7 +570,7 @@ git push origin v9.1-submission
 
 ### 4.1 答辩 PPT
 
-- [ ] **答辩 PPT（17页）已定稿**，数字与权威数字一致（+123.4%，p=1.449e-66，N=250）
+- [ ] **答辩 PPT（17页）已定稿**，数字与权威数字一致（+20.2%，p=7.56e-12，N=250）
   - 负责人：瑞哥
   - 验证命令：`python scripts/ci/validate_authoritative_numbers.py --strict`（全项目数字一致性）
 

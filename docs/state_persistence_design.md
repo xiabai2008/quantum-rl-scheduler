@@ -437,7 +437,7 @@ Redis Key 命名规范：`scheduler:{namespace}:{key}`
 
 当前系统定位为**研究原型**，运行时状态保存在进程内存中
 （`src/visualization/state.py`），进程重启后状态会丢失——这在原型验证阶段是可接受的，
-因为我们聚焦于验证 RL 调度算法的有效性（PPO vs FCFS +123.4%，N=250，p=1.449e-66）。
+因为我们聚焦于验证 RL 调度算法的有效性（PPO vs FCFS +20.2%，N=250，p=7.56e-12）。
 
 对于生产环境，我们已设计完整的**状态持久化 MVP 方案**（见 `docs/state_persistence_design.md`），
 分两阶段落地：

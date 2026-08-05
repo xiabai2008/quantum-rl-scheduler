@@ -1,6 +1,6 @@
 # 多场景基准测试与场景-算法适配决策树
 
-> **⚠️ 历史报告冻结声明（2026-07-31）**：本报告中 +88.3%、p=1.032e-42 等为14维旧模型口径，**已废弃**。现行权威口径为16维交付模型：PPO vs FCFS **+123.4%**（N=250, Welch t p=1.449e-66），见 config/statistics.yaml。
+> **⚠️ 历史报告冻结声明（2026-07-31）**：本报告中 +88.3%、p=1.032e-42 等为14维旧模型口径，**已废弃**。现行权威口径为 16 维交付模型：PPO vs 真实 FCFS **+20.2%**（N=250, Welch t p=7.56e-12, 8.5 基线诚实化；旧 +123.4% 为 vs Hybrid-Default 弱基线），见 config/statistics.yaml。
 
 > **数据来源**: `results/stress_test_20260701_114551.json`（4种压力场景）+ `results/reports/strategy_comparison.md`（50seed权威评估）
 > **生成时间**: 2026-07-27
