@@ -8,21 +8,21 @@ Issue #141: 统一统计口径（v9.1+ 16维交付模型）
 输出不一致报告，返回非零退出码如果有不一致。
 
 权威数字（16维交付模型 50seed 仿真, N=250, v9.1+）:
-    - PPO: 2348.91 ± 857.25
-    - FCFS: 1051.59 ± 58.34
-    - p = 1.449e-66 (Welch t 检验, Bonferroni 校正后)
-    - Cohen's d = -2.1353 (大效应量)
-    - 提升 +123.4%
+    - PPO: 1982.69 ± 557.25
+    - FCFS: 1648.91 ± 502.95（真实 FCFS 量子路由）
+    - p = 7.56e-12 (Welch t 检验, Bonferroni 校正后, vs 真实 FCFS)
+    - rank-biserial = -0.3642 (中效应)
+    - 提升 +20.24%（vs 真实 FCFS；旧 +123.4% 为 vs Hybrid-Default 弱基线）
 
-不应出现的旧数字（14维已废弃）:
-    - 2746.94 (旧 PPO 均值, 应为 2348.91)
-    - 1160.72 (旧 PPO 标准差, 应为 857.25)
-    - 1458.77 (旧 FCFS 均值, 应为 1051.59)
-    - 60.47 (旧 FCFS 标准差, 应为 58.34)
-    - p=1.032e-42 (旧 p 值, 应为 p=1.449e-66)
-    - rank-biserial=-0.71 (旧效应量, 应为 Cohen's d=-2.1353)
+不应出现的旧数字（14维/弱基线已废弃）:
+    - 2746.94 (旧 PPO 均值, 应为 1982.69)
+    - 1160.72 (旧 PPO 标准差, 应为 557.25)
+    - 1458.77 (旧 FCFS 均值, 应为 1648.91)
+    - 60.47 (旧 FCFS 标准差, 应为 502.95)
+    - p=1.032e-42 (旧 p 值, 应为 p=7.56e-12)
+    - rank-biserial=-0.71 (旧效应量, 应为 rank-biserial=-0.3642)
     - "Mann-Whitney U" + PPO vs FCFS 仿真对比 (错误搭配, 应为 Welch t)
-    - +88.3% (旧提升幅度, 应为 +123.4%)
+    - +88.3% (旧提升幅度, 应为 +20.24%)
 
 不应出现的更早旧数字:
     - ±1121.19 (更早 PPO 标准差)
@@ -47,17 +47,19 @@ from pathlib import Path
 _PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 # 权威数字（16维交付模型 50seed 仿真, N=250, v9.1+）
+# 8.5 基线诚实化：PPO vs 真实 FCFS（EnvBasedFCFSScheduler, 量子路由），
+# 旧 2348.91/+123.4% 为 vs Hybrid-Default(恒action=2) 弱基线，已废弃。
 AUTHORITATIVE = {
-    "ppo_mean": "2348.91",
-    "ppo_std": "857.25",
-    "fcfs_mean": "1051.59",
-    "fcfs_std": "58.34",
-    "p_value": "1.449e-66",
-    "effect_size": "-2.1353",
-    "effect_size_type": "Cohen's d",
+    "ppo_mean": "1982.69",
+    "ppo_std": "557.25",
+    "fcfs_mean": "1648.91",
+    "fcfs_std": "502.95",
+    "p_value": "7.56e-12",
+    "effect_size": "-0.3642",
+    "effect_size_type": "rank-biserial",
     "test_method": "Welch t",
     "n": "250",
-    "improvement": "+123.4%",
+    "improvement": "+20.24%",
 }
 
 # 旧数字模式 → 应替换为的权威值
@@ -67,37 +69,37 @@ DEPRECATED_PATTERNS: list[tuple[re.Pattern[str], str, str]] = [
     (
         re.compile(r"\b2746\.94\b"),
         "旧 14维 PPO 均值 2746.94",
-        "2348.91",
+        "1982.69",
     ),
     (
         re.compile(r"\b1160\.72\b"),
         "旧 14维 PPO 标准差 ±1160.72",
-        "±857.25",
+        "±557.25",
     ),
     (
         re.compile(r"\b1458\.77\b"),
         "旧 14维 FCFS 均值 1458.77",
-        "1051.59",
+        "1648.91",
     ),
     (
         re.compile(r"1\.032[eE][-]?42"),
         "旧 14维 p 值 p=1.032e-42",
-        "p=1.449e-66",
+        "p=7.56e-12",
     ),
     (
         re.compile(r"1121\.19"),
         "更早 PPO 标准差 ±1121.19",
-        "±857.25",
+        "±557.25",
     ),
     (
         re.compile(r"55\.85"),
         "更早 FCFS 标准差 ±55.85",
-        "±58.34",
+        "±502.95",
     ),
     (
         re.compile(r"3\.04[eE][-]?11|3\.04\s*[×x]\s*10[⁻-]1[¹1]"),
         "更早 p 值 p=3.04e-11",
-        "p=1.449e-66",
+        "p=7.56e-12",
     ),
 ]
 
@@ -107,9 +109,9 @@ DEPRECATED_EFFECT_SIZE = re.compile(
     r"|rank-biserial\s*[=＝]\s*-?0\.71\b|rank-biserial\s*[=＝]\s*-0\.7081\b",
 )
 
-# Mann-Whitney U + p=1.449e-66 错误搭配（PPO vs FCFS 仿真应使用 Welch t）
+# Mann-Whitney U + p=7.56e-12 错误搭配（PPO vs FCFS 仿真应使用 Welch t）
 MWU_WITH_NEW_P = re.compile(
-    r"Mann[-]?Whitney\s*U.*1\.449[eE][-]?66|1\.449[eE][-]?66.*Mann[-]?Whitney\s*U",
+    r"Mann[-]?Whitney\s*U.*7\.56[eE][-]?12|7\.56[eE][-]?12.*Mann[-]?Whitney\s*U",
     re.IGNORECASE,
 )
 
@@ -301,18 +303,18 @@ def check_line(line: str, filepath: str, line_num: int) -> list[Violation]:
 
     # 检查 Cohen's d=-1.70 或 rank-biserial=-0.71 旧效应量
     # 巡逻记录中旧数字与权威数字同时出现用于对比，不报错
-    if DEPRECATED_EFFECT_SIZE.search(line) and not (is_patrol and "1.449e-66" in line):
+    if DEPRECATED_EFFECT_SIZE.search(line) and not (is_patrol and "7.56e-12" in line):
         violations.append(
             Violation(
                 file_path=filepath,
                 line_number=line_num,
                 line_content=line.strip()[:120],
                 issue="旧效应量 Cohen's d=-1.70 或 rank-biserial=-0.71",
-                fix="应替换为 Cohen's d=-2.1353",
+                fix="应替换为 rank-biserial=-0.3642（vs 真实 FCFS）",
             )
         )
 
-    # 检查 Mann-Whitney U + p=1.449e-66 错误搭配（PPO vs FCFS 仿真应使用 Welch t）
+    # 检查 Mann-Whitney U + p=7.56e-12 错误搭配（PPO vs FCFS 仿真应使用 Welch t）
     # 如果行中同时包含 Welch，说明是对比说明文本，不报错
     if MWU_WITH_NEW_P.search(line) and "welch" not in line.lower():
         violations.append(
@@ -320,8 +322,8 @@ def check_line(line: str, filepath: str, line_num: int) -> list[Violation]:
                 file_path=filepath,
                 line_number=line_num,
                 line_content=line.strip()[:120],
-                issue="Mann-Whitney U 与 p=1.449e-66 错误搭配",
-                fix="p=1.449e-66 对应 Welch t 检验（PPO vs FCFS 仿真）",
+                issue="Mann-Whitney U 与 p=7.56e-12 错误搭配",
+                fix="p=7.56e-12 对应 Welch t 检验（PPO vs FCFS 仿真）",
             )
         )
 
@@ -381,21 +383,21 @@ def print_authoritative_reference() -> None:
     print(f"  {'效应量':<25} {AUTHORITATIVE['effect_size']:<25} Cohen's d（大效应）")
     print(f"  {'提升百分比':<25} {AUTHORITATIVE['improvement']:<25} PPO vs FCFS")
     print()
-    print("不应出现的旧数字（14维已废弃）:")
-    print("  2746.94      → 2348.91     (PPO 均值)")
-    print("  ±1160.72     → ±857.25     (PPO 标准差)")
-    print("  1458.77      → 1051.59     (FCFS 均值)")
-    print("  ±60.47       → ±58.34      (FCFS 标准差)")
-    print("  p=1.032e-42  → p=1.449e-66 (p 值)")
-    print("  rank-biserial=-0.71 → Cohen's d=-2.1353 (效应量)")
+    print("不应出现的旧数字（14维/弱基线已废弃）:")
+    print("  2746.94      → 1982.69     (PPO 均值)")
+    print("  ±1160.72     → ±557.25     (PPO 标准差)")
+    print("  1458.77      → 1648.91     (FCFS 均值)")
+    print("  ±60.47       → ±502.95     (FCFS 标准差)")
+    print("  p=1.032e-42  → p=7.56e-12  (p 值)")
+    print("  rank-biserial=-0.71 → rank-biserial=-0.3642 (效应量)")
     print("  Mann-Whitney U → Welch t (PPO vs FCFS 仿真检验方法)")
-    print("  +88.3%       → +123.4%     (提升百分比)")
+    print("  +88.3%       → +20.24%     (提升百分比)")
     print()
     print("不应出现的更早旧数字:")
-    print("  ±1121.19     → ±857.25     (PPO 标准差)")
-    print("  ±55.85       → ±58.34      (FCFS 标准差)")
-    print("  p=3.04e-11   → p=1.449e-66 (p 值)")
-    print("  Cohen's d=-1.70 → Cohen's d=-2.1353 (效应量)")
+    print("  ±1121.19     → ±557.25     (PPO 标准差)")
+    print("  ±55.85       → ±502.95     (FCFS 标准差)")
+    print("  p=3.04e-11   → p=7.56e-12  (p 值)")
+    print("  Cohen's d=-1.70 → rank-biserial=-0.3642 (效应量)")
 
 
 def main() -> int:

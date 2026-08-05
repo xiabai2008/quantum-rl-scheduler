@@ -152,9 +152,11 @@ class TestGetProjectRoot(unittest.TestCase):
         self.assertTrue(os.path.isabs(root), f"应返回绝对路径,实际为: {root}")
 
     def test_contains_project_name(self) -> None:
-        """返回路径应包含项目目录名。"""
+        """返回路径应包含项目目录名（8.5 审查：移除硬编码仓库名/关键词，
+        审查/复现克隆到任意目录名时不再误报——只断言根目录名非空且存在）。"""
         root = get_project_root()
-        self.assertIn("quantum-rl-scheduler", root)
+        self.assertTrue(os.path.basename(root.strip("/\\")), "根目录名不应为空")
+        self.assertTrue(os.path.isdir(root), "项目根目录应存在")
 
     def test_contains_src_directory(self) -> None:
         """根目录下应存在 src 子目录。"""

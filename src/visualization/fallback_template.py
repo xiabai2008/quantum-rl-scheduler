@@ -1454,7 +1454,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                                         <div class="dt-scenario" onclick="dtSelectScenario('balanced')" id="dt-sc-balanced">
                                             <div class="dt-sc-title">均衡负载</div>
                                             <div class="dt-sc-desc">日常稳态运行</div>
-                                            <div class="dt-sc-recommend">PPO <span class="dt-up">+123.4%</span></div>
+                                            <div class="dt-sc-recommend">PPO <span class="dt-up">+20.2%</span></div>
                                         </div>
                                         <div class="dt-scenario" onclick="dtSelectScenario('high_load')" id="dt-sc-high_load">
                                             <div class="dt-sc-title">高负载积压</div>
@@ -1576,7 +1576,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                             <div class="strategy-buttons" id="strategy-buttons"></div>
                             <div style="font-size:10px; color:var(--text-muted); margin-top:8px; line-height:1.5;">
                                 * PPO为仿真验证最优策略<br>
-                                PPO vs FCFS: <b style="color:var(--green-light);">+123.4%</b> (N=250, p=1.449e-66)
+                                PPO vs FCFS: <b style="color:var(--green-light);">+20.2%</b> (N=250, p=7.56e-12)
                             </div>
                         </div>
                     </div>
@@ -2220,9 +2220,9 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
     // 内置权威策略排名（当API不可用时使用，基于16维交付模型N=250权威数据）
     var BUILTIN_RANKINGS = [
-        {name: 'PPO', score: 2348.91},
+        {name: 'PPO', score: 1982.69},
         {name: 'SJF', score: 1060.30},
-        {name: 'FCFS', score: 1051.59},
+        {name: 'FCFS', score: 1648.91},
         {name: 'DQN', score: 891.53},
         {name: 'Random', score: 891.53},
         {name: 'MAPPO', score: 891.53},
@@ -2441,13 +2441,13 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             desc: "任务到达率稳定，量子/经典任务比例均衡（日常科研计算、稳态运行）",
             params: "arrival_rate=0.5, quantum_ratio=0.7, max_steps=200",
             strategies: [
-                {rank:1, name:"PPO", reward:2348.91, lift:"+123.4%", note:"综合最优"},
+                {rank:1, name:"PPO", reward:1982.69, lift:"+20.2%", note:"综合最优"},
                 {rank:2, name:"SJF", reward:1060.30, lift:"+0.8%", note:""},
-                {rank:3, name:"FCFS", reward:1051.59, lift:"基线", note:"工业界默认"},
+                {rank:3, name:"FCFS", reward:1648.91, lift:"基线", note:"工业界默认"},
                 {rank:4, name:"Random", reward:891.53, lift:"-15.2%", note:""},
                 {rank:5, name:"Greedy", reward:-134.18, lift:"-112.8%", note:"此场景崩溃"}
             ],
-            conclusion: "均衡负载下PPO大幅领先所有基线（+123.4%），是稳态运行的最优选择。统计显著性：Welch t p=1.449e-66，Cohen's d=-2.14（大效应）。",
+            conclusion: "均衡负载下 PPO vs 真实 FCFS 提升 +20.2%（N=250, Welch t p=7.56e-12），量子利用率 -3.3%（诚实披露：R-P-01 ≥30% 目标未达成）。",
             recommend: "PPO"
         },
         high_load: {

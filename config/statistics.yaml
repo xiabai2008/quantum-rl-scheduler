@@ -65,44 +65,47 @@ simulation_8strategy_50seed:
       ppo_improvement_pct: 123.4
 
   strategy_summary:
+    # 8.5 审查统一：PPO 为 N=250 真实 FCFS(1648.91) 基线下的 1982.69（+20.24%），
+    # 旧 2348.91/+123.4% 为 vs Hybrid-Default(恒action=2) 弱基线，已废弃（见 legacy_hybrid_default_baseline）。
     PPO:
-      mean_reward: 2348.91
-      std_reward: 857.25
-      stderr: 54.22
+      mean_reward: 1982.69
+      std_reward: 557.25
+      stderr: 35.24
       n: 250
-      improvement_vs_fcfs_pct: 123.4
-      improvement_ci_95: [113.3, 133.5]
+      improvement_vs_fcfs_pct: 20.24
+      improvement_ci_95: [14.3, 26.7]
+      baseline: "真实 FCFS (EnvBasedFCFSScheduler, 1648.91)"
     SJF:
-      mean_reward: 1060.30
-      std_reward: 109.71
-      stderr: 6.94
+      mean_reward: 774.86
+      std_reward: 275.74
+      stderr: 17.44
       n: 250
-      improvement_vs_fcfs_pct: 0.8
+      improvement_vs_fcfs_pct: -53.0
     FCFS:
-      mean_reward: 1051.59
-      std_reward: 58.34
-      stderr: 3.69
+      mean_reward: 1648.91
+      std_reward: 502.95
+      stderr: 31.81
       n: 250
-      improvement_vs_fcfs_pct: 0.0  # 基线
+      improvement_vs_fcfs_pct: 0.0  # 基线（8.5 修正：真实 FCFS 量子路由；旧 1051.59 为 Hybrid-Default 恒action=2）
     DQN:
-      mean_reward: 891.53
-      std_reward: 313.35
-      stderr: 19.82
+      mean_reward: 602.37
+      std_reward: 262.09
+      stderr: 16.57
       n: 250
-      improvement_vs_fcfs_pct: -15.2
-      note: "v9 已删除 DQN 模型，此处使用 Random 策略替代占位，仅反映删除后的策略位状态"
+      improvement_vs_fcfs_pct: -63.47
+      note: "8.5 审查：DQN 模型已删除，行数据与 Random 完全相同（602.37）= Random 策略占位，非独立 DQN 结果"
     Random:
-      mean_reward: 891.53
-      std_reward: 313.35
-      stderr: 19.82
+      mean_reward: 602.37
+      std_reward: 262.09
+      stderr: 16.57
       n: 250
-      improvement_vs_fcfs_pct: -15.2
+      improvement_vs_fcfs_pct: -63.47
     Greedy:
-      mean_reward: -134.18
-      std_reward: 552.17
-      stderr: 34.92
+      mean_reward: 80.71
+      std_reward: 549.12
+      stderr: 34.72
       n: 250
-      improvement_vs_fcfs_pct: -112.8
+      improvement_vs_fcfs_pct: -95.1
     Quantum-Only:
       mean_reward: -940.56
       std_reward: 205.83

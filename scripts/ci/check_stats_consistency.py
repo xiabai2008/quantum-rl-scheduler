@@ -67,9 +67,7 @@ _DISCLOSURE_MARK = (
 
 # 排除的文件/目录（权威报告本身，不检查自身）
 EXCLUDE_PATHS = {
-    "config/statistics.yaml",
     "docs/authoritative_numbers.md",  # 权威数字事实源本身
-    "results/reports/statistical_validation.md",  # 权威数据源本身
     "results/reports/multiseed_real_machine_report.md",
     "results/reports/multiseed_real_machine_report_10seeds.md",
     "results/reports/multiseed_real_machine_report_10seeds_v2.md",

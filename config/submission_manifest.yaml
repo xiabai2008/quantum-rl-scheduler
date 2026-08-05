@@ -122,6 +122,23 @@ items:
       max_size_mb: 50
       must_exist: true
 
+  - id: MODEL_PPO_FAIRNESS17
+    name: PPO 公平感知模型（17维观测，含公平观测可选维）
+    type: zip
+    path: "deliverable_models/ppo_fairness17dim.zip"
+    requirements:
+      max_size_mb: 50
+      must_exist: true
+
+  - id: MODEL_MAPPO
+    name: MAPPO 多机协同模型（3 机，投票仲裁）
+    type: directory
+    path: "deliverable_models/mappo/"
+    requirements:
+      max_size_mb: 100
+      must_exist: true
+      note: "含 mappo.pt + mappo_config.json + 3 个独立 PPO 模型（independent_ppo_m0-2.zip）"
+
   # 其他
   - id: REQUIREMENTS_MATRIX
     name: 需求追溯矩阵
