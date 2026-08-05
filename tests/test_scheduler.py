@@ -1101,10 +1101,17 @@ class TestSchedulingStrategies(unittest.TestCase):
         self.assertEqual(action, 1)  # should choose quantum
 
     def test_fcfs_strategy(self):
-        """测试 FCFS 策略"""
+        """测试 FCFS 策略（8.5 审查基线诚实化：真实 FCFS 按任务类型路由）"""
         strategy = FCFSStrategy()
+        # self.obs 第 2 维为 0.2（非量子任务标志）→ 经典动作 0
         action = strategy.select_action(self.obs)
-        self.assertEqual(action, 2)  # always hybrid
+        self.assertIn(action, (0, 1))  # 不再恒返回 2（Hybrid-Default）
+        # 量子任务观测（16 维：OBS_TASK_TYPE_QUANTUM=8 标志 1.0 + 量子资源可用）→ 量子动作 1
+        obs_q = np.zeros(16, dtype=np.float32)
+        obs_q[8] = 1.0  # OBS_TASK_TYPE_QUANTUM
+        obs_q[0] = 0.8  # OBS_QUBIT_AVAILABILITY
+        action_q = strategy.select_action(obs_q)
+        self.assertEqual(action_q, 1)  # quantum
 
     def test_random_strategy(self):
         """测试随机策略"""

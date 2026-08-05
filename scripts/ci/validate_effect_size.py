@@ -40,11 +40,11 @@ from typing import Any
 _PROJECT_ROOT = Path(__file__).resolve().parents[2]
 _DEFAULT_DATA_PATH = _PROJECT_ROOT / "results" / "multiseed_evaluation" / "rewards_multiseed.json"
 
-# 权威阈值：PPO vs FCFS 提升 +123.4%（v9.1+ 16维交付模型），门禁阈值留充足安全边际
-_DEFAULT_THRESHOLD = 0.80  # 80%（即 improvement >= +80% 视为通过）
+# 权威阈值：PPO vs 真实 FCFS 提升 +20.2%（8.5 审查基线诚实化，N=250 p=7.56e-12），门禁阈值留充足安全边际
+_DEFAULT_THRESHOLD = 0.10  # 10%（即 improvement >= +10% 视为通过）
 
-# 权威参考值（用于在报告中对照展示，不参与门禁判定；旧14维口径 88.3 已废弃）
-_AUTHORITATIVE_IMPROVEMENT = 123.4
+# 权威参考值（8.5 审查基线诚实化：vs 真实 FCFS +20.2%；旧 +123.4% 为 vs Hybrid-Default 历史）
+_AUTHORITATIVE_IMPROVEMENT = 20.2
 
 
 def load_rewards(data_path: Path) -> dict[str, list[float]]:

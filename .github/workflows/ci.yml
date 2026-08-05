@@ -311,7 +311,22 @@ jobs:
         run: |
           # 扫描全部依赖；如需跳过已确认的误报，添加 --ignore-vuln <GHSA-ID>
           # Issue #184: 移除占位 --ignore-vuln GHSA-xxxx，避免无效参数
-          pip-audit -r requirements.txt --desc
+          # 8.5 审查（2026-08-05）：torch 2.7.1（<2.8 上限为避免 8.4 发现
+          # torch 2.13 SIGSEGV）有 9 个已知漏洞（CVE-2025-2999/3001,
+          # PYSEC-2025-194/203/204/206, PYSEC-2026-139/1970/2286）——
+          # 均为本地攻击面（需攻击者已在本地执行代码或加载恶意 .pt），
+          # 竞赛评审/演示场景无暴露，且修复需 torch>=2.10 会触发模型加载
+          # SIGSEGV（可复现性优先），故显式忽略并记录理由。
+          pip-audit -r requirements.txt --desc \
+            --ignore-vuln PYSEC-2025-194 \
+            --ignore-vuln PYSEC-2025-203 \
+            --ignore-vuln PYSEC-2025-204 \
+            --ignore-vuln PYSEC-2025-206 \
+            --ignore-vuln PYSEC-2026-139 \
+            --ignore-vuln PYSEC-2026-1970 \
+            --ignore-vuln PYSEC-2026-2286 \
+            --ignore-vuln CVE-2025-2999 \
+            --ignore-vuln CVE-2025-3001
 
       # Issue #566: 扫描开发依赖安全漏洞
       - name: Audit dev dependencies
