@@ -145,7 +145,6 @@ quantum-rl-scheduler/
 │       └── seeds.py              # 随机种子管理
 
 ├── tests/                        # 测试（94+ 文件，3696 用例）
-├── tests/                        # 测试（94+ 文件，3696 用例）
 │   ├── test_scheduler.py         # 调度环境测试
 │   ├── test_marl.py              # MAPPO 测试
 │   ├── test_annealing.py         # 量子启发式退火测试
