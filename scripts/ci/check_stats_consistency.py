@@ -44,6 +44,17 @@ DEMO_CHAIN_FILES = [
     "scripts/demo/demo_multi_machine.py",
 ]
 
+# 8.5 审查：权威数值内部冲突检查（A8）
+# 同一文件内禁止并存两组互斥的"权威"数值——评委可当场发现。
+# 豁免行必须含诚实披露标记（废弃/错误数据/中间产物/审查修正等）。
+INTERNAL_CONFLICTS: list[tuple[list[str], str]] = [
+    (["+20.2%", "+123.4%"], "综合收益 +20.2%（主口径）与 +123.4%（历史 vs Hybrid-Default）并存"),
+    (["-3.3%", "+7.9%"], "利用率 -3.3%（N=250 真实）与 +7.9%（错误旧数据）并存"),
+    (["25.46", "57.27"], "等待时间 25.46（N=250）与 57.27（N=4 中间品）并存"),
+    (["+38.5%", "+33.3%"], "编译层深电路 +38.5%（N=80 显著）与 +33.3%（N=20 旧样本）并存"),
+]
+_DISCLOSURE_MARK = ("废弃", "错误数据", "中间产物", "审查修正", "8.5 审查", "已废弃", "无法支撑", "非统计证据", "历史")
+
 # 排除的文件/目录（权威报告本身，不检查自身）
 EXCLUDE_PATHS = {
     "config/statistics.yaml",
@@ -386,6 +397,8 @@ def scan_markdown_file(
     except (OSError, UnicodeDecodeError):
         return warnings
 
+    text = "".join(lines)
+
     for line_num, line in enumerate(lines, 1):
         # 检查 Welch t 错误搭配
         welch_err = check_welch_t_misattribution(line)
@@ -418,6 +431,17 @@ def scan_markdown_file(
                     warnings.append(f"    {dep_msg}")
                     warnings.append(f"    > {line.strip()[:120]}")
                     break
+
+    # 8.5 审查：权威数值内部冲突（A8）
+    for vals, conflict_msg in INTERNAL_CONFLICTS:
+        if not vals[0] in text and not vals[1] in text:
+            continue
+        hits = [v for v in vals if v in text]
+        if len(hits) >= 2 and not any(any(mark in line for mark in _DISCLOSURE_MARK) for line in lines):
+            warnings.append(f"  文件级冲突: {conflict_msg}")
+            for v in hits:
+                warn_lines = [i for i, l in enumerate(lines, 1) if v in l]
+                warnings.append(f"    -> '{v}' 出现于 L{warn_lines[:3]}")
 
     return warnings
 
