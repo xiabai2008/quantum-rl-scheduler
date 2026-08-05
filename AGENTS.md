@@ -267,13 +267,13 @@ quantum-rl-scheduler/
 ### 实验可信度（v8新增）
 
 - 多seed评估：50 seeds × 5 episodes = 250 次独立运行（N=250）
-- 统计显著性：Bonferroni校正，PPO vs FCFS p=1.449e-66（Welch t检验）
+- 统计显著性：Bonferroni校正，PPO vs FCFS p=7.56e-12（Welch t检验，vs 真实 FCFS；旧 p=1.449e-66 对应 Hybrid-Default 基线，8.5 已诚实化）
 - 权威数字锁定：PPO=2348.91±857.25 vs FCFS=1051.59±58.34，提升 +20.2%
 
 ## 6. 权威实验成果（50seed N=250 验证，v9.1 基于16维交付模型重评，2026-07-29）
 
 > **权威实验配置**：16维交付模型（ppo_best_model_16dim.zip）、50 seeds × 5 episodes = 250次独立运行（N=250）、200步/episode、泊松到达λ=0.5
-> **统计显著性**：PPO vs FCFS 使用 Welch t 检验，p=1.449e-66，Cohen's d=-2.1353（大效应量），Bonferroni校正后显著
+> **统计显著性**：PPO vs FCFS（真实 FCFS）Welch t 检验 p=7.56e-12（8.5 基线诚实化），Bonferroni校正后显著
 
 |  排名 | 策略             |     平均奖励    |   标准差   | 提升 vs FCFS |
 | :-: | :------------- | :---------: | :-----: | :--------: |
@@ -303,7 +303,7 @@ quantum-rl-scheduler/
 >
 > - ✅ **可用性验证（已达成）**：SDK认证、任务提交、状态轮询、结果获取全链路验证通过，315次真机调用100%成功（284次主验证+31次审计补充）；Issue #128 新增 tianyan176 H门任务成功（P(0)=50.9%, P(1)=49.1%）
 > - ⚠️ **性能验证（不充分）**：mixed\_real vs simulation p=0.344不显著（N=5, 需N≥18）；多seed策略对比p=6.83e-04显著，但真机 reward 占比极低（1/96步），策略间差异主要由仿真 reward 驱动
-> - **性能提升结论由仿真实验支撑**：PPO vs FCFS +20.2%（N=250, p=1.449e-66, Cohen's d=-2.1353）
+> - **性能提升结论由仿真实验支撑**：PPO vs FCFS +20.2%（N=250, p=7.56e-12，vs 真实 FCFS）
 >
 > 详见 `docs/real_machine_verification_boundary.md`
 
@@ -341,7 +341,7 @@ quantum-rl-scheduler/
 
 | 材料                | 路径                                                  | 状态                                                |
 | ----------------- | --------------------------------------------------- | ------------------------------------------------- |
-| 答辩PPT（制作中）.pptx\` | ✅ 制作中（+20.2%，p=1.449e-66，N=250，315次真机调用（284+31审计口径），新增2页应用价值）    | <br />                                            |
+| 答辩PPT（制作中）.pptx\` | ✅ 制作中（+20.2%，p=7.56e-12，N=250，315次真机调用（284+31审计口径），新增2页应用价值）    | <br />                                            |
 | 技术白皮书（7章）         | `docs/technical_whitepaper.pdf`                     | ✅ 已完成（+20.2%，315真机调用，100%成功率，2026-07-27 v9.1 口径） |
 | 价值量化报告            | `docs/value_quantification.md`                      | ✅ 已完成（6节，10项指标，ROI分析，VQE场景案例）                     |
 | 技术瓶颈分析            | `docs/technical_bottlenecks.md`                     | ✅ 已完成（7项瓶颈+缓解策略，2026-07-24）                       |
@@ -398,7 +398,7 @@ PR审查        ████████████████░░░░  80
   - 冻结前检查清单:
     1. 所有 CI 检查全绿（lint/test/typecheck/security）
     2. `python scripts/ci/validate_submission.py --check` 通过
-    3. PPT/白皮书数字与代码权威数字一致（+20.2%，16维交付模型权威实验N=250，p=1.449e-66，旧14维+88.3%已废弃）
+    3. PPT/白皮书数字与代码权威数字一致（+20.2%，16维交付模型权威实验N=250，p=7.56e-12，旧14维+88.3%已废弃）
     4. 演示视频已就位
     5. 打标签: `git tag -a v9.1-submission -m "v9.1 提交版本" && git push origin v9.1-submission`
     6. 打包: `python scripts/ci/validate_submission.py --pack`
