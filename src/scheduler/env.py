@@ -664,6 +664,8 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
                 )
             else:
                 # 兼容分配：为量子任务选择最佳机器
+                # 注（8.5 审查 C4）：action=ACTION_QUANTUM_QEM(3) 不在 (QUANTUM, HYBRID)
+                # 中，默认 env 无 QEM 分支 → 语义=经典执行（QEM 仅真机模块支持）
                 quantum_action = action in (ACTION_QUANTUM, ACTION_HYBRID)
                 selected_machine = None
                 if quantum_action:

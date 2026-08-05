@@ -53,6 +53,10 @@ ACTION_CLASSICAL = 0  # 分配到经典计算资源
 ACTION_QUANTUM = 1  # 分配到量子计算资源
 ACTION_HYBRID = 2  # 混合执行
 ACTION_QUANTUM_QEM = 3  # 使用误差缓释（QEM）的量子执行
+# 语义注明（8.5 审查 C4）：N_ACTIONS=4 含 QEM，但默认调度 env（QuantumSchedulingEnv.step）
+# 未实现 QEM 分支——action=3 会静默落 else 且不在 (ACTION_QUANTUM, ACTION_HYBRID) 中，
+# 被当作经典执行处理。QEM 仅在真机/机器级模块（env_machines.py）完整支持。
+# 此为已知设计（预留动作位 + 真机专用），主 env 模型若输出 action=3 语义=经典执行。
 
 # 动作空间维度（动作枚举 0..3 共 4 个，统一引用避免硬编码不一致，Issue #787）
 N_ACTIONS = 4

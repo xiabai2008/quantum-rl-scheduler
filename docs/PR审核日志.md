@@ -64,3 +64,8 @@
 ### 批后状态
 - CI：5c32f8f/32b71bd 因 Lint 失败 → c6bb333 修复推送，CI 重跑中
 - 权威数字：+20.2%（vs 真实 FCFS，N=250）、利用率 -3.3%、等待 -14%、编译层 +38.5%（N=80）
+
+### 追加（同日，C 类收尾）
+- **C3**（保真度漂移方向）：模拟设计（衰减+恢复），有 noise_profile 时零漂移；判定不改（低价值、改动影响所有基准）
+- **C4**（QEM 动作语义）：N_ACTIONS=4 但默认 env 无 QEM 分支，action=3 静默=经典执行 → env_types/env.py 显式语义注明（不改行为避免模型兼容风险）；QEM 为真机模块专用设计
+- **残留清理**：Code_Wiki/annealing_significance-defense +123.4 清零（7 处）；AGENTS/Code_Wiki p 值 1.449e-66→7.56e-12（vs 真实 FCFS 口径，8 处）
