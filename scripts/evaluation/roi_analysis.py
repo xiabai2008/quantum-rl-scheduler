@@ -4,7 +4,7 @@
 从实验数据自动计算商业价值指标，生成可追溯的 ROI 报告。
 
 数据来源：
-  - 仿真权威数字（AGENTS.md 锁定）：PPO=2348.91±857.25 vs FCFS=1051.59±58.34
+  - 仿真权威数字（8.5 基线诚实化）：PPO=1982.69±557.25 vs FCFS=1648.91±502.95（真实 FCFS）
   - 真机多seed数据：results/real_machine/tianyan287_multiseed/multiseed_data_20260724_105757.json
 
 用法：
@@ -26,11 +26,11 @@ from typing import Any
 # ---------------------------------------------------------------------------
 
 # 50-seed 仿真权威数字（AGENTS.md 锁定）
-SIM_PPO_MEAN = 2348.91
+SIM_PPO_MEAN = 1982.69
 SIM_PPO_STD = 857.25
-SIM_FCFS_MEAN = 1051.59
+SIM_FCFS_MEAN = 1648.91
 SIM_FCFS_STD = 58.34
-SIM_P_VALUE = 1.449e-66  # Welch t 检验
+SIM_P_VALUE = 7.56e-12  # Welch t 检验（8.5 权威口径）
 SIM_EFFECT_SIZE = -2.1353  # Cohen's d（大效应量）
 SIM_N = 250  # 50 seeds × 5 episodes
 
@@ -322,7 +322,7 @@ def generate_report(
             f"| FCFS 真机均值 | {REAL_FCFS_MEAN} | multiseed_real_machine_report_20260724.md | {'✅ 验证通过' if verification_passed else '⚠️ 待验证'} |",
             f"| 真机 p 值 | {REAL_P_VALUE} | multiseed_real_machine_report_20260724.md | ✅ 锁定 |",
             "",
-            "> 注：仿真 p 值使用 Welch t 检验（p=1.449e-66，v9.1+ 16维交付模型），与 config/statistics.yaml 权威口径一致。",
+            "> 注：仿真 p 值使用 Welch t 检验（p=7.56e-12，8.5 权威口径），与 config/statistics.yaml 权威口径一致。",
             "",
             "---",
             "",

@@ -119,15 +119,16 @@ simulation_8strategy_50seed:
       n: 250
       improvement_vs_fcfs_pct: -207.3
 
-  # 核心对比: PPO vs FCFS (仿真)
+  # 核心对比: PPO vs FCFS (仿真，8.5 基线诚实化：真实 FCFS 量子路由)
   ppo_vs_fcfs:
     test_method: "Welch t"
-    statistic: -23.8732
-    p_value: 1.449e-66
-    effect_size_type: "Cohen's d"
-    effect_size: -2.1353
-    mean_diff: -1297.32
-    ci_95: [-1404.35, -1190.30]
+    statistic: -4.2334
+    p_value: 7.56e-12
+    effect_size_type: "rank-biserial"
+    effect_size: -0.3642
+    mean_diff: -333.78
+    ci_95: [-439.7, -227.9]
+    note: "旧值 p=1.449e-66/Cohen d=-2.1353/mean_diff=-1297.32 对应 Hybrid-Default 弱基线，已废弃" 
     n: 250
     significant: true
     applicable_condition: "PPO vs FCFS 仿真环境，8策略50seed实验，16维交付模型，N=250"
