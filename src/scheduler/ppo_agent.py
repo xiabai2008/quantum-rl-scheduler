@@ -311,7 +311,7 @@ class PPOAgent:
             model = PPO(
                 "MlpPolicy",
                 self.env,
-                device="cpu",  # 8.5 N=50 并行：强制 CPU 避免多进程 GPU 竞争死锁（MlpPolicy CPU 推理足够）
+                device=os.environ.get("QRL_DEVICE", "auto"),  # 8.5：Windows 多进程设 QRL_DEVICE=cpu；WSL/Linux 默认 auto（GPU 加速）
                 learning_rate=self._lr_fn,
                 n_steps=self.n_steps,
                 batch_size=self.batch_size,
