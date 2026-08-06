@@ -6,11 +6,55 @@
 
 [![CI](https://github.com/xiabai2008/quantum-rl-scheduler/actions/workflows/ci.yml/badge.svg)](https://github.com/xiabai2008/quantum-rl-scheduler/actions/workflows/ci.yml)
 [![Python](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/)
+[![mypy](https://img.shields.io/badge/mypy-strict-green.svg)](https://github.com/xiabai2008/quantum-rl-scheduler/actions)
+[![Coverage](https://img.shields.io/badge/coverage-80%25%2B-yellowgreen.svg)](https://github.com/xiabai2008/quantum-rl-scheduler/actions)
+[![Code Style](https://img.shields.io/badge/code%20style-ruff-black.svg)](https://github.com/astral-sh/ruff)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 ## 项目简介
 
 本项目面向"量子+AI双向赋能"核心命题，构建基于强化学习（RL）的天衍云平台智能调度系统。
+
+### 系统架构
+
+```mermaid
+flowchart TB
+    subgraph 输入层["输入层"]
+        T1["量子任务（量子电路）"]
+        T2["经典任务"]
+    end
+
+    subgraph 调度决策层["调度决策层 · AI赋能量子"]
+        OBS["16维观测空间<br/>(资源/噪声/串扰/到达率/公平指数)"]
+        RL["PPO / MAPPO RL Agent<br/>实时最优分流"]
+    end
+
+    subgraph 量子执行["量子执行 · 量子赋能AI"]
+        QUBO["QUBO 建模"]
+        ANNEAL["量子退火 / 天衍-287 真机"]
+        FEED["真机噪声反馈<br/>→ 训练注入优化鲁棒性"]
+    end
+
+    subgraph 经典执行["经典执行"]
+        BASE["FCFS / SJF / Greedy<br/>基线策略"]
+    end
+
+    subgraph 公平保障["公平性保障"]
+        JAIN["Jain 公平性指数观测<br/>(可选第17维)"]
+        PEN["租户等待时间偏差惩罚"]
+    end
+
+    T1 --> OBS
+    T2 --> OBS
+    OBS --> RL
+    RL --> QUBO
+    QUBO --> ANNEAL
+    RL --> BASE
+    RL --> JAIN
+    JAIN --> PEN
+    ANNEAL --> FEED
+    FEED -. "鲁棒性优化反馈" .-> RL
+```
 
 **双向赋能机制：**
 
