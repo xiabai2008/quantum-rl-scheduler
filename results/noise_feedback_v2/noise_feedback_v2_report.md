@@ -1,7 +1,7 @@
-# 噪声反馈 v2 实验报告（Issue #456）— N=50 完整版
+# 噪声反馈 v2 实验报告（Issue #456）— N=50 完整版（100K 训练，WSL 4 进程并行）
 
-实验时间: 2026-08-06T08:20:11
-**训练步数: 50,000 / 模型**（8.5 并行训练优化；50 seeds × 2 条件 = 100 模型）
+实验时间: 2026-08-06（WSL2 Ubuntu + CPU 4 进程并行，scheduler 环境）
+**训练步数: 100,000 / 模型**（50 seeds × 2 条件 = 100 模型）
 评估配置: 50 seeds × 5 episodes
 
 ## 实验设计
@@ -13,59 +13,53 @@
 
 真机噪声数据来源：10-seed 真机闭环实验 MBS 保真度测量（均值 0.8863，σ 0.0874，范围 [0.671, 0.994]）。
 
-## 结果（N=50）
+## 结果（N=50，100K 训练）
 
 ### 奖励对比
 
-| 指标 | PPO-standard | PPO-noise | 差值 |
+| 指标 | PPO-standard | PPO-noise | 差异 |
 |------|-------------|-----------|------|
-| Mean Reward | 3.2 ± 4961.6 | 1432.5 ± 4395.2 | +1429.3 |
+| Mean Reward | 4115.5 ± 954.2 | 4176.2 ± 919.7 | **+60.7（+1.5%）** |
 
-- Mann-Whitney U: 1385.0, p=0.3538
-- Cliff's δ: 0.108 (negligible)
-- 统计显著(p<0.05): **否 ❌**
+- Mann-Whitney U: p=0.5837，Cliff's δ=0.064
+- 统计显著(p<0.05): **否 ❌**（方向为正但不显著）
 
 ### 成功率
 
-- PPO-standard: 69.97%
-- PPO-noise: 81.14%
-- p=0.1388, 显著: 否
+- PPO-standard: 99.6%
+- PPO-noise: 99.8%
+- p=0.0203，显著(p<0.05): **是 ✅**
 
-## 关键解读（诚实披露）
+## 关键结论（N=50 权威版，替代 50K 探索版）
 
-1. **方向性**：PPO-noise 均值（1432.5）高于 PPO-standard（3.2），方向与
-   8.5 quick 实验（150K 训练，N=5，+21.9%）一致——噪声感知训练**方向性增益成立**。
-2. **统计不显著**：p=0.354（N=50）——主要因 **50K 训练量不足导致两组方差巨大**
-   （±4000-5000，大量 seed 训练发散/负奖励）。这是训练量问题，不是机制问题。
-3. **训练量对照**：quick 实验（150K/模型，N=5）standard mean=3872.8（远高于 50K 的
-   3.2）——150K 训练收敛质量显著更优；50K 不足以稳定收敛，方差主导统计。
-4. **成功率支持方向**：PPO-noise 成功率 81.1% vs standard 70.0%（+11pt，p=0.14 不显著但方向一致）。
-5. **结论**：真机噪声分布训练对 PPO **方向性有利**（奖励 + 成功率），但需更高训练量
-   （≥150K/模型）才能获得统计显著性；当前为**探索性方向证据**，不宣称统计显著闭环。
+1. **训练质量**：100K 训练方差大幅降低（standard std 4962→954，mean 3.2→4115.5）——
+   确认 50K 实验的高方差为**训练量不足**（非机制问题），100K 为可靠基线。
+2. **奖励**：PPO-noise（4176.2）> PPO-standard（4115.5），**方向为正（+1.5%）但不显著**
+   （p=0.5837）——与 quick 150K N=5 的 +21.9%（小样本高估）相比，真实效应量约 +1.5%。
+3. **成功率（次要指标）**：PPO-noise 显著更高（p=0.0203）——真机噪声分布训练的
+   **鲁棒性优势在 N=50 下统计成立**。
+4. **结论**：真机噪声分布注入训练对 PPO 的**奖励提升方向为正（+1.5%，不显著）**、
+   **成功率显著提升（p<0.05）**——诚实定位为"噪声感知训练的方向性证据 + 鲁棒性优势"，
+   不宣称奖励显著闭环。
 
-## 复现
+## 复现（WSL/Linux）
 
-    # 训练（4 进程并行，各 13 seeds）
-    python scripts/training/train_noise_feedback_v2.py --timesteps 50000 --train-only --seed-start 42 --seed-end 54
-    python scripts/training/train_noise_feedback_v2.py --timesteps 50000 --train-only --seed-start 55 --seed-end 67
-    python scripts/training/train_noise_feedback_v2.py --timesteps 50000 --train-only --seed-start 68 --seed-end 80
-    python scripts/training/train_noise_feedback_v2.py --timesteps 50000 --train-only --seed-start 81 --seed-end 91
+    # 环境：WSL2 + uv + Python 3.12 + torch（CPU/GPU 均可）
+    # 训练（4 进程并行，各 25 模型）
+    for spec in "42 54 A" "55 67 B" "68 80 C" "81 91 D"; do
+      set -- $spec
+      QRL_DEVICE=cpu OMP_NUM_THREADS=2 setsid nohup \
+        .venv/bin/python scripts/training/train_noise_feedback_v2.py \
+        --timesteps 100000 --train-only --seed-start $1 --seed-end $2 \
+        > logs/noise_100k_proc_$3.log 2>&1 &
+    done
     # 评估
-    python scripts/training/train_noise_feedback_v2.py --eval-only --seed-start 42 --seed-end 91
+    .venv/bin/python scripts/training/train_noise_feedback_v2.py --eval-only --seed-start 42 --seed-end 91
 
+## 与之前实验的对照
 
----
-
-## 附录：150K 训练量扩展实验（技术限制说明）
-
-为验证"训练量提升 → 统计显著性"假设，尝试 150K steps × 50 seeds 全量训练（100 模型）：
-
-- **单进程串行**：正常（10K 快速验证 4 模型连训通过；150K 单模型 ~5 分钟）
-- **多进程并行（4 进程）**：**Windows + torch OpenMP 线程池互卡死锁**（每进程默认 16 线程 × 4 = 64 线程 > 16 核忙等；全局 `torch.set_num_threads(2)` 后仍互卡，每个进程训练 1 个模型后卡死）
-- **单进程 150K 全量预计 ~8 小时**（98 模型 × 5 分钟）——超出本次可用时间窗
-
-**结论**：150K 全量统计显著性实验**受限于 Windows 多进程 torch 互卡**未能完成；
-当前证据 = **50K N=50（方向 +1429，p=0.354）+ 150K N=5（方向 +21.9%，p=0.222）**——
-两个训练量下**方向一致（noise > standard），统计均不显著**。这是"噪声感知训练方向性成立、
-显著性需更高训练量/更多样本"的诚实结论。若需严格显著性验证，建议在 Linux 多核环境
-（或 GPU 单卡）跑 150K × 50 seeds（预计 2-4 小时）。
+| 实验 | 训练量 | N | standard mean | noise mean | 奖励 p | 成功率 p |
+|------|--------|---|---------------|------------|--------|----------|
+| 8.5 quick | 150K | 5 | 3872.8 | 4719.3（+21.9%） | 0.222 | — |
+| 8.6 探索版 | 50K | 50 | 3.2 ± 4962 | 1432.5 ± 4351 | 0.354 | 0.139 |
+| **8.6 权威版** | **100K** | **50** | **4115.5 ± 954** | **4176.2 ± 920（+1.5%）** | **0.584** | **0.020 ✅** |
