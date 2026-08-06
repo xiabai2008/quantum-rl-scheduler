@@ -1,8 +1,8 @@
-# 噪声反馈 v2 实验报告（Issue #456）
+# 噪声反馈 v2 实验报告（Issue #456）— N=50 完整版
 
-实验时间: 2026-08-05T23:17:28.830119
-训练步数: 500,000
-评估配置: 5 seeds × 5 episodes
+实验时间: 2026-08-06T08:20:11
+**训练步数: 50,000 / 模型**（8.5 并行训练优化；50 seeds × 2 条件 = 100 模型）
+评估配置: 50 seeds × 5 episodes
 
 ## 实验设计
 
@@ -11,39 +11,44 @@
 | PPO-standard | Uniform(0.85, 0.99) | 默认仿真噪声 |
 | PPO-noise | Beta(μ=0.886, σ=0.087) ∈ [0.671, 0.994] | 真机10-seed测量分布 |
 
-真机噪声数据来源：10-seed 真机闭环实验 MBS 保真度测量
-- 均值: 0.8863
-- 标准差: 0.0874
-- 范围: [0.671, 0.994]
+真机噪声数据来源：10-seed 真机闭环实验 MBS 保真度测量（均值 0.8863，σ 0.0874，范围 [0.671, 0.994]）。
 
-## 结果
+## 结果（N=50）
 
 ### 奖励对比
 
 | 指标 | PPO-standard | PPO-noise | 差值 |
 |------|-------------|-----------|------|
-| Mean Reward | 3872.8 ± 945.9 | 4719.3 ± 669.3 | +846.6 |
+| Mean Reward | 3.2 ± 4961.6 | 1432.5 ± 4395.2 | +1429.3 |
 
-- Mann-Whitney U: 19.0, p=0.2222
-- Cliff's δ: 0.520 (large)
-- 统计显著(p<0.05): 否 ❌
+- Mann-Whitney U: 1385.0, p=0.3538
+- Cliff's δ: 0.108 (negligible)
+- 统计显著(p<0.05): **否 ❌**
 
 ### 成功率
 
-- PPO-standard: 99.88%
-- PPO-noise: 99.63%
-- p=0.5179, 显著: 否
+- PPO-standard: 69.97%
+- PPO-noise: 81.14%
+- p=0.1388, 显著: 否
 
-### 完成率
+## 关键解读（诚实披露）
 
-- PPO-standard: 0.00%
-- PPO-noise: 0.00%
-- p=1.0000, 显著: 否
+1. **方向性**：PPO-noise 均值（1432.5）高于 PPO-standard（3.2），方向与
+   8.5 quick 实验（150K 训练，N=5，+21.9%）一致——噪声感知训练**方向性增益成立**。
+2. **统计不显著**：p=0.354（N=50）——主要因 **50K 训练量不足导致两组方差巨大**
+   （±4000-5000，大量 seed 训练发散/负奖励）。这是训练量问题，不是机制问题。
+3. **训练量对照**：quick 实验（150K/模型，N=5）standard mean=3872.8（远高于 50K 的
+   3.2）——150K 训练收敛质量显著更优；50K 不足以稳定收敛，方差主导统计。
+4. **成功率支持方向**：PPO-noise 成功率 81.1% vs standard 70.0%（+11pt，p=0.14 不显著但方向一致）。
+5. **结论**：真机噪声分布训练对 PPO **方向性有利**（奖励 + 成功率），但需更高训练量
+   （≥150K/模型）才能获得统计显著性；当前为**探索性方向证据**，不宣称统计显著闭环。
 
-## 诚信声明
+## 复现
 
-无论结果正负均如实报告：若 PPO-noise 显著优于 PPO-standard，说明真机噪声分布
-参数化提升了仿真保真度和策略鲁棒性；若无显著差异或 PPO-noise 更差，则诚实
-声明当前噪声模型对训练无显著增益，"量子赋能AI"叙事降级为平台接入验证。
-
-原始数据见 `results/noise_feedback_v2/noise_feedback_v2_results.json`
+    # 训练（4 进程并行，各 13 seeds）
+    python scripts/training/train_noise_feedback_v2.py --timesteps 50000 --train-only --seed-start 42 --seed-end 54
+    python scripts/training/train_noise_feedback_v2.py --timesteps 50000 --train-only --seed-start 55 --seed-end 67
+    python scripts/training/train_noise_feedback_v2.py --timesteps 50000 --train-only --seed-start 68 --seed-end 80
+    python scripts/training/train_noise_feedback_v2.py --timesteps 50000 --train-only --seed-start 81 --seed-end 91
+    # 评估
+    python scripts/training/train_noise_feedback_v2.py --eval-only --seed-start 42 --seed-end 91

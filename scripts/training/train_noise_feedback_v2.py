@@ -18,6 +18,7 @@
 
 import argparse
 import json
+import multiprocessing as mp
 import os
 import sys
 import time
@@ -43,6 +44,20 @@ MAX_STEPS = 500
 MODEL_DIR = PROJECT_ROOT / "models" / "noise_feedback_v2"
 RESULTS_DIR = PROJECT_ROOT / "results" / "noise_feedback_v2"
 LOG_DIR = PROJECT_ROOT / "logs" / "noise_feedback_v2"
+
+
+def _train_worker(args: tuple) -> tuple[int, str]:
+    """多进程 worker：返回 (seed, model_path)。
+
+    8.5 修复：限制 torch 线程数（8 进程 × 2 线程 = 16，匹配 16 核机器），
+    避免每个进程默认开满 16 线程导致 128 线程争抢死锁/极慢。
+    """
+    import torch
+
+    torch.set_num_threads(2)
+    seed, noise_profile, label, timesteps = args
+    path = train_model(seed, noise_profile, label, timesteps=timesteps)
+    return seed, path
 
 
 def train_model(
@@ -117,6 +132,7 @@ def run_full_experiment(
     train_only: bool = False,
     eval_only: bool = False,
     timesteps: int = TRAIN_TIMESTEPS,
+    parallel: int = 1,
 ) -> dict:
     """运行完整实验：训练 + 评估 + 统计检验。"""
     conditions = [
@@ -134,10 +150,19 @@ def run_full_experiment(
 
         model_paths = {}
         if not eval_only:
-            for i, seed in enumerate(seeds):
-                print(f"  [{i + 1}/{len(seeds)}] Training {label} seed={seed}...", flush=True)
-                mp = train_model(seed, noise_profile, label, timesteps=timesteps)
-                model_paths[seed] = mp
+            if parallel > 1:
+                # 8.5 N=50 实验：多进程并行训练（16 核机器 workers=8 → ~1.5h 完成 100 模型）
+                tasks = [(seed, noise_profile, label, timesteps) for seed in seeds]
+                with mp.Pool(parallel) as pool:
+                    results = pool.map(_train_worker, tasks)
+                for seed, path in results:
+                    model_paths[seed] = path
+                    print(f"  [done] {label} seed={seed} -> {Path(path).name}", flush=True)
+            else:
+                for i, seed in enumerate(seeds):
+                    print(f"  [{i + 1}/{len(seeds)}] Training {label} seed={seed}...", flush=True)
+                    _mp_ = train_model(seed, noise_profile, label, timesteps=timesteps)
+                    model_paths[seed] = _mp_
 
         if train_only:
             continue
@@ -145,12 +170,12 @@ def run_full_experiment(
         print(f"\n评估 {label} ({len(seeds)} seeds × {EVAL_EPISODES} episodes)...")
         eval_results = []
         for i, seed in enumerate(seeds):
-            mp = model_paths.get(seed) or str(MODEL_DIR / f"ppo_{label}_seed{seed}")
-            if not Path(mp).with_suffix(".zip").exists():
-                print(f"  [SKIP] 模型不存在: {mp}")
+            _mp_ = model_paths.get(seed) or str(MODEL_DIR / f"ppo_{label}_seed{seed}")
+            if not Path(_mp_).with_suffix(".zip").exists():
+                print(f"  [SKIP] 模型不存在: {_mp_}")
                 continue
             print(f"  [{i + 1}/{len(seeds)}] Evaluating {label} seed={seed}...", flush=True)
-            result = evaluate_model(mp, seed, noise_profile)
+            result = evaluate_model(_mp_, seed, noise_profile)
             eval_results.append(result)
             print(
                 f"    reward={result['mean_reward']:.1f}±{result['std_reward']:.1f}, "
@@ -169,7 +194,7 @@ def run_full_experiment(
     stats = compute_statistics(all_eval_results)
     return {
         "timestamp": datetime.now().isoformat(),
-        "train_timesteps": TRAIN_TIMESTEPS,
+        "train_timesteps": timesteps,  # 8.5 修复：报告实际训练步数（此前写死模块常量）
         "eval_episodes": EVAL_EPISODES,
         "seeds": seeds,
         "real_noise_profile": {
@@ -328,11 +353,34 @@ def main():
         default=TRAIN_TIMESTEPS,
         help="每模型训练步数（8.5 快速验证建议 150000）",
     )
+    parser.add_argument(
+        "--parallel",
+        type=int,
+        default=1,
+        help="并行训练进程数（16 核机器建议 8，N=50 完整实验）",
+    )
+    parser.add_argument(
+        "--seed-start",
+        type=int,
+        default=42,
+        help="起始 seed（含）——支持多进程分片：起 N 个独立进程各跑一段",
+    )
+    parser.add_argument(
+        "--seed-end",
+        type=int,
+        default=91,
+        help="结束 seed（含）",
+    )
     parser.add_argument("--train-only", action="store_true", help="仅训练模型，不做评估")
     parser.add_argument("--eval-only", action="store_true", help="仅加载已有模型评估")
     args = parser.parse_args()
 
-    seeds = SEEDS_QUICK if args.quick else SEEDS_FULL
+    if args.quick:
+        seeds = SEEDS_QUICK
+    elif args.seed_start != 42 or args.seed_end != 91:
+        seeds = list(range(args.seed_start, args.seed_end + 1))
+    else:
+        seeds = SEEDS_FULL
     print(f"{'=' * 60}")
     print("噪声反馈 v2 实验（Issue #456）")
     print(f"Seeds: {len(seeds)}, Train steps: {TRAIN_TIMESTEPS:,}, Eval episodes: {EVAL_EPISODES}")
@@ -343,7 +391,8 @@ def main():
     LOG_DIR.mkdir(parents=True, exist_ok=True)
 
     data = run_full_experiment(
-        seeds, train_only=args.train_only, eval_only=args.eval_only, timesteps=args.timesteps
+        seeds, train_only=args.train_only, eval_only=args.eval_only, timesteps=args.timesteps,
+        parallel=args.parallel
     )
 
     json_path = RESULTS_DIR / "noise_feedback_v2_results.json"

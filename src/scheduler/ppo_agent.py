@@ -311,6 +311,7 @@ class PPOAgent:
             model = PPO(
                 "MlpPolicy",
                 self.env,
+                device="cpu",  # 8.5 N=50 并行：强制 CPU 避免多进程 GPU 竞争死锁（MlpPolicy CPU 推理足够）
                 learning_rate=self._lr_fn,
                 n_steps=self.n_steps,
                 batch_size=self.batch_size,
