@@ -19,6 +19,12 @@
 import argparse
 import json
 import multiprocessing as mp
+
+# 8.5 N=50 并行：全局限制 torch 线程（每进程 2 线程 → 4 进程 8 线程 < 16 核），
+# 避免 OpenMP 线程池多进程超载（默认 16 线程/进程 × 4 = 64 线程忙等死锁）。
+import torch
+
+torch.set_num_threads(2)
 import os
 import sys
 import time

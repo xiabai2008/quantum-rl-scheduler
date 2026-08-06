@@ -52,3 +52,20 @@
     python scripts/training/train_noise_feedback_v2.py --timesteps 50000 --train-only --seed-start 81 --seed-end 91
     # 评估
     python scripts/training/train_noise_feedback_v2.py --eval-only --seed-start 42 --seed-end 91
+
+
+---
+
+## 附录：150K 训练量扩展实验（技术限制说明）
+
+为验证"训练量提升 → 统计显著性"假设，尝试 150K steps × 50 seeds 全量训练（100 模型）：
+
+- **单进程串行**：正常（10K 快速验证 4 模型连训通过；150K 单模型 ~5 分钟）
+- **多进程并行（4 进程）**：**Windows + torch OpenMP 线程池互卡死锁**（每进程默认 16 线程 × 4 = 64 线程 > 16 核忙等；全局 `torch.set_num_threads(2)` 后仍互卡，每个进程训练 1 个模型后卡死）
+- **单进程 150K 全量预计 ~8 小时**（98 模型 × 5 分钟）——超出本次可用时间窗
+
+**结论**：150K 全量统计显著性实验**受限于 Windows 多进程 torch 互卡**未能完成；
+当前证据 = **50K N=50（方向 +1429，p=0.354）+ 150K N=5（方向 +21.9%，p=0.222）**——
+两个训练量下**方向一致（noise > standard），统计均不显著**。这是"噪声感知训练方向性成立、
+显著性需更高训练量/更多样本"的诚实结论。若需严格显著性验证，建议在 Linux 多核环境
+（或 GPU 单卡）跑 150K × 50 seeds（预计 2-4 小时）。
