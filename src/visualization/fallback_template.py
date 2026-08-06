@@ -2223,9 +2223,8 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         {name: 'PPO', score: 1982.69},
         {name: 'SJF', score: 774.86},
         {name: 'FCFS', score: 1648.91},
-        {name: 'DQN', score: 602.37},
+        {name: 'DQN(Random占位)', score: 602.37},
         {name: 'Random', score: 602.37},
-        {name: 'MAPPO', score: 602.37},
         {name: 'Greedy', score: 80.71},
         {name: 'Quantum-Only', score: -826.59}
     ];

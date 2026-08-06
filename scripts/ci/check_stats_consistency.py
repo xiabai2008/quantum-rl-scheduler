@@ -14,10 +14,10 @@ Issue #141: 消除4套p值混用，建立单一权威统计源
 
 from __future__ import annotations
 
+import math
 import os
 import re
 import sys
-import math
 from pathlib import Path
 from typing import Any
 
@@ -143,6 +143,16 @@ HONEST_DISCLOSURE_KEYWORDS = [
     "cherry-pick",
     "已降级",
     "已废弃",
+    # 8.6 复核：废弃/历史/禁止上下文提及旧值属合规引用，豁免黑名单检测。
+    # 含这些限定词的行必然是"说明某旧值已废弃/被禁止/为历史口径"，而非将其作权威值呈现。
+    "旧",
+    "历史",
+    "已诚实化",
+    "诚实化",
+    "黑名单",
+    "禁止",
+    "deprecated",
+    "废弃",
 ]
 
 
@@ -499,7 +509,9 @@ def scan_markdown_file(
             warnings.append(f"    > {line.strip()[:120]}")
 
         # 检查黑名单表述（Issue #446）—— 诚实披露上下文豁免
-        if not _is_honest_disclosure(line):
+        # 8.6 复核：authoritative_numbers.md 自身的"禁止表述|正确替代"表即黑名单来源，
+        # 该表按设计列出被禁止的表述，跳过对其黑名单检测（不当作正文违规）。
+        if filepath.name != "authoritative_numbers.md" and not _is_honest_disclosure(line):
             for pattern, message in BLACKLIST_PATTERNS:
                 if re.search(pattern, line, re.IGNORECASE):
                     warnings.append(f"  L{line_num}: {message}")
@@ -624,6 +636,9 @@ def main() -> int:
         ".trae-cn",
         "project-review",
         ".trae-html-share-packages",
+        # 8.6 复核：历史快照目录（非交付物），保留旧数字属预期，不参与口径审计
+        ".archive",
+        "archive",
         "tmp",
         "temp",
         "data",

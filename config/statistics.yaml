@@ -428,12 +428,15 @@ simulation_3strategy_10seed:
     n: 50
 
 # =============================================================================
-# 实验6: 量子噪声反馈配对检验 (N=25 paired, 权威 v3)
+# 实验6: 量子噪声敏感性配对检验 (N=25 paired, 权威 v3)
 # 数据源: results/reports/quantum_noise_paired_canonical.md
-# 修复评审报告 P0 关键问题"量子→AI噪声反馈统计检验（N≥20 seeds）"
+# 历史背景: 修复评审报告 P0"量子→AI噪声反馈统计检验（N≥20 seeds）"。
+# 注意: 本实验结论为【负向】——真机噪声分布使 PPO 奖励下降 12.43%（p=2.98e-08），
+#       即"噪声敏感性"证据，非"量子赋能AI"正向证据。当前量子赋能AI主方向证据
+#       以 noise_feedback_v2（N=50，奖励 +1.5% p=0.584 不显著，方向性）为准。
 # =============================================================================
 quantum_noise_paired_feedback:
-  experiment_name: "量子赋能AI v3：真机噪声反馈配对统计检验"
+  experiment_name: "噪声敏感性配对检验 v3（负向结果：真机噪声致奖励下降，非赋能证据）"
   applicable_condition: >
     25 seeds × 5 episodes × 2 条件 = 250 次独立运行（每条件 125 episodes）。
     配对设计：同一 seed 下运行两条件（Standard 无噪声 vs DistNoise 真机MBS分布），
@@ -443,7 +446,7 @@ quantum_noise_paired_feedback:
     检验方法: Wilcoxon signed-rank 检验（配对非参数检验，单侧 H1: Standard > DistNoise）。
   alpha: 0.05
   n: 25  # 配对样本数
-  data_source: "results/reports/quantum_noise_paired_canonical.md"
+  data_source: "results/reports/quantum_noise_paired_25seeds_20260729_095336.md"
   supersedes: "10seeds 探索性实验（无统计检验，已废弃）"
 
   strategy_summary:
