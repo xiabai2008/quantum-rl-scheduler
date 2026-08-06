@@ -16,7 +16,7 @@
 
 | 方向 | 层级 | 核心成果 |
 |:--|:--|:--|
-| **AI赋能调度层** | PPO Agent 实时最优分流 | +20.2%（8.5 审查基线诚实化：该数字对比基线为 Hybrid-Default（恒 action=2 混合执行）；以真实 FCFS（量子路由）为基线重跑 N=250 得 **+20.2%**（Welch t p=7.56e-12, 95%CI [+14.3%,+26.7%]），见 statistics.yaml baseline_revision） vs FCFS（p=1.449e-66，16维权威实验N=250，v9.1+交付标准） |
+| **AI赋能调度层** | PPO Agent 实时最优分流 | **+20.24%**（vs 真实 FCFS 量子路由基线，N=250，Welch t p=7.56e-12，95%CI [+14.3%,+26.7%]，8.5 基线诚实化；旧 +123.4% 为 vs Hybrid-Default 弱基线，已废弃） |
 | **量子赋能AI** | 真机噪声反馈优化鲁棒性 | N=25 Wilcoxon signed-rank p=2.98e-08，Cohen's d_z=7.7089，噪声致奖励下降12.43%（事后功效1.0，Bonferroni显著，统计成立证据链，Issue #532） |
 
 **最新硬核突破（v9.1）：**
@@ -36,7 +36,7 @@
 | 指标 | 数值 |
 |------|------|
 | 核心代码量 | 约 1.2 万行 Python（src/ 68 文件） |
-| 测试文件 | 94+ 个文件，3696 测试用例 + 21 benchmark = 3717（pytest --collect-only 实测，2026-08-05）（pytest --collect-only 实测，2026-08-02） |
+| 测试文件 | 94+ 个文件，3696 测试用例 + 21 benchmark = 3717（pytest --collect-only 实测，2026-08-05） |
 | CI 强制覆盖率 | 80%（CI 实测通过，pyproject.toml `fail_under=80`；历史值 93.58% 随测试集扩充已变化，以 CI 报告为准） |
 | 观测空间维度 | **16维**（新增串扰风险、任务到达率MA） |
 | 动作空间 | **4维**（新增 QUANTUM_QEM 误差缓释动作） |
