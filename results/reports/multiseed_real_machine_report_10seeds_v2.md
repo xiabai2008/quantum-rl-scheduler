@@ -226,7 +226,7 @@ MBS < 1.0 反映真机噪声，符合超导量子计算机的物理特性。
 ### 权威性能结论
 
 性能提升结论仍由仿真实验支撑：
-- **PPO vs FCFS +88.3%**（N=250, p=1.032e-42, rank-biserial=-0.71，14 维旧口径，已废弃）；现行权威口径为 16 维交付模型 **+123.4%**（N=250, Welch t p=1.449e-66，见 `config/statistics.yaml`）
+- **PPO vs FCFS +88.3%**（N=250, p=1.032e-42, rank-biserial=-0.71，14 维旧口径，已废弃）；现行权威口径为 16 维交付模型 **+20.2%**（N=250, Welch t p=7.56e-12, 8.5 基线诚实化 vs 真实 FCFS，见 `config/statistics.yaml`）
 - 详见 `results/reports/statistical_validation.md`
 
 ---
@@ -237,7 +237,7 @@ MBS < 1.0 反映真机噪声，符合超导量子计算机的物理特性。
 |:--|:--|
 | `results/reports/real_machine_boundary_statement.md` | 真机验证结论边界声明（已更新 Issue #244 章节） |
 | `results/reports/multiseed_real_machine_report_10seeds.md` | 旧版报告（已标记为 invalid） |
-| `results/reports/statistical_validation.md` | 仿真实验权威统计验证（16维交付模型 +123.4%, N=250；旧14维口径 +88.3% 已废弃） |
+| `results/reports/statistical_validation.md` | 仿真实验权威统计验证（16维交付模型 +20.2%, N=250；旧14维口径 +88.3% 已废弃，+123.4% 为 vs Hybrid-Default 弱基线） |
 | `results/reports/multi_qubit_validation.md` | 多比特保真度对比分析（Issue #250） |
 | `scripts/real_machine/tianyan287_multiseed.py` | 实验脚本 |
 

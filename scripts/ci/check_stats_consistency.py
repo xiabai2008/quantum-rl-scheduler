@@ -17,6 +17,7 @@ from __future__ import annotations
 import os
 import re
 import sys
+import math
 from pathlib import Path
 from typing import Any
 
@@ -67,7 +68,9 @@ _DISCLOSURE_MARK = (
 
 # 排除的文件/目录（权威报告本身，不检查自身）
 EXCLUDE_PATHS = {
-    "docs/authoritative_numbers.md",  # 权威数字事实源本身
+    # 8.6 审查修复：移除 authoritative_numbers.md 的豁免（N3/N4/N6 曾藏在其中未被门禁抓到），
+    # 该文件自称"唯一事实源"，必须纳入一致性校验。
+    # "docs/authoritative_numbers.md",
     "results/reports/multiseed_real_machine_report.md",
     "results/reports/multiseed_real_machine_report_10seeds.md",
     "results/reports/multiseed_real_machine_report_10seeds_v2.md",
@@ -115,11 +118,11 @@ AUTHORITATIVE_P_VALUES: dict[str, str] = {}
 
 # 已知废弃/错误p值 → 应替换为的权威值
 DEPRECATED_P_VALUES: dict[str, str] = {
-    "4.92e-55": "MISATTRIBUTED: p=4.92e-55 是 Random vs PPO 的p值，不是 PPO vs FCFS。应使用 p=1.449e-66 (Welch t)",
+    "4.92e-55": "MISATTRIBUTED: p=4.92e-55 是 Random vs PPO 的p值，不是 PPO vs FCFS。应使用 p=7.56e-12 (Welch t, 真实FCFS基线)",
 }
 
 # 检验方法混用检查
-WELCH_T_FOR_1032E42 = "ERROR: p=1.449e-66 对应 Welch t 检验，不是 Mann-Whitney U 检验"
+WELCH_T_FOR_1032E42 = "ERROR: p=1.032e-42 对应 Mann-Whitney U 检验（14维旧模型），不是 PPO vs FCFS 的权威 Welch t 值（p=7.56e-12）"
 
 # Issue #446: 严禁表述黑名单（来自 docs/authoritative_numbers.md 第六节）
 # 注意：黑名单匹配后，若行内包含以下"诚实披露"关键词则豁免（避免对已修正的诚实标注误报）
@@ -182,6 +185,23 @@ BLACKLIST_PATTERNS: list[tuple[str, str]] = [
         r"FCFS.*真机.*353\.22|真机.*FCFS.*353\.22|353\.22.*FCFS.*真机",
         "BLACKLIST: 真机FCFS均值已升级为N=10 v2权威值383.00，旧N=5值353.22严禁作为对外基准（若为历史引用请显式标注N=5并说明已废弃）",
     ),
+    # 8.6 审查新增（P0-1/P0-2）：废弃效应量与旧 CI/p 值必须从对外材料中清除
+    (
+        r"Cohen[’'`\s]*s?\s*d\s*=\s*-2\.1353|d=-2\.1353|d_z\s*=\s*-2\.1353",
+        "BLACKLIST: Cohen's d=-2.1353 为 8.5 前弱基线（Hybrid-Default）效应量，已废弃。当前权威效应量为 rank-biserial=-0.3642（或 Welch 独立样本 Cohen's d≈+0.63）",
+    ),
+    (
+        r"\[113\.3%,?\s*133\.5%\]",
+        "BLACKLIST: 95%CI [+113.3%, +133.5%] 为废弃 +123.4% 弱基线的 CI，已废弃。当前权威 CI 为 [+14.3%, +26.7%]",
+    ),
+    (
+        r"p\s*=\s*1\.449e-66|p=1\.449\s*×\s*10⁻⁶⁶",
+        "BLACKLIST: p=1.449e-66 为 8.5 前弱基线 p 值，已废弃。当前权威 p=7.56e-12（真实 FCFS 基线）",
+    ),
+    (
+        r"[\-\+]?940\.56|[\-\+]?1128\.79",
+        "BLACKLIST: Quantum-Only=-940.56 / Classical-Only=-1128.79 为 8.5 前旧值，已废弃。当前权威值 -826.59 / -1075.49",
+    ),
 ]
 
 
@@ -215,8 +235,8 @@ def check_authoritative_coverage(stats: dict[str, Any]) -> list[str]:
         (
             "simulation_8strategy_50seed",
             "ppo_vs_fcfs",
-            1.032e-42,
-            "8 策略 50seed 仿真（p=1.032e-42）",
+            7.56e-12,
+            "8 策略 50seed 仿真（真实FCFS基线，p=7.56e-12）",
         ),
     ]
     for exp_key, comp_key, expected_p, desc in required_experiments:
@@ -230,13 +250,77 @@ def check_authoritative_coverage(stats: dict[str, Any]) -> list[str]:
             warnings.append(f"权威源遗漏 p 值: {exp_key}.{comp_key}（{desc}）未记录 p_value")
             continue
         # 数值比较（允许格式差异）
+        # 8.6 审查修复：改用相对容差（rel_tol）+ 极小绝对容差，
+        # 避免固定 1e-6 绝对容差把 1e-12 与 1e-42 误判为一致（Issue #854）。
         try:
-            if abs(float(actual_p) - float(expected_p)) > 1e-6:
+            if not math.isclose(float(actual_p), float(expected_p), rel_tol=1e-3, abs_tol=1e-12):
                 warnings.append(
                     f"权威源 p 值不一致: {exp_key}.{comp_key} 期望 p={expected_p}, 实际 p={actual_p}"
                 )
         except (TypeError, ValueError):
             warnings.append(f"权威源 p 值格式异常: {exp_key}.{comp_key} p_value={actual_p}")
+    return warnings
+
+
+def check_yaml_internal_consistency(stats: dict[str, Any]) -> list[str]:
+    """8.6 审查新增：校验 statistics.yaml 内部数值自洽。
+
+    修复历史问题（N1/N2/N3/N6）：t 统计量与 p 值、mean_diff 符号、CI 方向、
+    effect_size_type 与数值一致，避免"单一权威源"自身矛盾。
+    """
+    warnings = []
+
+    def _warn(msg: str) -> None:
+        warnings.append(f"statistics.yaml 内部矛盾: {msg}")
+
+    sim = stats.get("simulation_8strategy_50seed", {})
+    pvf = sim.get("ppo_vs_fcfs", {})
+    if pvf:
+        ppo = sim.get("strategy_summary", {}).get("PPO", {})
+        fcfs = sim.get("strategy_summary", {}).get("FCFS", {})
+        ppo_mean = ppo.get("mean_reward")
+        fcfs_mean = fcfs.get("mean_reward")
+        md = pvf.get("mean_diff")
+        ci = pvf.get("ci_95")
+        stat = pvf.get("statistic")
+        est = pvf.get("effect_size")
+        est_type = pvf.get("effect_size_type")
+        test = pvf.get("test_method")
+        pval = pvf.get("p_value")
+
+        # 1) mean_diff 符号与均值顺序一致（FCFS-PPO 约定下应为负）
+        if ppo_mean is not None and fcfs_mean is not None and md is not None:
+            expected_sign = -1 if ppo_mean > fcfs_mean else 1
+            if (md > 0) != (expected_sign > 0):
+                _warn(
+                    f"ppo_vs_fcfs.mean_diff={md} 符号与均值顺序矛盾 "
+                    f"(PPO={ppo_mean} {'>' if ppo_mean > fcfs_mean else '<'} FCFS={fcfs_mean})"
+                )
+
+        # 2) CI 覆盖 mean_diff 且符号一致
+        if isinstance(ci, (list, tuple)) and len(ci) == 2 and md is not None:
+            lo, hi = ci[0], ci[1]
+            if not (lo <= md <= hi):
+                _warn(f"ppo_vs_fcfs.ci_95={ci} 未覆盖 mean_diff={md}")
+            if (lo > 0) != (md > 0):
+                _warn(f"ppo_vs_fcfs.ci_95={ci} 与 mean_diff={md} 符号不一致")
+
+        # 3) statistic 与 p 值量级自洽（Welch t 大统计量 ↔ 极小 p 值）
+        if stat is not None and pval is not None and test and "Welch" in str(test):
+            try:
+                if abs(float(stat)) < 1.0 and float(pval) < 1e-6:
+                    _warn(f"ppo_vs_fcfs.statistic={stat} 与 p_value={pval} 量级不自洽")
+            except (TypeError, ValueError):
+                pass
+
+        # 4) effect_size_type 与 effect_size 匹配（rank-biserial ∈ [-1,1]）
+        if est is not None and est_type == "rank-biserial":
+            try:
+                if not (-1.0 <= float(est) <= 1.0):
+                    _warn(f"ppo_vs_fcfs.effect_size={est} 超出 rank-biserial 合法范围 [-1,1]")
+            except (TypeError, ValueError):
+                pass
+
     return warnings
 
 
@@ -503,6 +587,17 @@ def main() -> int:
         print("[Issue #536] 权威源覆盖度检查: ✅ 关键实验均已收录")
         print()
 
+    # 8.6 审查新增：statistics.yaml 内部数值自洽校验
+    yaml_warnings = check_yaml_internal_consistency(stats)
+    if yaml_warnings:
+        print("\n[Issue #854] statistics.yaml 内部自洽检查:")
+        for w in yaml_warnings:
+            print(f"  [ERROR] {w}")
+        print()
+    else:
+        print("[Issue #854] statistics.yaml 内部自洽检查: ✅ 数值自洽")
+        print()
+
     # 收集所有Markdown文件（使用 os.walk 跳过 node_modules 等目录）
     md_files = set()
     # 演示链路 .py 文件纳入扫描（与 .md 共用同一套逐行检查逻辑）
@@ -562,6 +657,10 @@ def main() -> int:
 
     total_warnings = 0
     files_with_warnings = 0
+
+    # 8.6 审查：覆盖度与 YAML 内部自洽告警计入总告警（strict 模式下触发退出码 1）
+    total_warnings += len(coverage_warnings)
+    total_warnings += len(yaml_warnings)
 
     for filepath in md_files:
         rel_path = str(filepath.relative_to(_PROJECT_ROOT)).replace("\\", "/")

@@ -56,7 +56,7 @@
 | 平均奖励 | 1982.69 | 1648.91 | **+20.2%** |
 
 - 实验条件：50 seed × 5 episode = 250 次独立运行（N=250）；泊松 λ=0.5；量子任务占比 70%
-- 统计检验：Welch t检验，p=1.449×10⁻⁶⁶，效应量 Cohen's d=-2.1353（大效应量）
+- 统计检验：Welch t检验，p=7.56e-12，效应量 rank-biserial=-0.3642（中效应）
 - 数据来源：`results/reports/strategy_comparison.md`、`results/reports/statistical_validation.md`
 
 ### 2.2 高负载公平调度验证

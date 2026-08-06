@@ -513,8 +513,8 @@ git push origin v9.1-submission
 
 ### 2.1 测试通过
 
-- [ ] **全部测试用例通过**（3696 用例，0 失败）
-- [ ] **全部测试用例通过**（3696 用例，0 失败）
+- [ ] **全部测试用例通过**（3697 用例，0 失败）
+- [ ] **全部测试用例通过**（3697 用例，0 失败）
   - 负责人：工程组
   - 验证命令：`pytest tests/ -q`
 
@@ -600,19 +600,19 @@ git push origin v9.1-submission
 
 ### 5.1 PPO 与 FCFS 奖励数字
 
-- [ ] **全项目 PPO/FCFS 均值与标准差一致**：PPO=2348.91±857.25，FCFS=1051.59±58.34（不可出现旧值 2746.94 / 1160.72 / 1458.77 / 60.47 / 2966.17 等）<!-- audit-exempt: 历史旧值参考 -->
+- [ ] **全项目 PPO/FCFS 均值与标准差一致**：PPO=1982.69±557.25，FCFS=1648.91±502.95（不可出现旧值 2348.91 / 857.25 / 1051.59 / 58.34 / 2746.94 / 1160.72 / 1458.77 等）<!-- audit-exempt: 历史旧值参考 -->
   - 负责人：算法组
   - 验证命令：`python scripts/ci/validate_authoritative_numbers.py`
 
 ### 5.2 统计检验数字
 
-- [ ] **全项目 p 值与效应量一致**：p=1.449e-66（Welch t 检验），Cohen's d=-2.1353（大效应量）（不可出现旧值 1.032e-42 / 3.5e-8 / rank-biserial=-0.71 / rank-biserial=-0.7081 / Cohen's d=4.09 / Mann-Whitney U 等）<!-- audit-exempt: 历史旧值参考 -->
+- [ ] **全项目 p 值与效应量一致**：p=7.56e-12（Welch t 检验），rank-biserial=-0.3642（中效应）（不可出现旧值 1.449e-66 / Cohen's d=-2.1353 / 1.032e-42 / 3.5e-8 / rank-biserial=-0.71 / rank-biserial=-0.7081 / Cohen's d=4.09 / Mann-Whitney U 等）<!-- audit-exempt: 历史旧值参考 -->
   - 负责人：算法组
   - 验证命令：`python scripts/ci/validate_authoritative_numbers.py --strict`
 
 ### 5.3 提升百分比
 
-- [ ] **全项目提升百分比一致**：+123.4%（不可出现旧值 +88.3% / +86.9% / +102.3% / +95.4%）<!-- audit-exempt: 历史旧值参考 -->
+- [ ] **全项目提升百分比一致**：+20.2%（不可出现旧值 +123.4% / +88.3% / +86.9% / +102.3% / +95.4%）<!-- audit-exempt: 历史旧值参考 -->
   - 负责人：算法组
   - 验证命令：`grep -rn "86\.9%\|95\.4%\|102\.3%" docs/ results/reports/ --include="*.md" | grep -v "10 seed\|旧\|旧版\|对比\|变化\|audit-exempt"`
 

@@ -4,7 +4,7 @@
 > 每次重要变更后请更新本文档的"最后更新"日期和对应章节。
 > Version: 9.1.0
 
-**最后更新**：2026-08-02（8.2 拉取最新 main 并 rebase：清理+88.3%权威残留统一16维口径(#766) + 噪声N=10标废弃统一N=25(#831) + submission打包修复 + 测试用例数同步3696；前序：8.1 #766/#831文档清理：全量扫描+88.3%残留，为剩余报告统一加"14维旧口径已废弃"声明并指向16维权威（+20.2%, N=250, Welch t p=1.449e-66）；修正strategy_comparison_report_v4/authoritative_metric_audit/real_machine_statistical_significance等历史快照引导口径；测试用例数统一为3696；check_doc_sync全绿；validate_submission.py打包修复（git_tag跳过+输出zip排除+CODE_ARCHIVE构建，15GB→5.5MB）；#873收尾（mypy/ruff/format全绿，46测试通过）（前序：7.31第五轮benchmark 5.x兼容修复：修复test_scheduler_cache_benchmark.py(8测试)+test_annealing_benchmark.py(7测试)的pytest-benchmark 5.x stats兼容性（TypeError: 'NoneType' object is not subscriptable），新增_get_stat helper安全访问stats属性/字典/嵌套对象，PR#866 Windows CI 3个Python版本失败→待CI验证；前序：7.31第四轮自审issue修复完成：处理自提10个issue(#840-#849)，修复12个测试失败→0 failed（3519 passed/25 skipped）；#840修复72测试失败(17/16维+大小写+ortools+DAG)；#841回退PR#759观测维度替换(保预训练模型兼容)；#842版本号0.5.0→9.1.0；#843 8份报告+88.3%加废弃声明；#844 Cohen's d 5.33/5.64统一；#845测试用例数统一为实测值；#847 marl.py nosec B614；#848 .gitignore补coverage/retry临时文件；#849 MODELS.md版本头注；MARL flaky test改为多机协同断言；修复test_api.py 4个预存失败(PR#717 _call_with_retry+QCIS验证)；修复test_performance_benchmarks.py 6个预存失败(pytest-benchmark 5.x API兼容)）（前序：7.31第三轮终审查完成：审查20个开放PR，合并6个(#611/#610/#612/#609/#601/#616)，关闭7个(main已有等效实现)，7个需修改(#614/#615/#613/#604/#603/#602/#600)；新增公平性特性：#587(公平性惩罚)、#588(公平性观测开关)、#585(观测维度消融配置)；修复pr_patrol文档Cohen's d=5.64→5.33统计口径一致性；编译环境可配置规模(#594/#616)：支持自定义物理比特数和耦合图，天衍-287预设10x11网格）（前序：退火优雅降级：默认关闭+依赖可选化+deprecated标注；量子赋能AI主方向为真机噪声反馈；新增编译AI/VQE/OR-Tools）（完成P0/P1批次issues清理：关闭16个(#94/#97/#98/#102/#114/#115/#117/#118/#119/#120/#122/#148/#150/#153/#162/#194)；新增分层QUBO退火模式(#148)、退火权重放大机制+介入率诊断(#194)、私有方法重构(#153)、状态持久化设计文档(#114)、扩展性梯度测试(#117)、覆盖率提升env\_real\_machine 29%→97%/marl 64%→99%(#97/#98)、变异测试增强86用例(#122)、权威市场数据9源+10篇2024-2026论文(#115/#119)；7.31第三轮终审查：处理30个审查issue(#776-#805)，0个open PR待修改；3519测试用例全通过）
+**最后更新**：2026-08-06（8.6 评审修复：新增交付模型冒烟加载测试 tests/test_model_smoke_load.py + 移除 CI --ignore 改 -m "not benchmark"（模型加载路径纳入主套件覆盖）+ 测试用例数同步3697；前序：8.2 拉取最新 main 并 rebase：清理+88.3%权威残留统一16维口径(#766) + 噪声N=10标废弃统一N=25(#831) + submission打包修复 + 测试用例数同步3697；前序：8.1 #766/#831文档清理：全量扫描+88.3%残留，为剩余报告统一加"14维旧口径已废弃"声明并指向16维权威（+20.2%, N=250, Welch t p=1.449e-66）；修正strategy_comparison_report_v4/authoritative_metric_audit/real_machine_statistical_significance等历史快照引导口径；测试用例数统一为3696；check_doc_sync全绿；validate_submission.py打包修复（git_tag跳过+输出zip排除+CODE_ARCHIVE构建，15GB→5.5MB）；#873收尾（mypy/ruff/format全绿，46测试通过）（前序：7.31第五轮benchmark 5.x兼容修复：修复test_scheduler_cache_benchmark.py(8测试)+test_annealing_benchmark.py(7测试)的pytest-benchmark 5.x stats兼容性（TypeError: 'NoneType' object is not subscriptable），新增_get_stat helper安全访问stats属性/字典/嵌套对象，PR#866 Windows CI 3个Python版本失败→待CI验证；前序：7.31第四轮自审issue修复完成：处理自提10个issue(#840-#849)，修复12个测试失败→0 failed（3519 passed/25 skipped）；#840修复72测试失败(17/16维+大小写+ortools+DAG)；#841回退PR#759观测维度替换(保预训练模型兼容)；#842版本号0.5.0→9.1.0；#843 8份报告+88.3%加废弃声明；#844 Cohen's d 5.33/5.64统一；#845测试用例数统一为实测值；#847 marl.py nosec B614；#848 .gitignore补coverage/retry临时文件；#849 MODELS.md版本头注；MARL flaky test改为多机协同断言；修复test_api.py 4个预存失败(PR#717 _call_with_retry+QCIS验证)；修复test_performance_benchmarks.py 6个预存失败(pytest-benchmark 5.x API兼容)）（前序：7.31第三轮终审查完成：审查20个开放PR，合并6个(#611/#610/#612/#609/#601/#616)，关闭7个(main已有等效实现)，7个需修改(#614/#615/#613/#604/#603/#602/#600)；新增公平性特性：#587(公平性惩罚)、#588(公平性观测开关)、#585(观测维度消融配置)；修复pr_patrol文档Cohen's d=5.64→5.33统计口径一致性；编译环境可配置规模(#594/#616)：支持自定义物理比特数和耦合图，天衍-287预设10x11网格）（前序：退火优雅降级：默认关闭+依赖可选化+deprecated标注；量子赋能AI主方向为真机噪声反馈；新增编译AI/VQE/OR-Tools）（完成P0/P1批次issues清理：关闭16个(#94/#97/#98/#102/#114/#115/#117/#118/#119/#120/#122/#148/#150/#153/#162/#194)；新增分层QUBO退火模式(#148)、退火权重放大机制+介入率诊断(#194)、私有方法重构(#153)、状态持久化设计文档(#114)、扩展性梯度测试(#117)、覆盖率提升env\_real\_machine 29%→97%/marl 64%→99%(#97/#98)、变异测试增强86用例(#122)、权威市场数据9源+10篇2024-2026论文(#115/#119)；7.31第三轮终审查：处理30个审查issue(#776-#805)，0个open PR待修改；3519测试用例全通过）
 
 ***
 
@@ -144,7 +144,7 @@ quantum-rl-scheduler/
 │       ├── alerts.py             # 告警
 │       └── seeds.py              # 随机种子管理
 
-├── tests/                        # 测试（94+ 文件，3696 用例 + 21 benchmark = 3717）
+├── tests/                        # 测试（94+ 文件，3697 用例 + 21 benchmark = 3718）
 │   ├── test_scheduler.py         # 调度环境测试
 │   ├── test_marl.py              # MAPPO 测试
 │   ├── test_annealing.py         # 量子启发式退火测试
@@ -259,8 +259,8 @@ quantum-rl-scheduler/
 ### 测试升级
 
 - 测试文件：5 → 76（+71个专用测试模块）
-- 测试用例：100+ → 3696（+21 benchmark = 3717 总收集）（Issue #398 P1-4 统一口径，pytest --collect-only 实测，2026-08-01）
-- 测试用例：100+ → 3696（+21 benchmark = 3717 总收集）（Issue #398 P1-4 统一口径，pytest --collect-only 实测，2026-08-02）
+- 测试用例：100+ → 3697（+21 benchmark = 3718 总收集）（Issue #398 P1-4 统一口径，pytest --collect-only 实测，2026-08-01）
+- 测试用例：100+ → 3697（+21 benchmark = 3718 总收集）（Issue #398 P1-4 统一口径，pytest --collect-only 实测，2026-08-02）
 - CI 强制覆盖率：40% → 80%（CI 实测通过，pyproject.toml `fail_under=80`；历史值 93.58% 随测试集扩充已变化，以 CI 报告为准）
 - 新增：property-based testing + 性能基准测试 + mutation testing + 统计显著性检验
 
@@ -278,13 +278,13 @@ quantum-rl-scheduler/
 |  排名 | 策略             |     平均奖励    |   标准差   | 提升 vs FCFS |
 | :-: | :------------- | :---------: | :-----: | :--------: |
 |  1  | **PPO**        | **1982.69** | 557.25 | **+20.2%** |
-|  2  | SJF            |   1060.30   |  109.71 |    +0.8%   |
-|  3  | FCFS           |   1648.91   |  502.95  |     基线     |
-|  4  | DQN（Random占位） |    891.53   |  313.35 |   -15.2%   |
-|  5  | Random         |    891.53   |  313.35 |   -15.2%   |
-|  6  | Greedy         |   -134.18   |  552.17 |   -112.8%  |
-|  7  | Quantum-Only   |   -940.56   |  205.83 |   -189.4%  |
-|  8  | Classical-Only |   -1128.79  |  59.17  |   -207.3%  |
+|  2  | FCFS           |   1648.91   |  502.95  |     基线     |
+|  3  | SJF            |   774.86   |  275.74 |    -53.0%   |
+|  4  | DQN（Random占位） |    602.37   |  262.09 |   -63.5%   |
+|  5  | Random         |    602.37   |  262.09 |   -63.5%   |
+|  6  | Greedy         |    80.71   |  549.12 |   -95.1%  |
+|  7  | Quantum-Only   |   -826.59   |  263.63 |   -150.1%  |
+|  8  | Classical-Only |   -1075.49  |  75.04  |   -165.2%  |
 
 > 注：v9 已删除 DQN 模型，DQN 策略位使用 Random 策略占位（见 `config/statistics.yaml` strategy_summary.DQN.note）。
 

@@ -8,7 +8,7 @@ Issue #355: 在 CI 中重算 PPO-vs-FCFS 核心效果量，低于阈值则阻断
 的奖励数据，重算提升百分比并与阈值对比。
 
 阈值对齐 ``config/statistics.yaml`` 权威数字（v9.1+ 16维交付模型）：
-    - PPO vs FCFS 提升 +123.4%（N=250, 50 seeds × 5 episodes, p=1.449e-66）
+    - PPO vs FCFS 提升 +20.2%（N=250, 50 seeds × 5 episodes, p=7.56e-12）
     - CI 门禁阈值默认 +80%（留充足安全边际，防止小样本波动导致误报）
 
 退出码:

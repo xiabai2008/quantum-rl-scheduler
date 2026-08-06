@@ -380,7 +380,7 @@ def print_authoritative_reference() -> None:
     print(f"  {'FCFS 平均奖励':<25} {AUTHORITATIVE['fcfs_mean']:<25} 基线策略")
     print(f"  {'FCFS 标准差':<25} ±{AUTHORITATIVE['fcfs_std']:<24} 同上")
     print(f"  {'p 值':<25} {AUTHORITATIVE['p_value']:<25} Welch t 检验")
-    print(f"  {'效应量':<25} {AUTHORITATIVE['effect_size']:<25} Cohen's d（大效应）")
+    print(f"  {'效应量':<25} {AUTHORITATIVE['effect_size']:<25} rank-biserial（中效应）")
     print(f"  {'提升百分比':<25} {AUTHORITATIVE['improvement']:<25} PPO vs FCFS")
     print()
     print("不应出现的旧数字（14维/弱基线已废弃）:")

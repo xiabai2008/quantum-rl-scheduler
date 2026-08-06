@@ -81,11 +81,12 @@ FORBIDDEN_PATTERNS = (
 AUDIT_EXEMPT_MARKER = "<!-- audit-exempt:"
 
 CANONICAL_RANKING = (
-    # v9.1+ 排名顺序：DQN 模型已删除，策略位使用 Random 替代，奖励与 Random 相同，
-    # 排名第 4（与 Random 并列）。顺序与 strategy_comparison.md 权威报告一致。
+    # v9.1+ 排名顺序：8.5 基线诚实化后，真实 FCFS（1648.91）高于 SJF（774.86），
+    # 故 FCFS 排第 2、SJF 排第 3；DQN 模型已删除，策略位使用 Random 替代，奖励与
+    # Random 相同，排名第 4（与 Random 并列）。顺序与 strategy_comparison.md 权威报告一致。
     "PPO",
-    "SJF",
     "FCFS",
+    "SJF",
     "DQN",
     "Random",
     "Greedy",
@@ -154,15 +155,16 @@ def find_forbidden(text: str, require_context: bool = True) -> list[tuple[int, s
 def validate_canonical_report(text: str) -> list[str]:
     """验证权威报告包含锁定数字、排名和 16 维交付说明。
 
-    权威数字（2026-07-29 更新，v9.1+ 16维交付模型，50 seed × 5 episodes = N=250 验证）：
-        - PPO 平均奖励 2348.91
-        - FCFS 平均奖励 1051.59
-        - PPO vs FCFS 提升 +123.4%
+    权威数字（2026-08-05 更新，v9.1+ 16维交付模型，50 seed × 5 episodes = N=250 验证，
+    8.5 基线诚实化 vs 真实 FCFS）：
+        - PPO 平均奖励 1982.69
+        - FCFS 平均奖励 1648.91
+        - PPO vs FCFS 提升 +20.2%
         - OBS_DIM=16（16维交付标准）
         - 16 维说明
     """
     errors: list[str] = []
-    for expected in ("2348.91", "1051.59", "+123.4%", "OBS_DIM=16", "16 维"):
+    for expected in ("1982.69", "1648.91", "+20.2%", "OBS_DIM=16", "16 维"):
         if expected not in text:
             errors.append(f"权威报告缺少：{expected}")
 

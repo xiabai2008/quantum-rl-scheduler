@@ -2221,13 +2221,13 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     // 内置权威策略排名（当API不可用时使用，基于16维交付模型N=250权威数据）
     var BUILTIN_RANKINGS = [
         {name: 'PPO', score: 1982.69},
-        {name: 'SJF', score: 1060.30},
+        {name: 'SJF', score: 774.86},
         {name: 'FCFS', score: 1648.91},
-        {name: 'DQN', score: 891.53},
-        {name: 'Random', score: 891.53},
-        {name: 'MAPPO', score: 891.53},
-        {name: 'Greedy', score: -134.18},
-        {name: 'Quantum-Only', score: -1327.39}
+        {name: 'DQN', score: 602.37},
+        {name: 'Random', score: 602.37},
+        {name: 'MAPPO', score: 602.37},
+        {name: 'Greedy', score: 80.71},
+        {name: 'Quantum-Only', score: -826.59}
     ];
 
     function renderRanking(stats) {
@@ -2442,10 +2442,10 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             params: "arrival_rate=0.5, quantum_ratio=0.7, max_steps=200",
             strategies: [
                 {rank:1, name:"PPO", reward:1982.69, lift:"+20.2%", note:"综合最优"},
-                {rank:2, name:"SJF", reward:1060.30, lift:"+0.8%", note:""},
+                {rank:2, name:"SJF", reward:774.86, lift:"-53.0%", note:""},
                 {rank:3, name:"FCFS", reward:1648.91, lift:"基线", note:"工业界默认"},
-                {rank:4, name:"Random", reward:891.53, lift:"-15.2%", note:""},
-                {rank:5, name:"Greedy", reward:-134.18, lift:"-112.8%", note:"此场景崩溃"}
+                {rank:4, name:"Random", reward:602.37, lift:"-63.5%", note:""},
+                {rank:5, name:"Greedy", reward:80.71, lift:"-95.1%", note:"此场景崩溃"}
             ],
             conclusion: "均衡负载下 PPO vs 真实 FCFS 提升 +20.2%（N=250, Welch t p=7.56e-12），量子利用率 -3.3%（诚实披露：R-P-01 ≥30% 目标未达成）。",
             recommend: "PPO"

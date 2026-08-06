@@ -3,11 +3,11 @@
 
 在天衍-287 真实数据比特规模（105 数据比特+182 耦合比特）下，
 用已训练的 PPO 模型（ppo_best_model_16dim.zip，287 规模训练）跑 10 seeds × 5 episodes = N=50，
-对比 PPO vs FCFS 提升幅度，验证 +123.4% 权威数字的稳健性。
+对比 PPO vs FCFS 提升幅度，验证 +20.2% 权威数字（8.5 基线诚实化，vs 真实 FCFS）的稳健性。
 
 验收标准（Issue #457）：
-- 提升幅度与 123.4% 同量级（缩水 ≤10pp，即 ≥113.4%）→ 通过
-- 缩水 >10pp（<113.4%）→ 触发预案 B（48h 全仓统一新数字，冻结顺延 3 天）
+- 提升幅度与 20.2% 同量级（缩水 ≤10pp，即 ≥10.2%）→ 通过
+- 缩水 >10pp（<10.2%）→ 触发预案 B（48h 全仓统一新数字，冻结顺延 3 天）
 
 用法：
     python scripts/evaluation/run_issue_457_105_qubits_validation.py
@@ -44,11 +44,11 @@ OBS_DIM = 14
 MAX_QUBITS_105 = 105  # Issue #457: 天衍-287 真实数据比特数
 ALPHA = 0.05
 
-# 权威基准（50 seed N=250, max_qubits=287）
-AUTHORITATIVE_PPO_MEAN = 2348.91
-AUTHORITATIVE_FCFS_MEAN = 1051.59
+# 权威基准（50 seed N=250, max_qubits=287，8.5 基线诚实化：真实 FCFS 量子路由）
+AUTHORITATIVE_PPO_MEAN = 1982.69
+AUTHORITATIVE_FCFS_MEAN = 1648.91
 AUTHORITATIVE_IMPROVEMENT_PCT = (
-    123.4  # 2348.91/1051.59-1，见 config/statistics.yaml（旧 88.3 为 14 维口径，已废弃）
+    20.2  # 1982.69/1648.91-1，见 config/statistics.yaml（旧 123.4 为 vs Hybrid-Default 弱基线，已废弃）
 )
 SHRINK_THRESHOLD_PP = 10.0  # 缩水阈值（百分点）
 

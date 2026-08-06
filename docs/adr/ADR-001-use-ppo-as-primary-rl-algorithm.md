@@ -27,10 +27,10 @@ Accepted
 | 策略 | 平均奖励 | 标准差 | 提升 vs FCFS |
 |:--|:--:|:--:|:--:|
 | **PPO** | **1982.69** | 557.25 | **+20.2%** |
-| DQN (Random替代) | 891.53 | 313.35 | -15.2% |
+| DQN (Random替代) | 602.37 | 262.09 | -63.5% |
 | FCFS | 1648.91 | 502.95 | 基线 |
 
-- 统计检验：Welch t，p=7.56e-12，Cohen's d=-2.1353（大效应量）
+- 统计检验：Welch t，p=7.56e-12，rank-biserial=-0.3642（中效应）
 - DQN 在 v9 已删除，使用 Random 策略替代占位（config/statistics.yaml）
 
 ## Decision

@@ -49,11 +49,11 @@ RESULTS_DIR = os.path.join(PROJECT_ROOT, "results", "reports")
 LOG_DIR = os.path.join(PROJECT_ROOT, "logs", "dqn_14dim_retrain")
 
 # ── 竞赛权威数字（禁止修改） ──
-AUTHORITATIVE_PPO_MEAN = 2348.91
-AUTHORITATIVE_PPO_STD = 1121.19
-AUTHORITATIVE_FCFS_MEAN = 1051.59
-AUTHORITATIVE_FCFS_STD = 55.85
-AUTHORITATIVE_IMPROVEMENT = 88.3  # % — 旧14维口径，仅供本14维历史脚本内部对照；全局权威为16维 +123.4%（config/statistics.yaml）
+AUTHORITATIVE_PPO_MEAN = 1982.69
+AUTHORITATIVE_PPO_STD = 557.25
+AUTHORITATIVE_FCFS_MEAN = 1648.91
+AUTHORITATIVE_FCFS_STD = 502.95
+AUTHORITATIVE_IMPROVEMENT = 20.2  # % — 8.5 权威口径（真实 FCFS 基线），见 config/statistics.yaml
 
 
 # ============================================================================

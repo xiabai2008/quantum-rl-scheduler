@@ -46,7 +46,7 @@
 ### Q2: PPO 相比 DQN 在你们这个调度场景下为什么更优？超参数怎么调的？
 
 **核心答案**：
-PPO 在异质化调度环境中显著优于 DQN（PPO 1982.69、DQN 891.53，平均奖励高 1457.38；数据来源 `config/statistics.yaml`）。原因是：PPO 使用**策略梯度方法**，直接优化调度策略，适合连续动作空间和稀疏奖励；DQN 在 v9 已删除，DQN 策略位使用 Random 替代占位（`config/statistics.yaml` 注明），因此 DQN 位的结果反映的是 Random 策略性能（-15.2% vs FCFS），非 DQN 算法本身表现。PPO vs DQN(Random) 统计检验：Welch t, p=1.315e-77, Cohen's d=-2.2581（大效应量）。超参数通过网格搜索确定：学习率 3e-4、clip range 0.2、GAE λ=0.95、batch size 64。
+PPO 在异质化调度环境中显著优于 DQN 位（PPO 1982.69、DQN 策略位为 Random 占位 602.37，平均奖励高 1380.32；数据来源 `config/statistics.yaml`）。原因是：PPO 使用**策略梯度方法**，直接优化调度策略，适合连续动作空间和稀疏奖励；DQN 在 v9 已删除，DQN 策略位使用 Random 替代占位（`config/statistics.yaml` 注明），因此 DQN 位的结果反映的是 Random 策略性能（-63.47% vs FCFS），非 DQN 算法本身表现。PPO vs DQN(Random) 统计检验：Welch t, p=1.315e-77, Cohen's d=-2.2581（大效应量）。超参数通过网格搜索确定：学习率 3e-4、clip range 0.2、GAE λ=0.95、batch size 64。
 
 **支撑数据**：
 - 8 策略对比：`results/reports/strategy_comparison.md`
@@ -172,7 +172,7 @@ RL 训练基于**任务队列状态**而非**电路级延迟**，因此真机延
 
 **风险提示**：
 - 追问：Mock 和真机的偏差 < 5%，怎么证明策略迁移到真机后性能不下降？
-- 回答：真机实验的核心价值是**平台可用性验证**（315次调用 100% 成功，SDK 认证/提交/轮询/结果获取全链路验证通过），而非性能提升证明。当前真机实验样本量小（N=5-10 seeds）、任务规模小（1-3 qubit），mixed_real vs simulation 统计不显著（p=0.344），**不宣称真机路径性能优于仿真**。性能提升结论由仿真实验支撑：PPO vs FCFS +20.2%（N=250, p=7.56e-12, Cohen's d=-2.1353）。真机大规模性能验证受机时和硬件排队约束，是后续扩展方向。
+- 回答：真机实验的核心价值是**平台可用性验证**（315次调用 100% 成功，SDK 认证/提交/轮询/结果获取全链路验证通过），而非性能提升证明。当前真机实验样本量小（N=5-10 seeds）、任务规模小（1-3 qubit），mixed_real vs simulation 统计不显著（p=0.344），**不宣称真机路径性能优于仿真**。性能提升结论由仿真实验支撑：PPO vs FCFS +20.2%（N=250, p=7.56e-12, rank-biserial=-0.3642 中效应）。真机大规模性能验证受机时和硬件排队约束，是后续扩展方向。
 
 ---
 
@@ -949,7 +949,7 @@ Jain's Fairness Index 是网络资源分配公平性的标准度量，取值 [0,
 - PPO最差seed均值：1758（seed #23）
 - FCFS最好seed均值：1526（seed #7）
 - gap = 232，占FCFS均值的15.9%
-- Welch t 检验：p = 7.56e-12，Cohen's d = -2.1353（大效应量）
+- Welch t 检验：p = 7.56e-12，rank-biserial = -0.3642（中效应）
 
 **延伸说明**：
 
@@ -960,7 +960,7 @@ Jain's Fairness Index 是网络资源分配公平性的标准度量，取值 [0,
 
 **风险提示**：
 - 追问：为什么DQN没有出现完美分离？
-- 回答：DQN在v9已删除，策略位使用Random替代占位（均值891.53，-15.2% vs FCFS 1648.91），分布与FCFS有重叠但均值明显更低。这是因为Random策略无学习能力，随机分配任务导致性能低于FCFS。PPO使用16维原生环境，通过策略学习获得+20.2%提升（p=7.56e-12）。
+- 回答：DQN在v9已删除，策略位使用Random替代占位（均值602.37，-63.5% vs FCFS 1648.91），分布与FCFS有重叠但均值明显更低。这是因为Random策略无学习能力，随机分配任务导致性能低于FCFS。PPO使用16维原生环境，通过策略学习获得+20.2%提升（p=7.56e-12）。
 
 ---
 
@@ -1207,7 +1207,7 @@ QAQL（Gandhudi et al., 2026, arXiv:2606.18503）确实是当前与本项目"量
 
 **核心答案**：
 
-16维模型已训练完成并保存为 `deliverable_models/ppo_best_model_16dim.zip`，当前 `config/statistics.yaml` 中权威数据 **PPO=2348.91±857.25 vs FCFS=1051.59±58.34，提升+20.2%（Welch t p=1.449e-66, Cohen's d=-2.1353, N=250）** 正是基于16维交付模型的50seed×5episode=250次独立运行结果。需要澄清的是：早期14维模型（已废弃）的权威数据为PPO=2746.94 vs FCFS=1458.77（+88.3%），该版本模型已被16维替代。N=250多seed验证已完成，16维为当前唯一交付标准版本。
+16维模型已训练完成并保存为 `deliverable_models/ppo_best_model_16dim.zip`，当前 `config/statistics.yaml` 中权威数据 **PPO=1982.69±557.25 vs FCFS=1648.91±502.95，提升+20.2%（Welch t p=7.56e-12，Mann-Whitney U p=1.86e-12 经 Bonferroni 校正显著，rank-biserial=-0.3642 中效应，N=250）** 正是基于16维交付模型、对比真实 FCFS（EnvBasedFCFSScheduler 量子路由）基线的50seed×5episode=250次独立运行结果（8.5 基线诚实化口径）。需要澄清的是：早期14维模型（已废弃）为另一套口径，且 +123.4% 为对比 Hybrid-Default（恒 action=2）弱基线的旧值，均已废弃。N=250多seed验证已完成，16维为当前唯一交付标准版本。
 
 **支撑数据**：
 - 交付模型：`deliverable_models/ppo_best_model_16dim.zip`
@@ -1299,7 +1299,7 @@ N=10 确实是小样本，我们**不回避这一局限**。需要分层看待�
 
 1. **d=5.33 数学上合理但确有小样本膨胀风险**：Cohen's d=5.33 是 Welch t 检验的效应量（mean_diff=1353.32, pooled_std≈254）。小样本下 pooled_std 的估计不稳定，可能导致 d 偏大。作为对照，非配对效应量的保守估计仍在"大效应"区间（>0.8），方向稳健。
 
-2. **真机实验定位为"可用性验证"而非"性能基准"**：真机 N=10 的核心价值是证明 SDK 全链路可用（315 次调用 100% 成功），**不作为性能结论的统计依据**。项目性能主张由仿真 N=250 支撑（PPO vs FCFS +20.2%, p=7.56e-12, Cohen's d=-2.1353）。
+2. **真机实验定位为"可用性验证"而非"性能基准"**：真机 N=10 的核心价值是证明 SDK 全链路可用（315 次调用 100% 成功），**不作为性能结论的统计依据**。项目性能主张由仿真 N=250 支撑（PPO vs FCFS +20.2%, p=7.56e-12, rank-biserial=-0.3642）。
 
 3. **诚实承认局限并给出改进路径**：真机大规模性能验证受免费机时包限制（FREE_TIER_MAX_QUBITS=5），后续付费套餐下将扩展至 N≥30 并采用配对设计提升功效。预注册方案（`results/reports/real_machine_preregistration.md`）已定义 N≥18/组 的正式实验计划。
 

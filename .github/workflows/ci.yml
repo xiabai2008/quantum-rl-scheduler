@@ -135,10 +135,16 @@ jobs:
           # 8.5 修复：MAPPO 训练测试（test_marl.py 含 32768 步长训练）从 xdist
           # 并行排除——长训练测试在 xdist worker 上反复挂起（3.11 先例 30min+、
           # 3.12 复现），改为下方独立串行 step。
+          # 8.6 修复：移除 --ignore=tests/test_performance_benchmarks.py——
+          # 该文件此前被整体忽略，导致交付模型加载路径在 CI 中零覆盖（8.6 审查
+          # 报告 N15 复现性墙）。改为 `-m "not benchmark"` 仅跳过 benchmark 标记
+          # 用例（该文件 4 个用例及 tests/benchmarks 均带 @pytest.mark.benchmark），
+          # 由独立 benchmark job 负责；模型加载/推理门禁由新增的
+          # tests/test_model_smoke_load.py 在主套件中覆盖。
           python -m pytest tests/ \
             -v \
             -n auto --dist loadscope --max-worker-restart=2 \
-            --ignore=tests/test_performance_benchmarks.py \
+            -m "not benchmark" \
             --ignore=tests/test_marl.py \
             --cov=src \
             --cov-report=term-missing \

@@ -281,7 +281,7 @@ class FCFSStrategy(BaseStrategy):
     任务排序由环境内部按 wait_steps/arrival_time 完成；资源分配从观测判断
     任务类型与量子资源可用性（量子→量子动作，经典→经典），对齐
     EnvBasedFCFSScheduler。原实现恒返回 2（HYBRID）放弃量子路由，
-    作为基线过弱导致 +123.4% 高估（真实 FCFS 下 PPO 提升约 +13.5%）。
+    作为基线过弱导致 +123.4% 高估（真实 FCFS 下 PPO 提升 +20.2%，8.5 权威口径）。
     """
 
     name = "FCFS"

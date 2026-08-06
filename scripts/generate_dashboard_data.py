@@ -16,9 +16,9 @@ if hasattr(sys.stdout, "reconfigure"):
 # 基于 statistical_validation.md 的50-seed权威数据
 # 注意：这些是仿真环境下的episode平均奖励（200步/episode）
 strategies_data = {
-    "PPO (14-dim)": {
+    "PPO (16-dim)": {
         "avg_reward": 1982.69,
-        "std_reward": 857.25,
+        "std_reward": 557.25,
         "avg_wait_time": 28.4,  # PPO等待时间较高（trade-off）
         "completion_rate": 0.43,
         "qubit_utilization": 0.82,
@@ -45,7 +45,7 @@ strategies_data = {
     },
     "FCFS": {
         "avg_reward": 1648.91,
-        "std_reward": 58.34,
+        "std_reward": 502.95,
         "avg_wait_time": 18.8,
         "completion_rate": 0.92,
         "qubit_utilization": 0.57,

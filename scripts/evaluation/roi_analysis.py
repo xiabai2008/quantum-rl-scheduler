@@ -25,21 +25,23 @@ from typing import Any
 # 常量 — 权威数字（与 AGENTS.md 一致，不可篡改）
 # ---------------------------------------------------------------------------
 
-# 50-seed 仿真权威数字（AGENTS.md 锁定）
+# 50-seed 仿真权威数字（AGENTS.md 锁定，8.5 基线诚实化：真实 FCFS 量子路由）
 SIM_PPO_MEAN = 1982.69
-SIM_PPO_STD = 857.25
+SIM_PPO_STD = 557.25
 SIM_FCFS_MEAN = 1648.91
-SIM_FCFS_STD = 58.34
+SIM_FCFS_STD = 502.95
 SIM_P_VALUE = 7.56e-12  # Welch t 检验（8.5 权威口径）
-SIM_EFFECT_SIZE = -2.1353  # Cohen's d（大效应量）
+SIM_EFFECT_SIZE = -0.3642  # rank-biserial（中效应；旧 Cohen's d=-2.1353 为 8.5 前弱基线口径，已废弃）
+SIM_EFFECT_SIZE_TYPE = "rank-biserial"
 SIM_N = 250  # 50 seeds × 5 episodes
 
-# 多seed真机权威数字（multiseed_real_machine_report_20260724.md）
+# 多seed真机权威数字（multiseed_real_machine_report_20260724.md，N=5）
+# 注意：真机实验定位为可用性验证，非性能基准；N=5 为探索性统计（Issue #662 恢复原始计算值 d=5.64）。
 REAL_PPO_MEAN = 1665.22
 REAL_PPO_STD = 324.51
 REAL_FCFS_MEAN = 353.22
 REAL_FCFS_STD = 53.33
-REAL_COHEN_D = 5.33
+REAL_COHEN_D = 5.64
 REAL_P_VALUE = 6.83e-04  # Welch t, Bonferroni 校正后显著
 REAL_N_SEEDS = 5
 
@@ -206,7 +208,7 @@ def generate_report(
         "",
         "| 指标 | PPO | FCFS | 提升 | 统计检验 |",
         "|:--|:--:|:--:|:--:|:--:|",
-        f"| 平均奖励 | {SIM_PPO_MEAN:.2f}±{SIM_PPO_STD:.2f} | {SIM_FCFS_MEAN:.2f}±{SIM_FCFS_STD:.2f} | +{sim_improvement * 100:.1f}% | Welch t p={SIM_P_VALUE:.2e}, Cohen's d={SIM_EFFECT_SIZE} |",
+        f"| 平均奖励 | {SIM_PPO_MEAN:.2f}±{SIM_PPO_STD:.2f} | {SIM_FCFS_MEAN:.2f}±{SIM_FCFS_STD:.2f} | +{sim_improvement * 100:.1f}% | Welch t p={SIM_P_VALUE:.2e}, {SIM_EFFECT_SIZE_TYPE}={SIM_EFFECT_SIZE} |",
         f"| 样本量 | N={SIM_N} | N={SIM_N} | — | 50 seeds × 5 episodes |",
         "",
         "### 1.2 多seed真机验证（来源: 天衍-287 真机实验）",
@@ -317,7 +319,7 @@ def generate_report(
             "|:--|:--:|:--|:--:|",
             f"| PPO 仿真均值 | {SIM_PPO_MEAN} | AGENTS.md | ✅ 锁定 |",
             f"| FCFS 仿真均值 | {SIM_FCFS_MEAN} | AGENTS.md | ✅ 锁定 |",
-            f"| 仿真 p 值（Mann-Whitney U 检验） | {SIM_P_VALUE} | 仿真统计验证 | ✅ 锁定 |",
+            f"| 仿真 p 值（Welch t 检验） | {SIM_P_VALUE} | 仿真统计验证 | ✅ 锁定 |",
             f"| PPO 真机均值 | {REAL_PPO_MEAN} | multiseed_real_machine_report_20260724.md | {'✅ 验证通过' if verification_passed else '⚠️ 待验证'} |",
             f"| FCFS 真机均值 | {REAL_FCFS_MEAN} | multiseed_real_machine_report_20260724.md | {'✅ 验证通过' if verification_passed else '⚠️ 待验证'} |",
             f"| 真机 p 值 | {REAL_P_VALUE} | multiseed_real_machine_report_20260724.md | ✅ 锁定 |",

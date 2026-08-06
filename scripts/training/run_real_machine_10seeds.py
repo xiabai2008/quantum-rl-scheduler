@@ -242,7 +242,7 @@ def generate_validation_report(results: dict[str, Any], report_path: Path, plot_
         "",
         "## 与仿真数字对比",
         "",
-        "- 仿真权威数字（50seed N=250）：+123.4%",
+        "- 仿真权威数字（50seed N=250）：+20.2%",
         "- 本实验 mixed_real vs simulation：见上表",
         "- 一致性：本实验结果用于验证仿真结论在真机环境下的适用性",
         "",

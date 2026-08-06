@@ -252,7 +252,7 @@ class FCFSStrategy(BaseStrategy):
     """先来先服务（真实 FCFS：任务按到达顺序，资源按类型路由）。
 
     8.5 审查修复：原实现恒返回 2（HYBRID）放弃量子路由，作为基线过弱，
-    +123.4% 被高估（PPO 相对真实 FCFS 仅约 +13.5%）。改为从观测判断
+    +123.4% 被高估（PPO 相对真实 FCFS 提升 +20.2%，8.5 权威口径）。改为从观测判断
     任务类型与量子资源可用性：量子任务且资源可用→量子动作，否则经典。
     语义对齐 EnvBasedFCFSScheduler（src/scheduler/baselines.py）。
     """

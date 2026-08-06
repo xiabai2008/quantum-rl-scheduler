@@ -107,37 +107,40 @@ simulation_8strategy_50seed:
       n: 250
       improvement_vs_fcfs_pct: -95.1
     Quantum-Only:
-      mean_reward: -940.56
-      std_reward: 205.83
-      stderr: 13.02
+      mean_reward: -826.59
+      std_reward: 263.63
+      stderr: 16.67
       n: 250
-      improvement_vs_fcfs_pct: -189.4
+      improvement_vs_fcfs_pct: -150.1
     Classical-Only:
-      mean_reward: -1128.79
-      std_reward: 59.17
-      stderr: 3.74
+      mean_reward: -1075.49
+      std_reward: 75.04
+      stderr: 4.75
       n: 250
-      improvement_vs_fcfs_pct: -207.3
+      improvement_vs_fcfs_pct: -165.2
 
   # 核心对比: PPO vs FCFS (仿真，8.5 基线诚实化：真实 FCFS 量子路由)
+  # 符号约定：本块统一使用 FCFS-PPO 方向（负值），与 statistical_validation.md 权威口径一致。
+  #   mean_diff = FCFS_mean - PPO_mean = -333.78；Welch t（FCFS-PPO）= -7.02，p=7.56e-12。
+  #   对应 PPO 相对 FCFS 提升 +20.2%（见 strategy_summary.PPO.improvement_vs_fcfs_pct）。
   ppo_vs_fcfs:
     test_method: "Welch t"
-    statistic: -4.2334
+    statistic: -7.02
     p_value: 7.56e-12
     effect_size_type: "rank-biserial"
     effect_size: -0.3642
     mean_diff: -333.78
-    ci_95: [-439.7, -227.9]
-    note: "旧值 p=1.449e-66/Cohen d=-2.1353/mean_diff=-1297.32 对应 Hybrid-Default 弱基线，已废弃" 
+    ci_95: [-427.24, -240.31]
     n: 250
     significant: true
     applicable_condition: "PPO vs FCFS 仿真环境，8策略50seed实验，16维交付模型，N=250"
     note: >
-      v9.1+ 权威p值（16维交付模型 ppo_best_model_16dim.zip）。
-      数据通过正态性检验，使用 Welch t 检验（方差不齐）。
-      Cohen's d=-2.1353 为大效应量。
-      禁止与真机实验p值(p<0.001, 10seed v2)或其他实验条件的p值混用。
-      旧 14 维模型 p=1.032e-42 (Mann-Whitney U) 已废弃。
+      8.5 基线诚实化后权威值（真实 FCFS 量子路由基线，16 维交付模型 ppo_best_model_16dim.zip）。
+      PPO 1982.69 vs FCFS 1648.91，提升 +20.2%（95%CI [+14.3%, +26.7%]）。
+      Welch t（FCFS-PPO 方向）= -7.02，p=7.56e-12；Mann-Whitney U p=1.86e-12（经 Bonferroni 校正显著）。
+      效应量 rank-biserial=-0.3642（中效应，见 statistical_validation.md）。
+      旧值 t=-4.2334/CI[-439.7,-227.9]/Cohen's d=-2.1353 为 8.5 前弱基线（Hybrid-Default）口径，已废弃并删除。
+      禁止与真机实验 p 值(p<0.001, 10seed v2)或其他实验条件的 p 值混用。
 
   # 其他关键两两对比
   ppo_vs_dqn:
@@ -494,15 +497,15 @@ deprecated:
       来源不明，可能为早期实验结果。8策略50seed权威实验显示
       PPO vs FCFS使用Mann-Whitney U检验，p=1.032e-42。
       MODELS.md中已标注为历史参考值。
-    replacement: "simulation_8strategy_50seed.ppo_vs_fcfs.p_value (1.449e-66)"
+    replacement: "simulation_8strategy_50seed.ppo_vs_fcfs.p_value (7.56e-12, 真实FCFS基线)"
 
   p_1_032e_42_for_ppo_vs_fcfs_14dim:
     value: 1.032e-42
     status: "deprecated"
     reason: >
       14 维模型 ppo_best_model_14dim.zip（已删除）的 PPO vs FCFS p值。
-      v9.1+ 16 维交付模型 ppo_best_model_16dim.zip 重新评估后 p=1.449e-66。
-    replacement: "simulation_8strategy_50seed.ppo_vs_fcfs.p_value (1.449e-66, 16维)"
+      v9.1+ 16 维交付模型 ppo_best_model_16dim.zip 重新评估后 p=7.56e-12（真实 FCFS 基线）。
+    replacement: "simulation_8strategy_50seed.ppo_vs_fcfs.p_value (7.56e-12, 真实FCFS基线, 16维)"
 
   p_4_92e_55_for_ppo_vs_fcfs:
     value: 4.92e-55
@@ -510,7 +513,7 @@ deprecated:
     reason: >
       p=4.92e-55 实际是 Random vs PPO 的p值（14维模型, Welch t, Cohen's d=-1.73），
       曾被错误地用于PPO vs FCFS比较。已在文档中修正。
-    replacement: "simulation_8strategy_50seed.ppo_vs_fcfs.p_value (1.449e-66, 16维)"
+    replacement: "simulation_8strategy_50seed.ppo_vs_fcfs.p_value (7.56e-12, 真实FCFS基线, 16维)"
 
   p_0_031:
     value: 0.031
