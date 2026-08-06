@@ -397,8 +397,11 @@ def main():
     LOG_DIR.mkdir(parents=True, exist_ok=True)
 
     data = run_full_experiment(
-        seeds, train_only=args.train_only, eval_only=args.eval_only, timesteps=args.timesteps,
-        parallel=args.parallel
+        seeds,
+        train_only=args.train_only,
+        eval_only=args.eval_only,
+        timesteps=args.timesteps,
+        parallel=args.parallel,
     )
 
     json_path = RESULTS_DIR / "noise_feedback_v2_results.json"
