@@ -7,17 +7,23 @@ import re
 from scripts.ci.check_stats_consistency import (
     BLACKLIST_PATTERNS,
     _is_honest_disclosure,
+    _normalize_chinese_numerals,
 )
 
 
 def _run_blacklist_check_on_text(text: str) -> list[tuple[str, str]]:
-    """对文本逐行运行 BLACKLIST 检查，返回命中的 (pattern, message) 列表。"""
+    """对文本逐行运行 BLACKLIST 检查，返回命中的 (pattern, message) 列表。
+
+    8.7-v2：与 scan_markdown_file 一致，先对中文数字归一化，确保"百分之X"
+    中文表述的废弃值也能被检测到。
+    """
     violations: list[tuple[str, str]] = []
     for line in text.splitlines():
         if _is_honest_disclosure(line):
             continue
+        norm_line = _normalize_chinese_numerals(line)
         for pattern, message in BLACKLIST_PATTERNS:
-            if re.search(pattern, line, re.IGNORECASE):
+            if re.search(pattern, norm_line, re.IGNORECASE):
                 violations.append((pattern, message))
     return violations
 
@@ -135,3 +141,45 @@ class TestHonestDisclosureExemption:
         assert not any("383.00" in msg for _pat, msg in violations), (
             "含已废弃诚实披露时旧值353.22应豁免"
         )
+
+
+# ---------------------------------------------------------------------------
+# 中文数字归一化测试（8.7-v2 门禁加固）
+# 背景：演示脚本曾用中文数字（"百分之一百二十三点四"）表达废弃统计量，
+# 绕过了 ASCII 黑名单。归一化后应能被 BLACKLIST 捕获。
+# ---------------------------------------------------------------------------
+
+
+class TestChineseNumeralNormalization:
+    """中文数字归一化函数正确性"""
+
+    def test_normalizes_percentage(self) -> None:
+        assert "123.4%" in _normalize_chinese_numerals("百分之一百二十三点四")
+        assert "20.2%" in _normalize_chinese_numerals("百分之二十点二")
+        assert "84.6%" in _normalize_chinese_numerals("百分之八十四点六")
+
+    def test_normalizes_integer(self) -> None:
+        assert "2349" in _normalize_chinese_numerals("两千三百四十九")
+        assert "1983" in _normalize_chinese_numerals("一千九百八十三")
+
+    def test_normalizes_decimal(self) -> None:
+        assert "0.246" in _normalize_chinese_numerals("零点二四六")
+
+    def test_plain_ascii_unchanged(self) -> None:
+        assert _normalize_chinese_numerals("avg=1982.69 +20.2%") == "avg=1982.69 +20.2%"
+
+
+class TestChineseDeprecatedValueCaughtByBlacklist:
+    """中文废弃值经归一化后应触发 BLACKLIST"""
+
+    def test_chinese_123_percent_triggered(self) -> None:
+        """中文"百分之一百二十三点四"归一化后应触发 +123.4% 废弃黑名单。"""
+        text = "PPO 相对 FCFS 提升百分之一百二十三点四\n"
+        violations = _run_blacklist_check_on_text(text)
+        assert any("123.4" in msg for _pat, msg in violations), (
+            "中文废弃值+123.4%经归一化后应被BLACKLIST捕获"
+        )
+
+    def test_chinese_2349_not_blacklisted_by_rate_pattern(self) -> None:
+        """中文"两千三百四十九"正常归一化，且不误触发百分比黑名单。"""
+        assert "2349" in _normalize_chinese_numerals("奖励达到两千三百四十九")

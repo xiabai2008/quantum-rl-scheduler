@@ -59,6 +59,7 @@ INTERNAL_CONFLICTS: list[tuple[list[str], str]] = [
 # 用于检测"废弃值作为唯一权威呈现"的回归（同文件并存检测 A8 抓不到的场景）。
 _ORPHAN_DEPRECATED: list[tuple[str, str, str]] = [
     ("+7.9%", "-3.3%", "利用率 +7.9% 为错误旧数据，权威为 -3.3%（N=250 真实基线）"),
+    ("2349", "1982.69", "PPO 平均奖励 2349 为废弃弱基线值，权威为 1982.69（N=250）"),
 ]
 _DISCLOSURE_MARK = (
     "废弃",
@@ -218,6 +219,25 @@ BLACKLIST_PATTERNS: list[tuple[str, str]] = [
     (
         r"[\-\+]?940\.56|[\-\+]?1128\.79",
         "BLACKLIST: Quantum-Only=-940.56 / Classical-Only=-1128.79 为 8.5 前旧值，已废弃。当前权威值 -826.59 / -1075.49",
+    ),
+    # 8.7-v2 审查新增：演示视频脚本 demo_video_final_script.md 曾用中文数字
+    # （"百分之一百二十三点四"）表达以下废弃统计量，ASCII 黑名单匹配不到。
+    # 依赖上层中文数字归一化（_normalize_chinese_numerals）使其对中文表述同样生效。
+    (
+        r"123\.4%",
+        "BLACKLIST: PPO 提升 +123.4% 为 8.5 前弱基线旧值，已废弃；权威为 +20.2%（N=250 真实 FCFS 基线）",
+    ),
+    (
+        r"163\.3%",
+        "BLACKLIST: PPO vs 随机 +163.3% 为旧口径，已废弃；权威口径不再使用该百分比表述",
+    ),
+    (
+        r"36\.8%",
+        "BLACKLIST: 多机协同 +36.8% 为旧值，已废弃；权威协同优势为 +84.6%（MAPPO vs 独立PPO）",
+    ),
+    (
+        r"等待时间.*(增加|高出|增大)\s*51%",
+        "BLACKLIST: 等待时间 +51% 为旧口径，已废弃；权威为 -14.0%（PPO 等待时间更短，25.46 vs 29.61 步）",
     ),
 ]
 
@@ -492,6 +512,65 @@ def check_welch_t_misattribution(line: str) -> str | None:
     return None
 
 
+# ---------------------------------------------------------------------------
+# 中文数字归一化（8.7-v2 门禁加固）
+# 背景：演示脚本等交付文档曾用中文数字（如"百分之一百二十三点四"）表达
+# 已废弃统计量，ASCII 黑名单正则完全匹配不到，导致门禁形同虚设。
+# 这里把中文数字（含"百分之X"百分比、"X千X百X十X"整数、"零点X"小数）
+# 归一化为阿拉伯数字，使废弃值检测对中文表述同样生效。
+# ---------------------------------------------------------------------------
+_CN_DIGITS: dict[str, int] = {
+    "零": 0,
+    "一": 1,
+    "二": 2,
+    "两": 2,
+    "三": 3,
+    "四": 4,
+    "五": 5,
+    "六": 6,
+    "七": 7,
+    "八": 8,
+    "九": 9,
+}
+_CN_UNITS: dict[str, int] = {"十": 10, "百": 100, "千": 1000, "万": 10000}
+_CN_CHARSET = "零一二两三四五六七八九十百千万点"
+_PERCENT_CN_RE = re.compile(rf"百分之([{_CN_CHARSET}]+)")
+_DECIMAL_CN_RE = re.compile(r"零点([零一二三四五六七八九]+)")
+_INT_CN_RE = re.compile(rf"(?<![0-9])([{_CN_CHARSET}点]{{2,}})")
+
+
+def _cn_int_to_arabic(s: str) -> int:
+    """把中文整数（如"两千三百四十九"）转成阿拉伯整数。"""
+    section = 0
+    num = 0
+    for ch in s:
+        if ch in _CN_DIGITS:
+            num = _CN_DIGITS[ch]
+        elif ch in _CN_UNITS:
+            section += (num or 1) * _CN_UNITS[ch]
+            num = 0
+    return section + num
+
+
+def _cn_to_arabic(s: str) -> str:
+    """把中文数字串转成阿拉伯数字字符串，支持整数与一位小数点小数。"""
+    if "点" in s:
+        int_part, _, frac_part = s.partition("点")
+        arab_int = str(_cn_int_to_arabic(int_part or "零"))
+        frac_digits = "".join(str(_CN_DIGITS.get(c, 0)) for c in frac_part)
+        return f"{arab_int}.{frac_digits}"
+    return str(_cn_int_to_arabic(s))
+
+
+def _normalize_chinese_numerals(line: str) -> str:
+    """把一行文本中的中文数字归一化为阿拉伯数字（仅用于检测，不改原文）。"""
+    out = line
+    out = _PERCENT_CN_RE.sub(lambda m: f"{_cn_to_arabic(m.group(1))}%", out)
+    out = _DECIMAL_CN_RE.sub(lambda m: f"0.{''.join(str(_CN_DIGITS[c]) for c in m.group(1))}", out)
+    out = _INT_CN_RE.sub(lambda m: _cn_to_arabic(m.group(1)), out)
+    return out
+
+
 def scan_markdown_file(
     filepath: Path,
     authoritative_p: dict[str, str],
@@ -518,9 +597,11 @@ def scan_markdown_file(
         # 检查黑名单表述（Issue #446）—— 诚实披露上下文豁免
         # 8.6 复核：authoritative_numbers.md 自身的"禁止表述|正确替代"表即黑名单来源，
         # 该表按设计列出被禁止的表述，跳过对其黑名单检测（不当作正文违规）。
+        # 8.7-v2：对中文数字归一化后再匹配，堵住"百分之X"中文表述绕过检测的漏洞。
         if filepath.name != "authoritative_numbers.md" and not _is_honest_disclosure(line):
+            norm_line = _normalize_chinese_numerals(line)
             for pattern, message in BLACKLIST_PATTERNS:
-                if re.search(pattern, line, re.IGNORECASE):
+                if re.search(pattern, norm_line, re.IGNORECASE):
                     warnings.append(f"  L{line_num}: {message}")
                     warnings.append(f"    > {line.strip()[:120]}")
 
@@ -563,7 +644,7 @@ def scan_markdown_file(
     # 仅豁免带诚实披露标记（废弃/错误数据/历史/旧口径等）的行。
     for old_val, new_val, desc in _ORPHAN_DEPRECATED:
         for i, ln in enumerate(lines, 1):
-            if old_val in ln and not _is_honest_disclosure(ln):
+            if old_val in _normalize_chinese_numerals(ln) and not _is_honest_disclosure(ln):
                 warnings.append(f"  L{i}: 孤立废弃值 '{old_val}'（{desc}），权威应为 {new_val}")
                 warnings.append(f"    > {ln.strip()[:120]}")
 
