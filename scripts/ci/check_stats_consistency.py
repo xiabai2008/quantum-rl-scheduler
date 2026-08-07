@@ -147,6 +147,11 @@ AUTHORITATIVE_P_VALUES: dict[str, str] = {}
 # 已知废弃/错误p值 → 应替换为的权威值
 DEPRECATED_P_VALUES: dict[str, str] = {
     "4.92e-55": "MISATTRIBUTED: p=4.92e-55 是 Random vs PPO 的p值，不是 PPO vs FCFS。应使用 p=7.56e-12 (Welch t, 真实FCFS基线)",
+    # 8.7-v4 红队审查 P0-2/P1-3：MAPPO 协同优势 +84.6% 为未收敛+训练量不均等的旧探索值，
+    # 其 p=0.0188（multi_machine_comparison_report.md）只支撑该旧口径，不得再作为权威呈现。
+    # 权威 MAPPO 口径为同训练量收敛严格对比 +4.0%（mappo_strict_strict_comparison）。
+    "0.0188": "MAPPO 协同优势 p=0.0188 支撑的是已废弃的 +84.6%（5000步未收敛+训练量1:3不均等）；权威口径为同训练量收敛严格对比 +4.0%（mappo_strict_strict_comparison）",
+    "0.019": "MAPPO 协同优势 p=0.019 支撑的是已废弃的 +84.6%（5000步未收敛+训练量1:3不均等）；权威口径为同训练量收敛严格对比 +4.0%（mappo_strict_strict_comparison）",
 }
 
 # 检验方法混用检查
@@ -189,6 +194,18 @@ def _is_honest_disclosure(line: str) -> bool:
     """判断行内是否包含诚实披露限定词（豁免黑名单检测）。"""
     lower = line.lower()
     return any(kw in line or kw.lower() in lower for kw in HONEST_DISCLOSURE_KEYWORDS)
+
+
+def _is_stress_coverage_context(line: str) -> bool:
+    """8.7-v4 修复：判别 +91.4% 是否出现在"行覆盖率"语义下。
+
+    mutation_testing_report 等报告在陈述覆盖率历史时列出 87.38% / 87.5% /
+    91.4% / 93.78% 等数字，其中 91.4% 是覆盖率而非 stress 量子波动优势。
+    该语义需豁免 stress +91.4% 黑名单，避免误报。仅在行内同时含覆盖率相关
+    上下文词时豁免。
+    """
+    lower = line.lower()
+    return "覆盖率" in line or "行覆盖率" in line or "coverage" in lower
 
 
 BLACKLIST_PATTERNS: list[tuple[str, str]] = [
@@ -245,16 +262,16 @@ BLACKLIST_PATTERNS: list[tuple[str, str]] = [
     # （"百分之一百二十三点四"）表达以下废弃统计量，ASCII 黑名单匹配不到。
     # 依赖上层中文数字归一化（_normalize_chinese_numerals）使其对中文表述同样生效。
     (
-        r"123\.4%",
+        r"(?<!\d)123\.4%(?!%)",
         "BLACKLIST: PPO 提升 +123.4% 为 8.5 前弱基线旧值，已废弃；权威为 +20.2%（N=250 真实 FCFS 基线）",
     ),
     (
-        r"163\.3%",
+        r"(?<!\d)163\.3%(?!%)",
         "BLACKLIST: PPO vs 随机 +163.3% 为旧口径，已废弃；权威口径不再使用该百分比表述",
     ),
     (
-        r"36\.8%",
-        "BLACKLIST: 多机协同 +36.8% 为旧值，已废弃；权威协同优势为 +84.6%（MAPPO vs 独立PPO）",
+        r"(?<!\d)36\.8%(?!%)",
+        "BLACKLIST: 多机协同 +36.8% 为旧值，已废弃；权威协同优势为 +4.0%（MAPPO vs 独立PPO，50K收敛严格对比）",
     ),
     (
         r"等待时间.*(增加|高出|增大)\s*51%",
@@ -268,7 +285,22 @@ BLACKLIST_PATTERNS: list[tuple[str, str]] = [
     # 因此仅匹配"直接当权威成果呈现"的短语。
     (
         r"奖励提升\s*86\.3%",
-        "BLACKLIST: MAPPO 协同优势权威为 +84.6%（MARL vs 独立PPO，p=0.0188）；+86.3% 仅指叠加规模扩展后的总提升 vs 单机，须拆解呈现，不得直接称'奖励提升86.3%'",
+        "BLACKLIST: MAPPO 协同优势权威为 +4.0%（MARL vs 独立PPO，50K收敛严格对比）；+86.3% 仅指叠加规模扩展后的总提升 vs 单机，须拆解呈现，不得直接称'奖励提升86.3%'",
+    ),
+    # 8.7-v4 红队审查 P0-2/P0-3/P1-4：MAPPO 协同优势 +84.6%、退火 +6.4%、
+    # stress 量子波动 +91.4% 均为"已废弃/未收敛/诚实化前"旧口径，转为权威值时
+    # 一律以诚实披露限定词豁免；作为唯一权威成果呈现即告警。
+    (
+        r"(?<!\d)84\.6%(?!%)",
+        "BLACKLIST: MAPPO 协同优势 +84.6% 为未收敛(5000步)+训练量不均等(独立PPO仅1/3)的旧探索值；权威为 +4.0%（同训练量收敛严格对比，50K）",
+    ),
+    (
+        r"(?<!\d)6\.4%(?!%)",
+        "BLACKLIST: 退火 +6.4% 为 5seed 旧方向，20seed 权威方向为 -5.6%（p=0.9430 不显著）；不得在展示时当作正向成果，须以'已废弃/探索性'限定",
+    ),
+    (
+        r"(?<!\d)91\.4%(?!%)",
+        "BLACKLIST: stress 量子波动 +91.4% 为诚实化前旧 FCFS 基线结果，权威 stress 数据待重跑核定；不得作为当前成果呈现",
     ),
     (
         r"p\s*<\s*10⁻⁶⁶|p<10⁻⁶⁶",
@@ -331,6 +363,15 @@ def check_authoritative_coverage(stats: dict[str, Any]) -> list[str]:
             "8 策略 50seed 仿真（真实FCFS基线，p=7.56e-12）",
         ),
     ]
+    # 8.7-v4 红队审查 P0-2：MAPPO 权威口径必须收录（mappo_vs_independent_ppo.improvement_pct = 4.0）
+    # 确保"协同优势 +4.0%"在权威源中显式存在，防止 +84.6% 回归为对外口径。
+    mappo_block = stats.get("mappo_strict_strict_comparison", {})
+    mappo_gain = mappo_block.get("mappo_vs_independent_ppo", {}).get("improvement_pct")
+    if mappo_gain != 4.0:
+        warnings.append(
+            "权威源 MAPPO 口径异常: mappo_strict_strict_comparison.mappo_vs_independent_ppo"
+            f".improvement_pct 应为 4.0（同训练量收敛严格对比），实际为 {mappo_gain}"
+        )
     for exp_key, comp_key, expected_p, desc in required_experiments:
         exp = stats.get(exp_key)
         if not exp:
@@ -626,10 +667,197 @@ def _normalize_chinese_numerals(line: str) -> str:
     return out
 
 
+# ---------------------------------------------------------------------------
+# 8.7-v4 红队审查 P0-1：数字门禁三重漏洞修复
+#
+# 漏洞 1（p值格式归一化）：format_p_value 对 float 输出 .3e（7.560e-12），
+#   而文档写作 7.56e-12，字符串比对恒不相等，导致"权威值拼写错误"（如 7.56e-62
+#   误写）与"孤儿 p 值"（无出处）全部漏检。这里统一把 p 值解析为 float 做数值比对。
+#
+# 漏洞 2（Markdown 剥离）：黑名单正则直接匹配原始 markdown，若数字被 **加粗**、
+#   `行内代码`、[链接](url) 包裹，正则可能匹配不到。这里先剥离 markdown 排版再匹配。
+#
+# 漏洞 3（权威值拼写检查 + 孤儿 p 值检测）：对每个提取到的 p 值做两类启发式：
+#   (a) 与已知权威/废弃 p 值"保留同 3 位有效数字但指数不同"→ 判定为权威值拼写笔误
+#       （如 7.560e-12 被写成 7.56e-62，红队实测 multiscenario_benchmark.md 曾出现）；
+#   (b) 与已知权威/废弃 p 值均不匹配且非诚实披露上下文 → 孤儿子 p 值告警（无出处）。
+# ---------------------------------------------------------------------------
+_MD_STRIP_RULES: list[tuple[re.Pattern[str], str]] = [
+    (re.compile(r"`[^`]*`"), " "),  # 行内代码
+    (re.compile(r"\*\*[^*\n]+\*\*"), ""),  # 加粗
+    (re.compile(r"\*[^*\n]+\*"), ""),  # 斜体（不成对的 * 视为乘法，不剥离）
+    (re.compile(r"__[^_\n]+__"), ""),  # 加粗（alt）
+    (re.compile(r"\[([^\]\n]*)\]\([^)\n]*\)"), r"\1"),  # 链接保留文本
+]
+
+
+def _strip_markdown(line: str) -> str:
+    """剥离行内 markdown 排版（加粗/斜体/行内代码/链接），仅用于口径检测。"""
+    out = line
+    for pat, repl in _MD_STRIP_RULES:
+        out = pat.sub(repl, out)
+    return out
+
+
+def _parse_p_float(text: str) -> float | None:
+    """把各种记法（7.56e-12 / 7.560×10⁻¹² / p<10⁻⁴² / 0.001）解析为 float。
+
+    解析失败返回 None（不参与数值比对，避免误报）。
+    """
+    t = text.replace(" ", "")
+    t = t.translate(str.maketrans("⁰¹²³⁴⁵⁶⁷⁸⁹⁻⁺−", "0123456789-+-"))
+    # 1.032×10⁻⁴² → e-42
+    t = re.sub(r"[×x]10\^?", "e", t)
+    # p<10⁻⁴² 形式 → <e-42（数值部分取 e-42）
+    t = re.sub(r"10\^?([+-]?\d+)", lambda m: f"e{m.group(1)}", t)
+    try:
+        return float(t)
+    except ValueError:
+        return None
+
+
+def _sig_parts(value: float) -> tuple[str, int]:
+    """取 3 位有效数字与指数，用于权威值拼写笔误检测。"""
+    s = f"{value:.2e}"
+    mant, _, exp = s.partition("e")
+    return mant, int(exp)
+
+
+def _build_known_p_register(
+    authoritative_p: dict[str, str],
+    deprecated_p: dict[str, str],
+    stats: dict[str, Any] | None = None,
+) -> list[tuple[float, str]]:
+    """把权威 + 废弃 p 值解析为数值注册表 [(value, 描述), ...]。
+
+    若提供 stats（完整 statistics.yaml），还会递归收集所有 p_value 字段，
+    避免把"已收录但不在 build_authoritative_p_values 窄口径内"的合法 p 值
+    误判为孤儿值（如噪声 p=2.98e-08、真机 canonical p=8.882e-16 等）。
+    """
+    register: list[tuple[float, str]] = []
+    for p_str, ctx in authoritative_p.items():
+        v = _parse_p_float(p_str)
+        if v is not None:
+            register.append((v, f"权威: {ctx}"))
+    for p_str, ctx in deprecated_p.items():
+        v = _parse_p_float(p_str)
+        if v is not None:
+            register.append((v, f"废弃: {ctx}"))
+    if stats is not None:
+        # 递归收集所有 p_value / *_p_value 字段
+        collected: dict[float, str] = {}
+
+        def _walk(node: Any, path: str) -> None:
+            if isinstance(node, dict):
+                for k, v in node.items():
+                    child = f"{path}.{k}" if path else str(k)
+                    if re.search(r"p_value$", str(k)) and isinstance(v, (int, float, str)):
+                        pv = _parse_p_float(str(v))
+                        if pv is not None:
+                            collected.setdefault(pv, child)
+                    else:
+                        _walk(v, child)
+            elif isinstance(node, list):
+                for i, v in enumerate(node):
+                    _walk(v, f"{path}[{i}]")
+
+        _walk(stats, "")
+        for pv, where in collected.items():
+            register.append((pv, f"权威(收录于 {where})"))
+    return register
+
+
+def _check_p_value_origin(
+    raw: str, normalized: str, register: list[tuple[float, str]], line: str
+) -> list[str]:
+    """对单个 p 值做"权威值拼写检查 + 孤儿 p 值检测"。
+
+    精度约束（8.7-v4 审查修正，避免误报）：
+      - 阈值表达式（p<0.05 / p>0.05 / p<0.001）不是具体 p 值，一律跳过；
+      - 超出 [0,1] 的"p 值"（如 P=20.18 SWAP 数、p=50 样本量）不是概率，一律跳过；
+      - 仅对"具体、合法的 p 值"做权威拼写检查与孤儿检测。
+
+    Returns:
+        告警列表（为空表示该 p 值登记在权威/废弃集合内、属合法辅助实验值，
+        或无法解析 / 非具体 p 值）。
+    """
+    # 阈值表达式跳过（p<0.05 / p>0.05 / p<0.001 是显著性阈值，不是具体 p 值）
+    if "<" in raw or ">" in raw:
+        return []
+    val = _parse_p_float(normalized)
+    if val is None:
+        return []
+    # 非法概率（>1：如 P=20.18 SWAP 数、p=50 样本量；<0 异常）跳过
+    if not (0.0 < val <= 1.0):
+        return []
+    # 精确匹配已知权威/废弃 p 值 → 合规
+    for known_val, _ctx in register:
+        if math.isclose(val, known_val, rel_tol=1e-6, abs_tol=1e-15):
+            return []
+    # 属于已登记的合法辅助实验 p 值（编译层/噪声/真机等，详见 _KNOWN_LEGIT_P_VALUES）→ 合规
+    for known_val in _KNOWN_LEGIT_P_VALUES:
+        if math.isclose(val, known_val, rel_tol=1e-6, abs_tol=1e-15):
+            return []
+    # 权威值拼写笔误检测：同 3 位有效数字但指数不同（如 7.560e-12 → 7.56e-62）
+    unknown_mant, unknown_exp = _sig_parts(val)
+    for known_val, ctx in register:
+        known_mant, known_exp = _sig_parts(known_val)
+        if unknown_mant == known_mant and unknown_exp != known_exp:
+            return [
+                f"  {raw}: 疑似权威 {ctx} 的拼写笔误（有效数字 {unknown_mant} 与权威一致，"
+                f"指数 {unknown_exp} ≠ {known_exp}）"
+            ]
+    # 孤儿 p 值：既非权威也非废弃、非合法辅助值、非诚实披露上下文 → 无出处告警
+    if not _is_honest_disclosure(line):
+        return [f"  {raw}: 孤儿 p 值，未在 statistics.yaml 权威/废弃集合中登记（无出处，请核验）"]
+    return []
+
+
+# 8.7-v4 审查：接受 3 位有效数字匹配的 p 值（如 7.56e-12 与 7.560e-12）
+# 用于 _check_p_value_origin 的数值比对（保留此处常量便于后续调整）
+_P_REL_TOL = 1e-6
+
+# 8.7-v4 审查：已登记的合法辅助实验 p 值（编译层/噪声/真机/退火等专项实验的
+# 独立 p 值，虽不在 build_authoritative_p_values 的窄权威口径内，但均有出处报告，
+# 不属于"孤儿 p 值"。孤儿检测对它们豁免，避免误报。）
+_KNOWN_LEGIT_P_VALUES: tuple[float, ...] = (
+    1.0,  # 8.7-v4 修复：p=1 为 DQN vs Random 完全相等的退化比较（统计量=0.0000），
+    # 合法"无差异"结果而非权威小 p 值的拼写笔误；登记避免被同位有效数字误判
+    0.0220,  # 退火配对检验
+    0.0294,  # 退火 45k checkpoint
+    0.031,  # SJF vs FCFS 真机检验
+    0.19,  # 退火 5seed 旧实验
+    # 8.7-v4 修复：登记以下合法辅助实验 p 值（均有出处报告，非孤儿），
+    # 避免 noise_feedback / SOTA / 真机噪声方向性 / Mann-Whitney 复核被误报为无出处。
+    0.222,  # 真机噪声分布训练注入方向性（PPO-noise vs standard，N=5，defense_qa_handbook）
+    0.2235,  # SOTA 16维 PPO vs 观测感知 FCFS（N=50，sota_comparison）
+    0.25,  # 量子噪声影响
+    0.2827,  # SJF vs FCFS 仿真（权威报告收录）
+    0.344,  # 真机 vs 仿真对比
+    0.3942,  # 退火独立检验
+    0.020,  # 噪声派单率（generate_defense_ppt 用 0.020，与 0.0203 同源）
+    0.0203,  # 噪声派单率（noise_feedback_v2 报告）
+    0.5837,  # 噪声奖励影响 Mann-Whitney（noise_feedback_v2 报告）
+    0.584,  # 噪声奖励影响（noise_feedback_v2）
+    0.599,  # 编译中+深电路子集
+    0.628,  # 噪声稳定性
+    0.84,  # 编译全电路
+    1.86e-12,  # PPO vs FCFS Mann-Whitney U（N=250，statistics.yaml 权威收录）
+    2.49e-03,  # 编译深电路
+    2.75e-02,  # 编译深电路子集
+    8.52e-03,  # 编译深电路 seed=7 交叉验证（technical_whitepaper §11.2）
+    2.621e-10,  # DQN vs SJF
+    8.44e-08,  # PPO 编译优化 Agent
+)
+# 注：1.86e-12（PPO vs FCFS Mann-Whitney U）与 2.98e-08（噪声配对）等已在
+# statistics.yaml p_value 字段收录，经 _build_known_p_register 递归收集，无需在此重复。
+
+
 def scan_markdown_file(
     filepath: Path,
     authoritative_p: dict[str, str],
     deprecated_p: dict[str, str],
+    stats: dict[str, Any] | None = None,
 ) -> list[str]:
     """扫描单个Markdown文件，返回告警列表。"""
     warnings = []
@@ -641,8 +869,14 @@ def scan_markdown_file(
         return warnings
 
     text = "".join(lines)
+    # 8.7-v4 审查：构建权威/废弃 p 值数值注册表（用于孤儿 p 值与拼写笔误检测）
+    p_register = _build_known_p_register(authoritative_p, deprecated_p, stats)
 
     for line_num, line in enumerate(lines, 1):
+        # 8.7-v4 审查：先剥离 markdown 排版再用于黑名单/数字检测，
+        # 堵住被 **加粗**、`行内代码`、[链接](url) 包裹的废弃数字绕过正则的漏洞。
+        strip_line = _strip_markdown(line)
+
         # 检查 Welch t 错误搭配
         welch_err = check_welch_t_misattribution(line)
         if welch_err:
@@ -653,10 +887,16 @@ def scan_markdown_file(
         # 8.6 复核：authoritative_numbers.md 自身的"禁止表述|正确替代"表即黑名单来源，
         # 该表按设计列出被禁止的表述，跳过对其黑名单检测（不当作正文违规）。
         # 8.7-v2：对中文数字归一化后再匹配，堵住"百分之X"中文表述绕过检测的漏洞。
-        if filepath.name != "authoritative_numbers.md" and not _is_honest_disclosure(line):
-            norm_line = _normalize_chinese_numerals(line)
+        if filepath.name != "authoritative_numbers.md" and not _is_honest_disclosure(strip_line):
+            norm_line = _normalize_chinese_numerals(strip_line)
             for pattern, message in BLACKLIST_PATTERNS:
                 if re.search(pattern, norm_line, re.IGNORECASE):
+                    # 8.7-v4 修复：stress +91.4% 黑名单在"行覆盖率"语义下豁免，
+                    # 避免 mutation_testing 等覆盖率历史陈述被误报为应力优势。
+                    if message.startswith(
+                        "BLACKLIST: stress 量子波动"
+                    ) and _is_stress_coverage_context(strip_line):
+                        continue
                     warnings.append(f"  L{line_num}: {message}")
                     warnings.append(f"    > {line.strip()[:120]}")
 
@@ -666,18 +906,28 @@ def scan_markdown_file(
             # 检查是否为废弃p值（废弃声明上下文中提及旧p值属合规引用，豁免）
             if _is_deprecation_notice(line):
                 break
+            # 是否命中已登记废弃值（含"Random vs PPO 合法上下文"的情况）
+            matched_deprecated = False
             for dep_val, dep_msg in deprecated_p.items():
                 if normalized == dep_val or normalized.startswith(dep_val[:8]):
+                    matched_deprecated = True
                     # 检查上下文：如果是在正确的实验上下文中使用则跳过
                     # 例如 p=4.92e-55 在 "Random vs PPO" 上下文中是正确的
                     line_lower = line.lower()
                     is_4_92e55 = "4.92e-55" in normalized or "4.92e-55" in dep_val
                     if is_4_92e55 and "random" in line_lower and "ppo" in line_lower:
-                        continue  # 在Random vs PPO上下文中使用是正确的
+                        break  # 合法上下文，退出内层循环（matched_deprecated 已置真）
                     warnings.append(f"  L{line_num}: 废弃/错误p值 p={normalized}")
                     warnings.append(f"    {dep_msg}")
                     warnings.append(f"    > {line.strip()[:120]}")
                     break
+            if not matched_deprecated and not _is_deprecation_notice(line):
+                # 8.7-v4 审查：废弃值未命中后，再做"权威值拼写笔误 + 孤儿 p 值"检测。
+                # 注意：仅在非废弃声明上下文执行（避免对已诚实披露的旧 p 值误报）。
+                origin_warnings = _check_p_value_origin(_raw, normalized, p_register, strip_line)
+                for ow in origin_warnings:
+                    warnings.append(f"  L{line_num}: {ow}")
+                    warnings.append(f"    > {line.strip()[:120]}")
 
     # 8.5 审查：权威数值内部冲突（A8）
     for vals, conflict_msg in INTERNAL_CONFLICTS:
@@ -710,6 +960,7 @@ def scan_pdf_file(
     filepath: Path,
     authoritative_p: dict[str, str],
     deprecated_p: dict[str, str],
+    stats: dict[str, Any] | None = None,
 ) -> list[str]:
     """扫描单个 PDF 文件中的废弃统计口径。
 
@@ -755,7 +1006,8 @@ def scan_pdf_file(
 
     for line_num, line in enumerate(lines, 1):
         if not _disclosed(line_num):
-            norm_line = _normalize_chinese_numerals(line)
+            strip_line = _strip_markdown(line)
+            norm_line = _normalize_chinese_numerals(strip_line)
             for pattern, message in BLACKLIST_PATTERNS:
                 if re.search(pattern, norm_line, re.IGNORECASE):
                     warnings.append(f"  L{line_num}: {message}")
@@ -898,7 +1150,7 @@ def main() -> int:
 
     for filepath in md_files:
         rel_path = str(filepath.relative_to(_PROJECT_ROOT)).replace("\\", "/")
-        warnings = scan_markdown_file(filepath, authoritative_p, deprecated_p)
+        warnings = scan_markdown_file(filepath, authoritative_p, deprecated_p, stats)
         if warnings:
             files_with_warnings += 1
             total_warnings += len(warnings) // 3  # 每个告警约3行
@@ -918,7 +1170,7 @@ def main() -> int:
         pdf_path = _PROJECT_ROOT / rel
         if not pdf_path.exists():
             continue
-        pdf_warnings = scan_pdf_file(pdf_path, authoritative_p, deprecated_p)
+        pdf_warnings = scan_pdf_file(pdf_path, authoritative_p, deprecated_p, stats)
         if pdf_warnings:
             files_with_warnings += 1
             total_warnings += len(pdf_warnings) // 3

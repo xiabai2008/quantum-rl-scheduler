@@ -1238,6 +1238,57 @@ class TestTianyanClientCircuitBreaker(unittest.TestCase):
             cb.before_request()  # 不应抛异常（过期自动重新占位）
         self.assertTrue(cb._half_open_trial_in_progress)
 
+    def test_get_task_status_programming_error_does_not_trigger_breaker(self):
+        """Issue #868 修复（8.7-v4 红队审查 P0）: get_task_status 编程错误不计入熔断器。
+
+        get_task_status/get_task_result 存在与 submit_quantum_task 相同的
+        编程错误泄漏路径（8.7-v4 审查新发现）：编程错误（ValueError/TypeError 等）
+        反映调用方 bug 而非服务故障，计入失败计数会误触发熔断。
+        """
+        for method_name in ("get_task_status", "get_task_result"):
+            with self.subTest(method=method_name):
+                client = self.client
+                side = getattr(client._cqlib, method_name)
+                side.side_effect = ValueError("invalid task_id")
+                for _ in range(10):
+                    with self.assertRaises(ValueError):
+                        getattr(client, method_name)("tid")
+                # 熔断器应保持 CLOSED，失败计数为 0
+                self.assertEqual(client.get_circuit_state(), "closed")
+                self.assertEqual(client._circuit_breaker.failure_count, 0)
+
+    def test_get_task_status_service_error_does_trigger_breaker(self):
+        """Issue #868 修复（8.7-v4 红队审查 P0）: get_task_status 服务错误计入熔断器。"""
+        for method_name in ("get_task_status", "get_task_result"):
+            with self.subTest(method=method_name):
+                client = self.client
+                # 每个子测试独立重置熔断器，避免前一方法已 OPEN 导致后续断言失效
+                client._circuit_breaker.reset()
+                side = getattr(client._cqlib, method_name)
+                side.side_effect = RuntimeError("cqlib 网络异常")
+                for _ in range(5):
+                    with self.assertRaises(RuntimeError):
+                        getattr(client, method_name)("tid")
+                self.assertEqual(client.get_circuit_state(), "open")
+
+    def test_get_programming_error_releases_half_open_trial_slot(self):
+        """Issue #868 修复（8.7-v4 红队审查 P0）: get 方法编程错误释放 HALF_OPEN 试探名额。"""
+        for method_name in ("get_task_status", "get_task_result"):
+            with self.subTest(method=method_name):
+                client = self.client
+                cb = client._circuit_breaker
+                cb.state = CircuitState.HALF_OPEN
+                cb._half_open_trial_in_progress = False
+                side = getattr(client._cqlib, method_name)
+                side.side_effect = TypeError("bad arg")
+                with self.assertRaises(TypeError):
+                    getattr(client, method_name)("tid")
+                # before_request 已占位，编程错误分支应调用 release_trial 释放
+                self.assertFalse(cb._half_open_trial_in_progress)
+                # 且状态/计数未变（编程错误不计熔断）
+                self.assertEqual(cb.state, CircuitState.HALF_OPEN)
+                self.assertEqual(cb.failure_count, 0)
+
     def test_release_trial_only_clears_flag(self):
         """release_trial 仅清标志，不改状态/计数/时间。"""
         cb = CircuitBreaker(failure_threshold=3, recovery_timeout=60.0)

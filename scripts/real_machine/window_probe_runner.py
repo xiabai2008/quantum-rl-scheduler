@@ -102,8 +102,26 @@ def main():
             print(f"探测结果: {completed}/{total} completed (成功率 {rate:.0%})", flush=True)
             if rate >= 0.67 and completed >= 2:
                 print("✅ 高成功率窗口命中！开始实验...", flush=True)
-                seeds = args.seeds or [42, 123, 456, 789, 1024, 2026, 314, 271, 828, 5566,
-                                       7788, 1234, 2345, 3456, 4567, 5678, 6789, 7890]
+                seeds = args.seeds or [
+                    42,
+                    123,
+                    456,
+                    789,
+                    1024,
+                    2026,
+                    314,
+                    271,
+                    828,
+                    5566,
+                    7788,
+                    1234,
+                    2345,
+                    3456,
+                    4567,
+                    5678,
+                    6789,
+                    7890,
+                ]
                 cmd = [
                     sys.executable,
                     str(_PROJECT_ROOT / "scripts/real_machine/run_prereg_three_conditions.py"),

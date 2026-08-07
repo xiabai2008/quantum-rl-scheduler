@@ -897,14 +897,14 @@ class TestNumpySimulatedAnnealingFormal(unittest.TestCase):
 
     def test_formal_finds_global_optimum_small_qubo(self):
         """formal: numpy 退火应命中暴力搜索的全局最优（C1 回归）。"""
-        import random
-
         rng = np.random.default_rng(0)
         Q = rng.standard_normal((6, 6))
         Q = Q + Q.T
-        opt = QuantumAnnealingOptimizer()
-        random.seed(1234)
-        np.random.seed(1234)
+        # 8.7-v4 修复：固定 SA 内部 RNG（random_state），替代无效的全局 seed 调用。
+        # 原实现 random.seed/np.random.seed 只设置全局随机源，而 numpy_simulated_annealing
+        # 内部使用 default_rng(None)/random.Random(None) 独立实例，不受全局 seed 控制，
+        # 导致每次运行 RNG 不同、能否命中全局最优纯靠运气（CI Python 3.10 flaky 失败）。
+        opt = QuantumAnnealingOptimizer(random_state=1234)
         opt._sim_initial_temp = 1.0
         opt._sim_cooling_rate = 0.995
         opt._sim_num_sweeps = 3000

@@ -870,6 +870,16 @@ class TianyanClient:
                     )
                 logger.debug(f"get_task_status 限流触发，不计入熔断器: {e}")
                 raise e
+            # Issue #868 修复（8.7-v4 红队审查 P0）：编程错误（参数/状态校验类）
+            # 不计入熔断器失败计数，并释放 HALF_OPEN 试探名额（before_request 已占位）。
+            # 它们反映的是调用方 bug 而非服务故障，计入会误触发熔断。
+            if isinstance(
+                e, (ValueError, TypeError, KeyError, AttributeError, NotImplementedError)
+            ):
+                logger.debug(f"get_task_status 编程错误，不计入熔断器: {type(e).__name__}: {e}")
+                if self._circuit_breaker:
+                    self._circuit_breaker.release_trial()
+                raise
             # 其他异常计入熔断器失败计数，原异常重新抛出由上层处理
             logger.debug(f"get_task_status 失败，已触发熔断器失败计数: {type(e).__name__}: {e}")
             if self._circuit_breaker:
@@ -920,6 +930,15 @@ class TianyanClient:
             )
         except Exception as e:
             if self._is_rate_limited(e):
+                raise
+            # Issue #868 修复（8.7-v4 红队审查 P0）：编程错误（参数/状态校验类）
+            # 不计入熔断器失败计数，并释放 HALF_OPEN 试探名额（before_request 已占位）。
+            if isinstance(
+                e, (ValueError, TypeError, KeyError, AttributeError, NotImplementedError)
+            ):
+                logger.debug(f"get_task_result 编程错误，不计入熔断器: {type(e).__name__}: {e}")
+                if self._circuit_breaker:
+                    self._circuit_breaker.release_trial()
                 raise
             if self._circuit_breaker:
                 self._circuit_breaker.on_failure()
