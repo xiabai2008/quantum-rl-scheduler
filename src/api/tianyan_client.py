@@ -876,9 +876,7 @@ class TianyanClient:
             if isinstance(
                 e, (ValueError, TypeError, KeyError, AttributeError, NotImplementedError)
             ):
-                logger.debug(
-                    f"get_task_status 编程错误，不计入熔断器: {type(e).__name__}: {e}"
-                )
+                logger.debug(f"get_task_status 编程错误，不计入熔断器: {type(e).__name__}: {e}")
                 if self._circuit_breaker:
                     self._circuit_breaker.release_trial()
                 raise
@@ -938,9 +936,7 @@ class TianyanClient:
             if isinstance(
                 e, (ValueError, TypeError, KeyError, AttributeError, NotImplementedError)
             ):
-                logger.debug(
-                    f"get_task_result 编程错误，不计入熔断器: {type(e).__name__}: {e}"
-                )
+                logger.debug(f"get_task_result 编程错误，不计入熔断器: {type(e).__name__}: {e}")
                 if self._circuit_breaker:
                     self._circuit_breaker.release_trial()
                 raise

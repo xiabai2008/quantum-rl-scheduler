@@ -739,9 +739,7 @@ def _build_known_p_register(
             if isinstance(node, dict):
                 for k, v in node.items():
                     child = f"{path}.{k}" if path else str(k)
-                    if re.search(r"p_value$", str(k)) and isinstance(
-                        v, (int, float, str)
-                    ):
+                    if re.search(r"p_value$", str(k)) and isinstance(v, (int, float, str)):
                         pv = _parse_p_float(str(v))
                         if pv is not None:
                             collected.setdefault(pv, child)
@@ -894,16 +892,13 @@ def scan_markdown_file(
                     warnings.append(f"    {dep_msg}")
                     warnings.append(f"    > {line.strip()[:120]}")
                     break
-            if not matched_deprecated:
+            if not matched_deprecated and not _is_deprecation_notice(line):
                 # 8.7-v4 审查：废弃值未命中后，再做"权威值拼写笔误 + 孤儿 p 值"检测。
                 # 注意：仅在非废弃声明上下文执行（避免对已诚实披露的旧 p 值误报）。
-                if not _is_deprecation_notice(line):
-                    origin_warnings = _check_p_value_origin(
-                        _raw, normalized, p_register, strip_line
-                    )
-                    for ow in origin_warnings:
-                        warnings.append(f"  L{line_num}: {ow}")
-                        warnings.append(f"    > {line.strip()[:120]}")
+                origin_warnings = _check_p_value_origin(_raw, normalized, p_register, strip_line)
+                for ow in origin_warnings:
+                    warnings.append(f"  L{line_num}: {ow}")
+                    warnings.append(f"    > {line.strip()[:120]}")
 
     # 8.5 审查：权威数值内部冲突（A8）
     for vals, conflict_msg in INTERNAL_CONFLICTS:
