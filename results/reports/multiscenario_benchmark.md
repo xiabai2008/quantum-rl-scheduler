@@ -6,7 +6,7 @@
 >
 > 权威主实验口径以 `config/statistics.yaml` 为准：**16 维交付模型**，PPO vs 真实 FCFS **+20.2%**（N=250, Welch t
 > p=7.560e-12, 8.5 基线诚实化；旧 **+123.4%** 为 vs Hybrid-Default 弱基线，已废弃）。多场景压力测试的**摘要级数字**
-> （量子波动 +91.4%、FCFS 1566.39、PPO 平均排名 1.8）与 `results/reports/stress_test_report.md` 及白皮书 §4.5 一致，
+> （量子波动 +91.4%、FCFS 1566.39、PPO 平均排名 1.8，均为历史探索数据，诚实化前旧基线）与 `results/reports/stress_test_report.md` 及白皮书 §4.5 一致，
 > 供场景适配决策参考；如需作为硬性性能声明，应在诚实化 FCFS 基线下重跑并入库原始数据。
 
 > **关联白皮书**: [technical_whitepaper.md](../technical_whitepaper.md) §4.5 场景-算法适配分析
@@ -48,7 +48,7 @@
 ## 二、各场景摘要结果（与 stress_test_report.md / 白皮书 §4.5 一致）
 
 > 以下为压力测试摘要级结果。**注意**：balanced 场景 PPO vs 真实 FCFS 的权威综合提升为 **+20.2%**（N=250,
-> p=7.560e-12，见 statistics.yaml）；量子波动场景优势表述以「比第二名 FCFS 高 91.4%」为准。
+> p=7.560e-12，见 statistics.yaml）；量子波动场景优势表述以「比第二名 FCFS 高 91.4%」为准（历史探索数据，诚实化前旧 FCFS 基线，权威 stress 数据待重跑核定）。
 
 ### 2.1 均衡负载（balanced / baseline）
 
@@ -138,7 +138,7 @@
 ├─ 系统状态是否稳定可用？
 │   │
 │   ├─ 量子资源波动（校准/维护/保真度下降）
-│   │   └─ ✅ 推荐 PPO（比FCFS高91.4%，优势最大场景）
+│   │   └─ ✅ 推荐 PPO（比FCFS高91.4%，历史探索数据，诚实化前旧 FCFS 基线，权威 stress 数据待重跑核定；优势最大场景）
 │   │
 │   └─ 资源状态稳定 → 进入负载模式判断
 │       │

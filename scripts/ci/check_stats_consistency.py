@@ -196,6 +196,20 @@ def _is_honest_disclosure(line: str) -> bool:
     return any(kw in line or kw.lower() in lower for kw in HONEST_DISCLOSURE_KEYWORDS)
 
 
+def _is_stress_coverage_context(line: str) -> bool:
+    """8.7-v4 修复：判别 +91.4% 是否出现在"行覆盖率"语义下。
+
+    mutation_testing_report 等报告在陈述覆盖率历史时列出 87.38% / 87.5% /
+    91.4% / 93.78% 等数字，其中 91.4% 是覆盖率而非 stress 量子波动优势。
+    该语义需豁免 stress +91.4% 黑名单，避免误报。仅在行内同时含覆盖率相关
+    上下文词时豁免。
+    """
+    lower = line.lower()
+    if "覆盖率" in line or "行覆盖率" in line or "coverage" in lower:
+        return True
+    return False
+
+
 BLACKLIST_PATTERNS: list[tuple[str, str]] = [
     (
         r"284\s*次(SDK)?(真机)?调用",
@@ -250,15 +264,15 @@ BLACKLIST_PATTERNS: list[tuple[str, str]] = [
     # （"百分之一百二十三点四"）表达以下废弃统计量，ASCII 黑名单匹配不到。
     # 依赖上层中文数字归一化（_normalize_chinese_numerals）使其对中文表述同样生效。
     (
-        r"123\.4%",
+        r"(?<!\d)123\.4%(?!%)",
         "BLACKLIST: PPO 提升 +123.4% 为 8.5 前弱基线旧值，已废弃；权威为 +20.2%（N=250 真实 FCFS 基线）",
     ),
     (
-        r"163\.3%",
+        r"(?<!\d)163\.3%(?!%)",
         "BLACKLIST: PPO vs 随机 +163.3% 为旧口径，已废弃；权威口径不再使用该百分比表述",
     ),
     (
-        r"36\.8%",
+        r"(?<!\d)36\.8%(?!%)",
         "BLACKLIST: 多机协同 +36.8% 为旧值，已废弃；权威协同优势为 +4.0%（MAPPO vs 独立PPO，50K收敛严格对比）",
     ),
     (
@@ -279,15 +293,15 @@ BLACKLIST_PATTERNS: list[tuple[str, str]] = [
     # stress 量子波动 +91.4% 均为"已废弃/未收敛/诚实化前"旧口径，转为权威值时
     # 一律以诚实披露限定词豁免；作为唯一权威成果呈现即告警。
     (
-        r"84\.6%",
+        r"(?<!\d)84\.6%(?!%)",
         "BLACKLIST: MAPPO 协同优势 +84.6% 为未收敛(5000步)+训练量不均等(独立PPO仅1/3)的旧探索值；权威为 +4.0%（同训练量收敛严格对比，50K）",
     ),
     (
-        r"6\.4%",
+        r"(?<!\d)6\.4%(?!%)",
         "BLACKLIST: 退火 +6.4% 为 5seed 旧方向，20seed 权威方向为 -5.6%（p=0.9430 不显著）；不得在展示时当作正向成果，须以'已废弃/探索性'限定",
     ),
     (
-        r"91\.4%",
+        r"(?<!\d)91\.4%(?!%)",
         "BLACKLIST: stress 量子波动 +91.4% 为诚实化前旧 FCFS 基线结果，权威 stress 数据待重跑核定；不得作为当前成果呈现",
     ),
     (
@@ -809,18 +823,28 @@ _P_REL_TOL = 1e-6
 # 独立 p 值，虽不在 build_authoritative_p_values 的窄权威口径内，但均有出处报告，
 # 不属于"孤儿 p 值"。孤儿检测对它们豁免，避免误报。）
 _KNOWN_LEGIT_P_VALUES: tuple[float, ...] = (
+    1.0,  # 8.7-v4 修复：p=1 为 DQN vs Random 完全相等的退化比较（统计量=0.0000），
+    # 合法"无差异"结果而非权威小 p 值的拼写笔误；登记避免被同位有效数字误判
     0.0220,  # 退火配对检验
     0.0294,  # 退火 45k checkpoint
     0.031,  # SJF vs FCFS 真机检验
     0.19,  # 退火 5seed 旧实验
+    # 8.7-v4 修复：登记以下合法辅助实验 p 值（均有出处报告，非孤儿），
+    # 避免 noise_feedback / SOTA / 真机噪声方向性 / Mann-Whitney 复核被误报为无出处。
+    0.222,  # 真机噪声分布训练注入方向性（PPO-noise vs standard，N=5，defense_qa_handbook）
+    0.2235,  # SOTA 16维 PPO vs 观测感知 FCFS（N=50，sota_comparison）
     0.25,  # 量子噪声影响
     0.2827,  # SJF vs FCFS 仿真（权威报告收录）
     0.344,  # 真机 vs 仿真对比
     0.3942,  # 退火独立检验
+    0.020,  # 噪声派单率（generate_defense_ppt 用 0.020，与 0.0203 同源）
+    0.0203,  # 噪声派单率（noise_feedback_v2 报告）
+    0.5837,  # 噪声奖励影响 Mann-Whitney（noise_feedback_v2 报告）
     0.584,  # 噪声奖励影响（noise_feedback_v2）
     0.599,  # 编译中+深电路子集
     0.628,  # 噪声稳定性
     0.84,  # 编译全电路
+    1.86e-12,  # PPO vs FCFS Mann-Whitney U（N=250，statistics.yaml 权威收录）
     2.49e-03,  # 编译深电路
     2.75e-02,  # 编译深电路子集
     8.52e-03,  # 编译深电路 seed=7 交叉验证（technical_whitepaper §11.2）
@@ -869,6 +893,12 @@ def scan_markdown_file(
             norm_line = _normalize_chinese_numerals(strip_line)
             for pattern, message in BLACKLIST_PATTERNS:
                 if re.search(pattern, norm_line, re.IGNORECASE):
+                    # 8.7-v4 修复：stress +91.4% 黑名单在"行覆盖率"语义下豁免，
+                    # 避免 mutation_testing 等覆盖率历史陈述被误报为应力优势。
+                    if message.startswith("BLACKLIST: stress 量子波动") and _is_stress_coverage_context(
+                        strip_line
+                    ):
+                        continue
                     warnings.append(f"  L{line_num}: {message}")
                     warnings.append(f"    > {line.strip()[:120]}")
 

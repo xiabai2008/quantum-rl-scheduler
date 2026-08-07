@@ -1440,7 +1440,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
                                     <div class="dt-branch dt-branch-warning" onclick="dtSelectScenario('volatile')">
                                         <div class="dt-branch-label">量子资源波动</div>
                                         <div class="dt-branch-desc">校准/维护/保真度下降</div>
-                                        <div class="dt-recommend" style="color:var(--brand);">→ 推荐 PPO <span style="color:var(--success);font-weight:600;">+91.4%</span></div>
+                                        <div class="dt-recommend" style="color:var(--brand);">→ 推荐 PPO <span style="color:var(--success);font-weight:600;">+91.4%</span><span style="font-size:9px;color:var(--ink-4);">（历史探索数据，诚实化前旧基线）</span></div>
                                     </div>
                                 </div>
                                 <div style="display:flex;align-items:center;padding-top:12px;color:var(--ink-4);font-family:var(--font-mono);font-size:10px;">OR</div>
@@ -2495,13 +2495,13 @@ HTML_TEMPLATE = """<!DOCTYPE html>
             desc: "量子计算机校准/维护/保真度下降导致资源可用性动态变化",
             params: "模拟量子比特保真度波动、校准窗口、维护时段",
             strategies: [
-                {rank:1, name:"PPO", reward:2997.68, lift:"+91.4%", note:"优势最大场景"},
+                {rank:1, name:"PPO", reward:2997.68, lift:"+91.4%", note:"优势最大场景（历史探索数据，诚实化前旧基线，须以'已废弃/探索性'限定）"},
                 {rank:2, name:"FCFS", reward:1566.39, lift:"基线", note:""},
                 {rank:3, name:"SJF", reward:1231.45, lift:"-21.4%", note:""},
                 {rank:4, name:"Random", reward:926.30, lift:"-40.9%", note:""},
                 {rank:5, name:"Greedy", reward:141.47, lift:"-91.0%", note:"此场景崩溃(-95.3%)"}
             ],
-            conclusion: "PPO在量子资源波动场景优势最大（比FCFS高91.4%），验证了RL策略对动态资源状态的强适应性。Greedy在此场景崩溃（-95.3%），说明简单贪心规则无法应对资源可用性变化。这是PPO最具价值的应用场景。",
+            conclusion: "PPO在量子资源波动场景优势最大（比FCFS高91.4%，历史探索数据，诚实化前旧基线，权威 stress 数据待重跑核定），反映了RL策略对动态资源状态的良好适应性。Greedy在此场景崩溃（-95.3%），说明简单贪心规则无法应对资源可用性变化。",
             recommend: "PPO（强烈推荐）"
         }
     };
