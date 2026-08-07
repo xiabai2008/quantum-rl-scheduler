@@ -274,9 +274,7 @@ class TestUtilization72AndDemo65Positive:
         """'利用率 72%' 应触发。"""
         text = "多机器协同，利用率 72%\n"
         violations = _run_blacklist_check_on_text(text)
-        assert any("-3.3%" in msg for _pat, msg in violations), (
-            "利用率 72% 应被BLACKLIST捕获"
-        )
+        assert any("-3.3%" in msg for _pat, msg in violations), "利用率 72% 应被BLACKLIST捕获"
 
     def test_demo_quantum_util_65_to_78_triggers(self) -> None:
         """演示脚本'量子利用率从 65% → 78%' 应触发（暗示提升，与 -3.3% 矛盾）。"""
