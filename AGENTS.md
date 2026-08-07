@@ -144,7 +144,7 @@ quantum-rl-scheduler/
 │       ├── alerts.py             # 告警
 │       └── seeds.py              # 随机种子管理
 
-├── tests/                        # 测试（94+ 文件，3717 用例 + 21 benchmark = 3738）
+├── tests/                        # 测试（94+ 文件，3720 用例，pytest --co 实测 2026-08-07）
 │   ├── test_scheduler.py         # 调度环境测试
 │   ├── test_marl.py              # MAPPO 测试
 │   ├── test_annealing.py         # 量子启发式退火测试
@@ -363,7 +363,7 @@ quantum-rl-scheduler/
 
 ## 8. 当前进度
 
-> **仓库状态快照（2026-08-07）**：1 open PR（#934）/ 2 open issue（#933、#846）（doc-sync 检查用；PR/issue 数实时变化，仅作快照）
+> **仓库状态快照（2026-08-07）**：3 open PR（#934/#935/#936）/ 2 open issue（#933、#846）（doc-sync 检查用；PR/issue 数实时变化，仅作快照）
 
 ```
 v1 技术提升   ████████████████████ 100%（ruff 142→0 + mypy 26→0 + CI全严格阻断 + 覆盖率80%）
