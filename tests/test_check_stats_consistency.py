@@ -239,3 +239,21 @@ class TestNewDeprecatedValuesNegative:
         assert not any("不构成" in msg for _pat, msg in violations), (
             "'PPO显著优于Random'非SABRE定论表述，不应命中编译层规则"
         )
+
+
+class TestOrphanDeprecatedUtilization:
+    """8.7-v3 红队审查新增：孤立废弃利用率值的 A9 检测"""
+
+    def test_orphan_489_registered(self) -> None:
+        """+48.9% 应被 A9 孤立废弃值表收录（权威 -3.3%）。"""
+        import scripts.ci.check_stats_consistency as mod
+
+        orphan = {old: new for old, new, _ in mod._ORPHAN_DEPRECATED}
+        assert orphan["+48.9%"] == "-3.3%", "+48.9%（N=1 单次运行，已证伪）应映射到权威 -3.3%"
+
+    def test_orphan_336_registered(self) -> None:
+        """旧口径 33.6% 应被 A9 孤立废弃值表收录（权威 -3.3%）。"""
+        import scripts.ci.check_stats_consistency as mod
+
+        orphan = {old: new for old, new, _ in mod._ORPHAN_DEPRECATED}
+        assert orphan["33.6%"] == "-3.3%", "旧口径 33.6%→50%（N=1）应映射到权威 -3.3%"
