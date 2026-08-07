@@ -259,8 +259,8 @@ quantum-rl-scheduler/
 ### 测试升级
 
 - 测试文件：5 → 76（+71个专用测试模块）
-- 测试用例：100+ → 3697（+21 benchmark = 3718 总收集）（Issue #398 P1-4 统一口径，pytest --collect-only 实测，2026-08-01）
-- 测试用例：100+ → 3697（+21 benchmark = 3718 总收集）（Issue #398 P1-4 统一口径，pytest --collect-only 实测，2026-08-02）
+- 测试用例：100+ → 3709（+21 benchmark = 3730 总收集）（Issue #398 P1-4 统一口径，pytest --collect-only 实测，2026-08-01）
+- 测试用例：100+ → 3709（+21 benchmark = 3730 总收集）（Issue #398 P1-4 统一口径，pytest --collect-only 实测，2026-08-02）
 - CI 强制覆盖率：40% → 80%（CI 实测通过，pyproject.toml `fail_under=80`；历史值 93.58% 随测试集扩充已变化，以 CI 报告为准）
 - 新增：property-based testing + 性能基准测试 + mutation testing + 统计显著性检验
 

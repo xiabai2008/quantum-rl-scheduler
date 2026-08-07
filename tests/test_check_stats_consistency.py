@@ -183,3 +183,59 @@ class TestChineseDeprecatedValueCaughtByBlacklist:
     def test_chinese_2349_not_blacklisted_by_rate_pattern(self) -> None:
         """中文"两千三百四十九"正常归一化，且不误触发百分比黑名单。"""
         assert "2349" in _normalize_chinese_numerals("奖励达到两千三百四十九")
+
+
+class TestNewDeprecatedValuesPositive:
+    """8.7-v2 新增：提交物文档残留旧口径的 BLACKLIST 正例"""
+
+    def test_mappo_reward_improvement_863_triggers(self) -> None:
+        """将 +86.3% 直接表述为'奖励提升'应触发（权威协同优势为 +84.6%）。"""
+        text = "MAPPO 多智能体协同调度，奖励提升 86.3%\n"
+        violations = _run_blacklist_check_on_text(text)
+        assert any("84.6" in msg for _pat, msg in violations), (
+            "直接表述'奖励提升86.3%'应被BLACKLIST捕获并提示权威+84.6%"
+        )
+
+    def test_p_less_than_1e66_triggers(self) -> None:
+        """p<10⁻⁶⁶ 旧 p 值应触发（权威为 p=7.56e-12）。"""
+        text = "PPO vs FCFS +20.2%（N=250, p<10⁻⁶⁶）\n"
+        violations = _run_blacklist_check_on_text(text)
+        assert any("7.56e-12" in msg for _pat, msg in violations), (
+            "p<10⁻⁶⁶ 旧弱基线 p 值应被BLACKLIST捕获"
+        )
+
+    def test_significantly_better_than_sabre_triggers(self) -> None:
+        """'显著优于 SABRE' 定论表述应触发（编译层为事后子集方向性证据）。"""
+        text = "深电路上 PPO 显著优于 SABRE\n"
+        violations = _run_blacklist_check_on_text(text)
+        assert any("不构成" in msg for _pat, msg in violations), (
+            "'显著优于SABRE'定论表述应被BLACKLIST捕获"
+        )
+
+    def test_robustness_improvement_triggers(self) -> None:
+        """'鲁棒性提升'正向措辞应触发（噪声反馈为负向证据）。"""
+        text = "量子赋能AI：真机噪声反馈优化PPO鲁棒性提升\n"
+        violations = _run_blacklist_check_on_text(text)
+        assert any("噪声敏感性" in msg for _pat, msg in violations), (
+            "'鲁棒性提升'正向措辞应被BLACKLIST捕获"
+        )
+
+
+class TestNewDeprecatedValuesNegative:
+    """8.7-v2 新增：诚实拆解/合法表述不应误触发"""
+
+    def test_863_as_total_vs_single_machine_not_triggered(self) -> None:
+        """+86.3% 作为'总提升 vs 单机'的诚实拆解不应触发。"""
+        text = "协同优势 +84.6%；叠加规模扩展效应后总提升 vs 单机 +86.3%\n"
+        violations = _run_blacklist_check_on_text(text)
+        assert not any("84.6" in msg for _pat, msg in violations), (
+            "诚实拆解为总提升vs单机的+86.3%不应被误判"
+        )
+
+    def test_ppo_significantly_better_than_random_not_triggered(self) -> None:
+        """调度层'PPO 优于 Random/FCFS'为合法显著结论，不应误触发编译层 SABRE 规则。"""
+        text = "PPO 显著优于 Random（p<0.001）\n"
+        violations = _run_blacklist_check_on_text(text)
+        assert not any("不构成" in msg for _pat, msg in violations), (
+            "'PPO显著优于Random'非SABRE定论表述，不应命中编译层规则"
+        )
