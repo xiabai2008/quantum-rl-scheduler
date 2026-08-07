@@ -60,7 +60,7 @@ jobs:
         run: |
           python scripts/ci/validate_submission.py --check \
             --manifest config/submission_manifest.yaml \
-            --skip-items CODE_ARCHIVE,DEMO_VIDEO
+            --skip-items CODE_ARCHIVE,DEMO_VIDEO,SUMMARY_REPORT,REGISTRATION_FORM
 
       - name: Run authoritative metrics audit
         shell: bash

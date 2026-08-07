@@ -398,7 +398,7 @@ def generate_ppt(output_path: str) -> None:
             "熔断器机制：三态转换（CLOSED/OPEN/HALF_OPEN），连续失败3次自动降级",
             "监控体系：Prometheus集成7项核心监控指标",
             "CI/CD：GitHub Actions自动测试、代码质量检查、文档验证",
-            "测试覆盖率：≥80%（CI 门禁 --cov-fail-under=80），主套件 3711 测试用例，0 ruff/mypy错误",
+            "测试覆盖率：≥80%（CI 门禁 --cov-fail-under=80），主套件 3717 测试用例，0 ruff/mypy错误",
         ],
     )
 

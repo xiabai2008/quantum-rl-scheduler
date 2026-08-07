@@ -687,6 +687,8 @@ class SubmissionValidator:
         "WHITEPAPER": "将 `技术白皮书_量子RL调度系统_v3.docx` 导出为 PDF（20-50 页，需含摘要/目录/参考文献）",
         "PRESENTATION": "根据 `答辩PPT大纲.md` 制作 .pptx 文件（15-20 页，需含封面/问题定义/架构图/实验结果/团队介绍）",
         "DEMO_VIDEO": "录制 4-5 分钟 1080p 演示视频（关联 Issue #169）",
+        "SUMMARY_REPORT": "按比赛方案第八条第八点生成 `参赛总结报告.pdf`（设计说明/技术实现/结果/创新点总结，PDF 格式）",
+        "REGISTRATION_FORM": "提交报名系统中审核通过的 `参赛报名表.pdf`（比赛方案第八条第八点硬性要求）",
     }
 
     def generate_report(self, output_path: str) -> None:
@@ -821,6 +823,8 @@ def prepare_submission(manifest_path: str, project_root: str = ".") -> None:
             "DEMO_VIDEO",
             "CODE_REPO",
             "CODE_ARCHIVE",
+            "SUMMARY_REPORT",
+            "REGISTRATION_FORM",
         ):
             guidance = SubmissionValidator.MISSING_ITEM_GUIDANCE.get(r.item_id, "—")
             manual_items.append({"id": r.item_id, "name": r.name, "guidance": guidance})

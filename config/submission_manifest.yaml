@@ -64,6 +64,28 @@ items:
         - "奖励领先"       # 实验结果
         - "团队分工"       # 团队介绍
 
+  # 8.7-v3 红队审查新增：比赛方案第八条第八点硬性要求"务必一并提交参赛报名表"、
+  # "提交总结报告"，且"文档要求为 PDF 格式"。此前清单遗漏这两项，导致
+  # validate_submission 永远不会报错。现补齐为跟踪项（人工交付物，release CI 跳过）。
+  - id: SUMMARY_REPORT
+    name: 参赛总结报告
+    type: pdf
+    path: "docs/参赛总结报告.pdf"
+    requirements:
+      min_pages: 5
+      must_contain:
+        - "总结"
+        - "创新"
+
+  - id: REGISTRATION_FORM
+    name: 参赛报名表
+    type: pdf
+    path: "docs/参赛报名表.pdf"
+    requirements:
+      min_pages: 1
+      must_contain:
+        - "报名"
+
   - id: DEMO_VIDEO
     name: 演示视频
     type: mp4

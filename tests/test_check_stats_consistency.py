@@ -257,3 +257,59 @@ class TestOrphanDeprecatedUtilization:
 
         orphan = {old: new for old, new, _ in mod._ORPHAN_DEPRECATED}
         assert orphan["33.6%"] == "-3.3%", "旧口径 33.6%→50%（N=1）应映射到权威 -3.3%"
+
+
+class TestUtilization72AndDemo65Positive:
+    """8.7-v3 红队审查新增：利用率 72% 荒谬数字与演示 65% 的 BLACKLIST 正例"""
+
+    def test_utilization_72_triggers(self) -> None:
+        """'利用率提升至72%' 应触发（权威 -3.3%）。"""
+        text = "异质化调度 + 多机器协同，利用率提升至72%\n"
+        violations = _run_blacklist_check_on_text(text)
+        assert any("-3.3%" in msg for _pat, msg in violations), (
+            "利用率72%荒谬数字应被BLACKLIST捕获并提示权威-3.3%"
+        )
+
+    def test_utilization_72_plain_triggers(self) -> None:
+        """'利用率 72%' 应触发。"""
+        text = "多机器协同，利用率 72%\n"
+        violations = _run_blacklist_check_on_text(text)
+        assert any("-3.3%" in msg for _pat, msg in violations), (
+            "利用率 72% 应被BLACKLIST捕获"
+        )
+
+    def test_demo_quantum_util_65_to_78_triggers(self) -> None:
+        """演示脚本'量子利用率从 65% → 78%' 应触发（暗示提升，与 -3.3% 矛盾）。"""
+        text = "量子利用率从 65% → 78%\n"
+        violations = _run_blacklist_check_on_text(text)
+        assert any("65%" in msg or "~46%" in msg for _pat, msg in violations), (
+            "演示量子利用率65%→78%误导性绝对值应被BLACKLIST捕获"
+        )
+
+    def test_demo_quantum_util_65_plain_triggers(self) -> None:
+        """'量子利用率 65%' 单独出现也应触发。"""
+        text = "资源状态（量子利用率 65%）\n"
+        violations = _run_blacklist_check_on_text(text)
+        assert any("65%" in msg or "~46%" in msg for _pat, msg in violations), (
+            "量子利用率65%孤立绝对值应被BLACKLIST捕获"
+        )
+
+
+class TestUtilization72Negative:
+    """8.7-v3 红队审查新增：72%/65% 不应误伤覆盖率等其他百分比"""
+
+    def test_coverage_72_not_triggered(self) -> None:
+        """覆盖率 72%（非利用率）不应触发利用率 72% 规则。"""
+        text = "代码覆盖率 72%\n"
+        violations = _run_blacklist_check_on_text(text)
+        assert not any("-3.3%" in msg for _pat, msg in violations), (
+            "覆盖率72%不应被误判为利用率口径"
+        )
+
+    def test_cpu_util_65_without_quantum_not_triggered(self) -> None:
+        """经典/CPU 利用率 65%（无'量子利用率'前缀）不应触发演示 65% 规则。"""
+        text = "CPU 利用率 65%\n"
+        violations = _run_blacklist_check_on_text(text)
+        assert not any("~46%" in msg for _pat, msg in violations), (
+            "经典利用率65%不应被误判为量子利用率"
+        )
