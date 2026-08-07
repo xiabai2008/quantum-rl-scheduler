@@ -118,12 +118,12 @@ def test_submit_validates_input_and_honours_quota(client: CqlibTianyanClient) ->
 
 @pytest.mark.parametrize(
     ("platform_result", "expected"),
-    [(["task-1"], "task-1"), (1234, "1234"), ([], "[]")],
+    [(["task-1"], "task-1"), (1234, "1234")],
 )
 def test_submit_parses_result_and_consumes_quota(
     client: CqlibTianyanClient, platform_result: object, expected: str
 ) -> None:
-    """列表、标量和空列表响应都应稳定转换为任务 ID。"""
+    """列表和标量响应都应稳定转换为任务 ID。"""
     quota = MagicMock()
     quota.can_consume.return_value = True
     client._quota_tracker = quota
@@ -131,6 +131,24 @@ def test_submit_parses_result_and_consumes_quota(
 
     assert client.submit_quantum_task(qcis="H Q0", shots=16, task_name="unit") == expected
     quota.consume.assert_called_once_with(shots=16, tasks=1)
+
+
+def test_submit_empty_result_returns_none_without_quota(
+    client: CqlibTianyanClient,
+) -> None:
+    """8.7 审查(P2)：平台返回空列表/None 应视为提交失败。
+
+    旧实现会把空列表 str() 成 "[]"、把 None str() 成 "None" 当作有效 task_id，
+    导致无效 task_id 追踪。修复后空结果一律返回 None 且不消耗配额。
+    """
+    quota = MagicMock()
+    quota.can_consume.return_value = True
+    client._quota_tracker = quota
+    client.auto_retry_machine = False  # 关闭自动重试，验证主路径空结果直接返回 None
+    cast(Any, client)._platform.submit_experiment.return_value = []
+
+    assert client.submit_quantum_task(qcis="H Q0", shots=16, task_name="unit") is None
+    quota.consume.assert_not_called()
 
 
 def test_submit_accepts_circuit_and_handles_unavailable_machine(

@@ -368,17 +368,23 @@ class CqlibTianyanClient(QuantumHardwareBackend):
                 num_shots=shots,
                 is_verify=False,
             )
-            if isinstance(result, list) and len(result) > 0:
-                task_id = str(result[0])
-                logger.info(f"[Cqlib] 任务已提交: {task_id}")
-                # 提交成功后记录配额消耗
-                if self._quota_tracker is not None:
-                    self._quota_tracker.consume(shots=shots, tasks=1)
-                return task_id
-            # 非列表结果同样视为提交成功，记录配额消耗
+            # 8.7 审查(P2)：统一提取有效 task_id。平台返回 None 或空列表时，
+            # 若直接 str(result) 会得到 "None"/"[]" 字符串并被当作有效 task_id 追踪，
+            # 产生无效的 task_id。此处显式判空，None/空一律按提交失败处理（返回 None/重试）。
+            raw_id = (result[0] if result else None) if isinstance(result, list) else result
+            if raw_id is None:
+                logger.warning(
+                    f"[Cqlib] {self.machine_name} 提交返回空 task_id，按失败处理: {task_name}"
+                )
+                if self.auto_retry_machine:
+                    return self._retry_other_machine(qcis_str, shots, task_name)
+                return None
+            task_id = str(raw_id)
+            logger.info(f"[Cqlib] 任务已提交: {task_id}")
+            # 提交成功后记录配额消耗
             if self._quota_tracker is not None:
                 self._quota_tracker.consume(shots=shots, tasks=1)
-            return str(result)
+            return task_id
         except Exception as e:  # noqa: BLE001
             # cqlib 提交接口异常类型无法穷举，保留宽捕获并记录日志
             err_msg = str(e)
@@ -534,11 +540,14 @@ class CqlibTianyanClient(QuantumHardwareBackend):
                             close()
                         except Exception as close_err:  # noqa: BLE001
                             logger.debug(f"[Cqlib] {machine} 连接释放失败: {close_err}")
-                if isinstance(result, list) and len(result) > 0:
-                    tid = str(result[0])
-                    logger.info(f"[Cqlib] {machine} 提交成功: {tid}")
-                else:
-                    tid = str(result)
+                # 8.7 审查(P2)：与主路径一致，空列表/None 视为失败，跳过该机器，
+                # 避免把 "[]"/"None" 字符串当作有效 task_id 追踪。
+                raw_id = (result[0] if result else None) if isinstance(result, list) else result
+                if raw_id is None:
+                    logger.warning(f"[Cqlib] {machine} 提交返回空 task_id，跳过")
+                    continue
+                tid = str(raw_id)
+                logger.info(f"[Cqlib] {machine} 提交成功: {tid}")
                 # 备用机器提交成功后记录配额消耗（与主路径一致）
                 if self._quota_tracker is not None:
                     self._quota_tracker.consume(shots=shots, tasks=1)
