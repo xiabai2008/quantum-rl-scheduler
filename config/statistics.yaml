@@ -185,6 +185,66 @@ simulation_8strategy_50seed:
     significant: false
 
 # =============================================================================
+# 实验1b: MAPPO 同训练量收敛严格对比（8.7-v4 红队审查 P0-2 口径统一）
+# 数据源: results/reports/mappo_strict_comparison_report.md
+# 权威口径: 同 wrapper 同种子严格对比（MultiAgentEnvWrapper 同实例、seed=42..51）
+# 模型: models/mappo.pt（50K 收敛）；FCFS 每 agent 固定 hybrid（action=2）
+# -----------------------------------------------------------------------------
+# ⚠️ 口径纪律（8.7-v4 红队审查 P0-2"选择性报告"修复）：
+#   对外（演示视频/PPT/novelty/答辩手册）一律使用本块权威值：
+#     - MAPPO vs 独立PPO（同训练量、收敛）= +4.0%
+#     - MAPPO vs 同环境 FCFS = +396.7%
+#   旧 "+84.6%" 来自 multi_machine_comparison_report.md 的 5000 步（未收敛）+
+#   训练量不均等（独立PPO 仅 1666 步/机 ≈ MAPPO 的 1/3）早期探索实验，
+#   已被同训练量收敛严格对比取代，仅作历史探索记录，禁止作为权威/对外呈现。
+# =============================================================================
+mappo_strict_strict_comparison:
+  experiment_name: "MAPPO 同训练量收敛严格双基线对比（权威）"
+  applicable_condition: >
+    MultiAgentEnvWrapper 同实例、同种子序列（seed=42..51，10 seeds），
+    模型 models/mappo.pt（50K 收敛），FCFS 每 agent 固定 hybrid（action=2），
+    任务排序由 env 内部 FCFS 完成。消除评估环境混杂，可直接归因于多智能体协同。
+  alpha: 0.05
+  n: 10
+  data_source: "results/reports/mappo_strict_comparison_report.md"
+  supersedes: "multi_machine_comparison_report.md 的 +84.6%（5000 步未收敛，独立PPO 训练量仅 1/3）"
+
+  strategy_summary:
+    MAPPO:
+      mean_reward: 4588.7
+      std_reward: 663.8
+      n: 10
+    FCFS:
+      mean_reward: 923.9
+      std_reward: 418.5
+      n: 10
+    PPO_independent:
+      mean_reward: 4412.2
+      std_reward: 972.1
+      n: 10
+
+  mappo_vs_fcfs:
+    improvement_pct: 396.7
+    n: 10
+    applicable_condition: "MAPPO(4588.7) vs 同环境 FCFS(923.9)，50K 收敛严格对比"
+    note: "权威口径：+396.7%（vs 同环境 FCFS）"
+  mappo_vs_independent_ppo:
+    improvement_pct: 4.0
+    n: 10
+    applicable_condition: "MAPPO(4588.7) vs 3独立PPO(4412.2)，同训练量收敛严格对比"
+    note: >
+      权威口径：+4.0%（同训练量、收敛严格对比），消除了评估环境混杂，
+      可直接归因于多智能体协同调度（投票仲裁 + 共享 Critic 信用分配）。
+      完整数据引用 results/mappo_strict_comparison_result.json。
+  deprecated_846:
+    improvement_pct: 84.6
+    status: "deprecated"
+    note: >
+      +84.6% 为早期 5000 步（未收敛）实验，且独立 PPO 训练量仅 1666 步/机
+      （≈ MAPPO 的 1/3），不可比。已被同训练量收敛严格对比 +4.0% 取代，
+      仅作历史探索记录，禁止作为权威/对外呈现。
+
+# =============================================================================
 # 实验2: 多seed真机对比 (N=5 per group)
 # 数据源: results/reports/multiseed_real_machine_report.md
 # =============================================================================
@@ -338,13 +398,15 @@ annealing_ablation_head_only:
     p_value: 0.9430
     effect_size_type: "Cliff's delta"
     effect_size: 0.40
+    improvement_pct: -5.6  # 20seed 权威方向：负向（50k checkpoint），正负号含方向
     significant: false
     applicable_condition: "退火消融，20seeds权威验证，n=20"
     note: >
-      p=0.9430 > 0.05，退火加速效果统计上不显著。
-      Cliff's delta=0.40为中等效应量，暗示可能存在实际差异但样本量扩大后仍不显著。
-      答辩话术: 诚实披露不显著，强调效应量方向积极。
-      旧 5seed 实验的 p=0.190 已废弃，禁止再使用。
+      20seed 权威结论：退火最终 50k checkpoint 提升为 -5.6%（负向，p=0.9430 不显著）。
+      效应方向从原始 5seed 的 +6.4% 逆转，证明 +6.4% 源于小样本随机波动。
+      Cliff's delta=0.40 仅反映分布重叠，不代表"实际提升趋势"，不得作为正向证据。
+      答辩话术: 诚实披露负向/不显著，退火为探索性方向而非核心 claim。
+      旧 5seed 实验（+6.4%, p=0.190）已废弃，仅作历史记录，禁止再使用。
 
 # =============================================================================
 # 实验4: 真机闭环验证 (N=5)
@@ -429,7 +491,9 @@ simulation_3strategy_10seed:
 
 # =============================================================================
 # 实验6: 量子噪声敏感性配对检验 (N=25 paired, 权威 v3)
-# 数据源: results/reports/quantum_noise_paired_canonical.md
+# 数据源: results/reports/quantum_noise_paired_25seeds_20260729_095336.md
+#   （N=50 canonical 更大样本复核见 quantum_noise_paired_canonical.md，
+#     p=8.882e-16，方向一致，均为负向 -12.43%）
 # 历史背景: 修复评审报告 P0"量子→AI噪声反馈统计检验（N≥20 seeds）"。
 # 注意: 本实验结论为【负向】——真机噪声分布使 PPO 奖励下降 12.43%（p=2.98e-08），
 #       即"噪声敏感性"证据，非"量子赋能AI"正向证据。当前量子赋能AI主方向证据

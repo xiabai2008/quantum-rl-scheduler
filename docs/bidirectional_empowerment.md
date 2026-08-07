@@ -67,6 +67,8 @@
 
 **证据**：
 
+> **⚠️ 边界披露（8.7-v4 红队审查）**：本表为高负载公平实验（`scripts/benchmarking/high_load_fairness.py`）结果，**仅 N=5（5 seeds × 1 episode）**，样本量小；且该实验的 FCFS 基线为「恒 action=HYBRID 混合执行」的**弱基线实现**（`high_load_fairness.py:229`），并非权威主实验使用的真实 FCFS（EnvBasedFCFSScheduler）。因此"FCFS 量子分配=0""PPO 是唯一能有效利用量子资源的策略"等表述**依赖弱基线定义**，仅作高负载公平性方向性参考，**不作权威性能基准独立引用**。防饥饿卖点在 PPT/答辩中使用时须标注 N=5 与弱基线定义。
+
 | 策略 | 总奖励 | tenant_E饥饿数 | 量子分配 |
 |:--|:--:|:--:|:--:|
 | PPO | 2046.03 | 0.60 | 有 |
