@@ -60,6 +60,11 @@ INTERNAL_CONFLICTS: list[tuple[list[str], str]] = [
 _ORPHAN_DEPRECATED: list[tuple[str, str, str]] = [
     ("+7.9%", "-3.3%", "利用率 +7.9% 为错误旧数据，权威为 -3.3%（N=250 真实基线）"),
     ("2349", "1982.69", "PPO 平均奖励 2349 为废弃弱基线值，权威为 1982.69（N=250）"),
+    # 8.7-v3 红队审查 P1-2：旧口径常以"区间外变体"出现（如 2348.91/2348.88/2350），
+    # 仅登记 2349 会被此类近似值绕过。补登常见变体，权威统一为 1982.69。
+    ("2348.91", "1982.69", "PPO 平均奖励 2348.91 为废弃弱基线值，权威为 1982.69（N=250）"),
+    ("2348.88", "1982.69", "PPO 平均奖励 2348.88 为废弃弱基线值，权威为 1982.69（N=250）"),
+    ("2350", "1982.69", "PPO 平均奖励 2350 为废弃弱基线值，权威为 1982.69（N=250）"),
     # 8.7-v3 红队审查新增：demo 脚本/演示视频脚本曾残留已证伪的 N=1 单次运行值 +48.9%，
     # 权威利用率口径为 -3.3%（N=250 权威实测）。此值作为"当前成果"出现即告警。
     (
@@ -117,6 +122,10 @@ EXCLUDE_PATTERNS = [
     "_pr",  # PR审查临时报告前缀
     "pr_patrol_",  # docs/pr_patrol_*.md
     "project_dashboard_",  # docs/project_dashboard_*.html
+    # 8.7-v3 红队审查：对抗审查报告为内部审计文档（会原文引用已废弃旧口径作
+    # "诚实披露"说明），不属于对外交付物，与 PR审查/pr_patrol_ 同源，纳入豁免，
+    # 避免门禁对其自身误报。
+    "红队审查",
 ]
 
 # p值正则模式：匹配 p=0.031, p=1.032e-42, p<0.001, p=3.04×10⁻¹¹ 等
@@ -225,7 +234,7 @@ BLACKLIST_PATTERNS: list[tuple[str, str]] = [
         "BLACKLIST: 95%CI [+113.3%, +133.5%] 为废弃 +123.4% 弱基线的 CI，已废弃。当前权威 CI 为 [+14.3%, +26.7%]",
     ),
     (
-        r"p\s*=\s*1\.449e-66|p=1\.449\s*×\s*10⁻⁶⁶",
+        r"p\s*=\s*1\.449e-66|p=1\.449\s*×\s*10⁻⁶⁶|p=1\.449\s*×\s*10-66",
         "BLACKLIST: p=1.449e-66 为 8.5 前弱基线 p 值，已废弃。当前权威 p=7.56e-12（真实 FCFS 基线）",
     ),
     (
@@ -697,6 +706,71 @@ def scan_markdown_file(
     return warnings
 
 
+def scan_pdf_file(
+    filepath: Path,
+    authoritative_p: dict[str, str],
+    deprecated_p: dict[str, str],
+) -> list[str]:
+    """扫描单个 PDF 文件中的废弃统计口径。
+
+    8.7-v3 红队审查 P0：交付白皮书 PDF 是二进制产物，此前不在任何口径门禁内，
+    导致 8.5~8.7 轮次反复修正 .md 源文件后，PDF 仍保留旧数字（2348.91/1.449e-66
+    /33.6%/+51% 等）。此处用 pypdf/PyPDF2 提取文本，复用与 .md 相同的检测逻辑，
+    确保"提交的 PDF"与"权威口径"始终一致。
+
+    注意：PDF 文本提取会把"废弃/禁止/旧/历史"等诚实披露限定词拆到相邻行（与
+    .md 的行内完整性不同），因此此处用"相邻行窗口"判断诚实披露，避免对已诚实
+    化（如实引用旧值并声明废弃）的段落误报。
+
+    Args:
+        filepath: PDF 文件路径
+        authoritative_p: 权威 p 值映射（预留，与 scan_markdown_file 签名一致）
+        deprecated_p: 废弃 p 值映射（预留）
+
+    Returns:
+        告警列表
+    """
+    try:
+        from pypdf import PdfReader
+    except ImportError:
+        try:
+            from PyPDF2 import PdfReader
+        except ImportError:
+            return ["  未安装 pypdf/PyPDF2，跳过 PDF 口径扫描"]
+
+    try:
+        reader = PdfReader(str(filepath))
+        text = "\n".join((page.extract_text() or "") for page in reader.pages)
+    except Exception as e:  # 提取失败不阻断（PDF 可能加密/扫描件）
+        return [f"  PDF 文本提取失败（{e}），跳过口径扫描"]
+
+    lines = text.splitlines()
+    warnings: list[str] = []
+
+    def _disclosed(idx: int) -> bool:
+        """判断第 idx 行（1-based）是否处于诚实披露上下文（±2 行窗口）。"""
+        lo = max(0, idx - 3)
+        hi = min(len(lines), idx + 2)
+        return any(_is_honest_disclosure(lines[j]) for j in range(lo, hi))
+
+    for line_num, line in enumerate(lines, 1):
+        if not _disclosed(line_num):
+            norm_line = _normalize_chinese_numerals(line)
+            for pattern, message in BLACKLIST_PATTERNS:
+                if re.search(pattern, norm_line, re.IGNORECASE):
+                    warnings.append(f"  L{line_num}: {message}")
+                    warnings.append(f"    > {line.strip()[:120]}")
+
+    # 孤立废弃值检测（A9）
+    for old_val, new_val, desc in _ORPHAN_DEPRECATED:
+        for i, ln in enumerate(lines, 1):
+            if old_val in _normalize_chinese_numerals(ln) and not _disclosed(i):
+                warnings.append(f"  L{i}: 孤立废弃值 '{old_val}'（{desc}），权威应为 {new_val}")
+                warnings.append(f"    > {ln.strip()[:120]}")
+
+    return warnings
+
+
 def main() -> int:
     """主入口：扫描所有Markdown文件并报告统计口径不一致。"""
     import argparse
@@ -832,6 +906,28 @@ def main() -> int:
             for w in warnings:
                 print(w)
             print()
+
+    # 8.7-v3 红队审查 P0：交付白皮书 PDF 为二进制提交物，此前不在任何口径门禁内，
+    # 导致 .md 源文件修正后 PDF 仍保留旧数字（2348.91/1.449e-66/33.6%/+51% 等）。
+    # 此处对已生成的提交 PDF 复用与 .md 相同的检测逻辑，确保"提交的 PDF"与
+    # "权威口径"始终一致。
+    deliverable_pdfs = [
+        "docs/technical_whitepaper.pdf",
+    ]
+    for rel in deliverable_pdfs:
+        pdf_path = _PROJECT_ROOT / rel
+        if not pdf_path.exists():
+            continue
+        pdf_warnings = scan_pdf_file(pdf_path, authoritative_p, deprecated_p)
+        if pdf_warnings:
+            files_with_warnings += 1
+            total_warnings += len(pdf_warnings) // 3
+            print(f"[WARN] {rel} (PDF)")
+            for w in pdf_warnings:
+                print(w)
+            print()
+        else:
+            print(f"[OK] {rel} (PDF) 口径一致")
 
     # 汇总
     print("=" * 70)

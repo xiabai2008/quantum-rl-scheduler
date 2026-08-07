@@ -159,6 +159,13 @@ items:
     requirements:
       max_size_mb: 100
       must_exist: true
+      min_files: 5
+      must_contain:
+        - "mappo.pt"
+        - "mappo_config.json"
+        - "independent_ppo"
+      exclude_ext:
+        - ".tmp"
       note: "含 mappo.pt + mappo_config.json + 3 个独立 PPO 模型（independent_ppo_m0-2.zip）"
 
   # 其他

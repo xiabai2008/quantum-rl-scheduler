@@ -160,6 +160,8 @@ class SubmissionValidator:
             self._validate_git_tag(item, messages)
         elif item_type == "md":
             self._validate_markdown(item, path, messages)
+        elif item_type == "directory":
+            self._validate_directory(item, path, messages)
 
         # 检查依赖
         if "depends_on" in item:
@@ -618,6 +620,75 @@ class SubmissionValidator:
         if item.get("must_exist", False):
             messages.append("文件存在")
             print("  ✅ 文件存在")
+
+    def _validate_directory(self, item: dict[str, Any], path: Path, messages: list[str]) -> None:
+        """校验目录型提交物
+
+        校验维度（8.7-v3 红队审查 P1-4）：
+        1. 目录非空（至少含一个文件）
+        2. requirements.min_files：至少包含的文件数
+        3. requirements.must_contain：必须包含的文件名子串
+        4. requirements.exclude_ext：不得包含的扩展名
+
+        Args:
+            item: 提交物定义
+            path: 文件路径
+            messages: 用于收集本项校验消息的列表
+        """
+        reqs = item.get("requirements", {})
+
+        if not path.is_dir():
+            msg = f"不是目录: {path}"
+            self.errors.append(f"[{item['id']}] {msg}")
+            messages.append(msg)
+            print(f"  ❌ {msg}")
+            return
+
+        files = [p for p in path.rglob("*") if p.is_file()]
+        if not files:
+            msg = f"目录为空: {path}"
+            self.errors.append(f"[{item['id']}] {msg}")
+            messages.append(msg)
+            print(f"  ❌ {msg}")
+            return
+
+        # 最小文件数校验
+        min_files = reqs.get("min_files")
+        if min_files and len(files) < min_files:
+            msg = f"文件数不足: {len(files)} < {min_files}"
+            self.errors.append(f"[{item['id']}] {msg}")
+            messages.append(msg)
+            print(f"  ❌ {msg}")
+        else:
+            messages.append(f"文件数: {len(files)}")
+            print(f"  ✅ 文件数: {len(files)}")
+
+        # 必需文件名校验（子串匹配）
+        must_contain = reqs.get("must_contain", [])
+        if must_contain:
+            names = [f.name for f in files]
+            missing = [kw for kw in must_contain if not any(kw in n for n in names)]
+            if missing:
+                msg = f"目录缺少必需文件: {', '.join(missing)}"
+                self.errors.append(f"[{item['id']}] {msg}")
+                messages.append(msg)
+                print(f"  ❌ {msg}")
+            else:
+                messages.append(f"包含必需文件: {', '.join(must_contain)}")
+                print(f"  ✅ 包含必需文件: {', '.join(must_contain)}")
+
+        # 禁止扩展名校验
+        exclude_ext = reqs.get("exclude_ext", [])
+        if exclude_ext:
+            forbidden = [f.name for f in files if f.suffix.lower() in exclude_ext]
+            if forbidden:
+                msg = f"目录包含禁止扩展名文件: {', '.join(forbidden[:5])}"
+                self.errors.append(f"[{item['id']}] {msg}")
+                messages.append(msg)
+                print(f"  ❌ {msg}")
+            else:
+                messages.append("未包含禁止扩展名文件")
+                print("  ✅ 未包含禁止扩展名文件")
 
     def _check_dependency(self, item: dict[str, Any]) -> None:
         """检查依赖项
