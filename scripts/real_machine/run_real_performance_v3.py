@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python
+#!/usr/bin/env python
 """
 高参与率真机性能补强实验（Issue #221 预注册执行版）
 
@@ -46,7 +46,7 @@ load_dotenv(_PROJECT_ROOT / ".env")
 
 from src.api.tianyan_cqlib import CqlibTianyanClient
 from src.scheduler.baselines import EnvBasedFCFSScheduler, EnvBasedSPTFScheduler
-from src.scheduler.env import DEFAULT_MACHINE_CONFIGS, QuantumSchedulingEnv
+from src.scheduler.env import QuantumSchedulingEnv
 
 
 class RetryClient:
@@ -86,18 +86,39 @@ class RetryClient:
     def wait_for_task(self, task_id, timeout=300, poll_interval=5):
         return self._inner.wait_for_task(task_id, timeout=timeout, poll_interval=poll_interval)
 
+
 # ── 实验配置（预注册口径 + 高参与率） ──
 
-SEEDS_DEFAULT = [42, 123, 456, 789, 1024, 2026, 314, 271, 828, 5566,
-                 7788, 1234, 2345, 3456, 4567, 5678, 6789, 7890, 8901, 9012]
+SEEDS_DEFAULT = [
+    42,
+    123,
+    456,
+    789,
+    1024,
+    2026,
+    314,
+    271,
+    828,
+    5566,
+    7788,
+    1234,
+    2345,
+    3456,
+    4567,
+    5678,
+    6789,
+    7890,
+    8901,
+    9012,
+]
 
-EPISODE_HORIZON = 500        # 步数上限（真机任务多，episode 较长）
-CAP_PER_SEED = 30            # 每个 seed 真机提交上限（预注册 cap=10 → 30）
-REAL_SUBMIT_PROB = 0.3       # 每步真机提交概率（预注册 0.05 → 0.3）
-SHOTS = 32                   # 与历史验证口径一致（Issue #58 已核实 shots=32）
+EPISODE_HORIZON = 500  # 步数上限（真机任务多，episode 较长）
+CAP_PER_SEED = 30  # 每个 seed 真机提交上限（预注册 cap=10 → 30）
+REAL_SUBMIT_PROB = 0.3  # 每步真机提交概率（预注册 0.05 → 0.3）
+SHOTS = 32  # 与历史验证口径一致（Issue #58 已核实 shots=32）
 FEEDBACK_MODE = "result_aware"
 TARGET_MACHINE = "tianyan176"  # 287 校准中，暂用 176（free, running）
-CIRCUIT = "H Q1\nM Q1"       # 单比特 H 门（免费档兼容；若机时升级可换多 qubit）
+CIRCUIT = "H Q1\nM Q1"  # 单比特 H 门（免费档兼容；若机时升级可换多 qubit）
 
 PPO_MODEL_PATH = _PROJECT_ROOT / "deliverable_models" / "ppo_best_model_16dim.zip"
 OUTPUT_DIR = _PROJECT_ROOT / "results" / "real_machine" / "perf_pretrain_v3"
@@ -153,7 +174,7 @@ def run_one(seed: int, policy_name: str, dry_run: bool = False, client=None) -> 
     if client is not None:
         env.attach_real_clients({TARGET_MACHINE: client})
     policy = create_policy(policy_name)
-    obs, info = env.reset(seed=seed)
+    obs, _info = env.reset(seed=seed)
     total_reward = 0.0
     steps = 0
     real_submitted = 0
@@ -162,8 +183,12 @@ def run_one(seed: int, policy_name: str, dry_run: bool = False, client=None) -> 
     done = False
 
     while not done:
-        action = policy.select_action(obs, env) if policy_name in ("fcfs", "sjf") else policy.select_action(obs)
-        obs, reward, terminated, truncated, info = env.step(action)
+        action = (
+            policy.select_action(obs, env)
+            if policy_name in ("fcfs", "sjf")
+            else policy.select_action(obs)
+        )
+        obs, reward, terminated, truncated, _info = env.step(action)
         total_reward += float(reward)
         steps += 1
         done = terminated or truncated
@@ -171,16 +196,18 @@ def run_one(seed: int, policy_name: str, dry_run: bool = False, client=None) -> 
     records = []
     if hasattr(env, "_real_feedback_log"):
         for r in env._real_feedback_log:
-            records.append({
-                "task_id": r.get("task_id"),
-                "real_task_id": r.get("real_task_id"),
-                "status": r.get("outcome"),
-                "fidelity": r.get("fidelity"),
-                "step": r.get("submit_step"),
-                "reward": r.get("reward"),
-                "mock": False,
-                "degraded": False,
-            })
+            records.append(
+                {
+                    "task_id": r.get("task_id"),
+                    "real_task_id": r.get("real_task_id"),
+                    "status": r.get("outcome"),
+                    "fidelity": r.get("fidelity"),
+                    "step": r.get("submit_step"),
+                    "reward": r.get("reward"),
+                    "mock": False,
+                    "degraded": False,
+                }
+            )
             if r.get("outcome") == "completed":
                 real_completed += 1
             if r.get("real_task_id") is not None:
@@ -219,9 +246,13 @@ def main():
         seeds, policies = args.seeds, ["ppo", "fcfs", "sjf"]
 
     if not args.dry_run:
-        raw_client = CqlibTianyanClient(login_key=api_key, machine_name=TARGET_MACHINE, auto_retry_machine=False)
+        raw_client = CqlibTianyanClient(
+            login_key=api_key, machine_name=TARGET_MACHINE, auto_retry_machine=False
+        )
         client = RetryClient(raw_client)
-        print(f"客户端: {getattr(raw_client, 'machine_name', '?')}  | 种子数: {len(seeds)}  | 策略: {policies}")
+        print(
+            f"客户端: {getattr(raw_client, 'machine_name', '?')}  | 种子数: {len(seeds)}  | 策略: {policies}"
+        )
     else:
         client = None
         print(f"DRY RUN（仿真） | 种子数: {len(seeds)}  | 策略: {policies}")
