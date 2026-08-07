@@ -41,10 +41,10 @@ _SKIP_NO_GIT = pytest.mark.skipif(
 # ---------------------------------------------------------------------------
 SAMPLE_METRIC_TEXT = """# 策略对比报告
 
-PPO 平均奖励：2348.91，标准差 1121.19
-FCFS 平均奖励：1051.59，标准差 55.85
-PPO 相对 FCFS 提升 +123.4%
-统计显著性 p=3.04e-11，Cohen's d=-1.70
+PPO 平均奖励：1982.69，标准差 1121.19
+FCFS 平均奖励：1648.91，标准差 55.85
+PPO 相对 FCFS 提升 +20.2%
+统计显著性 p=7.56e-12，rank-biserial 效应量 -0.3642
 样本量 N=250
 """
 
@@ -155,7 +155,7 @@ class TestFindMetricOccurrences:
 
     def test_line_numbers_correct(self) -> None:
         occurrences = find_metric_occurrences(SAMPLE_METRIC_TEXT, "docs/test.md")
-        # PPO 2348.91 在第 3 行
+        # PPO 1982.69 在第 3 行
         ppo_occs = [occ for occ in occurrences if occ.metric_name == "PPO 平均奖励"]
         assert ppo_occs[0].line_number == 3
 
@@ -171,8 +171,8 @@ class TestFindMetricOccurrences:
             assert occ.file_path == "custom/path.md"
 
     def test_line_content_stripped(self) -> None:
-        occurrences = find_metric_occurrences("  PPO: 2348.91  \n", "a.md")
-        assert occurrences[0].line_content == "PPO: 2348.91"
+        occurrences = find_metric_occurrences("  PPO: 1982.69  \n", "a.md")
+        assert occurrences[0].line_content == "PPO: 1982.69"
 
 
 # ---------------------------------------------------------------------------
