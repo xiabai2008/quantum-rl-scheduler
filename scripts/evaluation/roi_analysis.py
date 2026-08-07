@@ -31,7 +31,9 @@ SIM_PPO_STD = 557.25
 SIM_FCFS_MEAN = 1648.91
 SIM_FCFS_STD = 502.95
 SIM_P_VALUE = 7.56e-12  # Welch t 检验（8.5 权威口径）
-SIM_EFFECT_SIZE = -0.3642  # rank-biserial（中效应；旧 Cohen's d=-2.1353 为 8.5 前弱基线口径，已废弃）
+SIM_EFFECT_SIZE = (
+    -0.3642
+)  # rank-biserial（中效应；旧 Cohen's d=-2.1353 为 8.5 前弱基线口径，已废弃）
 SIM_EFFECT_SIZE_TYPE = "rank-biserial"
 SIM_N = 250  # 50 seeds × 5 episodes
 

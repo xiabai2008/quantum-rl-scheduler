@@ -47,9 +47,7 @@ ALPHA = 0.05
 # 权威基准（50 seed N=250, max_qubits=287，8.5 基线诚实化：真实 FCFS 量子路由）
 AUTHORITATIVE_PPO_MEAN = 1982.69
 AUTHORITATIVE_FCFS_MEAN = 1648.91
-AUTHORITATIVE_IMPROVEMENT_PCT = (
-    20.2  # 1982.69/1648.91-1，见 config/statistics.yaml（旧 123.4 为 vs Hybrid-Default 弱基线，已废弃）
-)
+AUTHORITATIVE_IMPROVEMENT_PCT = 20.2  # 1982.69/1648.91-1，见 config/statistics.yaml（旧 123.4 为 vs Hybrid-Default 弱基线，已废弃）
 SHRINK_THRESHOLD_PP = 10.0  # 缩水阈值（百分点）
 
 

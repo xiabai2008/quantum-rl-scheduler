@@ -54,6 +54,12 @@ INTERNAL_CONFLICTS: list[tuple[list[str], str]] = [
     (["25.46", "57.27"], "等待时间 25.46（N=250）与 57.27（N=4 中间品）并存"),
     (["+38.5%", "+33.3%"], "编译层深电路 +38.5%（N=80 显著）与 +33.3%（N=20 旧样本）并存"),
 ]
+
+# 8.7 审查新增（A9）：孤立废弃值 → 权威值映射
+# 用于检测"废弃值作为唯一权威呈现"的回归（同文件并存检测 A8 抓不到的场景）。
+_ORPHAN_DEPRECATED: list[tuple[str, str, str]] = [
+    ("+7.9%", "-3.3%", "利用率 +7.9% 为错误旧数据，权威为 -3.3%（N=250 真实基线）"),
+]
 _DISCLOSURE_MARK = (
     "废弃",
     "错误数据",
@@ -153,6 +159,7 @@ HONEST_DISCLOSURE_KEYWORDS = [
     "禁止",
     "deprecated",
     "废弃",
+    "假数据",
 ]
 
 
@@ -548,6 +555,17 @@ def scan_markdown_file(
             for v in hits:
                 warn_lines = [i for i, ln in enumerate(lines, 1) if v in ln]
                 warnings.append(f"    -> '{v}' 出现于 L{warn_lines[:3]}")
+
+    # 8.7 审查新增（A9）：孤立废弃值检测
+    # 历史漏洞：value_quantification/platform_landing_value/requirements_traceability 等
+    # 活跃交付文档曾把已废弃的"利用率 +7.9%"当作唯一权威呈现，而"同文件并存"冲突
+    # 检测（A8）因该文件不含 -3.3% 而抓不到。此处对孤立出现的废弃值单独告警，
+    # 仅豁免带诚实披露标记（废弃/错误数据/历史/旧口径等）的行。
+    for old_val, new_val, desc in _ORPHAN_DEPRECATED:
+        for i, ln in enumerate(lines, 1):
+            if old_val in ln and not _is_honest_disclosure(ln):
+                warnings.append(f"  L{i}: 孤立废弃值 '{old_val}'（{desc}），权威应为 {new_val}")
+                warnings.append(f"    > {ln.strip()[:120]}")
 
     return warnings
 
