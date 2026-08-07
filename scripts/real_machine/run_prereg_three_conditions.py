@@ -41,11 +41,31 @@ from dotenv import load_dotenv
 
 load_dotenv(_PROJECT_ROOT / ".env")
 
-from src.scheduler.env import QuantumSchedulingEnv
 from scripts.real_machine.run_real_performance_v3 import MACHINE_CONFIGS, RetryClient
+from src.scheduler.env import QuantumSchedulingEnv
 
-SEEDS_DEFAULT = [42, 123, 456, 789, 1024, 2026, 314, 271, 828, 5566,
-                 7788, 1234, 2345, 3456, 4567, 5678, 6789, 7890, 8901, 9012]
+SEEDS_DEFAULT = [
+    42,
+    123,
+    456,
+    789,
+    1024,
+    2026,
+    314,
+    271,
+    828,
+    5566,
+    7788,
+    1234,
+    2345,
+    3456,
+    4567,
+    5678,
+    6789,
+    7890,
+    8901,
+    9012,
+]
 
 EPISODE_HORIZON = 500
 CAP_PER_SEED = 30
@@ -58,6 +78,7 @@ OUTPUT_DIR = _PROJECT_ROOT / "results" / "real_machine" / "prereg_three_conditio
 
 def create_ppo_policy():
     from stable_baselines3 import PPO as SB3PPO
+
     from scripts.evaluation.run_simulation import PPOStrategy
 
     model = SB3PPO.load(str(PPO_MODEL_PATH))
@@ -81,7 +102,7 @@ def run_one(seed: int, feedback_mode: str, dry_run: bool = False, client=None) -
         env.attach_real_clients({TARGET_MACHINE: client})
 
     policy = create_ppo_policy()
-    obs, info = env.reset(seed=seed)
+    obs, _info = env.reset(seed=seed)
     total_reward = 0.0
     steps = 0
     real_completed = 0
@@ -90,7 +111,7 @@ def run_one(seed: int, feedback_mode: str, dry_run: bool = False, client=None) -
 
     while not done:
         action = policy.select_action(obs)
-        obs, reward, terminated, truncated, info = env.step(action)
+        obs, reward, terminated, truncated, _info = env.step(action)
         total_reward += float(reward)
         steps += 1
         done = terminated or truncated
@@ -98,12 +119,14 @@ def run_one(seed: int, feedback_mode: str, dry_run: bool = False, client=None) -
     records = []
     if hasattr(env, "_real_feedback_log"):
         for r in env._real_feedback_log:
-            records.append({
-                "real_task_id": r.get("real_task_id"),
-                "outcome": r.get("outcome"),
-                "fidelity": r.get("fidelity"),
-                "reward": r.get("reward"),
-            })
+            records.append(
+                {
+                    "real_task_id": r.get("real_task_id"),
+                    "outcome": r.get("outcome"),
+                    "fidelity": r.get("fidelity"),
+                    "reward": r.get("reward"),
+                }
+            )
             if r.get("outcome") == "completed":
                 real_completed += 1
 
@@ -136,7 +159,9 @@ def main():
             sys.exit(1)
         from src.api.tianyan_cqlib import CqlibTianyanClient
 
-        raw_client = CqlibTianyanClient(login_key=api_key, machine_name=TARGET_MACHINE, auto_retry_machine=False)
+        raw_client = CqlibTianyanClient(
+            login_key=api_key, machine_name=TARGET_MACHINE, auto_retry_machine=False
+        )
         client = RetryClient(raw_client)
         print(f"客户端: {TARGET_MACHINE} | 模式: {modes} | seeds: {len(args.seeds)}")
     else:
