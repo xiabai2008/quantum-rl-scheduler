@@ -1,0 +1,16 @@
+{
+  "smoke_test": true,
+  "machine": "tianyan-287",
+  "shots": 32,
+  "circuit": "H Q1\nM Q1",
+  "task_id": null,
+  "submitted_at": "2026-08-07T14:32:38.636240",
+  "completed_at": null,
+  "status": "failed",
+  "probability": null,
+  "measurement_balance_score": null,
+  "mock": false,
+  "degraded": false,
+  "passed": false,
+  "error": "submit_quantum_task 返回 None（全部机器不可用）"
+}

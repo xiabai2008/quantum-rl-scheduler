@@ -224,6 +224,34 @@ def _set_cached_measurement(task_id: str, result: dict[str, float]) -> None:
     _measurement_result_cache[task_id] = (time.time(), result)
 
 
+def _result_status_to_counts(parsed: Any) -> dict[str, int]:
+    """将 cqlib 的 resultStatus 原始数据转换为 {bitstring: count}。
+
+    支持两种形式：
+    - 字典: {"0": 12, "1": 20}（计数直接给出）
+    - 嵌套列表: [[0],[1],[1],...]（每元素为单 bit 的 shots 序列，cqlib 真机实际格式）
+
+    Returns:
+        转换后的计数字典，无法解析时返回空字典。
+    """
+    counts: dict[str, int] = {}
+    if isinstance(parsed, dict):
+        for key, val in parsed.items():
+            try:
+                counts[str(key)] = int(val)
+            except (ValueError, TypeError):
+                continue
+    elif isinstance(parsed, list) and parsed:
+        # 每元素可以是 [bit]（单 qubit）或 [bit1, bit2, ...]（多 qubit 位串）
+        for shot in parsed:
+            if isinstance(shot, (list, tuple)):
+                bitstring = "".join(str(b) for b in shot)
+            else:
+                bitstring = str(shot)
+            counts[bitstring] = counts.get(bitstring, 0) + 1
+    return counts
+
+
 def parse_measurement_result(
     status: "TaskResult | Mapping[str, Any]",
     task_id: str | None = None,
@@ -286,20 +314,40 @@ def parse_measurement_result(
 
     # 路径 3: resultStatus 原始 shots 计数
     result_status = status.get("resultStatus")
-    if result_status and isinstance(result_status, str):
-        try:
-            import json
+    if not result_status:
+        # cqlib 客户端把原始 data 塞进 raw 字段（TaskResult.raw=data），
+        # resultStatus 实际在 raw 嵌套里，需提取后再解析
+        raw_wrapper = status.get("raw")
+        if isinstance(raw_wrapper, Mapping):
+            result_status = raw_wrapper.get("resultStatus") or raw_wrapper.get("result_status")
+    if result_status:
+        if isinstance(result_status, str):
+            # 字符串 JSON 形式: '{"0": 12, "1": 20}' 或 '[[0],[1],...]'
+            try:
+                import json
 
-            counts = json.loads(result_status)
-            if isinstance(counts, dict):
+                parsed = json.loads(result_status)
+            except (json.JSONDecodeError, ValueError, TypeError) as e:
+                logger.debug(f"resultStatus JSON 解析失败: {e}")
+                parsed = None
+            counts = _result_status_to_counts(parsed)
+            if counts:
                 total_shots = sum(counts.values())
                 if total_shots > 0:
                     probability = {str(k): float(v) / total_shots for k, v in counts.items()}
                     if task_id is not None:
                         _set_cached_measurement(task_id, probability)
                     return probability
-        except (json.JSONDecodeError, ValueError, TypeError) as e:
-            logger.debug(f"resultStatus JSON 解析失败: {e}")
+        elif isinstance(result_status, list):
+            # 嵌套列表形式（cqlib 真机实际返回）: [[0],[1],[1],...] 每元素为单 bit
+            counts = _result_status_to_counts(result_status)
+            if counts:
+                total_shots = sum(counts.values())
+                if total_shots > 0:
+                    probability = {str(k): float(v) / total_shots for k, v in counts.items()}
+                    if task_id is not None:
+                        _set_cached_measurement(task_id, probability)
+                    return probability
 
     # 路径 4: result 字段（嵌套 probability 或直接是概率分布）
     result = status.get("result")

@@ -65,14 +65,14 @@
 
 | 参数 | 值 | 说明 |
 |:-----|:---|:-----|
-| 算法 | PPO（预训练模型加载） | 使用 `deliverable_models/ppo_best_model_14dim.zip` |
-| 评估环境 | 14维异质化调度环境 | `src/scheduler/env.py`，`Obs14Wrapper` |
+| 算法 | PPO（预训练模型加载） | 使用 `deliverable_models/ppo_best_model_16dim.zip`（v9.1 交付模型，16 维观测；原 14 维模型已删除，本预注册已同步更新） |
+| 评估环境 | 16维异质化调度环境 | `src/scheduler/env.py`，原生 16 维（OBS_DIM=16） |
 | 每组 seed 数 | ≥ 18 | 基于功效分析（见 §5.2） |
 | 每 seed episodes | 5 | 每个 seed 评估 5 个 episode |
 | 每 episode 步数 | 200 | 泊松到达 λ=0.5 |
-| 真机抽样率 | 0.05 | `real_submit_probability=0.05` |
-| 真机调用上限 | 10/seed | `real_machine_cap=10` |
-| 真机平台 | 天衍-287（cqlib SDK） | 1-3 qubit 单比特门电路 |
+| 真机抽样率 | 0.3（高参与率） | `real_submit_probability=0.3`（机时充足场景；原 0.05 下真机 reward 占比仅 1/96 步，无法测出差异） |
+| 真机调用上限 | 30/seed | `real_machine_cap=30`（原 10；配合抽样率提升，真机 reward 占比 ≥5%） |
+| 真机平台 | 天衍-287（cqlib SDK） | 1-qubit 单比特门电路（免费档兼容；若机时包升级支持多 qubit，改为 2-3 qubit 电路以放大保真度差异） |
 
 ### 3.3 随机化与控制
 
@@ -365,7 +365,7 @@ scripts/evaluation/preregistered_real_machine_analysis.py
 |:-----|:---|
 | 预注册编写日期 | 2026-07-21 |
 | 预注册提交仓库日期 | 2026-07-21（待 GitHub 账号恢复后推送） |
-| 数据收集开始日期 | 待定（需真机平台可用 + 机时配额） |
+| 数据收集开始日期 | 待定（需 tianyan-287 校准完成；2026-08-07 状态：calibration 维护中） |
 | 数据收集完成日期 | 待定 |
 | 分析完成日期 | 待定 |
 | 报告发布日期 | 待定 |
