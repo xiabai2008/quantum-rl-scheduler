@@ -205,9 +205,7 @@ def _is_stress_coverage_context(line: str) -> bool:
     上下文词时豁免。
     """
     lower = line.lower()
-    if "覆盖率" in line or "行覆盖率" in line or "coverage" in lower:
-        return True
-    return False
+    return "覆盖率" in line or "行覆盖率" in line or "coverage" in lower
 
 
 BLACKLIST_PATTERNS: list[tuple[str, str]] = [
@@ -895,9 +893,9 @@ def scan_markdown_file(
                 if re.search(pattern, norm_line, re.IGNORECASE):
                     # 8.7-v4 修复：stress +91.4% 黑名单在"行覆盖率"语义下豁免，
                     # 避免 mutation_testing 等覆盖率历史陈述被误报为应力优势。
-                    if message.startswith("BLACKLIST: stress 量子波动") and _is_stress_coverage_context(
-                        strip_line
-                    ):
+                    if message.startswith(
+                        "BLACKLIST: stress 量子波动"
+                    ) and _is_stress_coverage_context(strip_line):
                         continue
                     warnings.append(f"  L{line_num}: {message}")
                     warnings.append(f"    > {line.strip()[:120]}")
