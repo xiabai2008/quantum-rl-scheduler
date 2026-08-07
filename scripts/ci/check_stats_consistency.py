@@ -823,6 +823,7 @@ _KNOWN_LEGIT_P_VALUES: tuple[float, ...] = (
     0.84,  # 编译全电路
     2.49e-03,  # 编译深电路
     2.75e-02,  # 编译深电路子集
+    8.52e-03,  # 编译深电路 seed=7 交叉验证（technical_whitepaper §11.2）
     2.621e-10,  # DQN vs SJF
     8.44e-08,  # PPO 编译优化 Agent
 )
