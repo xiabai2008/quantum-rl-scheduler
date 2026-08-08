@@ -987,7 +987,14 @@ def scan_pdf_file(
         try:
             from PyPDF2 import PdfReader
         except ImportError:
-            return ["  未安装 pypdf/PyPDF2，跳过 PDF 口径扫描"]
+            # 8.7-v4 外部红队修复：门禁 fail-open → fail-closed。
+            # 缺库时静默跳过会让 PDF 口径校验形同虚设（全新环境永远"全绿"）。
+            # 返回 FATAL 级告警，strict 模式下必须失败；同时要求安装
+            # pypdf/python-pptx（已加入 requirements-dev.txt）。
+            return [
+                "[FATAL] 未安装 pypdf/PyPDF2，PDF 口径扫描无法执行。"
+                "请执行 pip install -r requirements-dev.txt（含 pypdf/python-pptx）"
+            ]
 
     try:
         reader = PdfReader(str(filepath))
@@ -1019,6 +1026,84 @@ def scan_pdf_file(
             if old_val in _normalize_chinese_numerals(ln) and not _disclosed(i):
                 warnings.append(f"  L{i}: 孤立废弃值 '{old_val}'（{desc}），权威应为 {new_val}")
                 warnings.append(f"    > {ln.strip()[:120]}")
+
+    return warnings
+
+
+def scan_pptx_file(
+    filepath: Path,
+    authoritative_p: dict[str, str],
+    deprecated_p: dict[str, str],
+    stats: dict[str, Any] | None = None,
+) -> list[str]:
+    """扫描 PPTX 二进制交付物（8.7-v4 外部红队修复）。
+
+    答辩 PPT 是评委现场唯一翻开的材料，此前 .pptx 二进制不在任何口径门禁内
+    （8.7-v3 修了 PDF 盲区，.pptx 是同构盲区）。本函数用 python-pptx 提取
+    全部 slide 的文本（含表格 cell），复用与 .md 相同的黑名单/诚实披露检测。
+
+    Returns:
+        告警列表；未安装 python-pptx 时返回 [FATAL] 级告警（fail-closed）。
+    """
+    try:
+        from pptx import Presentation
+    except ImportError:
+        return [
+            "[FATAL] 未安装 python-pptx，PPTX 口径扫描无法执行。"
+            "请执行 pip install -r requirements-dev.txt（含 pypdf/python-pptx）"
+        ]
+
+    try:
+        prs = Presentation(str(filepath))
+    except Exception as e:  # noqa: BLE001
+        return [f"[FATAL] PPTX 解析失败（{e}），口径扫描无法执行"]
+
+    warnings: list[str] = []
+    for slide_idx, slide in enumerate(prs.slides, 1):
+        parts: list[str] = []
+        for shape in slide.shapes:
+            if shape.has_text_frame:
+                for para in shape.text_frame.paragraphs:
+                    parts.append("".join(run.text for run in para.runs))
+            if shape.has_table:
+                for row in shape.table.rows:
+                    for cell in row.cells:
+                        parts.append(cell.text)
+            if shape.shape_type == 6:  # MSO_SHAPE_TYPE.GROUP
+                try:
+                    for sub in shape.shapes:
+                        if sub.has_text_frame:
+                            for para in sub.text_frame.paragraphs:
+                                parts.append("".join(run.text for run in para.runs))
+                except Exception:  # noqa: BLE001
+                    continue
+        # 每页合并为"行"，检测黑名单 + 孤立废弃值（诚实披露上下文豁免）
+        slide_text = "\n".join(parts)
+        # 8.7-v4 修复：PPTX 文本 run 常被换行拆分（同一句拆成多段），按行检测
+        # 会让"限定词与数字不同行"误报为裸展示。此处同时保留：
+        #   1) 全文合并（slide_text）做诚实披露判定——限定词只要在同一页就生效
+        #   2) 逐行检测黑名单，避免整页大文本绕过
+        disclosed_overall = _is_honest_disclosure(slide_text)
+        lines = slide_text.splitlines()
+        for i, ln in enumerate(lines, 1):
+            lo = max(0, i - 3)
+            hi = min(len(lines), i + 2)
+            disclosed = disclosed_overall or any(
+                _is_honest_disclosure(lines[j]) for j in range(lo, hi)
+            )
+            if disclosed:
+                continue
+            norm_line = _normalize_chinese_numerals(ln)
+            for pattern, message in BLACKLIST_PATTERNS:
+                if re.search(pattern, norm_line, re.IGNORECASE):
+                    warnings.append(f"  Slide {slide_idx} L{i}: {message}")
+                    warnings.append(f"    > {ln.strip()[:120]}")
+            for old_val, new_val, desc in _ORPHAN_DEPRECATED:
+                if old_val in norm_line:
+                    warnings.append(
+                        f"  Slide {slide_idx} L{i}: 孤立废弃值 '{old_val}'（{desc}），权威应为 {new_val}"
+                    )
+                    warnings.append(f"    > {ln.strip()[:120]}")
 
     return warnings
 
@@ -1173,13 +1258,32 @@ def main() -> int:
         pdf_warnings = scan_pdf_file(pdf_path, authoritative_p, deprecated_p, stats)
         if pdf_warnings:
             files_with_warnings += 1
-            total_warnings += len(pdf_warnings) // 3
+            # 8.7-v4 修复：PDF/PPTX 告警为 2 行/处，原 //3 会算成 0 导致
+            # strict 模式下有告警却仍通过（fail-open 残留）
+            total_warnings += len(pdf_warnings) // 2
             print(f"[WARN] {rel} (PDF)")
             for w in pdf_warnings:
                 print(w)
             print()
         else:
             print(f"[OK] {rel} (PDF) 口径一致")
+
+    # 8.7-v4 外部红队修复：.pptx 二进制纳入口径门禁（答辩 PPT 是评委现场
+    # 唯一翻开的材料，与 PDF 同构的盲区必须封死）。
+    deliverable_ppt = "deliverable_models/答辩PPT.pptx"
+    ppt_path = _PROJECT_ROOT / deliverable_ppt
+    if ppt_path.exists():
+        ppt_warnings = scan_pptx_file(ppt_path, authoritative_p, deprecated_p, stats)
+        if ppt_warnings:
+            files_with_warnings += 1
+            # 2 行/告警（见 PDF 注释），//3 会导致 strict 下漏检
+            total_warnings += len(ppt_warnings) // 2
+            print(f"[WARN] {deliverable_ppt} (PPTX)")
+            for w in ppt_warnings:
+                print(w)
+            print()
+        else:
+            print(f"[OK] {deliverable_ppt} (PPTX) 口径一致")
 
     # 汇总
     print("=" * 70)

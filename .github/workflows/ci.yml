@@ -108,6 +108,7 @@ jobs:
             ${{ runner.os }}-pip-${{ matrix.python-version }}-
 
       - name: Install dependencies
+        shell: bash
         run: |
           pip install --upgrade pip
           # 8.7-v4 修复（复现性墙）：优先用 requirements.lock（已验证版本组合，
@@ -206,7 +207,9 @@ jobs:
       - name: Upload coverage XML artifact
         # Issue #260: 将 coverage.xml 作为可下载 artifact 保存，
         # 便于审阅者随时下载本次构建的覆盖率报告快照。
-        if: always() && matrix.python-version == '3.11' && matrix.os == 'windows-latest'
+        # 8.7-v4 修复：条件原为 matrix.python-version == '3.11'，但矩阵只含
+        # 3.10/3.12（3.11 于 2026-08-01 移除），该 step 从未执行——改为 3.12。
+        if: always() && matrix.python-version == '3.12' && matrix.os == 'windows-latest'
         uses: actions/upload-artifact@v7
         with:
           name: coverage-xml
@@ -217,7 +220,8 @@ jobs:
         # Issue #260: 在 PR 上留言当前总覆盖率（行覆盖率 %）。
         # 使用 $GITHUB_TOKEN 鉴权，仅在 pull_request 事件下运行。
         # always() 确保即使主测试步骤失败也仍发布覆盖率（便于审阅者看到数值）。
-        if: always() && github.event_name == 'pull_request' && matrix.python-version == '3.11' && matrix.os == 'windows-latest'
+        # 8.7-v4 修复：条件原为 '3.11' 恒假（矩阵无 3.11），改 3.12。
+        if: always() && github.event_name == 'pull_request' && matrix.python-version == '3.12' && matrix.os == 'windows-latest'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ github.event.pull_request.number }}

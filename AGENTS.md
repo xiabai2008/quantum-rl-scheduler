@@ -259,8 +259,7 @@ quantum-rl-scheduler/
 ### 测试升级
 
 - 测试文件：5 → 76（+71个专用测试模块）
-- 测试用例：100+ → 3717（+21 benchmark = 3738 总收集）（Issue #398 P1-4 统一口径，pytest --collect-only 实测，2026-08-01）
-- 测试用例：100+ → 3717（+21 benchmark = 3738 总收集）（Issue #398 P1-4 统一口径，pytest --collect-only 实测，2026-08-02）
+- 测试用例：100+ → 3741（全量收集，含 21 benchmark）；主套件口径 3720（排除 benchmark，doc-sync 基准）；pytest --collect-only 实测，2026-08-08（历史口径随测试集扩充已多次更新，以当前实测为准）
 - CI 强制覆盖率：40% → 80%（CI 实测通过，pyproject.toml `fail_under=80`；历史值 93.58% 随测试集扩充已变化，以 CI 报告为准）
 - 新增：property-based testing + 性能基准测试 + mutation testing + 统计显著性检验
 
@@ -363,7 +362,7 @@ quantum-rl-scheduler/
 
 ## 8. 当前进度
 
-> **仓库状态快照（2026-08-07）**：3 open PR（#934/#935/#936）/ 2 open issue（#933、#846）（doc-sync 检查用；PR/issue 数实时变化，仅作快照）
+> **仓库状态快照（2026-08-08）**：2 open PR（#934/#936）/ 2 open issue（#933、#846）（doc-sync 检查用；PR/issue 数实时变化，仅作快照；#935 已于 8.7-v4 合并）
 
 ```
 v1 技术提升   ████████████████████ 100%（ruff 142→0 + mypy 26→0 + CI全严格阻断 + 覆盖率80%）

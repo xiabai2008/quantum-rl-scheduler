@@ -537,6 +537,12 @@ class MetricsCalculator:
 
         Returns:
             改进百分比（%）
+
+        Note:
+            baseline_value == 0 时改进百分比在数学上无定义，约定返回哨兵值：
+            0.0（new_value==0）或 100.0（new_value!=0）。
+            **调用方注意**：哨兵值 100.0 不代表真实提升，仅作"无基线"标记，
+            不得在报告/答辩中当作实际提升率引用（8.7-v4 审查确认）。
         """
         if baseline_value == 0:
             return 0.0 if new_value == 0 else 100.0

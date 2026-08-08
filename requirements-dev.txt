@@ -23,8 +23,14 @@ bandit>=1.7.0
 vcrpy>=6.0.0
 
 # === 编译层实验依赖（Issue #439） ===
-# scripts/evaluation/compilation_full.py 依赖 qiskit 和 ortools
+# scripts/evaluation/compilation_full.py 依赖 qiskit + ortools
 # 用于电路编译 AI 实验（PPO替代SABRE，公平对比v2 4×4 2D网格，Issue #451）
 # 非核心运行时依赖，仅编译层实验需要
 qiskit>=1.0
 ortools>=9.8
+
+# === 二进制交付物门禁依赖（8.7-v4 外部红队修复） ===
+# check_stats_consistency 的 PDF/PPTX 扫描依赖以下库；缺失时门禁会
+# fail-open（静默跳过并判绿）。必须安装，否则口径校验形同虚设。
+pypdf>=4.0.0
+python-pptx>=1.0.0

@@ -43,7 +43,27 @@ DOCS_WITH_TEST_COUNT: list[Path] = [
 ]
 
 # 已废弃的旧测试数（文档中不应再出现，历史CHANGELOG段除外）
-DEPRECATED_TEST_COUNTS = ["2824+", "2824", "3106", "3359", "3467", "3385"]
+# 8.7-v4 外部红队修复：补充 3717/3738/3711/3732 等近几轮旧口径，
+# 防止测试数口径漂移（红队实测 doc_sync 声称 3720 vs CI 实际 3695 vs 全量 3741）。
+# 注意：check_doc_sync 的权威口径 = 主套件收集（排除 benchmark）= 3720，
+# 全量（含 benchmark）= 3741；两者都不可作为"废弃数"。
+DEPRECATED_TEST_COUNTS = [
+    "2824+",
+    "2824",
+    "3106",
+    "3359",
+    "3467",
+    "3385",
+    "3695",
+    "3696",
+    "3697",
+    "3709",
+    "3711",
+    "3717",
+    "3730",
+    "3732",
+    "3738",
+]
 
 # 需要检查版本号的文档
 DOCS_WITH_VERSION: list[Path] = [
@@ -168,12 +188,21 @@ def check_test_count(expected: int) -> list[CheckResult]:
             results.append(CheckResult(f"test_count:{doc.name}", True, f"包含 {expected_str}"))
 
     # 检查废弃旧数（CHANGELOG 历史段允许，其他文档不允许）
+    # 8.7-v4 修复：AGENTS.md 的"最后更新"变更日志段是合法历史记录（记录各轮
+    # 修复时点使用的旧口径数字），此前豁免逻辑只写在注释里从未实现，导致
+    # changelog 里的历史测试数（如 3696/3717）被误报为违规。
+    changelog_re = re.compile(r"最后更新.*?(?=\n\*{3,}|\Z)", re.DOTALL)
     for doc in DOCS_WITH_TEST_COUNT:
         text = _read_text(doc)
+        # 提取 changelog 段（仅 AGENTS.md 有此结构；其他文档无 changelog 段则豁免为空）
+        m = changelog_re.search(text)
+        changelog_text = m.group(0) if m else ""
+        body_text = text.replace(changelog_text, "")
         for old in DEPRECATED_TEST_COUNTS:
             # 精确匹配旧数（避免误报，如 "2824" 在 "28240" 中）
             pattern = rf"(?<!\d){re.escape(old)}(?!\d)(?:\+)?"
-            if re.search(pattern, text):
+            # changelog 段内的旧数属于历史记录，豁免；正文中则违规
+            if re.search(pattern, body_text):
                 results.append(
                     CheckResult(
                         f"deprecated_count:{doc.name}",
