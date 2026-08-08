@@ -301,13 +301,8 @@ jobs:
           # sb3 2.8.0 stub 在 Python 3.11 + mypy 下推断异常（ABCMeta/Any），3.12 正常。
           python-version: "3.12"
 
-      - name: Cache pip packages
-        uses: actions/cache@v6
-        with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-mypy-${{ hashFiles('requirements.txt', 'requirements.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-pip-mypy-
+      # 8.7-v4：mypy job 移除 pip cache step——旧 wheel 缓存（types-requests 残留）
+      # 会污染类型标注环境，且该 job 仅 ~1 分钟安装，缓存收益低、风险高。
 
       - name: Install dependencies for mypy type resolution
         run: |
@@ -315,13 +310,15 @@ jobs:
           # 8.7-v4 修复：固定 mypy 版本与本地验证环境一致（2.1.0），
           # 避免 mypy 大版本漂移导致 sb3 2.8.0 stub 推断结果不一致
           # （mypy 1.x 对 sb3 2.8.0 报 Returning Any / ABCMeta 错误）。
-          pip install "mypy==2.1.0"
+          # --no-cache-dir：绕过 actions/cache 的旧 wheel 缓存（types-requests 残留
+          # 会导致 requests 2.34.2 类型标注冲突，缓存 key 已含 lock 但保险起见禁用）。
+          pip install --no-cache-dir "mypy==2.1.0"
           # Install project deps so mypy can resolve third-party types
           # (without deps, ignore_missing_imports treats all as Any,
           #  making # type: ignore comments "unused" → false failures)
           # 8.7-v4：优先 requirements.lock（已验证组合），缺失时回退 requirements.txt
           if [ -f requirements.lock ]; then
-            pip install -r requirements.lock
+            pip install --no-cache-dir -r requirements.lock
           else
             pip install -r requirements.txt
           fi
