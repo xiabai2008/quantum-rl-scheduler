@@ -260,8 +260,6 @@ def test_load_legacy_format_and_verbose_helpers(monkeypatch) -> None:
     monkeypatch.setattr(marl_module.os.path, "exists", lambda _path: False)
     # 8.7-v4 修复：先 weights_only=True（安全加载）失败后回退 False（旧格式兼容）。
     # mock 第一次调用（True）抛异常模拟旧格式模型，验证回退路径。
-    real_load = torch.load
-
     def _fake_load(*args, **kwargs):
         if kwargs.get("weights_only", True):
             raise TypeError("legacy format not loadable with weights_only=True")
