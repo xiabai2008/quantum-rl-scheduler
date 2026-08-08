@@ -312,7 +312,10 @@ jobs:
       - name: Install dependencies for mypy type resolution
         run: |
           python -m pip install --upgrade pip
-          pip install mypy>=1.5.0
+          # 8.7-v4 修复：固定 mypy 版本与本地验证环境一致（2.1.0），
+          # 避免 mypy 大版本漂移导致 sb3 2.8.0 stub 推断结果不一致
+          # （mypy 1.x 对 sb3 2.8.0 报 Returning Any / ABCMeta 错误）。
+          pip install "mypy==2.1.0"
           # Install project deps so mypy can resolve third-party types
           # (without deps, ignore_missing_imports treats all as Any,
           #  making # type: ignore comments "unused" → false failures)
