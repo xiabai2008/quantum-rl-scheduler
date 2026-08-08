@@ -1,4 +1,4 @@
-# =============================================================================
+﻿# =============================================================================
 # 量子RL调度系统 — CI/CD 持续集成流水线
 # Quantum RL Scheduler — CI/CD Pipeline
 #
@@ -44,7 +44,7 @@ jobs:
 
       - name: Install lint dependencies
         run: |
-          pip install --upgrade pip
+          python -m pip install --upgrade pip
           pip install "ruff>=0.15.0" "bandit>=1.7.0" "pyyaml>=6.0"
 
       - name: Check code formatting (ruff format)
@@ -110,7 +110,7 @@ jobs:
       - name: Install dependencies
         shell: bash
         run: |
-          pip install --upgrade pip
+          python -m pip install --upgrade pip
           # 8.7-v4 修复（复现性墙）：优先用 requirements.lock（已验证版本组合，
           # 全新安装下 PPO.load 不再崩溃）；lock 缺失时回退 requirements.txt。
           # 注意：torch 在 lock 中无 CUDA 后缀，pip 自动选择当前平台 wheel。
@@ -260,7 +260,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install --upgrade pip
+          python -m pip install --upgrade pip
           # 8.7-v4：优先 requirements.lock（已验证组合），缺失时回退 requirements.txt
           if [ -f requirements.lock ]; then
             pip install -r requirements.lock
@@ -309,7 +309,7 @@ jobs:
 
       - name: Install dependencies for mypy type resolution
         run: |
-          pip install --upgrade pip
+          python -m pip install --upgrade pip
           pip install mypy>=1.5.0
           # Install project deps so mypy can resolve third-party types
           # (without deps, ignore_missing_imports treats all as Any,
@@ -346,7 +346,7 @@ jobs:
 
       - name: Install pip-audit
         run: |
-          pip install --upgrade pip
+          python -m pip install --upgrade pip
           pip install pip-audit
 
       - name: Run pip-audit on requirements.txt
@@ -403,7 +403,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install --upgrade pip
+          python -m pip install --upgrade pip
           # 8.7-v4：优先 requirements.lock（已验证组合），缺失时回退 requirements.txt
           if [ -f requirements.lock ]; then
             pip install -r requirements.lock
@@ -481,7 +481,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install --upgrade pip
+          python -m pip install --upgrade pip
           # 8.7-v4：优先 requirements.lock（已验证组合），缺失时回退 requirements.txt
           if [ -f requirements.lock ]; then
             pip install -r requirements.lock
