@@ -394,13 +394,16 @@ PR审查        ████████████████░░░░  80
 - **P2**：演示视频录制（4-5分钟，1080p）— 需瑞哥人工录制
 - **P2**：PPT/白皮书 .pptx/.docx 源文件数字更新 — 需瑞哥手动更新
 - **P3**：8/15代码冻结，9/15前打v9.1-submission标签
-  - 冻结前检查清单:
+  - 冻结前检查清单（8.8 更新，补齐占位物替换/命名/复跑项）:
     1. 所有 CI 检查全绿（lint/test/typecheck/security）
-    2. `python scripts/ci/validate_submission.py --check` 通过
+    2. `python scripts/ci/validate_submission.py --check` 通过（0错误0警告）
     3. PPT/白皮书数字与代码权威数字一致（+20.2%，16维交付模型权威实验N=250，p=7.56e-12，旧14维+88.3%已废弃）
-    4. 演示视频已就位
-    5. 打标签: `git tag -a v9.1-submission -m "v9.1 提交版本" && git push origin v9.1-submission`
-    6. 打包: `python scripts/ci/validate_submission.py --pack`
+    4. **演示视频替换占位版**：按 demo_video_final_script.md 实拍后替换（占位版是黑屏+提示文字，正式提交不得用占位版）
+    5. **参赛报名表替换盖章版**：占位 PDF 须替换为报名系统下载的盖章扫描版；参赛总结报告内容核对确认
+    6. 打标签: `git tag -a v9.1-submission -m "v9.1 提交版本" && git push origin v9.1-submission`（须指向冻结 HEAD）
+    7. 打包: `python scripts/ci/validate_submission.py --pack`
+    8. **邮件提交时压缩包按比赛方案命名**：「提报单位（学校全称）－选题名称－作品名称」（如：XX大学-量子+AI双向赋能-量子RL调度系统）
+    9. 提交前最终复跑：CI 全绿 + validate 0错误 + 解压 dist zip 抽查无旧数字
 
 详见 workspace 根目录 `项目状态审查与下一步工作建议_2026-07-09.md`。
 
@@ -452,10 +455,10 @@ PR审查        ████████████████░░░░  80
 
 ```bash
 # ── CLI 统一入口 ──
-python scripts/cli.py train --timesteps 50000 --algorithm ppo
-python scripts/cli.py simulate --num-tasks 200 --strategies all
+python scripts/cli.py train --timesteps 50000
+python scripts/cli.py simulate --episodes 1 --tasks-per-episode 200 --ppo-model-path deliverable_models/ppo_best_model_16dim.zip
 python scripts/cli.py serve --port 8000
-python scripts/cli.py demo --multi-machine
+python scripts/cli.py demo --skip-train --skip-simulation
 
 # ── 多Seed评估与统计检验 ──
 python scripts/evaluation/run_multiseed_evaluation.py --seeds 10 --episodes 5

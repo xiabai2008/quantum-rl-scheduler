@@ -222,7 +222,7 @@ python scripts/cli.py --help
 python scripts/cli.py train --timesteps 5000
 
 # 8种策略对比仿真（默认加载deliverable_models/ppo_best_model_16dim.zip）
-python scripts/cli.py simulate --num-tasks 200
+python scripts/cli.py simulate --episodes 1 --tasks-per-episode 200
 
 # 公平调度演示（多租户公平性度量：Jain 指数/max-min 比率，输出 results/fairness_demo_result.json）
 python scripts/evaluation/run_fairness_demo.py --episodes 5 --steps 200
@@ -371,6 +371,10 @@ TIANYAN_API_KEY=你的真实API密钥
 ## 最终提交包说明
 
 比赛最终提交物清单定义在 `config/submission_manifest.yaml`，使用校验工具管理：
+
+> ⚠️ **压缩包命名规范（比赛方案第八点）**：邮件提交的压缩包名必须为
+> 「提报单位（学校全称）－选题名称－作品名称」（如：XX大学-量子+AI双向赋能-量子RL调度系统）。
+> 仓库内 `dist/` 产物为内部校验用命名，正式提交时须按此规范重命名。
 
 ```bash
 # 准备提交物（创建 dist/ 目录 + 生成缺失项报告 + 输出检查清单）

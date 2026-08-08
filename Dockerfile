@@ -40,8 +40,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # 复制依赖清单并安装到用户目录（便于多阶段复制）
-COPY requirements.txt .
-RUN pip install --no-cache-dir --user -r requirements.txt
+# 8.8 修复：优先 requirements.lock（已验证组合，全新安装下 PPO.load 不再崩溃），
+# 缺失时回退 requirements.txt（上界已收紧 numpy<2.3/torch<2.8）
+COPY requirements.txt requirements.lock ./
+RUN if [ -f requirements.lock ]; then pip install --no-cache-dir --user -r requirements.lock; else pip install --no-cache-dir --user -r requirements.txt; fi
 
 # ---------- 阶段 2：运行时镜像 ----------
 FROM python:3.11-slim
