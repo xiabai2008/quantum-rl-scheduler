@@ -4,7 +4,10 @@
 # 并通过 pip install -r requirements.lock 安装。
 # 8.4 审查收紧：numpy 2.5.x/torch 2.13.x/sb3 2.9.x+ 组合触发 PPO.load
 # SIGSEGV（ABI 跨大版本），已验证兼容区间上限收窄（torch 2.7.1 / numpy 2.2.5 OK）。
-numpy>=1.24.0,<2.4.0
+# 8.7-v4 外部红队修复（复现性墙）：上界收紧到 2026-08-07 全量测试（3715 passed）
+# + 模型 smoke 加载验证通过的区间。numpy>=2.3 与 torch 2.7.1 组合在全新安装下
+# 触发 PytorchStreamReader 崩溃（红队实测 48 failed），故 numpy 上限收紧到 <2.3。
+numpy>=1.24.0,<2.3.0
 pandas>=2.0.0,<4.0.0
 scipy>=1.10.0,<2.0.0
 
@@ -14,6 +17,7 @@ gymnasium>=0.28.0,<2.0.0
 stable-baselines3>=2.0.0,<2.10.0
 sb3-contrib>=2.0.0,<2.10.0
 # torch 版本直接影响 PPO.load 反序列化兼容性（8.4 审查：2.13.x SIGSEGV）
+# 8.7-v4：上限保持 <2.8.0（已验证 2.7.1 OK；8.4 实测 2.13.x SIGSEGV）
 torch>=2.0.0,<2.8.0
 tensorboard>=2.14.0,<3.0.0
 

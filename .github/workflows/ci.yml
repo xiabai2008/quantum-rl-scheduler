@@ -110,7 +110,14 @@ jobs:
       - name: Install dependencies
         run: |
           pip install --upgrade pip
-          pip install -r requirements.txt
+          # 8.7-v4 修复（复现性墙）：优先用 requirements.lock（已验证版本组合，
+          # 全新安装下 PPO.load 不再崩溃）；lock 缺失时回退 requirements.txt。
+          # 注意：torch 在 lock 中无 CUDA 后缀，pip 自动选择当前平台 wheel。
+          if [ -f requirements.lock ]; then
+            pip install -r requirements.lock
+          else
+            pip install -r requirements.txt
+          fi
           # Dev/test dependencies (not in requirements.txt to keep prod image lean)
           pip install -r requirements-dev.txt
 
@@ -250,7 +257,12 @@ jobs:
       - name: Install dependencies
         run: |
           pip install --upgrade pip
-          pip install -r requirements.txt
+          # 8.7-v4：优先 requirements.lock（已验证组合），缺失时回退 requirements.txt
+          if [ -f requirements.lock ]; then
+            pip install -r requirements.lock
+          else
+            pip install -r requirements.txt
+          fi
           pip install -r requirements-dev.txt
 
       - name: Run core CI validation scripts
@@ -298,7 +310,12 @@ jobs:
           # Install project deps so mypy can resolve third-party types
           # (without deps, ignore_missing_imports treats all as Any,
           #  making # type: ignore comments "unused" → false failures)
-          pip install -r requirements.txt
+          # 8.7-v4：优先 requirements.lock（已验证组合），缺失时回退 requirements.txt
+          if [ -f requirements.lock ]; then
+            pip install -r requirements.lock
+          else
+            pip install -r requirements.txt
+          fi
 
       - name: Run mypy (strict mode, config from mypy.ini)
         run: |
@@ -383,7 +400,12 @@ jobs:
       - name: Install dependencies
         run: |
           pip install --upgrade pip
-          pip install -r requirements.txt
+          # 8.7-v4：优先 requirements.lock（已验证组合），缺失时回退 requirements.txt
+          if [ -f requirements.lock ]; then
+            pip install -r requirements.lock
+          else
+            pip install -r requirements.txt
+          fi
           pip install -r requirements-dev.txt
 
       - name: Run benchmarks
@@ -456,7 +478,12 @@ jobs:
       - name: Install dependencies
         run: |
           pip install --upgrade pip
-          pip install -r requirements.txt
+          # 8.7-v4：优先 requirements.lock（已验证组合），缺失时回退 requirements.txt
+          if [ -f requirements.lock ]; then
+            pip install -r requirements.lock
+          else
+            pip install -r requirements.txt
+          fi
           pip install -r requirements-dev.txt
 
       - name: Run documentation sync check
