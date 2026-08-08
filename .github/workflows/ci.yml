@@ -297,7 +297,9 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          # 8.7-v4 修复：3.11 → 3.12，与 test job 矩阵一致。
+          # sb3 2.8.0 stub 在 Python 3.11 + mypy 下推断异常（ABCMeta/Any），3.12 正常。
+          python-version: "3.12"
 
       - name: Cache pip packages
         uses: actions/cache@v6
