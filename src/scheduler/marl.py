@@ -733,7 +733,7 @@ class LearnableMachineScorer(MachineScorer, nn.Module):
             # 执行任意代码（RCE）；旧格式模型（含 torch.save 的 pickle 对象）失败时
             # 再回退到 weights_only=False 并告警，保持旧模型兼容。
             state = torch.load(load_path, map_location=self.device, weights_only=True)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 - 兼容旧格式模型，回退后由加载路径兜底
             logger.warning(
                 f"[LearnableMachineScorer] weights_only=True 加载失败（{e}），"
                 f"回退旧格式兼容加载（weights_only=False，仅限可信模型文件）"
@@ -1629,10 +1629,8 @@ class MultiAgentPPO:
                 # 8.7-v4 修复：先安全加载，旧格式（含 pickle 对象）再回退
                 state = torch.load(path, map_location=self.device, weights_only=True)
                 cfg = state.get("config")
-            except Exception as e:
-                logger.warning(
-                    f"weights_only=True 加载失败（{e}），回退旧格式兼容加载"
-                )
+            except Exception as e:  # noqa: BLE001 - 旧格式模型兼容回退
+                logger.warning(f"weights_only=True 加载失败（{e}），回退旧格式兼容加载")
                 state = torch.load(path, map_location=self.device, weights_only=False)  # nosec B614
                 cfg = state.pop("config")
         if cfg["num_agents"] != self.num_agents:

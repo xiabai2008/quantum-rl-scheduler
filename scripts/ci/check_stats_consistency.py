@@ -1055,7 +1055,7 @@ def scan_pptx_file(
 
     try:
         prs = Presentation(str(filepath))
-    except Exception as e:  # noqa: BLE001
+    except Exception as e:
         return [f"[FATAL] PPTX 解析失败（{e}），口径扫描无法执行"]
 
     warnings: list[str] = []
@@ -1075,7 +1075,7 @@ def scan_pptx_file(
                         if sub.has_text_frame:
                             for para in sub.text_frame.paragraphs:
                                 parts.append("".join(run.text for run in para.runs))
-                except Exception:  # noqa: BLE001
+                except Exception:
                     continue
         # 每页合并为"行"，检测黑名单 + 孤立废弃值（诚实披露上下文豁免）
         slide_text = "\n".join(parts)
