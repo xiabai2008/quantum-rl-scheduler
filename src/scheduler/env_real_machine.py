@@ -652,9 +652,14 @@ def shuffle_measurement(measured: dict[str, float]) -> dict[str, float]:
     values = list(measured.values())
     shuffled = dict(measured)
 
+    # 8.7-v4 修复（K6）：原用全局 random.shuffle 破坏可复现性（与 L165 的
+    # random.Random(seed) 混用）。改用模块级确定性 Random 实例，
+    # 保证同一输入恒产生同一打乱结果。
+    _shuffle_rng = random.Random(42)
+
     # 尝试打乱，确保结果与原始不同（最多重试 10 次）
     for _ in range(10):
-        random.shuffle(values)
+        _shuffle_rng.shuffle(values)
         shuffled = dict(zip(keys, values, strict=True))
         # 检查是否确实发生了变化
         if any(shuffled[k] != measured[k] for k in keys):

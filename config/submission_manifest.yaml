@@ -32,8 +32,19 @@ items:
         - "tests/"
         - "scripts/"
         - "docs/"
+        - "config/"
         - "README.md"
+        - "AGENTS.md"
+        - "pyproject.toml"
         - "requirements.txt"
+        - "requirements-dev.txt"
+        - "requirements.lock"
+        - "mypy.ini"
+        - "Dockerfile"
+        - "docker-compose.yml"
+        - ".pre-commit-config.yaml"
+        - ".editorconfig"
+        - "deliverable_models/"
 
   # 文档部分
   - id: WHITEPAPER

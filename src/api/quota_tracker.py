@@ -229,6 +229,12 @@ class QuotaTracker:
             "tasks": float(tasks),
             "wall_time_hours": float(wall_time_hours),
         }
+        # 8.7-v4 修复（K10）：与 consume 的 Issue #872 校验对齐——负值参数会减少
+        # 已用配额（变相"充值"），can_consume 也必须拒绝，否则"负值预检通过→
+        # consume 拒绝"的语义不一致会让调用方误判。
+        if any(v < 0.0 for v in request.values()):
+            logger.warning(f"[QuotaTracker] can_consume 拒绝负值: {request}")
+            return False
         with self._lock:
             for dim in _QUOTA_DIMENSIONS:
                 if self._used[dim] + request[dim] > self._total_quota[dim]:

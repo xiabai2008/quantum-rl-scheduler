@@ -28,6 +28,10 @@ metadata:
 # =============================================================================
 simulation_8strategy_50seed:
   experiment_name: "8策略50seed仿真对比（16维交付模型）"
+  # 8.8 口径声明：std_reward 使用总体标准差（ddof=0）。
+  # statistical_validation.md 使用样本标准差（ddof=1，558.37/503.96），
+  # 两者均为合法口径（N=250 时差异 <0.2%），对外引用以本 yaml（ddof=0）为权威。
+  std_ddof: 0
   applicable_condition: >
     16维观测空间（原生16维环境，OBS_DIM=16，v9+ 交付标准），50 seeds × 5 episodes = 250次独立运行，
     每episode 200步，泊松到达λ=0.5，量子任务占比70%，
@@ -178,11 +182,12 @@ simulation_8strategy_50seed:
 
   fcfs_vs_sjf:
     test_method: "Mann-Whitney U"
-    p_value: 0.2827
+    # 8.8 修复：从 rewards_multiseed.json 重算（旧 0.2827 为错误值，差 60 个数量级）
+    p_value: 2.28e-60
     effect_size_type: "rank-biserial"
-    effect_size: 0.0556
+    effect_size: -0.8472
     n: 250
-    significant: false
+    significant: true
 
 # =============================================================================
 # 实验1b: MAPPO 同训练量收敛严格对比（8.7-v4 红队审查 P0-2 口径统一）

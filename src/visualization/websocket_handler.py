@@ -66,8 +66,8 @@ def _check_websocket_origin(websocket: WebSocket) -> bool:
     防御跨站 WebSocket 劫持（CSWSH）：浏览器会在 WebSocket 握手请求中
     自动携带 Origin 头，服务端通过白名单校验拒绝恶意网站发起的连接。
 
-    对于非浏览器客户端（如 curl、TestClient mock），Origin 头可能缺失
-    或为非字符串类型，此时放行以保证兼容性。
+    8.7-v4 修复：异常/非字符串 Origin 一律拒绝（fail-closed），
+    原实现 return True 放行会被攻击者利用（伪造异常/非字符串 Origin 绕过校验）。
 
     Args:
         websocket: WebSocket 连接对象
@@ -77,12 +77,11 @@ def _check_websocket_origin(websocket: WebSocket) -> bool:
     """
     try:
         origin = websocket.headers.get("origin", "")
-    except Exception:  # noqa: BLE001
-        # headers 不可读时放行（防御性，保证兼容性）
-        return True
-    # 非字符串 Origin（如测试 mock 对象）放行，避免破坏测试
+    except Exception:  # noqa: BLE001 - headers 不可读时按拒绝处理（fail-closed）
+        return False
+    # 非字符串 Origin（如异常 mock 对象）拒绝，避免伪造绕过
     if not isinstance(origin, str):
-        return True
+        return False
     return is_origin_allowed(origin)
 
 

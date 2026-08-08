@@ -216,12 +216,26 @@ class PPOStrategy:
 
 
 class FCFSStrategy:
-    """FCFS：先来先服务（环境内部按优先级/等待排序取队首，资源分配选混合执行）。"""
+    """FCFS：先来先服务（按到达顺序调度，动作匹配队首任务类型）。
+
+    8.7-v4 红队修复（J3）：原实现恒返回 ACTION_HYBRID（弱基线），
+    与"FCFS 先来先服务"语义不符，导致 PPT Slide6 "0.60 vs 22.00"
+    防饥饿卖点建立在伪基线上。现按观测中的队首任务类型选择动作：
+    - 队首为量子任务 → 量子执行
+    - 队首为经典任务 → 经典执行
+    - 其他（混合/空队列）→ 混合执行
+    """
 
     name = "FCFS"
 
     def select_action(self, obs: np.ndarray) -> int:
-        return ACTION_HYBRID  # 混合执行，最高兼容性
+        # obs[8]=task_type_quantum（1=队首是量子任务）
+        # obs[9]=task_type_classical（1=队首是经典任务）
+        if len(obs) > 9 and obs[8] > 0.5:
+            return ACTION_QUANTUM
+        if len(obs) > 9 and obs[9] > 0.5:
+            return ACTION_CLASSICAL
+        return ACTION_HYBRID  # 混合/空队列兜底
 
 
 class SJFStrategy:

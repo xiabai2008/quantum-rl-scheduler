@@ -1031,6 +1031,18 @@ def _beta_params_from_mean_std(mean: float, std: float, low: float, high: float)
     if range_ <= 0:
         return {"distribution": "beta", "a": 1.0, "b": 1.0, "low": low, "high": high, "mean": mean}
     m = (mean - low) / range_
+    # 8.7-v4 修复（K11）：std<=0 时方差为 0，m*(1-m)/v 除零。
+    # 返回退化 Beta（a=b 大参数 = 几乎确定值），避免崩溃。
+    if std <= 0.0:
+        return {
+            "distribution": "beta",
+            "a": 1e6,
+            "b": 1e6,
+            "low": low,
+            "high": high,
+            "mean": float(mean),
+            "std": 0.0,
+        }
     v = (std / range_) ** 2
     if v >= m * (1 - m):
         v = m * (1 - m) * 0.9

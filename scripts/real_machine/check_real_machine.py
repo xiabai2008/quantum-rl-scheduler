@@ -2,7 +2,8 @@
 检查 Trae 生成的真机数据收集脚本是否确实走真机
 
 用法：
-    D:\tools\\Python 3.12.9\\python.exe scripts/check_real_machine.py
+    python scripts/real_machine/check_real_machine.py
+    （8.7-v4 修复：原 docstring 硬编码本机 Python 路径 D:\\tools\\Python 3.12.9，已改为通用命令）
 
 检查点：
 1. 环境变量 TIANYAN_MOCK_MODE 是否为 false

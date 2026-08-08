@@ -240,6 +240,7 @@ class RealMachineCallback(BaseCallback):
         save_path: str = "results/real_times.json",
         shots: int = 512,
         verbose: int = 1,
+        seed: int | None = None,
     ) -> None:
         """
         初始化真机抽样回调。
@@ -252,6 +253,8 @@ class RealMachineCallback(BaseCallback):
             save_path: 真机提交记录 JSON 保存路径，默认 "results/real_times.json"
             shots: 真机任务 shots，默认 512
             verbose: 日志详细程度，默认 1
+            seed: 概率门控随机种子（8.7-v4 修复：给定 seed 时用局部 Random 保证
+                可复现；None 时用全局 random，兼容既有调用方）
         """
         super().__init__(verbose)
         self.env = env
@@ -262,6 +265,7 @@ class RealMachineCallback(BaseCallback):
         self.shots = int(shots)
         self.real_times: list[dict[str, Any]] = []
         self._warned_no_client = False
+        self._rng: Any = random.Random(seed) if seed is not None else None
 
     def _on_step(self) -> bool:
         """每步触发：达到 interval 时按 prob 概率提交真机任务。"""
@@ -270,8 +274,12 @@ class RealMachineCallback(BaseCallback):
             return True
         if self.prob <= 0.0:
             return True
-        # 概率门控：未命中则跳过本次
-        if random.random() >= self.prob:
+        # 概率门控：未命中则跳过本次（8.7-v4 修复：seed 给定用局部 Random 保证可复现）
+        if self._rng is not None:
+            hit = self._rng.random() < self.prob
+        else:
+            hit = random.random() < self.prob
+        if not hit:
             return True
 
         # 解析可用的真机客户端（显式传入优先；否则从 env._real_clients 取第一项）

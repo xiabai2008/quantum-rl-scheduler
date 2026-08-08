@@ -49,7 +49,7 @@ def test_websocket_endpoint_init_ping_and_invalid_json():
     with (
         patch.object(app_module, "simulate_scheduler", _noop_simulate),
         TestClient(app) as client,
-        client.websocket_connect("/ws") as ws,
+        client.websocket_connect("/ws", headers={"origin": "http://localhost:8000"}) as ws,
     ):
         init_msg = ws.receive_json()
         assert init_msg["type"] == "init"
@@ -130,6 +130,8 @@ async def test_websocket_endpoint_runtime_error_cleanup():
     from src.visualization.websocket_handler import websocket_endpoint
 
     ws = AsyncMock()
+    # 8.7-v4：Origin 校验 fail-closed 后，mock 需提供合法 Origin 头
+    ws.headers = {"origin": "http://localhost:8000"}
     ws.receive_text.side_effect = RuntimeError("connection reset")
 
     with patch.object(viz_state, "manager") as mock_mgr:
@@ -148,6 +150,8 @@ async def test_websocket_endpoint_connection_closed_cleanup():
     from src.visualization.websocket_handler import websocket_endpoint
 
     ws = AsyncMock()
+    # 8.7-v4：Origin 校验 fail-closed 后，mock 需提供合法 Origin 头
+    ws.headers = {"origin": "http://localhost:8000"}
     ws.receive_text.side_effect = ConnectionError("connection closed")
 
     with patch.object(viz_state, "manager") as mock_mgr:
@@ -170,7 +174,7 @@ class TestWebSocket:
         with (
             patch.object(app_module, "simulate_scheduler", _noop_simulate_scheduler),
             TestClient(app) as client,
-            client.websocket_connect("/ws") as ws,
+            client.websocket_connect("/ws", headers={"origin": "http://localhost:8000"}) as ws,
         ):
             msg = ws.receive_json()
             assert msg["type"] == "init"
@@ -183,7 +187,7 @@ class TestWebSocket:
         with (
             patch.object(app_module, "simulate_scheduler", _noop_simulate_scheduler),
             TestClient(app) as client,
-            client.websocket_connect("/ws") as ws,
+            client.websocket_connect("/ws", headers={"origin": "http://localhost:8000"}) as ws,
         ):
             ws.receive_json()  # 消费 init 消息
             ws.send_text(json.dumps({"action": "ping"}))
@@ -195,7 +199,7 @@ class TestWebSocket:
         with (
             patch.object(app_module, "simulate_scheduler", _noop_simulate_scheduler),
             TestClient(app) as client,
-            client.websocket_connect("/ws") as ws,
+            client.websocket_connect("/ws", headers={"origin": "http://localhost:8000"}) as ws,
         ):
             ws.receive_json()
             ws.send_text("not-a-json")
@@ -210,7 +214,7 @@ class TestWebSocket:
             TestClient(app) as client,
         ):
             baseline = len(app_module.manager.active_connections)
-            with client.websocket_connect("/ws") as ws:
+            with client.websocket_connect("/ws", headers={"origin": "http://localhost:8000"}) as ws:
                 ws.receive_json()
                 during = len(app_module.manager.active_connections)
                 assert during >= baseline + 1
@@ -267,7 +271,7 @@ class TestWebSocketAdvanced:
             patch.object(app_module, "_PROJECT_ROOT", str(tmp_path)),
             patch.object(app_module, "simulate_scheduler", _noop_simulate_scheduler),
             TestClient(app) as client,
-            client.websocket_connect("/ws") as ws,
+            client.websocket_connect("/ws", headers={"origin": "http://localhost:8000"}) as ws,
         ):
             msg = ws.receive_json()
             assert msg["type"] == "init"
@@ -283,7 +287,7 @@ class TestWebSocketAdvanced:
             patch.object(app_module, "_PROJECT_ROOT", str(tmp_path)),
             patch.object(app_module, "simulate_scheduler", _noop_simulate_scheduler),
             TestClient(app) as client,
-            client.websocket_connect("/ws") as ws,
+            client.websocket_connect("/ws", headers={"origin": "http://localhost:8000"}) as ws,
         ):
             msg = ws.receive_json()
             assert msg["type"] == "init"
@@ -299,7 +303,7 @@ class TestWebSocketAdvanced:
             patch.object(app_module, "_PROJECT_ROOT", str(tmp_path)),
             patch.object(app_module, "simulate_scheduler", _noop_simulate_scheduler),
             TestClient(app) as client,
-            client.websocket_connect("/ws") as ws,
+            client.websocket_connect("/ws", headers={"origin": "http://localhost:8000"}) as ws,
         ):
             msg = ws.receive_json()
             assert msg["type"] == "init"
@@ -313,7 +317,7 @@ class TestWebSocketAdvanced:
         with (
             patch.object(app_module, "simulate_scheduler", _noop_simulate_scheduler),
             TestClient(app) as client,
-            client.websocket_connect("/ws") as ws,
+            client.websocket_connect("/ws", headers={"origin": "http://localhost:8000"}) as ws,
         ):
             ws.receive_json()  # consume init
             ws.send_text(json.dumps({"action": "get_decisions"}))
@@ -330,7 +334,7 @@ class TestWebSocketAdvanced:
         with (
             patch.object(app_module, "simulate_scheduler", _noop_simulate_scheduler),
             TestClient(app) as client,
-            client.websocket_connect("/ws") as ws,
+            client.websocket_connect("/ws", headers={"origin": "http://localhost:8000"}) as ws,
         ):
             ws.receive_json()  # consume init
             ws.send_text(json.dumps({"action": "get_resource_history"}))
