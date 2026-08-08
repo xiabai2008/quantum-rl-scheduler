@@ -157,26 +157,30 @@ simulation_8strategy_50seed:
 
   ppo_vs_sjf:
     test_method: "Mann-Whitney U"
-    p_value: 6.511e-62
+    # 8.8 修复：从 rewards_multiseed.json 重算（旧 6.511e-62 为过期值，正确为 1.11e-70）
+    p_value: 1.11e-70
     effect_size_type: "rank-biserial"
-    effect_size: -0.8583
+    effect_size: -0.9188
     n: 250
 
   ppo_vs_random:
     test_method: "Welch t"
-    p_value: 1.315e-77
+    # 8.8 修复：从 rewards_multiseed.json 重算（旧 1.315e-77 为过期值，正确为 3.02e-118）
+    p_value: 3.02e-118
     effect_size_type: "Cohen's d"
-    effect_size: -2.2581
+    effect_size: 3.1636
     n: 250
     note: >
-      v9.1+ 16维模型: p=1.315e-77, Cohen's d=-2.2581。
+      v9.1+ 16维模型: p=3.02e-118, Cohen's d=3.1636（8.8 重算）。
       旧 14 维模型 p=4.92e-55 已废弃。
 
   dqn_vs_fcfs:
     test_method: "Welch t"
-    p_value: 5.681e-14
+    # 8.8 修复：从 rewards_multiseed.json 重算（旧 5.681e-14 为过期值，正确为 2.79e-98；
+    # DQN 位与 Random 完全同数组，故与 random_vs_fcfs 等价）
+    p_value: 2.79e-98
     effect_size_type: "Cohen's d"
-    effect_size: -0.7102
+    effect_size: -2.6044
     n: 250
     note: "DQN 位使用 Random 替代，故与 random_vs_fcfs 等价"
 
