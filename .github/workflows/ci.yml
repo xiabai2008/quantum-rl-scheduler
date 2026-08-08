@@ -439,7 +439,10 @@ jobs:
           git add results/benchmark_history.jsonl results/reports/performance_trend.png
           git diff --cached --quiet || (
             git commit -m "ci: update benchmark history & trend chart [skip ci]"
-            git push origin main
+            # 8.7-v4 修复：main 分支保护(GH006)拒绝 bot push，此步骤仅尽力而为。
+            # || true 确保 push 失败不阻断 CI（实测 continue-on-error 对受保护
+            # 分支 push 仍标记 job 失败，需要显式吞掉退出码）。
+            git push origin main || true
           )
 
       - name: Upload benchmark results
