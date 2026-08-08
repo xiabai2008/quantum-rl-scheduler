@@ -308,20 +308,15 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           # 8.7-v4 修复：固定 mypy 版本与本地验证环境一致（2.1.0），
-          # 避免 mypy 大版本漂移导致 sb3 2.8.0 stub 推断结果不一致
-          # （mypy 1.x 对 sb3 2.8.0 报 Returning Any / ABCMeta 错误）。
-          # --no-cache-dir：绕过 actions/cache 的旧 wheel 缓存（types-requests 残留
-          # 会导致 requests 2.34.2 类型标注冲突，缓存 key 已含 lock 但保险起见禁用）。
+          # 避免 mypy 大版本漂移导致 sb3 stub 推断结果不一致。
+          # --no-cache-dir：绕过 actions/cache 旧 wheel 缓存。
           pip install --no-cache-dir "mypy==2.1.0"
-          # Install project deps so mypy can resolve third-party types
-          # (without deps, ignore_missing_imports treats all as Any,
-          #  making # type: ignore comments "unused" → false failures)
-          # 8.7-v4：优先 requirements.lock（已验证组合），缺失时回退 requirements.txt
-          if [ -f requirements.lock ]; then
-            pip install --no-cache-dir -r requirements.lock
-          else
-            pip install -r requirements.txt
-          fi
+          # mypy job 只需类型标注解析，用轻量 requirements.txt（不含 lock 的
+          # 精确版本，避免在 CI 下载 torch~2GB 导致 job 中断/半装状态）。
+          # 类型推断敏感点在 ppo_agent/env_real_machine 的 sb3/requests stub，
+          # requirements.txt 上界已收紧（numpy<2.3/torch<2.8），解析结果与
+          # 本地验证环境一致。
+          pip install --no-cache-dir -r requirements.txt
 
       - name: Run mypy (strict mode, config from mypy.ini)
         run: |
