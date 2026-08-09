@@ -32,6 +32,33 @@ _QCIS_VALID_INSTRUCTIONS = frozenset(
 )
 
 
+def _result_status_to_counts(parsed: Any) -> dict[str, int]:
+    """将 cqlib 的 resultStatus 原始数据转换为 {bitstring: count}。
+
+    支持三种形式（与 src/scheduler/env_real_machine.py 同源逻辑）：
+    - 嵌套列表: [[0],[1],[1],...]（真机实际返回，每元素为单 bit 测量结果）
+    - 计数字典: {"0": 12, "1": 20}
+    - 位串列表: ["0", "1", ...]
+    """
+    counts: dict[str, int] = {}
+    if isinstance(parsed, dict):
+        for key, value in parsed.items():
+            try:
+                counts[str(key)] = int(value)
+            except (TypeError, ValueError):
+                continue
+    elif isinstance(parsed, list):
+        for item in parsed:
+            if isinstance(item, (list, tuple)) and len(item) == 1:
+                bit = str(item[0])
+            elif isinstance(item, (list, tuple)):
+                bit = "".join(str(b) for b in item)
+            else:
+                bit = str(item)
+            counts[bit] = counts.get(bit, 0) + 1
+    return counts
+
+
 def _validate_qcis(qcis_str: str) -> None:
     """验证 QCIS 电路内容，防止提交超深/非法电路（Issue #515）。
 
@@ -588,6 +615,29 @@ class CqlibTianyanClient(QuantumHardwareBackend):
                     has_result = "resultStatus" in data or "probability" in data
                     probability = data.get("probability")
                     counts = data.get("counts")
+                    # 8.9 修复：cqlib 真机返回的 probability 是 JSON 字符串
+                    # （如 '{"0":0.527,"1":0.473}'），不是 dict。字符串形式若被
+                    # 丢弃会导致 wait_for_task().probability 恒空，误判所有任务失败。
+                    if isinstance(probability, str) and probability.strip():
+                        try:
+                            import json as _json
+
+                            parsed_prob = _json.loads(probability)
+                            if isinstance(parsed_prob, dict):
+                                probability = parsed_prob
+                        except (ValueError, TypeError):
+                            pass
+                    if not probability:
+                        # resultStatus 兜底：raw 嵌套列表 [[0],[1],...] → 计数字典
+                        result_status = data.get("resultStatus")
+                        if not isinstance(result_status, (list, dict)) or not result_status:
+                            raw_wrapper = data.get("raw")
+                            if isinstance(raw_wrapper, dict):
+                                result_status = raw_wrapper.get("resultStatus") or raw_wrapper.get(
+                                    "result_status"
+                                )
+                        if result_status:
+                            counts = _result_status_to_counts(result_status)
                     return TaskResult(
                         task_id=task_id,
                         status="completed" if has_result else "running",

@@ -942,6 +942,28 @@ class TestCqlibClient(unittest.TestCase):
         self.assertEqual(result["status"], "completed")
         mock_s.assert_called_once_with("tid")
 
+    def test_get_task_status_string_probability_parsed(self):
+        """8.9 修复：cqlib 真机 probability 为 JSON 字符串时也应解析为 dict。"""
+        self.client._platform.query_experiment.return_value = [
+            {"resultStatus": "done", "probability": '{"0":0.527,"1":0.473}'}
+        ]
+        status = self.client.get_task_status("tid")
+        self.assertEqual(status["status"], "completed")
+        self.assertEqual(status["probability"], {"0": 0.527, "1": 0.473})
+        self.assertNotEqual(status["probability"], {})
+
+    def test_get_task_status_result_status_nested_list_fallback(self):
+        """8.9 修复：probability 缺失时用 raw.resultStatus 嵌套列表兜底转计数。"""
+        self.client._platform.query_experiment.return_value = [
+            {
+                "resultStatus": "done",
+                "raw": {"resultStatus": [[0], [1], [1], [0], [1]]},
+            }
+        ]
+        status = self.client.get_task_status("tid")
+        self.assertEqual(status["status"], "completed")
+        self.assertEqual(status["counts"], {"0": 2, "1": 3})
+
     def test_wait_for_task_completed(self):
         """任务 completed 时应立即返回。"""
         with patch.object(self.client, "get_task_status", return_value={"status": "completed"}):
