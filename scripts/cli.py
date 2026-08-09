@@ -106,7 +106,12 @@ def train(
 @click.option("--episodes", type=int, default=100, help="仿真 episode 数")
 @click.option("--tasks-per-episode", type=int, default=100, help="每个 episode 的任务数")
 @click.option("--model-path", type=str, default=None, help="训练好的 DQN 模型路径")
-@click.option("--ppo-model-path", type=str, default=None, help="训练好的 PPO 模型路径")
+@click.option(
+    "--ppo-model-path",
+    type=str,
+    default="deliverable_models/ppo_best_model_16dim.zip",
+    help="训练好的 PPO 模型路径（默认加载交付模型，与 README 声明一致）",
+)
 @click.option("--output-dir", type=str, default="./results/", help="结果输出目录")
 @click.option("--verbose", is_flag=True, help="打印详细日志")
 @click.option("--real-prob", type=float, default=0.0, help="真机抽样概率")

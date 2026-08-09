@@ -612,7 +612,7 @@ def add_page_decoration(canvas_obj, doc):
     canvas_obj.setFont("CJK", 8)
     canvas_obj.setFillColor(TEXT_MUTED)
     canvas_obj.drawString(doc.leftMargin, A4[1] - 32, "AI赋能量子计算任务调度系统 — 技术白皮书")
-    canvas_obj.drawRightString(A4[0] - doc.rightMargin, A4[1] - 32, "v1.0")
+    canvas_obj.drawRightString(A4[0] - doc.rightMargin, A4[1] - 32, "v9.1")
 
     # 页脚
     canvas_obj.setStrokeColor(BORDER)
@@ -671,8 +671,8 @@ def build_cover(styles, content_width):
             Paragraph("<b>项 目 信 息</b>", styles["table_header"]),
             Paragraph("", styles["table_header"]),
         ],
-        [Paragraph("版本", styles["table_cell"]), Paragraph("v1.0", styles["table_cell"])],
-        [Paragraph("日期", styles["table_cell"]), Paragraph("2026年7月27日", styles["table_cell"])],
+        [Paragraph("版本", styles["table_cell"]), Paragraph("v9.1", styles["table_cell"])],
+        [Paragraph("日期", styles["table_cell"]), Paragraph("2026年8月9日", styles["table_cell"])],
         [
             Paragraph("团队", styles["table_cell"]),
             Paragraph("量子RL调度团队", styles["table_cell"]),

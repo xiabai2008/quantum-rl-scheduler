@@ -361,11 +361,11 @@ TIANYAN_API_KEY=你的真实API密钥
 
 | 材料 | 文件 | 状态 |
 |------|------|------|
-| 技术白皮书 | `docs/technical_whitepaper.pdf` | ✅ 已完成（7章，2026-07-27） |
-| 答辩PPT | — | 🔄 制作中（大纲：`答辩PPT大纲.md`） |
-| 演示视频分镜脚本 | `演示视频分镜脚本.md` | ✅ 已完成 |
-| 演示视频（5分钟） | — | 🔄 待录制 |
-| 答辩PPT大纲 | `答辩PPT大纲.md` | ✅ 已完成 |
+| 技术白皮书 | `docs/technical_whitepaper.pdf` | ✅ 已完成（13章，2026-08-09，v9.1） |
+| 答辩PPT | `deliverable_models/答辩PPT.pptx` | ✅ 已完成（18页，2026-08-09，双向赋能叙事版） |
+| 演示视频分镜脚本 | `docs/demo_video_final_script.md` | ✅ 已完成 |
+| 演示视频（5分钟） | `演示视频_量子RL调度系统.mp4` | ⚠️ 占位版已就位，待实拍替换 |
+| 答辩PPT大纲 | `docs/defense_ppt_outline.md` | ✅ 已完成 |
 | 实验数据报告 | `results/reports/` 下 63 份报告 | ✅ 已完成 |
 
 ## 最终提交包说明
@@ -390,7 +390,7 @@ python scripts/ci/validate_submission.py --check --report results/reports/submis
 python scripts/ci/validate_submission.py --pack
 ```
 
-### 提交物清单（13 项）
+### 提交物清单（22 项，详见 config/submission_manifest.yaml）
 
 | 编号 | 名称 | 类型 | 状态 |
 |:--:|:--|:--:|:--:|
