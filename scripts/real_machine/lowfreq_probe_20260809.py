@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 """tianyan176 低频窗口探测：单任务间隔提交，评估当前成功率（2026-08-09 round3-B）。"""
+
 from __future__ import annotations
 
 import os

@@ -7,6 +7,7 @@ v2 失败根因：env 用了默认 machine_configs（tianyan_s/…）且未 atta
 - env.attach_real_clients({TARGET_MACHINE: client}) 激活真机链路
 - 提交前实时探测窗口（176 状态在 running/calibration 间闪烁）
 """
+
 from __future__ import annotations
 
 import argparse
@@ -40,12 +41,45 @@ SHOTS = 32
 EPISODE_HORIZON = 96
 RESULTS_PATH = _PROJECT_ROOT / "results" / "real_machine" / "round3_expansion_20260809_v3.json"
 
-SEEDS_20 = [42, 123, 456, 789, 1024, 2025, 3141, 5678, 8765, 9999, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41]
+SEEDS_20 = [
+    42,
+    123,
+    456,
+    789,
+    1024,
+    2025,
+    3141,
+    5678,
+    8765,
+    9999,
+    7,
+    11,
+    13,
+    17,
+    19,
+    23,
+    29,
+    31,
+    37,
+    41,
+]
 MODEL_PATH = _PROJECT_ROOT / "deliverable_models" / "ppo_best_model_16dim.zip"
 
 MACHINE_CONFIGS = [
-    {"name": TARGET_MACHINE, "machine_type": "quantum", "max_qubits": 176, "noise_level": 0.01, "queue_capacity": 10},
-    {"name": "classic_cpu_1", "machine_type": "classic", "max_qubits": 0, "noise_level": 0.0, "queue_capacity": 20},
+    {
+        "name": TARGET_MACHINE,
+        "machine_type": "quantum",
+        "max_qubits": 176,
+        "noise_level": 0.01,
+        "queue_capacity": 10,
+    },
+    {
+        "name": "classic_cpu_1",
+        "machine_type": "classic",
+        "max_qubits": 0,
+        "noise_level": 0.0,
+        "queue_capacity": 20,
+    },
 ]
 
 
@@ -162,8 +196,11 @@ def main() -> int:
             env.attach_real_clients({TARGET_MACHINE: client})
             ep = run_one_episode(env, seed, policy)
             results.append(ep)
-            print(f"  [{done+1}/{total}] seed={seed} {policy} reward={ep['total_reward']:.1f} "
-                  f"real={ep['real_submitted']} done={ep['real_completed']}", flush=True)
+            print(
+                f"  [{done + 1}/{total}] seed={seed} {policy} reward={ep['total_reward']:.1f} "
+                f"real={ep['real_submitted']} done={ep['real_completed']}",
+                flush=True,
+            )
             env.close()
             done += 1
             time.sleep(3)

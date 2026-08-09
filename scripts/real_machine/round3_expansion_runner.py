@@ -11,6 +11,7 @@
 用法：
     python scripts/real_machine/round3_expansion_runner.py --wait-hours 3
 """
+
 from __future__ import annotations
 
 import argparse
@@ -44,7 +45,28 @@ SHOTS = 32
 EPISODE_HORIZON = 96  # v2 权威同构
 RESULTS_PATH = _PROJECT_ROOT / "results" / "real_machine" / "round3_expansion_20260809.json"
 
-SEEDS_20 = [42, 123, 456, 789, 1024, 2025, 3141, 5678, 8765, 9999, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41]
+SEEDS_20 = [
+    42,
+    123,
+    456,
+    789,
+    1024,
+    2025,
+    3141,
+    5678,
+    8765,
+    9999,
+    7,
+    11,
+    13,
+    17,
+    19,
+    23,
+    29,
+    31,
+    37,
+    41,
+]
 MODEL_PATH = _PROJECT_ROOT / "deliverable_models" / "ppo_best_model_16dim.zip"
 
 
@@ -137,8 +159,11 @@ def run_experiment(client: CqlibTianyanClient) -> dict[str, Any]:
                 else:
                     ep = run_episode_baseline(env, seed, policy)
                 results.append(ep)
-                print(f"    reward={ep['total_reward']:.1f} real={ep['real_submitted']} "
-                      f"completed={ep['real_completed']}", flush=True)
+                print(
+                    f"    reward={ep['total_reward']:.1f} real={ep['real_submitted']} "
+                    f"completed={ep['real_completed']}",
+                    flush=True,
+                )
                 env.close()
             except Exception as e:
                 print(f"    FAILED: {str(e)[:100]}", flush=True)
@@ -183,7 +208,9 @@ def main() -> int:
         print(f"[{datetime.now():%H:%M:%S}] 176 仍不可用（校准/维护），60s 后重试...", flush=True)
         time.sleep(60)
 
-    print(f"等待超时（{args.wait_hours}h），176 未恢复。放弃扩充，保持 v2 N=10 权威口径。", flush=True)
+    print(
+        f"等待超时（{args.wait_hours}h），176 未恢复。放弃扩充，保持 v2 N=10 权威口径。", flush=True
+    )
     return 2
 
 

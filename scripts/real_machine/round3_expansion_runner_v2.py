@@ -5,6 +5,7 @@
 改进：每 seed 提交前实时探测；探测失败立即中止本轮并等待窗口恢复。
 实验保持 v2 权威同构（每 seed 1 真机调用，96 步，shots=32，H Q1/M Q1）。
 """
+
 from __future__ import annotations
 
 import argparse
@@ -38,7 +39,28 @@ SHOTS = 32
 EPISODE_HORIZON = 96
 RESULTS_PATH = _PROJECT_ROOT / "results" / "real_machine" / "round3_expansion_20260809_v2.json"
 
-SEEDS_20 = [42, 123, 456, 789, 1024, 2025, 3141, 5678, 8765, 9999, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41]
+SEEDS_20 = [
+    42,
+    123,
+    456,
+    789,
+    1024,
+    2025,
+    3141,
+    5678,
+    8765,
+    9999,
+    7,
+    11,
+    13,
+    17,
+    19,
+    23,
+    29,
+    31,
+    37,
+    41,
+]
 MODEL_PATH = _PROJECT_ROOT / "deliverable_models" / "ppo_best_model_16dim.zip"
 
 
@@ -156,8 +178,11 @@ def main() -> int:
             )
             ep = run_one_episode(env, seed, policy)
             results.append(ep)
-            print(f"  [{done+1}/{total}] seed={seed} {policy} reward={ep['total_reward']:.1f} "
-                  f"real={ep['real_submitted']} done={ep['real_completed']}", flush=True)
+            print(
+                f"  [{done + 1}/{total}] seed={seed} {policy} reward={ep['total_reward']:.1f} "
+                f"real={ep['real_submitted']} done={ep['real_completed']}",
+                flush=True,
+            )
             env.close()
             done += 1
             time.sleep(3)

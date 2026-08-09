@@ -10,6 +10,7 @@ _submit_and_poll_one_task = client.wait_for_task 到终态。
 - episode 结束后同步提交 1 个 H Q1/M Q1 任务并 wait_for_task（≤150s）
 - 每 seed×策略 = 1 真机调用（v2 同构），记录 MBS/保真度
 """
+
 from __future__ import annotations
 
 import argparse
@@ -44,12 +45,45 @@ EPISODE_HORIZON = 96
 RESULTS_PATH = _PROJECT_ROOT / "results" / "real_machine" / "round3_expansion_20260809_v4.json"
 QCIS_CIRCUIT = "H Q1\nM Q1"
 
-SEEDS_20 = [42, 123, 456, 789, 1024, 2025, 3141, 5678, 8765, 9999, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41]
+SEEDS_20 = [
+    42,
+    123,
+    456,
+    789,
+    1024,
+    2025,
+    3141,
+    5678,
+    8765,
+    9999,
+    7,
+    11,
+    13,
+    17,
+    19,
+    23,
+    29,
+    31,
+    37,
+    41,
+]
 MODEL_PATH = _PROJECT_ROOT / "deliverable_models" / "ppo_best_model_16dim.zip"
 
 MACHINE_CONFIGS = [
-    {"name": TARGET_MACHINE, "machine_type": "quantum", "max_qubits": 176, "noise_level": 0.01, "queue_capacity": 10},
-    {"name": "classic_cpu_1", "machine_type": "classic", "max_qubits": 0, "noise_level": 0.0, "queue_capacity": 20},
+    {
+        "name": TARGET_MACHINE,
+        "machine_type": "quantum",
+        "max_qubits": 176,
+        "noise_level": 0.01,
+        "queue_capacity": 10,
+    },
+    {
+        "name": "classic_cpu_1",
+        "machine_type": "classic",
+        "max_qubits": 0,
+        "noise_level": 0.0,
+        "queue_capacity": 20,
+    },
 ]
 
 # 对齐 v2 权威 MBS 公式：1 - 2*|P(0) - 0.5|
@@ -150,7 +184,9 @@ def run_one_episode(env: QuantumSchedulingEnv, seed: int, policy: str) -> dict[s
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="176 严格窗口模式 N=20 扩充实验 v4（v2 同步提交对齐）")
+    parser = argparse.ArgumentParser(
+        description="176 严格窗口模式 N=20 扩充实验 v4（v2 同步提交对齐）"
+    )
     parser.add_argument("--wait-hours", type=float, default=3.0)
     parser.add_argument("--max-episodes", type=int, default=60)
     args = parser.parse_args()
@@ -196,9 +232,11 @@ def main() -> int:
             env.close()
             real = submit_and_poll_one_task(client, f"rd3_{seed}_{policy}")
             results.append({**ep, "seed": seed, "strategy": policy, "real": real})
-            print(f"  [{done+1}/{total}] seed={seed} {policy} reward={ep['total_reward']:.1f} "
-                  f"real={real['status']} fid={real['fidelity']} mbs={real['measurement_balance_score']}",
-                  flush=True)
+            print(
+                f"  [{done + 1}/{total}] seed={seed} {policy} reward={ep['total_reward']:.1f} "
+                f"real={real['status']} fid={real['fidelity']} mbs={real['measurement_balance_score']}",
+                flush=True,
+            )
             done += 1
             time.sleep(3)
         except Exception as e:
