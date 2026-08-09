@@ -67,7 +67,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     # 60 分钟 timeout（实际约 7 分钟完成）。
     # 矩阵策略说明（2026-07-19）：
-    #   完整测试套件（1658 测试）只在 Windows runner 上跑。
+    #   完整测试套件（3741 测试，主套件 3720）只在 Windows runner 上跑。
     #   Linux/macOS 共享 runner 只有 2 核 7GB RAM，跑完整套件会因
     #   CPU/内存耗尽导致 runner 失联（47 分钟后 lost communication），
     #   即使跳过退火测试、加 xdist 并行化仍无法解决。
@@ -231,7 +231,7 @@ jobs:
   # ---------------------------------------------------------------------------
   # Job 2b: Linux 跨平台冒烟测试（Issue #185: 跨平台兼容性验证）
   # ---------------------------------------------------------------------------
-  # 完整测试套件（1658 测试）只在 Windows runner 上跑（资源限制）。
+  # 完整测试套件（3741 测试，主套件 3720）只在 Windows runner 上跑（资源限制）。
   # Linux 冒烟测试仅运行核心 CI 验证脚本和快速单元测试，确保跨平台兼容性。
   linux-smoke:
     name: "Linux Smoke Test (Python ${{ matrix.python-version }})"

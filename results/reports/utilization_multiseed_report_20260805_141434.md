@@ -1,5 +1,6 @@
 # 资源利用率多 Seed 权威报告（Issue #350）
 
+> **⚠️ 冻结横幅**：本文档为 20260805_141434 早期快照，已被 20260805_141716 口径取代；权威资源利用率 = **-3.3%**（PPO 0.4467 vs FCFS 0.4620，N=250，vs 真实 FCFS），见 `config/statistics.yaml`。
 > **实验配置**: 2 seeds × 2 episodes = 4 次独立运行
 > **观测维度**: 16 维（原生环境）
 > **数据来源**: `results/multiseed_evaluation/rewards_multiseed.json` → utilization 字段
@@ -9,7 +10,7 @@
 ## 一、赛题对齐
 
 赛题发榜方要求 **资源利用率提升 ≥ 30%**（`docs/requirements_traceability.md` R-P-01）。
-本报告基于 N=250 权威实验（与 PPO +20.24% 奖励提升同一批运行，
+本报告基于 N=250 权威实验（与 PPO +20.2% 奖励提升同一批运行，
 8.5 基线诚实化：真实 FCFS 量子路由基线），
 为该硬性指标提供统计严谨的数据支撑。
 

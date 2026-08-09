@@ -5,6 +5,7 @@
 > **数据来源**: `results\multiseed_evaluation\rewards_multiseed.json`
 > **显著性水平 α**: 0.05
 > **比较次数**: 28（Bonferroni 校正后 α = 0.0018）
+> **标准差口径**: 本报告标准差为样本标准差（ddof=1）；statistics.yaml/AGENTS.md 权威口径为总体标准差（ddof=0，PPO 557.25 / FCFS 502.95），两口径均合法，数值差异为自由度修正。
 
 ---
 

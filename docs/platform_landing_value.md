@@ -25,7 +25,7 @@
 | API 对接 | 已完成 cqlib SDK 封装 | `src/api/tianyan_cqlib.py` |
 | 真机调用 | 315次调用100%成功（100%） | `results/reports/real_machine_validation.md` |
 | 任务类型 | 量子/经典/混合三动作 | `src/scheduler/env_types.py` |
-| 硬件支持 | 天衍-287（287 比特） | 真机验证 |
+| 硬件支持 | 天衍-287（287 总比特（105 数据 + 182 耦合）） | 真机验证 |
 | 故障恢复 | 熔断器三态 + 自动降级 | `src/api/circuit_breaker.py` |
 | 可观测性 | Prometheus 7 指标 | `src/utils/metrics.py` |
 

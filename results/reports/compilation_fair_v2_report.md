@@ -1,5 +1,7 @@
 # 编译层 PPO SWAP 公平对比报告 v2
 
+> **⚠️ 冻结横幅**：本报告深电路 +33.3%（N=20）为早期样本，已被 N=80 扩充实验取代（深电路子集显著改善；全 60 电路 p=8.40e-01 不显著，浅/中电路无优势，诚实披露），权威口径见 `results/reports/compilation_deep_scale_report.md` 与 `config/statistics.yaml` compilation_fair_v2。
+
 **生成时间**: 2026-08-01 08:13:45
 **Issue**: #451 — 修复 `compilation_full.py` 不公平对比设计
 **模型**: `deliverable_models/ppo_compilation_agent.zip` (PPO, 200k timesteps, 4×4 2D网格+全电路分布训练)

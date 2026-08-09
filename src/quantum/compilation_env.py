@@ -27,7 +27,9 @@ from numpy.typing import NDArray
 PHYSICAL_QUBITS = 16
 GRID_ROWS, GRID_COLS = 4, 4
 
-# 天衍-287 拓扑配置（105 数据比特，10x11 网格 = 110 物理比特）
+# 天衍-287 编译预设拓扑 10x11 网格（110 节点，可配置编译环境预设）；
+# 天衍-287 物理比特口径为 105 数据 + 182 耦合（287 总比特），
+# 该 110 节点网格为编译层的抽象耦合图预设，与物理比特拆解无一一对应关系。
 TIANYAN_287_ROWS, TIANYAN_287_COLS = 10, 11
 TIANYAN_287_QUBITS = TIANYAN_287_ROWS * TIANYAN_287_COLS  # 110
 

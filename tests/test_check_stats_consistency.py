@@ -311,3 +311,31 @@ class TestUtilization72Negative:
         assert not any("~46%" in msg for _pat, msg in violations), (
             "经典利用率65%不应被误判为量子利用率"
         )
+
+
+class TestOldWeakBaselineCIBlacklist:
+    """废弃弱基线 95%CI [+113.3%, +133.5%] 正则加固（round2-C 审计 §1-6）"""
+
+    def test_detects_ci_113_133_with_plus_signs(self) -> None:
+        """带 + 号的写法 [+113.3%, +133.5%] 应触发 BLACKLIST。"""
+        text = "95% CI [+113.3%, +133.5%]（弱基线口径）\n"
+        violations = _run_blacklist_check_on_text(text)
+        assert any("14.3%" in msg for _pat, msg in violations), (
+            "带+号CI变体应触发废弃CI的BLACKLIST"
+        )
+
+    def test_detects_ci_113_133_without_plus_signs(self) -> None:
+        """不带 + 号的写法 [113.3%, 133.5%] 也应触发 BLACKLIST。"""
+        text = "Bootstrap 10000 次 [113.3%, 133.5%]\n"
+        violations = _run_blacklist_check_on_text(text)
+        assert any("14.3%" in msg for _pat, msg in violations), (
+            "不带+号CI变体应触发废弃CI的BLACKLIST"
+        )
+
+    def test_no_false_positive_authoritative_ci(self) -> None:
+        """权威 CI [+14.3%, +26.7%] 不应误报。"""
+        text = "95% CI [+14.3%, +26.7%]（真实 FCFS 基线）\n"
+        violations = _run_blacklist_check_on_text(text)
+        assert not any("14.3%" in msg for _pat, msg in violations), (
+            "权威CI不应触发废弃CI的BLACKLIST"
+        )

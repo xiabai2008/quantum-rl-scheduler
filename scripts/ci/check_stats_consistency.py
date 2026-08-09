@@ -247,7 +247,7 @@ BLACKLIST_PATTERNS: list[tuple[str, str]] = [
         "BLACKLIST: Cohen's d=-2.1353 为 8.5 前弱基线（Hybrid-Default）效应量，已废弃。当前权威效应量为 rank-biserial=-0.3642（或 Welch 独立样本 Cohen's d≈+0.63）",
     ),
     (
-        r"\[113\.3%,?\s*133\.5%\]",
+        r"\[\+?113\.3%,?\s*\+?133\.5%\]",
         "BLACKLIST: 95%CI [+113.3%, +133.5%] 为废弃 +123.4% 弱基线的 CI，已废弃。当前权威 CI 为 [+14.3%, +26.7%]",
     ),
     (
