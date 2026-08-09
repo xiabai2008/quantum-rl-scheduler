@@ -64,12 +64,17 @@ platform = TianYanPlatform(login_key="your_key", machine_name="tianyan-287")
 
 # 2. 创建参数化电路（VQE/QAOA 必备）
 circuit = Circuit(qubits=[0, 6])
-circuit.h(0); circuit.x(6); circuit.cz(0, 6); circuit.measure_all()
+circuit.h(0)
+circuit.x(6)
+circuit.cz(0, 6)
+circuit.measure_all()
 # 支持门：H, X, Y, Z, RX, RY, RZ, X2P, X2M, Y2P, Y2M, S, SD, T, TD,
 #         CX, CCX, CRX, CRY, CRZ, CZ, SWAP, XY, XY2P, XY2M
 
 # 3. 提交任务
-query_id = platform.submit_experiment(circuit=circuit.qcis, language=QuantumLanguage.QCIS, num_shots=5000)
+query_id = platform.submit_experiment(
+    circuit=circuit.qcis, language=QuantumLanguage.QCIS, num_shots=5000
+)
 
 # 4. 查询结果
 result = platform.query_experiment(query_id=query_id, max_wait_time=120, sleep_time=5)

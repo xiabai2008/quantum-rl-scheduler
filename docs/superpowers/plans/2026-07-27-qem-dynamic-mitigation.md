@@ -21,9 +21,9 @@ Modify `src/scheduler/env_types.py` to add `ACTION_QUANTUM_QEM`.
 ```python
 # In src/scheduler/env_types.py
 ACTION_CLASSICAL = 0  # 分配到经典计算资源
-ACTION_QUANTUM = 1    # 分配到量子计算资源
-ACTION_HYBRID = 2     # 混合执行
-ACTION_QUANTUM_QEM = 3 # 使用误差缓释（QEM）的量子执行
+ACTION_QUANTUM = 1  # 分配到量子计算资源
+ACTION_HYBRID = 2  # 混合执行
+ACTION_QUANTUM_QEM = 3  # 使用误差缓释（QEM）的量子执行
 ```
 
 - [ ] **Step 2: Commit**
@@ -94,6 +94,7 @@ Create `tests/test_qem_action.py` to ensure taking `ACTION_QUANTUM_QEM` results 
 import numpy as np
 from src.scheduler.env import QuantumSchedulerEnv
 from src.scheduler.env_types import ACTION_QUANTUM, ACTION_QUANTUM_QEM
+
 
 def test_qem_effects():
     env = QuantumSchedulerEnv()

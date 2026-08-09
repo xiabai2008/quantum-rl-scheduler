@@ -164,7 +164,7 @@
 **权重更新公式**（`src/quantum/annealing.py` → `_apply_weights_v2_partial`）：
 
 ```python
-w_final = w_old + learning_rate * delta   # 默认 learning_rate=0.01
+w_final = w_old + learning_rate * delta  # 默认 learning_rate=0.01
 ```
 
 默认 `learning_rate=0.01` 意味着退火求解得到的 `delta` 仅被应用 **1%**。对于一个 L2 范数约 17.7 的 PPO 策略网络（20,612 个参数），1% 的更新量产生的实际权重变化极小，导致：

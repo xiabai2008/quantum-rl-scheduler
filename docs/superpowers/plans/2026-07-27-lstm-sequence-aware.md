@@ -19,8 +19,8 @@
 - [ ] **Step 1: Add ARRIVAL_RATE_MA constant**
 In `src/scheduler/env_types.py`:
 ```python
-OBS_ARRIVAL_RATE_MA = 15 # or 14 if done independently
-OBS_DIM = 16 # Adjust based on previous plans
+OBS_ARRIVAL_RATE_MA = 15  # or 14 if done independently
+OBS_DIM = 16  # Adjust based on previous plans
 ```
 
 - [ ] **Step 2: Add arrival history to Env state**

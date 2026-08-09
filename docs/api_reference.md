@@ -137,7 +137,7 @@ def __init__(
     base_url: str = "https://tianyan.ctyun.com/api/v1",
     timeout: float = 30.0,
     max_retries: int = 3,
-    circuit_breaker: CircuitBreaker | None = None
+    circuit_breaker: CircuitBreaker | None = None,
 ) -> None:
     """
     初始化天衍云客户端
@@ -171,7 +171,7 @@ def submit_task(
     machine_id: str,
     shots: int = 1000,
     priority: int = 0,
-    metadata: dict[str, Any] | None = None
+    metadata: dict[str, Any] | None = None,
 ) -> str:
     """
     提交量子任务到天衍云平台
@@ -350,7 +350,7 @@ def __init__(
     user_id: str | None = None,
     machine_ids: list[str] | None = None,
     timeout: float = 60.0,
-    circuit_breaker: CircuitBreaker | None = None
+    circuit_breaker: CircuitBreaker | None = None,
 ) -> None:
     """
     初始化 cqlib 客户端
@@ -383,7 +383,7 @@ def submit_task(
     machine_id: str,
     shots: int = 1000,
     priority: int = 0,
-    metadata: dict[str, Any] | None = None
+    metadata: dict[str, Any] | None = None,
 ) -> str:
     """
     通过 cqlib 提交量子任务（真机模式）
@@ -416,7 +416,7 @@ def submit_annealing_task(
     qubo_matrix: np.ndarray,
     shots: int = 1000,
     annealing_time: float = 20.0,
-    machine_id: str = "tianyan_annealer"
+    machine_id: str = "tianyan_annealer",
 ) -> str:
     """
     提交退火任务（QUBO 问题求解）
@@ -491,9 +491,7 @@ class MultiMachineCoordinator:
     """
 
     def __init__(
-        self,
-        clients: dict[str, TianyanCqlibClient],
-        strategy: str = "load_balanced"
+        self, clients: dict[str, TianyanCqlibClient], strategy: str = "load_balanced"
     ) -> None:
         """
         初始化多机器协调器
@@ -511,12 +509,7 @@ class MultiMachineCoordinator:
             >>> task_id = coordinator.submit_task(qasm, shots=1024)
         """
 
-    def submit_task(
-        self,
-        circuit_qasm: str,
-        shots: int = 1000,
-        priority: int = 0
-    ) -> str:
+    def submit_task(self, circuit_qasm: str, shots: int = 1000, priority: int = 0) -> str:
         """
         智能提交任务到最优机器
 
@@ -575,7 +568,7 @@ def __init__(
     mock_delay: float = 90.0,
     failure_rate: float = 0.0,
     machine_delays: dict[str, float] | None = None,
-    seed: int | None = None
+    seed: int | None = None,
 ) -> None:
     """
     初始化 Mock 客户端
@@ -1359,10 +1352,7 @@ class CircuitBreaker:
 
 ```python
 def __init__(
-    self,
-    failure_threshold: int = 5,
-    recovery_timeout: float = 60.0,
-    success_threshold: int = 2
+    self, failure_threshold: int = 5, recovery_timeout: float = 60.0, success_threshold: int = 2
 ) -> None:
     """
     初始化熔断器
@@ -1474,6 +1464,7 @@ class QuantumSchedulerError(Exception):
 
 class RateLimitError(QuantumSchedulerError):
     """API 限流错误，默认可重试，携带 retry_after 属性"""
+
     def __init__(
         self,
         message: str,
@@ -1535,14 +1526,14 @@ from src.api.mock_client import MockClient
 client = MockClient(mock_delay=5.0, seed=42)
 
 # 提交任务
-qasm = '''
+qasm = """
 OPENQASM 2.0;
 include "qelib1.inc";
 qreg q[2];
 h q[0];
 cx q[0], q[1];
 measure q -> c;
-'''
+"""
 task_id = client.submit_task(qasm, "tianyan_s", shots=1024)
 print(f"任务已提交: {task_id}")
 
@@ -1571,6 +1562,7 @@ task_id = client.submit_task(qasm, "tianyan_s", shots=2048)
 
 # 轮询结果
 import time
+
 while True:
     result = client.query_result(task_id)
     if result["status"] == "completed":
@@ -1591,7 +1583,7 @@ from src.api.tianyan_cqlib import TianyanCqlibClient, MultiMachineCoordinator
 clients = {
     "tianyan_s": TianyanCqlibClient(machine_ids=["tianyan_s"]),
     "tianyan_sw": TianyanCqlibClient(machine_ids=["tianyan_sw"]),
-    "tianyan_tn": TianyanCqlibClient(machine_ids=["tianyan_tn"])
+    "tianyan_tn": TianyanCqlibClient(machine_ids=["tianyan_tn"]),
 }
 
 # 初始化协调器（负载均衡策略）
@@ -1862,9 +1854,7 @@ def get_task_result(self, task_id: str) -> dict[str, Any]:
 #### 11.2.3.7 wait_for_task
 
 ```python
-def wait_for_task(
-    self, task_id: str, timeout: int = 300, poll_interval: int = 5
-) -> dict[str, Any]:
+def wait_for_task(self, task_id: str, timeout: int = 300, poll_interval: int = 5) -> dict[str, Any]:
     """
     轮询等待任务完成并返回结果。
 

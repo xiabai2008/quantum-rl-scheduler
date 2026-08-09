@@ -206,9 +206,9 @@ CREATE TABLE IF NOT EXISTS persistence_meta (
 **WAL 模式配置**：
 ```python
 conn = sqlite3.connect("data/scheduler_state.db", isolation_level=None)
-conn.execute("PRAGMA journal_mode=WAL")       # 写前日志，读写并发
-conn.execute("PRAGMA synchronous=NORMAL")     # 平衡安全与性能
-conn.execute("PRAGMA wal_autocheckpoint=1000") # 每 1000 页自动 checkpoint
+conn.execute("PRAGMA journal_mode=WAL")  # 写前日志，读写并发
+conn.execute("PRAGMA synchronous=NORMAL")  # 平衡安全与性能
+conn.execute("PRAGMA wal_autocheckpoint=1000")  # 每 1000 页自动 checkpoint
 ```
 
 ### 2.5 恢复流程

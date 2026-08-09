@@ -320,9 +320,7 @@ class TestOldWeakBaselineCIBlacklist:
         """带 + 号的写法 [+113.3%, +133.5%] 应触发 BLACKLIST。"""
         text = "95% CI [+113.3%, +133.5%]（弱基线口径）\n"
         violations = _run_blacklist_check_on_text(text)
-        assert any("14.3%" in msg for _pat, msg in violations), (
-            "带+号CI变体应触发废弃CI的BLACKLIST"
-        )
+        assert any("14.3%" in msg for _pat, msg in violations), "带+号CI变体应触发废弃CI的BLACKLIST"
 
     def test_detects_ci_113_133_without_plus_signs(self) -> None:
         """不带 + 号的写法 [113.3%, 133.5%] 也应触发 BLACKLIST。"""

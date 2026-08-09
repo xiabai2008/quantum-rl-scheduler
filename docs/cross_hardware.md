@@ -227,21 +227,25 @@ from abc import ABC, abstractmethod
 from enum import Enum
 from typing import Any
 
+
 class HardwareType(Enum):
     SUPERCONDUCTING = "superconducting"  # 超导
-    ION_TRAP = "ion_trap"                # 离子阱
-    PHOTONIC = "photonic"                # 光量子
+    ION_TRAP = "ion_trap"  # 离子阱
+    PHOTONIC = "photonic"  # 光量子
+
 
 class TaskType(Enum):
-    CIRCUIT = "circuit"    # 通用电路
-    GBS = "gbs"            # 高斯玻色采样
-    ANNEALING = "annealing" # 退火
+    CIRCUIT = "circuit"  # 通用电路
+    GBS = "gbs"  # 高斯玻色采样
+    ANNEALING = "annealing"  # 退火
+
 
 class MachineStatus(Enum):
     ONLINE = "online"
     CALIBRATING = "calibrating"
     MAINTENANCE = "maintenance"
     OFFLINE = "offline"
+
 
 class HardwareBackend(ABC):
     """量子硬件后端抽象基类"""
@@ -451,16 +455,16 @@ class QuantumMachine:
 ```python
 @dataclass
 class QuantumMachine:
-    name: str                    # 机器名称
-    total_qubits: int            # 物理比特数
-    available_ratio: float       # 可用比特比率
-    fidelity: float              # 平均保真度
-    supported_gates: tuple       # 支持的门集合
-    is_real: bool                # 是否对接真机
+    name: str  # 机器名称
+    total_qubits: int  # 物理比特数
+    available_ratio: float  # 可用比特比率
+    fidelity: float  # 平均保真度
+    supported_gates: tuple  # 支持的门集合
+    is_real: bool  # 是否对接真机
     single_gate_fidelity: float  # 单比特门保真度
-    two_gate_fidelity: float     # 两比特门保真度
-    coupling_density: float      # 耦合图密度
-    avg_connectivity: float      # 平均连通度
+    two_gate_fidelity: float  # 两比特门保真度
+    coupling_density: float  # 耦合图密度
+    avg_connectivity: float  # 平均连通度
 ```
 
 该数据类通过 `supported_gates` 和噪声特征字段（`single_gate_fidelity`、`two_gate_fidelity`、`coupling_density`）描述不同硬件的物理特性，使得调度策略能根据硬件特征做出差异化决策。
