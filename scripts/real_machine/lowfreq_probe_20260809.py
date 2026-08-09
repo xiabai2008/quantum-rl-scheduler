@@ -40,7 +40,7 @@ def probe_once(client, i: int) -> tuple[bool, str]:
         tr = client.wait_for_task(tid, timeout=WAIT_TIMEOUT, poll_interval=5)
         prob = getattr(tr, "probability", None)
         if tr.status == "completed" and prob:
-            return True, f"completed fid_ok"
+            return True, "completed fid_ok"
         return False, f"status={tr.status} prob={'yes' if prob else 'no'}"
     except Exception as e:
         return False, f"EXC: {str(e)[:60]}"
