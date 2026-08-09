@@ -395,7 +395,7 @@ def generate_ppt(output_path: str) -> None:
         [
             "工程稳定性：三级降级策略、三态熔断器、Prometheus 7项监控",
             "可复现性：requirements.lock 锁定已验证组合（sb3 2.9.0/torch 2.8.0），全新环境一键安装",
-            "测试保障：主套件3720用例（全量3741含benchmark）0失败，ruff/mypy/bandit全绿，CI 9项全绿",
+            "测试保障：主套件3723用例（全量3744含benchmark）0失败，ruff/mypy/bandit全绿，CI 9项全绿",
             "数字门禁：统计口径一致性检查（含PDF/PPTX二进制扫描）+ 权威数字校验，防止数字漂移",
             "统计协议（严谨性主张）：N=250独立运行、Welch t + MWU双验证、28组Bonferroni校正、",
             "  95% CI + 效应量 + 功效分析、预注册方案、负结果全披露——每个数字可复现",
