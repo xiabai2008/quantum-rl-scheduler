@@ -22,10 +22,10 @@
     python scripts/evaluation/noise_robustness_cross_eval.py --episodes 5 --canonical
     python scripts/evaluation/noise_robustness_cross_eval.py --episodes 5 --seeds-start 42 --seeds-end 60
 """
+
 from __future__ import annotations
 
 import argparse
-import copy
 import json
 import os
 import sys
@@ -39,14 +39,13 @@ if str(_PROJECT_ROOT) not in sys.path:
 os.chdir(_PROJECT_ROOT)
 
 import numpy as np
-import yaml
 from scipy import stats
 
 from src.scheduler.env import DEFAULT_MACHINE_CONFIGS, QuantumSchedulingEnv
 from src.scheduler.ppo_agent import PPOAgent
 
 sys.path.insert(0, str(_PROJECT_ROOT / "scripts" / "evaluation"))
-from quantum_noise_paired_20seeds import (  # noqa: E402
+from quantum_noise_paired_20seeds import (
     MBS_VALUES_10SEEDS,
     _make_noisy_step_factory,
 )
@@ -54,6 +53,7 @@ from quantum_noise_paired_20seeds import (  # noqa: E402
 MODEL_DIR = _PROJECT_ROOT / "models" / "noise_feedback_v2"
 RESULTS_DIR = _PROJECT_ROOT / "results" / "quantum_ai"
 REPORT_DIR = _PROJECT_ROOT / "results" / "reports"
+
 
 def common_seeds() -> list[int]:
     """扫描两前缀 zip 文件，返回公共 seed 列表（固定，不后补）。"""
@@ -135,7 +135,7 @@ def compute_paired_stats(a: list[float], b: list[float]) -> dict:
     if n < 2 or np.all(diff == diff[0]) or np.isnan(diff).any():
         return result
     try:
-        stat, p = stats.wilcoxon(diff, alternative="greater")
+        _stat, p = stats.wilcoxon(diff, alternative="greater")
         result["p"] = float(p)
     except ValueError:
         result["p"] = 1.0
@@ -158,7 +158,11 @@ def main() -> int:
 
     seeds = common_seeds()
     if args.seeds_start is not None:
-        seeds = [s for s in seeds if s >= args.seeds_start and (args.seeds_end is None or s < args.seeds_end)]
+        seeds = [
+            s
+            for s in seeds
+            if s >= args.seeds_start and (args.seeds_end is None or s < args.seeds_end)
+        ]
     print(f"本次评估 seeds: {len(seeds)} 个 ({seeds[0]}..{seeds[-1]})")
 
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
@@ -178,18 +182,21 @@ def main() -> int:
             model_path = MODEL_DIR / f"ppo_{mtype}_seed{s}.zip"
             rewards = _eval_cell(model_path, profile, mode, s, args.episodes, args.max_steps)
             cells[cell].append(np.mean(rewards))
-        print(f"  seed={s}: SS={cells['SS'][-1]:.0f} SN={cells['SN'][-1]:.0f} "
-              f"NN={cells['NN'][-1]:.0f} NS={cells['NS'][-1]:.0f}", flush=True)
+        print(
+            f"  seed={s}: SS={cells['SS'][-1]:.0f} SN={cells['SN'][-1]:.0f} "
+            f"NN={cells['NN'][-1]:.0f} NS={cells['NS'][-1]:.0f}",
+            flush=True,
+        )
 
     elapsed = time.time() - start
     print(f"评估完成，耗时 {elapsed:.0f}s")
 
     # 统计
-    h1 = compute_paired_stats(cells["SN"], cells["NN"])      # NN - SN > 0
-    h1p = compute_paired_stats(cells["SM"], cells["NM"])     # NM - SM > 0
-    h2 = compute_paired_stats(cells["NS"], cells["SS"])      # NS - SS (双向)
-    g_std = compute_paired_stats(cells["SS"], cells["SN"])   # 标准模型噪声损失
-    g_nse = compute_paired_stats(cells["NS"], cells["NN"])   # 噪声模型噪声损失
+    h1 = compute_paired_stats(cells["SN"], cells["NN"])  # NN - SN > 0
+    h1p = compute_paired_stats(cells["SM"], cells["NM"])  # NM - SM > 0
+    h2 = compute_paired_stats(cells["NS"], cells["SS"])  # NS - SS (双向)
+    g_std = compute_paired_stats(cells["SS"], cells["SN"])  # 标准模型噪声损失
+    g_nse = compute_paired_stats(cells["NS"], cells["NN"])  # 噪声模型噪声损失
 
     # 对账（canonical）
     qa_note = ""
@@ -205,7 +212,10 @@ def main() -> int:
         "experiment": "noise_robustness_cross_eval",
         "timestamp": datetime.now().isoformat(),
         "config": {"episodes": args.episodes, "max_steps": args.max_steps, "n_seeds": len(seeds)},
-        "cells": {k: {"mean": float(np.mean(v)), "std": float(np.std(v, ddof=1)), "n": len(v)} for k, v in cells.items()},
+        "cells": {
+            k: {"mean": float(np.mean(v)), "std": float(np.std(v, ddof=1)), "n": len(v)}
+            for k, v in cells.items()
+        },
         "hypotheses": {
             "H1_NN_vs_SN": h1,
             "H1prime_NM_vs_SM": h1p,
