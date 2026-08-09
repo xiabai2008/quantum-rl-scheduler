@@ -15,7 +15,11 @@ import gymnasium as gym
 import numpy as np
 from gymnasium import spaces
 from numpy.typing import NDArray
-from qiskit.converters import circuit_to_dag
+
+# 8.8 修复（P1-5）：qiskit 为编译实验可选依赖（requirements-dev.txt），
+# 模块级 import 会使标准环境（仅装 requirements.txt）import 本模块即崩。
+# 改为延迟导入：仅编译功能实际使用时才 import，并给出明确提示。
+# from qiskit.converters import circuit_to_dag
 
 # ---------------------------------------------------------------------------
 # 默认常量（向后兼容，Issue #594 后可通过构造函数覆盖）
@@ -194,6 +198,12 @@ class QuantumCompilationEnv(gym.Env):
 
     def _init_state(self) -> None:
         if self.circuit:
+            try:
+                from qiskit.converters import circuit_to_dag
+            except ImportError as e:
+                raise ImportError(
+                    "编译功能需要 qiskit：请执行 pip install -r requirements-dev.txt"
+                ) from e
             dag = circuit_to_dag(self.circuit)
             self._gates = list(dag.topological_op_nodes())
             self._n_gates = len(self._gates)

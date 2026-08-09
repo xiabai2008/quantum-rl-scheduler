@@ -57,10 +57,10 @@ pytest-benchmark==4.0.0
 hypothesis==6.98.17
 
 # 代码质量
-black==24.2.0
-isort==5.13.2
-mypy==1.9.0
-ruff==0.3.0
+# 8.8 修复：工具链与 CI 对齐（原 mypy 1.9.0/ruff 0.3.0 过旧，
+# 按 lock 复现会得到与 CI 不同的 lint/typecheck 结果——红队 P1-8）
+mypy==2.1.0
+ruff==0.16.2
 bandit==1.7.7
 
 # 可观测性 & CLI

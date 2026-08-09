@@ -49,7 +49,10 @@ REAL_N_SEEDS = 5
 
 # 经济模型假设参数（可在命令行覆盖）
 DEFAULT_DAILY_MACHINE_HOURS = 100  # 日均机时成本 ¥
-DEFAULT_UTILIZATION_IMPROVEMENT = 0.30  # 利用率提升 30%
+# 8.8 修复：原 0.30 基于消融 D4"多机协同奖励"口径误当"利用率提升"。
+# 权威口径量子比特利用率为 -3.3%（PPO 0.4467 vs FCFS 0.4620，N=250），
+# 利用率未提升 → 机时节省收益项不成立，默认置 0 并从报告中移除。
+DEFAULT_UTILIZATION_IMPROVEMENT = 0.0
 DEFAULT_ACTIVE_USERS = 100  # 活跃用户数
 DEFAULT_MONTHLY_HOURS_SAVED_PER_USER = 6  # 每用户月省小时
 DEFAULT_HOURLY_RATE = 50  # 科研时薪 ¥/小时
