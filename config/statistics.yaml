@@ -56,7 +56,7 @@ simulation_8strategy_50seed:
   baseline_revision:
     note: "8.5 审查基线诚实化：FCFS 基线从'恒返回2(Hybrid-Default)'修正为真实 FCFS(量子路由)"
     real_fcfs_mean_reward: 1648.91
-    real_fcfs_std_reward: 502.9
+    real_fcfs_std_reward: 502.95
     real_fcfs_n: 250
     ppo_vs_real_fcfs_pct: 20.2
     ppo_vs_real_fcfs_welch_t: 7.02

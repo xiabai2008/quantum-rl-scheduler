@@ -187,7 +187,7 @@ def generate_ppt(output_path: str) -> None:
     # === 第2页：问题定义 ===
     add_content_slide(
         prs,
-        "量子算力要走出实验室，先要解决'怎么被用好'",
+        "核心矛盾：量子算力稀缺且昂贵 × 调度粗糙（FCFS）造成浪费",
         [
             "问题：量子资源稀缺且昂贵，当前量子云平台普遍采用FCFS调度",
             "  - 导致量子通道拥堵与经典通道空转并存、高负载时低优先级任务饥饿",
@@ -395,7 +395,7 @@ def generate_ppt(output_path: str) -> None:
         [
             "工程稳定性：三级降级策略、三态熔断器、Prometheus 7项监控",
             "可复现性：requirements.lock 锁定已验证组合（sb3 2.9.0/torch 2.8.0），全新环境一键安装",
-            "测试保障：主套件3723用例（全量3744含benchmark）0失败，ruff/mypy/bandit全绿，CI 9项全绿",
+            "测试保障：主套件3725用例（全量3746含benchmark）0失败，ruff/mypy/bandit全绿，CI 9项全绿",
             "数字门禁：统计口径一致性检查（含PDF/PPTX二进制扫描）+ 权威数字校验，防止数字漂移",
             "统计协议（严谨性主张）：N=250独立运行、Welch t + MWU双验证、28组Bonferroni校正、",
             "  95% CI + 效应量 + 功效分析、预注册方案、负结果全披露——每个数字可复现",

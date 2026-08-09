@@ -143,7 +143,7 @@
 ### 2.4 天衍云平台对接
 
 系统通过cqlib SDK与中国电信天衍量子计算云平台对接：
-- 支持三台量子计算机：天衍-S（287比特）、天衍-SW（72比特）、天衍-TN（176比特）
+- 支持接入天衍云量子计算机：天衍-287（287总比特：105数据+182耦合）、tianyan176（176比特）、tianyan-294（294比特）
 - 实现三态熔断器：闭合→打开→半开，连续3次失败自动降级
 - 支持量子电路构造、提交、轮询执行、结果解析全链路
 - Prometheus集成7项核心监控指标
@@ -609,7 +609,7 @@ python scripts/demo_one_click.py
 - **测试覆盖**：核心模块单元测试
 - **CI/CD**：GitHub Actions自动化测试和部署
 - **代码质量**：类型注解、文档字符串、模块化设计
-- **模型交付**：预训练模型位于`deliverable_models/`目录，77KB
+- **模型交付**：预训练模型位于`deliverable_models/`目录（ppo_best_model_16dim.zip 282KB、ppo_compilation_agent.zip 160KB、ppo_fairness17dim.zip 285KB）
 
 ---
 
