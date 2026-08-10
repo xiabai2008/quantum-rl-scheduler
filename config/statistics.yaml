@@ -697,3 +697,33 @@ noise_robustness_cross_eval:
       note: "噪声模型的噪声鲁棒缺口反而更大，与 H3 预期相反"
 
   overall_conclusion: "D档诚实披露：100K 噪声训练未带来可检测鲁棒性增益；与 v2 权威（N=50，+1.5% p=0.584 不显著）自洽；不宣称'策略选择准则'成立，作为噪声感知训练工程闭环 + 方向性证据。"
+
+# =============================================================================
+# 实验15: 利用率显著性分析（round5-B 预注册，2026-08-10）
+# 数据源: results/reports/utilization_scan_report.md
+#   结论: 权威利用率差值 -3.3%（-1.53pp）在 N=250 配对检验下不显著（p=0.090，
+#   95% CI 含 0）；该指标为环境外生随机游走（不受调度动作控制），
+#   利用率权重扫描（W=0.5→10 连续/原生双机制）无法单调改变利用率。
+#   口径定性: -3.3% 属高方差外生指标上的种子抽样噪声，非调度策略缺陷；
+#   "未达 ≥30% 目标"事实保留。
+# =============================================================================
+utilization_significance:
+  experiment_name: "量子比特利用率差值显著性分析（负向结果：差值不显著，指标外生）"
+  n: 250
+  data_source: "results/multiseed_evaluation/rewards_multiseed.json + results/reports/utilization_scan_report.md"
+  paired_test:
+    test_method: "配对 t 检验（逐 episode，index 对齐）"
+    mean_diff_pp: -1.53
+    ci_95_pp: [-3.28, 0.23]
+    p_value: 0.090
+    significant: false
+  seed_aggregated:
+    test_method: "配对 t 检验（50 seeds 聚合）"
+    ci_95_pp: [-4.66, 1.60]
+    p_value: 0.344
+    significant: false
+  welch_independent:
+    p_value: 0.193
+    significant: false
+  structural_finding: "available_ratio 为 env_dynamics.py:134 advance_time 外生随机游走，不受调度动作控制；利用率权重扫描（W=0.5→10）无法单调改变利用率"
+  conclusion: "权威 -3.3% 属高方差外生指标上的种子抽样噪声，非调度策略缺陷；'未达 ≥30% 目标'事实保留"
