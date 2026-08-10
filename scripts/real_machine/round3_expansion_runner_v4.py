@@ -189,7 +189,12 @@ def main() -> int:
     )
     parser.add_argument("--wait-hours", type=float, default=3.0)
     parser.add_argument("--max-episodes", type=int, default=60)
+    parser.add_argument("--seeds", type=int, nargs="+", default=None, help="覆盖默认 seeds")
+    parser.add_argument("--tag", type=str, default="20260809_v4", help="结果文件名 tag")
     args = parser.parse_args()
+
+    seeds = list(args.seeds) if args.seeds else list(SEEDS_20)
+    results_path = _PROJECT_ROOT / "results" / "real_machine" / f"round3_expansion_{args.tag}.json"
 
     api_key = os.environ.get("TIANYAN_API_KEY", "")
     if not api_key:
@@ -203,9 +208,9 @@ def main() -> int:
     deadline = time.time() + args.wait_hours * 3600
     results: list[dict[str, Any]] = []
     done = 0
-    total = min(args.max_episodes, len(SEEDS_20) * 3)
+    total = min(args.max_episodes, len(seeds) * 3)
     policies = ["PPO", "FCFS", "SJF"]
-    pairs = [(s, p) for s in SEEDS_20 for p in policies]
+    pairs = [(s, p) for s in seeds for p in policies]
 
     while done < total and time.time() < deadline:
         st = machine_status(client)
@@ -247,16 +252,16 @@ def main() -> int:
 
     data = {
         "timestamp": datetime.now().isoformat(),
-        "experiment": "round3_expansion_20260809_v4",
+        "experiment": f"round3_expansion_{args.tag}",
         "machine": TARGET_MACHINE,
         "completed": done,
         "total": total,
         "results": results,
     }
-    RESULTS_PATH.parent.mkdir(parents=True, exist_ok=True)
-    with open(RESULTS_PATH, "w", encoding="utf-8") as f:
+    results_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(results_path, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
-    print(f"结果已保存: {RESULTS_PATH}（完成 {done}/{total}）", flush=True)
+    print(f"结果已保存: {results_path}（完成 {done}/{total}）", flush=True)
     return 0 if done == total else 2
 
 
