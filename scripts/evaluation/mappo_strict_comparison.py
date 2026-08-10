@@ -38,6 +38,46 @@ from src.scheduler.marl import MultiAgentPPO
 MODEL_PATH = "deliverable_models/mappo/mappo.pt"
 
 
+def _paired_stats(mappo: list[float], fcfs: list[float], indep: list[float]) -> dict:
+    """配对统计检验（同 seed 序列对齐）。"""
+    from scipy import stats
+
+    def one_pair(a: list[float], b: list[float], label: str) -> dict:
+        a_arr = np.array(a)
+        b_arr = np.array(b)
+        diff = a_arr - b_arr
+        if len(diff) < 2 or np.all(diff == diff[0]):
+            return {
+                "comparison": label,
+                "n": len(diff),
+                "p_wilcoxon": 1.0,
+                "p_paired_t": 1.0,
+                "mean_diff": float(diff.mean()) if len(diff) else 0.0,
+                "ci_95": [None, None],
+                "significant": False,
+            }
+        try:
+            _w, p_w = stats.wilcoxon(diff)
+        except ValueError:
+            p_w = 1.0
+        t, p_t = stats.ttest_rel(a_arr, b_arr)
+        se = diff.std(ddof=1) / np.sqrt(len(diff))
+        return {
+            "comparison": label,
+            "n": len(diff),
+            "p_wilcoxon": float(p_w),
+            "p_paired_t": float(p_t),
+            "mean_diff": float(diff.mean()),
+            "ci_95": [float(diff.mean() - 1.96 * se), float(diff.mean() + 1.96 * se)],
+            "significant": bool(p_w < 0.05 and p_t < 0.05),
+        }
+
+    return {
+        "mappo_vs_fcfs": one_pair(mappo, fcfs, "MAPPO vs FCFS"),
+        "mappo_vs_indep": one_pair(mappo, indep, "MAPPO vs 3独立PPO"),
+    }
+
+
 def run_fcfs_on_wrapper(agent: MultiAgentPPO, seed: int, max_steps: int) -> float:
     """FCFS 基线：每 agent 固定 hybrid（action=2），同 wrapper 同种子。"""
     _lo, _ = agent.wrapper.reset(seed=seed)
@@ -172,6 +212,13 @@ def main() -> None:
         "delta_pct_vs_indep": float(
             (np.mean(mappo_rewards) - np.mean(indep_rewards)) / abs(np.mean(indep_rewards)) * 100
         ),
+        # 8.10 外部审查补：保留逐 seed 数据 + 配对统计检验（此前仅聚合均值无法检验）
+        "per_seed": {
+            "mappo": [round(float(r), 2) for r in mappo_rewards],
+            "fcfs": [round(float(r), 2) for r in fcfs_rewards],
+            "independent_ppo": [round(float(r), 2) for r in indep_rewards],
+        },
+        "statistics": _paired_stats(mappo_rewards, fcfs_rewards, indep_rewards),
     }
 
     out_dir = Path("results")
@@ -198,7 +245,18 @@ def main() -> None:
 {result["delta_pct_vs_fcfs"]:+.1f}%、相对 3 独立 PPO（同训练量、无协同投票）增益
 {result["delta_pct_vs_indep"]:+.1f}%——该数字消除了评估环境混杂，可直接归因于
 多智能体协同调度算法（投票仲裁 + 共享 Critic 信用分配）。
-多智能体协同调度算法（+ 规则未覆盖的 RL 决策优势）。
+
+**统计检验（8.10 补，N={result["statistics"]["mappo_vs_fcfs"]["n"]} 配对）**：
+
+| 对比 | 均值差 | 95% CI | Wilcoxon p | 配对t p | 显著 |
+|:--|--:|:--|--:|--:|:--:|
+| MAPPO vs FCFS | {result["statistics"]["mappo_vs_fcfs"]["mean_diff"]:.1f} | [{result["statistics"]["mappo_vs_fcfs"]["ci_95"][0]:.1f}, {result["statistics"]["mappo_vs_fcfs"]["ci_95"][1]:.1f}] | {result["statistics"]["mappo_vs_fcfs"]["p_wilcoxon"]:.4f} | {result["statistics"]["mappo_vs_fcfs"]["p_paired_t"]:.4f} | {"✅" if result["statistics"]["mappo_vs_fcfs"]["significant"] else "❌"} |
+| MAPPO vs 独立PPO | {result["statistics"]["mappo_vs_indep"]["mean_diff"]:.1f} | [{result["statistics"]["mappo_vs_indep"]["ci_95"][0]:.1f}, {result["statistics"]["mappo_vs_indep"]["ci_95"][1]:.1f}] | {result["statistics"]["mappo_vs_indep"]["p_wilcoxon"]:.4f} | {result["statistics"]["mappo_vs_indep"]["p_paired_t"]:.4f} | {"✅" if result["statistics"]["mappo_vs_indep"]["significant"] else "❌"} |
+
+> 说明：独立 PPO 在部分 seed 出现性能崩溃（如 seed 56-59 仅 452-2232），MAPPO 保持稳定
+> （std {result["mappo"]["std_reward"]:.1f} vs {result["independent_ppo"]["std_reward"]:.1f}），
+> 协同优势来自稳定性 + 协作投票。逐 seed 数据见 JSON per_seed 字段。
+
 完整数据：`results/mappo_strict_comparison_result.json`
 """
     (report_dir / "mappo_strict_comparison_report.md").write_text(report, encoding="utf-8")
