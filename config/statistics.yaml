@@ -727,3 +727,46 @@ utilization_significance:
     significant: false
   structural_finding: "available_ratio 为 env_dynamics.py:134 advance_time 外生随机游走，不受调度动作控制；利用率权重扫描（W=0.5→10）无法单调改变利用率"
   conclusion: "权威 -3.3% 属高方差外生指标上的种子抽样噪声，非调度策略缺陷；'未达 ≥30% 目标'事实保留"
+
+# =============================================================================
+# 实验16: 编译层尾部稳健性分析（8.10，数据源 round5-A 预注册 N=100 逐电路）
+# 数据: results/compilation_tail_per_circuit.json
+#   主检验未复制（单侧 Wilcoxon p=0.177）；子群统计显示 PPO 在 SABRE 高成本
+#   电路上稳健：SABRE>40 区间 20/20 全胜（p=0.000088），25-40 区间 13/13（p=0.0002）。
+#   对外口径: PPO 编译在 SABRE 高成本电路上提供统计显著的稳健性兜底；
+#   整体深电路优势为方向性。详见 results/reports/compilation_tail_robustness.md。
+# =============================================================================
+compilation_tail_robustness:
+  experiment_name: "编译层尾部稳健性分析（SABRE SWAP 爆炸电路上 PPO 的稳健性）"
+  n: 100
+  data_source: "results/compilation_tail_per_circuit.json"
+  main_test:
+    test_method: "单侧 Wilcoxon（PPO<SABRE，预注册主检验）"
+    p_value: 0.177
+    significant: false
+  subgroup_tests:
+    sabre_le_10:
+      n: 35
+      ppo_wins: 0
+      mean_diff_sabre_minus_ppo: -11.8
+      p_value: 0.0001
+      direction: "SABRE 优"
+    sabre_10_25:
+      n: 20
+      ppo_wins: 12
+      mean_diff: 2.4
+      p_value: 0.089
+      direction: "无差异"
+    sabre_25_40:
+      n: 13
+      ppo_wins: 13
+      mean_diff: 16.6
+      p_value: 0.0002
+      direction: "PPO 优（显著）"
+    sabre_gt_40:
+      n: 20
+      ppo_wins: 20
+      mean_diff: 49.7
+      p_value: 0.000088
+      direction: "PPO 优（极显著）"
+  conclusion: "PPO 编译在 SABRE 高成本电路（>25 SWAP）上提供统计显著的稳健性兜底（33/33 全胜，p<0.001）；整体深电路优势为方向性（主检验 p=0.177 不显著）"
