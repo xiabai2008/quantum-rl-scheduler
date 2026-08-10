@@ -8,6 +8,7 @@
     python scripts/training/train_lstm_variant.py --train      # 训练 10 seeds
     python scripts/training/train_lstm_variant.py --eval       # 评估对比
 """
+
 from __future__ import annotations
 
 import argparse
@@ -34,6 +35,7 @@ from src.scheduler.ppo_agent import PPOAgent
 TRAIN_TIMESTEPS = 500_000
 EVAL_EPISODES = 5
 MAX_STEPS = 500
+EVAL_MAX_STEPS = 200  # 权威协议：200 步/episode（与 +20.2% 权威实验一致）
 SEEDS = [42, 123, 456, 789, 1024, 2025, 3141, 5678, 8765, 9999]
 MODEL_DIR = _PROJECT_ROOT / "models" / "lstm_variant"
 RESULTS_DIR = _PROJECT_ROOT / "results" / "lstm_variant"
@@ -70,7 +72,7 @@ def train_one(seed: int, timesteps: int = TRAIN_TIMESTEPS) -> str:
 
 def evaluate_model(model_path: str, seed: int) -> dict:
     env = QuantumSchedulingEnv(
-        max_steps=MAX_STEPS,
+        max_steps=EVAL_MAX_STEPS,
         machine_configs=DEFAULT_MACHINE_CONFIGS,
         seed=seed + 10000,
     )
@@ -98,10 +100,10 @@ def main() -> int:
 
     if args.train:
         torch.set_num_threads(4)
-        for i, seed in enumerate(seeds):
+        for seed in seeds:
             t0 = time.time()
             train_one(seed, args.timesteps)
-            print(f"  seed={seed} 耗时 {time.time()-t0:.0f}s", flush=True)
+            print(f"  seed={seed} 耗时 {time.time() - t0:.0f}s", flush=True)
 
     if args.eval:
         lstm_results = []
@@ -109,8 +111,11 @@ def main() -> int:
         for seed in seeds:
             lstm_results.append(evaluate_model(str(MODEL_DIR / f"ppo_lstm_seed{seed}.zip"), seed))
             ppo_results.append(evaluate_model(str(AUTHORITATIVE_MODEL), seed))
-            print(f"  seed={seed}: LSTM={lstm_results[-1]['mean_reward']:.1f} "
-                  f"PPO={ppo_results[-1]['mean_reward']:.1f}", flush=True)
+            print(
+                f"  seed={seed}: LSTM={lstm_results[-1]['mean_reward']:.1f} "
+                f"PPO={ppo_results[-1]['mean_reward']:.1f}",
+                flush=True,
+            )
 
         from scipy import stats
 
@@ -118,9 +123,9 @@ def main() -> int:
         p_means = [r["mean_reward"] for r in ppo_results]
         # 配对检验（同 seed）
         try:
-            stat, p = stats.wilcoxon(p_means, l_means, alternative="two-sided")
+            _stat, p = stats.wilcoxon(p_means, l_means, alternative="two-sided")
         except ValueError:
-            stat, p = 0.0, 1.0
+            p = 1.0
         d = (sum(l_means) - sum(p_means)) / len(l_means)
         summary = {
             "experiment": "lstm_vs_ppo_authoritative",
@@ -136,8 +141,10 @@ def main() -> int:
         out = RESULTS_DIR / f"lstm_vs_ppo_{datetime.now().strftime('%Y%m%d')}.json"
         with open(out, "w", encoding="utf-8") as f:
             json.dump(summary, f, ensure_ascii=False, indent=2)
-        print(f"\n结果: LSTM={summary['lstm_mean']:.1f} vs PPO={summary['ppo_mean']:.1f} "
-              f"(diff={d:.1f}, Wilcoxon p={p:.3f})")
+        print(
+            f"\n结果: LSTM={summary['lstm_mean']:.1f} vs PPO={summary['ppo_mean']:.1f} "
+            f"(diff={d:.1f}, Wilcoxon p={p:.3f})"
+        )
         print(f"已保存: {out}")
     return 0
 
