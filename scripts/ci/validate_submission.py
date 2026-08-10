@@ -1036,6 +1036,24 @@ def package_submission(
 
     print(f"\n✅ 打包完成: {output_file}")
     print(f"   文件大小: {output_file.stat().st_size / (1024 * 1024):.1f}MB")
+    return output_file
+
+
+def _rename_final_package(
+    result_path: Path, final_name: str, final_dir: str, project_root: str
+) -> None:
+    """按比赛规范命名最终压缩包（提报单位-选题名称-作品名称）。"""
+    root = Path(project_root)
+    out_dir = Path(final_dir) if final_dir else root
+    out_dir.mkdir(parents=True, exist_ok=True)
+    safe_name = "".join(c for c in final_name if c not in '<>:"/\\|?*')
+    target = out_dir / f"{safe_name}.zip"
+    import shutil
+
+    shutil.copy2(result_path, target)
+    print(f"\n✅ 最终提交包（比赛命名）: {target}")
+    print(f"   大小: {target.stat().st_size / (1024 * 1024):.1f}MB")
+    print("   命名规范: 提报单位（学校全称）－选题名称－作品名称")
 
 
 def main() -> None:
@@ -1091,6 +1109,21 @@ def main() -> None:
         default=".",
         help="项目根目录 (默认: 当前目录)",
     )
+    parser.add_argument(
+        "--rename-final",
+        type=str,
+        default="",
+        help="按比赛规范重命名最终压缩包: '提报单位（学校全称）-选题名称-作品名称'，"
+        "如 'XX大学-量子+AI双向赋能-量子RL调度系统'。"
+        "--pack 完成后将 dist/submission_*.zip 复制为 <值>.zip（顶层目录）。"
+        "可选后缀: --final-dir 指定输出目录（默认项目根）。",
+    )
+    parser.add_argument(
+        "--final-dir",
+        type=str,
+        default="",
+        help="--rename-final 输出目录（默认项目根目录）",
+    )
 
     args = parser.parse_args()
 
@@ -1102,7 +1135,9 @@ def main() -> None:
     if args.prepare:
         prepare_submission(args.manifest, args.project_root)
     elif args.pack:
-        package_submission(args.manifest, args.project_root, skip_items=skip_ids)
+        result_path = package_submission(args.manifest, args.project_root, skip_items=skip_ids)
+        if args.rename_final:
+            _rename_final_package(result_path, args.rename_final, args.final_dir, args.project_root)
     else:
         validator = SubmissionValidator(args.manifest, args.project_root, skip_items=skip_ids)
         success = validator.validate_all()

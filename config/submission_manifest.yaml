@@ -27,6 +27,9 @@ items:
         - "__pycache__/"
         - "logs/"
         - "results/raw/"
+        - "docs/8.7-v3_红队审查报告.md"
+        - ".archive/"
+        - "archive/"
       include:
         - "src/"
         - "tests/"

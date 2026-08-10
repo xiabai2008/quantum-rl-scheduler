@@ -98,7 +98,7 @@ flowchart TB
 | 压力测试 | 4 种极限场景 PPO 综合稳定性最佳 |
 | 工程韧性 | 熔断器 + 8类异常体系 + Prometheus 可观测性 |
 | 代码质量 | ruff(10类规则) + mypy(8项收紧) + bandit 安全扫描 |
-| 比赛材料 | PPT 17页 + 白皮书PDF（7章） + 视频分镜脚本 6段 |
+| 比赛材料 | PPT 18页 + 白皮书PDF（16章） + 演示视频脚本 6段 |
 
 ## 项目架构
 
@@ -133,7 +133,7 @@ quantum-rl-scheduler/
 │   └── cli.py                # Click 统一命令行入口
 ├── docs/                     # 团队文档（上手指南、Git规范、分工、协同开发）
 ├── config/                   # 系统配置（config.yaml + .env.example）
-├── results/reports/          # 实验数据固化报告（61份）
+├── results/reports/          # 实验数据固化报告（73份）
 ├── .github/workflows/        # CI/CD 4 Job 流水线 + PR 自动化
 ├── .devcontainer/            # VS Code 开发容器
 ├── pyproject.toml            # 统一配置（ruff/mypy/bandit/pytest/coverage）
@@ -361,12 +361,12 @@ TIANYAN_API_KEY=你的真实API密钥
 
 | 材料 | 文件 | 状态 |
 |------|------|------|
-| 技术白皮书 | `docs/technical_whitepaper.pdf` | ✅ 已完成（13章，2026-08-09，v9.1） |
-| 答辩PPT | `deliverable_models/答辩PPT.pptx` | ✅ 已完成（18页，2026-08-09，双向赋能叙事版） |
+| 技术白皮书 | `docs/technical_whitepaper.pdf` | ✅ 已完成（16章，2026-08-10，v9.1） |
+| 答辩PPT | `deliverable_models/答辩PPT.pptx` | ✅ 已完成（18页，2026-08-10，双向赋能叙事版） |
 | 演示视频分镜脚本 | `docs/demo_video_final_script.md` | ✅ 已完成 |
 | 演示视频（5分钟） | `演示视频_量子RL调度系统.mp4` | ⚠️ 占位版已就位，待实拍替换 |
 | 答辩PPT大纲 | `docs/defense_ppt_outline.md` | ✅ 已完成 |
-| 实验数据报告 | `results/reports/` 下 63 份报告 | ✅ 已完成 |
+| 实验数据报告 | `results/reports/` 下 73 份报告 | ✅ 已完成 |
 
 ## 最终提交包说明
 
@@ -435,7 +435,7 @@ python scripts/ci/validate_submission.py --pack
 
 | 文档 | 说明 |
 |------|------|
-| [**技术白皮书PDF**](docs/technical_whitepaper.pdf) | **评审交付物**（7章完整内容，408KB） |
+| [**技术白皮书PDF**](docs/technical_whitepaper.pdf) | **评审交付物**（16章完整内容，627KB） |
 | [技术白皮书源文件](docs/technical_whitepaper.md) | Markdown源文件（修改后需重新生成PDF） |
 | [多场景压力测试报告](results/reports/multiscenario_benchmark.md) | 5场景×6策略压力测试+场景-算法决策树 |
 | [Demo演示脚本](docs/demo_script.md) | 3分钟演示脚本+旁白 |
