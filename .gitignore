@@ -162,3 +162,6 @@ results/real_machine/smoke_quota_budget.yaml
 
 # ── 工具临时目录（Issue #848）──
 .workbuddy/
+
+# 8.11 审查：临时检查残留（视频抽帧等）
+._*

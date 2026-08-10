@@ -30,6 +30,16 @@ items:
         - "docs/8.7-v3_红队审查报告.md"
         - ".archive/"
         - "archive/"
+        # 8.11 审查：内部流程/话术/策略文档不得进入提交包
+        - "docs/annealing_significance-defense.md"
+        - "docs/award_roadmap.md"
+        - "docs/PR审核日志.md"
+        - "docs/PR审核日志_934.md"
+        - "docs/项目记忆_给AI.md"
+        - "docs/defense_narrative_v1.md"
+        - "docs/dual_empowerment_asymmetry_analysis.md"
+        - "docs/code_freeze.md"
+        - "docs/代码冻结操作手册.md"
       include:
         - "src/"
         - "tests/"

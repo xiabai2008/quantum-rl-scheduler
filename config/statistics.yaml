@@ -770,3 +770,36 @@ compilation_tail_robustness:
       p_value: 0.000088
       direction: "PPO 优（极显著）"
   conclusion: "PPO 编译在 SABRE 高成本电路（>25 SWAP）上提供统计显著的稳健性兜底（33/33 全胜，p<0.001）；整体深电路优势为方向性（主检验 p=0.177 不显著）"
+
+# =============================================================================
+# 实验17: 等待时间显著性检验（8.11，N=250 配对）
+# 数据: results/multiseed_evaluation/rewards_multiseed.json utilization.avg_wait_time
+#   PPO=25.46 ± 10.13 vs FCFS=29.61 ± 10.64（-14.0%）
+#   配对 t: t=-4.536, p=8.917e-06（极显著）；Wilcoxon p=8.928e-06；
+#   95% CI [-5.95, -2.36] 不含 0；seed 聚合 p=0.0174 稳健。
+#   意义: 等待时间双优从描述性数字升级为统计显著证据（与 +20.2% 同为 N=250 同源）。
+# =============================================================================
+wait_time_significance:
+  experiment_name: "平均等待时间显著性检验（PPO 优于 FCFS）"
+  n: 250
+  data_source: "results/multiseed_evaluation/rewards_multiseed.json"
+  ppo_mean: 25.46
+  ppo_std: 10.13
+  fcfs_mean: 29.61
+  fcfs_std: 10.64
+  improvement_pct: -14.0
+  paired_t:
+    statistic: -4.536
+    p_value: 8.917e-06
+    p_value_precise: 8.917e-06
+    p_value_alt: 0.000008917
+    significant: true
+  wilcoxon:
+    p_value: 8.928e-06
+    significant: true
+  ci_95: [-5.95, -2.36]
+  seed_aggregated:
+    p_value: 0.0174
+    significant: true
+  ppo_wins: "153/250 (61.2%)"
+  conclusion: "PPO 平均等待时间显著低于 FCFS（-14.0%，p<0.001 配对检验；seed 聚合 p=0.017），等待时间双优为统计显著证据"

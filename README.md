@@ -127,14 +127,13 @@ quantum-rl-scheduler/
 │   ├── visualization/        # FastAPI + Vue3 + Echarts 监控面板
 │   └── utils/                # 工具函数 + Prometheus 指标
 ├── tests/                    # 94+ 个测试文件，3725 用例
-├── tests/                    # 94+ 个测试文件，3725 用例
 │   └── benchmarks/           # 性能基准测试
 ├── scripts/                  # 按功能分区（training/evaluation/demo/testing/benchmarking/reporting）
 │   └── cli.py                # Click 统一命令行入口
 ├── docs/                     # 团队文档（上手指南、Git规范、分工、协同开发）
 ├── config/                   # 系统配置（config.yaml + .env.example）
 ├── results/reports/          # 实验数据固化报告（73份）
-├── .github/workflows/        # CI/CD 4 Job 流水线 + PR 自动化
+├── .github/workflows/        # CI/CD 9 Job 流水线 + PR 自动化
 ├── .devcontainer/            # VS Code 开发容器
 ├── pyproject.toml            # 统一配置（ruff/mypy/bandit/pytest/coverage）
 ├── mypy.ini                  # 类型检查（8项严格配置）
@@ -335,7 +334,7 @@ TIANYAN_API_KEY=你的真实API密钥
 | 真机可用性验证 | 315次SDK调用100%成功，全链路验证 | 已完成 |
 | Web可视化 | FastAPI + Vue3 + Echarts + WebSocket | 已验证 |
 | 可观测性 | Prometheus /metrics 端点 | 已验证 |
-| CI/CD | 4 Job流水线 + Codecov + Dependabot | 已配置 |
+| CI/CD | 9 Job流水线 + Codecov + Dependabot | 已配置 |
 | Docker部署 | 一键容器化部署 | 已配置 |
 
 ## 实验成果
