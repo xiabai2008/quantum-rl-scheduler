@@ -60,7 +60,7 @@ def _paired_stats(mappo: list[float], fcfs: list[float], indep: list[float]) -> 
             _w, p_w = stats.wilcoxon(diff)
         except ValueError:
             p_w = 1.0
-        t, p_t = stats.ttest_rel(a_arr, b_arr)
+        _t, p_t = stats.ttest_rel(a_arr, b_arr)
         se = diff.std(ddof=1) / np.sqrt(len(diff))
         return {
             "comparison": label,
