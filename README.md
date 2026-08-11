@@ -432,6 +432,7 @@ python scripts/ci/validate_submission.py --pack
 
 ### ⭐ 核心交付物
 
+| [**比赛方案（归档）**](docs/competition/比赛方案.md) | 发榜方官方文件全文，供评审对照赛题要求 |
 | 文档 | 说明 |
 |------|------|
 | [**技术白皮书PDF**](docs/technical_whitepaper.pdf) | **评审交付物**（16章完整内容，627KB） |
