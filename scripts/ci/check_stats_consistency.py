@@ -853,6 +853,7 @@ _KNOWN_LEGIT_P_VALUES: tuple[float, ...] = (
      8.44e-08,  # PPO 编译优化 Agent
      # 8.11 新增：跨机器噪声异质性（真机 vs 仿真机）与噪声训练稳定性
      0.0197,  # 跨机器噪声异质性 Mann-Whitney（真机 vs 仿真机，N=104，cross_machine_noise_simulators）
+     0.127,  # issue192 mixed_real vs simulation（校准价值量化，calibration_value_quantification）
      0.0876,  # 噪声训练稳定性 Wilcoxon（std -7.4% 方向性，N=48 对，noise_training_stability）
 )
 # 注：1.86e-12（PPO vs FCFS Mann-Whitney U）与 2.98e-08（噪声配对）等已在
