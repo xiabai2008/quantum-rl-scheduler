@@ -1,0 +1,23 @@
+{
+  "timestamp": "2026-08-11T12:09:24.295916",
+  "experiment": "round3_expansion_20260811_key3",
+  "machine": "tianyan176",
+  "completed": 1,
+  "total": 30,
+  "results": [
+    {
+      "total_reward": 1304.95,
+      "steps": 96,
+      "seed": 53,
+      "strategy": "PPO",
+      "real": {
+        "task_id": "2087014078950359042",
+        "status": "failed",
+        "probability": null,
+        "fidelity": null,
+        "measurement_balance_score": null,
+        "error": "error 终态"
+      }
+    }
+  ]
+}
