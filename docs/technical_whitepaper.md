@@ -354,7 +354,7 @@ PPO 通过动态分配任务到合适的资源类型进行调度优化，但需�
 > - 25 seeds × 5 episodes × 2 条件（无噪声 / 真机噪声分布），同一 seed 下运行双条件的配对设计；
 > - Wilcoxon signed-rank 检验 p=2.98e-08，Cohen's d_z=7.7089（大效应；非配对对照 d≈0.89，配对设计数值偏大，见 §统计附录），事后功效 1.0；
 > - 噪声致奖励 -12.43%（Bootstrap 95% CI [-19.49%, -4.69%]）；
-> - 噪声源：tianyan-287 10seeds MBS 分布（均值 0.8863 ± 0.0874，task_id 可审计）；8.10 扩充 tianyan176 15 点实测（MBS 0.957±0.030），**跨机器噪声异质性显著**（287 vs 176：Mann-Whitney p=0.018），支撑多机独立噪声校准的方法论（详见 `results/reports/cross_machine_noise_analysis.md`）；
+> - 噪声源：tianyan-287 10seeds MBS 分布（均值 0.8863 ± 0.0874，task_id 可审计）；8.10-8.11 扩充 tianyan176 16 点实测（MBS 0.956±0.029），**跨机器噪声异质性显著**（287 vs 176：Mann-Whitney p=0.016），支撑多机独立噪声校准的方法论（详见 `results/reports/cross_machine_noise_analysis.md`）；
 > - 权威报告：`results/reports/quantum_noise_paired_25seeds_20260729_095336.md`（N=25 配对，statistics.yaml 权威口径；N=50 canonical 更大样本复核见 `quantum_noise_paired_canonical.md`，p=8.882e-16，方向一致）。
 >
 > ⚠️ **解读边界**：该证据证明**调度评估对量子硬件真实噪声分布敏感**（同一策略在真机噪声分布注入下的奖励显著变化，-12.43%），即"真机测量结果→评估反馈"链路成立；但实验为评估层敏感性对照（策略决策本身不随噪声改变），噪声在本实验条件下是**有害因素（奖励下降）**，不应表述为"量子提升 AI 性能"，也不应表述为"策略感知噪声"。
