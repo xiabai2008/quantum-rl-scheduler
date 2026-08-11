@@ -3,6 +3,8 @@
 > 本报告为提交清单 `EXP_STAT` 必需文件，使用 250 次独立episode验证PPO相对于基线策略的统计显著性。
 
 > **⚠️ 8.5 审查基线诚实化（2026-08-05）**：本表原为 vs Hybrid-Default（恒 action=2）弱基线旧口径，+123.4%、PPO 2348.91±857.25、FCFS 1051.59±58.34 等已废弃。权威口径为真实 FCFS（EnvBasedFCFSScheduler）基线：PPO **1982.69±557.25** vs FCFS **1648.91±502.95**，提升 **+20.2%**（N=250, Welch t p=7.56e-12, rank-biserial=-0.3642 中效应，95%CI [+14.3%, +26.7%]），见 `config/statistics.yaml`。下表均值/标准差/标准误/提升% 已更新为权威值；非 PPO 策略的 95% CI 与 min/max 为历史旧实验记录，仅作追溯。
+>
+> **⚠️ 8.8/8.11 补充**：本快照中 FCFS vs SJF 的 p=0.2827 为**旧口径错误值**，权威 SJF 数据重算后 FCFS vs SJF p=2.28e-60（显著，SJF 显著劣于 FCFS）；本快照仅为 2026-07-29 历史记录，权威见 `config/statistics.yaml` fcfs_vs_sjf。
 
 > **数据来源**: `results/multiseed_evaluation/rewards_multiseed.json`
 > **显著性水平 α**: 0.05

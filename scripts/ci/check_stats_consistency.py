@@ -833,7 +833,7 @@ _KNOWN_LEGIT_P_VALUES: tuple[float, ...] = (
     0.222,  # 真机噪声分布训练注入方向性（PPO-noise vs standard，N=5，defense_qa_handbook）
     0.2235,  # SOTA 16维 PPO vs 观测感知 FCFS（N=50，sota_comparison）
     0.25,  # 量子噪声影响
-    0.2827,  # SJF vs FCFS 仿真（权威报告收录）
+    2.28e-60,  # SJF vs FCFS 仿真（8.8 修正权威；旧 0.2827 为错误值已废弃）
     0.344,  # 真机 vs 仿真对比
     0.3942,  # 退火独立检验
     0.020,  # 噪声派单率（generate_defense_ppt 用 0.020，与 0.0203 同源）

@@ -133,7 +133,12 @@ result = platform.query_experiment(query_id=query_id, max_wait_time=120, sleep_t
 
 ### 3.5 退火加速统计显著性
 
-| 指标 | 数值 | 来源 |
+> **⚠️ 废弃声明（8.11 修正）**：下表为 **5seed 早期实验口径（p=0.190/+6.4%）**，已废弃。
+> **权威口径为 20seed 实验：奖励变化 -5.6%（方向逆转），p=0.9430 不显著**（见 `config/statistics.yaml`
+> annealing_ablation_20seeds 段与 `results/reports/annealing_ablation_20seeds_report.md`）。
+> 旧 5seed 的 +6.4%/Cliff's delta=0.40"中等效应/实际提升趋势"解读已被判定为小样本随机波动误读（defense_qa_handbook）。
+
+| 指标 | 数值（5seed 旧口径，已废弃） | 来源 |
 |------|------|------|
 | 检验方法 | Wilcoxon 秩和检验 | `head_only_validation.md` |
 | p 值 | **0.190**（>0.05，不显著） | n=5 样本量小 |
@@ -141,7 +146,9 @@ result = platform.query_experiment(query_id=query_id, max_wait_time=120, sleep_t
 | 50k 步奖励提升 | **+6.4%** | 1659.01 vs 1558.86 |
 | 训练时间开销 | **+74.5%** | 95.89s vs 54.97s |
 
-**不显著的根本原因**：n=5 在中等效应量下检验功效仅约 15%，要达到 80% 功效需 n≥26。已有五层答辩应对策略（详见 `docs/annealing_significance-defense.md`）。
+**20seed 权威结论**：最终 50k checkpoint 奖励变化 **-5.6%**（Wilcoxon p=0.9430 不显著，方向逆转）；
+训练时间开销 +74.5% 不变；退火已降级为探索性功能。n=5 早期样本在中等效应量下检验功效仅约 15%，
+要达到 80% 功效需 n≥26——20seed 实验已满足功效要求并确认不显著。
 
 ---
 
