@@ -723,7 +723,7 @@ Jain 公平性指数观测（可选第 17 维，`include_fairness_obs=True`）�
 | 验证项 | 结果 | 数据 |
 |:--|:--|:--|
 | SDK 认证 | 14 个后端可见（11 running） | Issue #128 |
-| 任务提交 | 315 次调用 100% 获得 task ID | 284 主验证 + 31 补充 |
+| 任务提交 | 315 次调用 100% 获得 task ID（提交成功率；执行成功率受平台时段波动影响，tianyan176 执行成功率 37% 见 round3 报告，已如实记录） | 284 主验证 + 31 补充 |
 | 状态轮询 | completed/running 状态正确回传 | 全链路 |
 | 结果获取 | 测量概率分布可解析率 100% | — |
 | 审计轨迹 | 284 条完整记录（task_id/状态/概率/耗时） | `results/real_machine/issue165_ablation.json` |

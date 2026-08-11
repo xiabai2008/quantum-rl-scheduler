@@ -331,7 +331,7 @@ TIANYAN_API_KEY=你的真实API密钥
 | 天衍API | Mock / REST / cqlib 三模式 + 多机器协调器 | 已验证 |
 | 量子启发式退火 | QUBO映射 + 退火求解 + 异步闭环 | 已验证 |
 | 多机器调度 | 3机MAPPO协同：总提升+86.3%（含规模扩展+协同），同训练量收敛严格对比下协同优势 vs 独立PPO +4.0%（旧+84.6% p=0.019 为未收敛+训练量不均等的探索值，已废弃） | 已验证 |
-| 真机可用性验证 | 315次SDK调用100%成功，全链路验证 | 已完成 |
+| 真机可用性验证 | 315次SDK调用100%获得task ID（提交链路）；执行成功率受平台时段波动影响（tianyan176约37%，已如实记录） | 已完成 |
 | Web可视化 | FastAPI + Vue3 + Echarts + WebSocket | 已验证 |
 | 可观测性 | Prometheus /metrics 端点 | 已验证 |
 | CI/CD | 7 Job流水线（矩阵展开 9 个） + Codecov + Dependabot | 已配置 |
