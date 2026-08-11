@@ -32,7 +32,7 @@ flowchart TB
     subgraph 量子执行["量子执行 · 量子赋能AI"]
         QUBO["QUBO 建模"]
         ANNEAL["量子退火 / 天衍-287 真机"]
-        FEED["真机噪声反馈<br/>→ 训练注入优化鲁棒性"]
+        FEED["真机噪声反馈<br/>用于评估校准与训练注入"
     end
 
     subgraph 经典执行["经典执行"]
@@ -53,7 +53,7 @@ flowchart TB
     RL --> JAIN
     JAIN --> PEN
     ANNEAL --> FEED
-    FEED -. "鲁棒性优化反馈" .-> RL
+    FEED -. "评估校准反馈" .-> RL
 ```
 
 **双向赋能机制：**
