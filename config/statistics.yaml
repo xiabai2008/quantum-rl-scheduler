@@ -828,3 +828,40 @@ wait_time_significance:
     significant: true
   ppo_wins: "153/250 (61.2%)"
   conclusion: "PPO 平均等待时间显著低于 FCFS（-14.0%，p<0.001 配对检验；seed 聚合 p=0.017），等待时间双优为统计显著证据"
+
+# =============================================================================
+# 实验18: 噪声训练稳定性分析（8.11，量子→AI 稳健性方向性证据）
+# 数据: results/noise_feedback_v2/noise_feedback_v2_results.json
+#   noise 模型 per-seed std 比 standard 低 7.4%（1943.3 vs 1799.6），
+#   Wilcoxon p=0.0876（边缘不显著，N=48 对），方向性证据。
+#   详见 results/reports/noise_training_stability.md。
+# =============================================================================
+noise_training_stability:
+  experiment_name: "噪声训练稳定性分析（量子→AI 稳健性方向性）"
+  n: 48
+  data_source: "results/noise_feedback_v2/noise_feedback_v2_results.json"
+  standard_mean_std: 1943.3
+  noise_mean_std: 1799.6
+  std_reduction_pct: 7.4
+  wilcoxon_p: 0.0876
+  paired_t_p: 0.1411
+  cv_standard: 0.505
+  cv_noise: 0.464
+  significant: false
+  conclusion: "噪声训练模型稳定性方向性提升（std -7.4%，Wilcoxon p=0.088 边缘）；与噪声敏感性机制证据(p=2.98e-08)+跨机器异质性(p=0.0197)构成量子→AI'评估可信度+稳健性建模'三角证据链"
+
+# =============================================================================
+# 实验19: 跨机器噪声异质性（8.11，真机 vs 仿真机）
+# 数据: results/real_machine/mbs_simulators_20260811.json + mbs_expansion_20260810.json
+#   真机(287+176, N=26) vs 仿真机(s/sw/tn, N=78) MBS 差异显著
+#   Mann-Whitney p=0.0197。详见 cross_machine_noise_analysis.md / _simulators.md。
+# =============================================================================
+cross_machine_noise_heterogeneity:
+  experiment_name: "跨机器噪声异质性（真机 vs 仿真机）"
+  real_n: 26
+  sim_n: 78
+  real_mbs_mean: 0.9294
+  sim_mbs_mean: 0.9628
+  mann_whitney_p: 0.0197
+  significant: true
+  conclusion: "量子硬件测量揭示真机噪声随机性（std 0.069）为仿真机（0.015）4.7倍，仿真无法复现——量子数据对AI环境建模不可替代"
