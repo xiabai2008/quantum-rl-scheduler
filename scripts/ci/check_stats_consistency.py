@@ -149,9 +149,9 @@ DEPRECATED_P_VALUES: dict[str, str] = {
     "4.92e-55": "MISATTRIBUTED: p=4.92e-55 是 Random vs PPO 的p值，不是 PPO vs FCFS。应使用 p=7.56e-12 (Welch t, 真实FCFS基线)",
     # 8.7-v4 红队审查 P0-2/P1-3：MAPPO 协同优势 +84.6% 为未收敛+训练量不均等的旧探索值，
     # 其 p=0.0188（multi_machine_comparison_report.md）只支撑该旧口径，不得再作为权威呈现。
-    # 权威 MAPPO 口径为同训练量收敛严格对比 +4.0%（mappo_strict_strict_comparison）。
-    "0.0188": "MAPPO 协同优势 p=0.0188 支撑的是已废弃的 +84.6%（5000步未收敛+训练量1:3不均等）；权威口径为同训练量收敛严格对比 +4.0%（mappo_strict_strict_comparison）",
-    "0.019": "MAPPO 协同优势 p=0.019 支撑的是已废弃的 +84.6%（5000步未收敛+训练量1:3不均等）；权威口径为同训练量收敛严格对比 +4.0%（mappo_strict_strict_comparison）",
+    # 权威 MAPPO 口径为同训练量收敛严格对比 +36.5%（N=20，p=0.024，mappo_strict_strict_comparison）。
+    "0.0188": "MAPPO 协同优势 p=0.0188 支撑的是已废弃的 +84.6%（5000步未收敛+训练量1:3不均等）；权威口径为同训练量收敛严格对比 +36.5%（N=20，p=0.024，mappo_strict_strict_comparison）",
+    "0.019": "MAPPO 协同优势 p=0.019 支撑的是已废弃的 +84.6%（5000步未收敛+训练量1:3不均等）；权威口径为同训练量收敛严格对比 +36.5%（N=20，p=0.024，mappo_strict_strict_comparison）",
 }
 
 # 检验方法混用检查
@@ -271,7 +271,7 @@ BLACKLIST_PATTERNS: list[tuple[str, str]] = [
     ),
     (
         r"(?<!\d)36\.8%(?!%)",
-        "BLACKLIST: 多机协同 +36.8% 为旧值，已废弃；权威协同优势为 +4.0%（MAPPO vs 独立PPO，50K收敛严格对比）",
+        "BLACKLIST: 多机协同 +36.8% 为旧值，已废弃；权威协同优势为 +36.5%（MAPPO vs 独立PPO，N=20，50K收敛严格对比，p=0.024）",
     ),
     (
         r"等待时间.*(增加|高出|增大)\s*51%",
@@ -285,14 +285,14 @@ BLACKLIST_PATTERNS: list[tuple[str, str]] = [
     # 因此仅匹配"直接当权威成果呈现"的短语。
     (
         r"奖励提升\s*86\.3%",
-        "BLACKLIST: MAPPO 协同优势权威为 +4.0%（MARL vs 独立PPO，50K收敛严格对比）；+86.3% 仅指叠加规模扩展后的总提升 vs 单机，须拆解呈现，不得直接称'奖励提升86.3%'",
+        "BLACKLIST: MAPPO 协同优势权威为 +36.5%（MARL vs 独立PPO，N=20，50K收敛严格对比，p=0.024）；+86.3% 仅指叠加规模扩展后的总提升 vs 单机，须拆解呈现，不得直接称'奖励提升86.3%'",
     ),
     # 8.7-v4 红队审查 P0-2/P0-3/P1-4：MAPPO 协同优势 +84.6%、退火 +6.4%、
     # stress 量子波动 +91.4% 均为"已废弃/未收敛/诚实化前"旧口径，转为权威值时
     # 一律以诚实披露限定词豁免；作为唯一权威成果呈现即告警。
     (
         r"(?<!\d)84\.6%(?!%)",
-        "BLACKLIST: MAPPO 协同优势 +84.6% 为未收敛(5000步)+训练量不均等(独立PPO仅1/3)的旧探索值；权威为 +4.0%（同训练量收敛严格对比，50K）",
+        "BLACKLIST: MAPPO 协同优势 +84.6% 为未收敛(5000步)+训练量不均等(独立PPO仅1/3)的旧探索值；权威为 +36.5%（同训练量收敛严格对比，N=20，50K）",
     ),
     (
         r"(?<!\d)6\.4%(?!%)",
@@ -363,14 +363,15 @@ def check_authoritative_coverage(stats: dict[str, Any]) -> list[str]:
             "8 策略 50seed 仿真（真实FCFS基线，p=7.56e-12）",
         ),
     ]
-    # 8.7-v4 红队审查 P0-2：MAPPO 权威口径必须收录（mappo_vs_independent_ppo.improvement_pct = 4.0）
-    # 确保"协同优势 +4.0%"在权威源中显式存在，防止 +84.6% 回归为对外口径。
+    # 8.7-v4 红队审查 P0-2 + 8.11 升级：MAPPO 权威口径必须收录
+    # （mappo_vs_independent_ppo.improvement_pct = 36.5，N=20 配对检验 p=0.024）
+    # 确保"协同优势 +36.5%"在权威源中显式存在，防止 +84.6% 回归为对外口径。
     mappo_block = stats.get("mappo_strict_strict_comparison", {})
     mappo_gain = mappo_block.get("mappo_vs_independent_ppo", {}).get("improvement_pct")
-    if mappo_gain != 4.0:
+    if mappo_gain != 36.5:
         warnings.append(
             "权威源 MAPPO 口径异常: mappo_strict_strict_comparison.mappo_vs_independent_ppo"
-            f".improvement_pct 应为 4.0（同训练量收敛严格对比），实际为 {mappo_gain}"
+            f".improvement_pct 应为 36.5（N=20 同训练量收敛严格对比，p=0.024），实际为 {mappo_gain}"
         )
     for exp_key, comp_key, expected_p, desc in required_experiments:
         exp = stats.get(exp_key)

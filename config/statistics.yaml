@@ -210,48 +210,66 @@ simulation_8strategy_50seed:
 mappo_strict_strict_comparison:
   experiment_name: "MAPPO 同训练量收敛严格双基线对比（权威）"
   applicable_condition: >
-    MultiAgentEnvWrapper 同实例、同种子序列（seed=42..51，10 seeds），
+    MultiAgentEnvWrapper 同实例、同种子序列（seed=42..61，20 seeds），
     模型 models/mappo.pt（50K 收敛），FCFS 每 agent 固定 hybrid（action=2），
     任务排序由 env 内部 FCFS 完成。消除评估环境混杂，可直接归因于多智能体协同。
+    8.11 升级：N=10 → N=20 并补配对统计检验（此前仅聚合均值无法检验）。
   alpha: 0.05
-  n: 10
-  data_source: "results/reports/mappo_strict_comparison_report.md"
-  supersedes: "multi_machine_comparison_report.md 的 +84.6%（5000 步未收敛，独立PPO 训练量仅 1/3）"
+  n: 20
+  data_source: "results/mappo_strict_comparison_result.json"
+  supersedes: "multi_machine_comparison_report.md 的 +84.6%（5000 步未收敛，独立PPO 训练量仅 1/3）；N=10 旧口径 +396.7%/+4.0%"
 
   strategy_summary:
     MAPPO:
-      mean_reward: 4588.7
-      std_reward: 663.8
-      n: 10
+      mean_reward: 5507.7
+      std_reward: 656.6
+      n: 20
     FCFS:
-      mean_reward: 923.9
-      std_reward: 418.5
-      n: 10
+      mean_reward: 917.7
+      std_reward: 445.5
+      n: 20
     PPO_independent:
-      mean_reward: 4412.2
-      std_reward: 972.1
-      n: 10
+      mean_reward: 4033.6
+      std_reward: 2066.1
+      n: 20
 
   mappo_vs_fcfs:
-    improvement_pct: 396.7
-    n: 10
-    applicable_condition: "MAPPO(4588.7) vs 同环境 FCFS(923.9)，50K 收敛严格对比"
-    note: "权威口径：+396.7%（vs 同环境 FCFS）"
+    improvement_pct: 500.1
+    n: 20
+    applicable_condition: "MAPPO(5507.7) vs 同环境 FCFS(917.7)，50K 收敛严格对比"
+    paired_test:
+      p_wilcoxon: 0.0000
+      p_paired_t: 0.0000
+      mean_diff: 4590.0
+      ci_95: [4277.3, 4902.7]
+      significant: true
   mappo_vs_independent_ppo:
-    improvement_pct: 4.0
-    n: 10
-    applicable_condition: "MAPPO(4588.7) vs 3独立PPO(4412.2)，同训练量收敛严格对比"
+    improvement_pct: 36.5
+    n: 20
+    applicable_condition: "MAPPO(5507.7) vs 3独立PPO(4033.6)，同训练量收敛严格对比"
+    paired_test:
+      p_wilcoxon: 0.0240
+      p_paired_t: 0.0100
+      mean_diff: 1474.1
+      ci_95: [464.4, 2483.9]
+      significant: true
     note: >
-      权威口径：+4.0%（同训练量、收敛严格对比），消除了评估环境混杂，
-      可直接归因于多智能体协同调度（投票仲裁 + 共享 Critic 信用分配）。
-      完整数据引用 results/mappo_strict_comparison_result.json。
+      权威口径：+36.5%（同训练量、收敛严格对比，N=20 配对 Wilcoxon p=0.024 显著），
+      消除了评估环境混杂，可直接归因于多智能体协同调度（投票仲裁 + 共享 Critic 信用分配）。
+      独立 PPO 在部分 seed 性能崩溃（如 seed 56-59 仅 452-2232），MAPPO 保持稳定
+      （std 656.6 vs 2066.1），协同优势来自稳定性 + 协作投票。
+      完整数据 results/mappo_strict_comparison_result.json（逐 seed 数据见 per_seed 字段）。
   deprecated_846:
     improvement_pct: 84.6
     status: "deprecated"
     note: >
       +84.6% 为早期 5000 步（未收敛）实验，且独立 PPO 训练量仅 1666 步/机
-      （≈ MAPPO 的 1/3），不可比。已被同训练量收敛严格对比 +4.0% 取代，
+      （≈ MAPPO 的 1/3），不可比。已被同训练量收敛严格对比 +36.5% 取代，
       仅作历史探索记录，禁止作为权威/对外呈现。
+  deprecated_n10:
+    improvement_pct: 4.0
+    status: "deprecated"
+    note: "N=10 旧口径 +4.0% 为小样本估计（低估），N=20 权威 +36.5%（p=0.024）；N=10 值仅作历史记录。"
 
 # =============================================================================
 # 实验2: 多seed真机对比 (N=5 per group)
