@@ -1,0 +1,260 @@
+{
+  "experiment": "real_performance_pretrain_v3",
+  "timestamp": "2026-08-11T10:31:16.357065",
+  "config": {
+    "seeds": [
+      42,
+      123,
+      456
+    ],
+    "policies": [
+      "ppo",
+      "fcfs",
+      "sjf"
+    ],
+    "episode_horizon": 500,
+    "cap_per_seed": 30,
+    "real_submit_probability": 0.3,
+    "shots": 32,
+    "feedback_mode": "result_aware",
+    "machine": "tianyan176",
+    "circuit": "H Q1\nM Q1",
+    "model": "ppo_best_model_16dim.zip"
+  },
+  "results": [
+    {
+      "seed": 42,
+      "policy": "ppo",
+      "total_reward": 6544.4919,
+      "steps": 500,
+      "elapsed_seconds": 26.91,
+      "real_tasks_submitted": 3,
+      "real_tasks_completed": 0,
+      "real_records": [
+        {
+          "task_id": "T0001",
+          "real_task_id": "2087003031082319874",
+          "status": "query_error",
+          "fidelity": null,
+          "step": 3,
+          "reward": -1.0,
+          "mock": false,
+          "degraded": false
+        },
+        {
+          "task_id": "T0031",
+          "real_task_id": "2087003068256436226",
+          "status": "query_error",
+          "fidelity": null,
+          "step": 45,
+          "reward": -1.0,
+          "mock": false,
+          "degraded": false
+        },
+        {
+          "task_id": "T0032",
+          "real_task_id": "2087003104713326593",
+          "status": "query_error",
+          "fidelity": null,
+          "step": 54,
+          "reward": -1.0,
+          "mock": false,
+          "degraded": false
+        }
+      ]
+    },
+    {
+      "seed": 42,
+      "policy": "fcfs",
+      "total_reward": 2461.9354,
+      "steps": 220,
+      "elapsed_seconds": 49.6,
+      "real_tasks_submitted": 5,
+      "real_tasks_completed": 0,
+      "real_records": [
+        {
+          "task_id": "T0031",
+          "real_task_id": "2087003142348349441",
+          "status": "query_error",
+          "fidelity": null,
+          "step": 55,
+          "reward": -1.0,
+          "mock": false,
+          "degraded": false
+        },
+        {
+          "task_id": "T0037",
+          "real_task_id": "2087003179103502337",
+          "status": "query_error",
+          "fidelity": null,
+          "step": 60,
+          "reward": -1.0,
+          "mock": false,
+          "degraded": false
+        },
+        {
+          "task_id": "T0038",
+          "real_task_id": "2087003196350480385",
+          "status": "query_error",
+          "fidelity": null,
+          "step": 61,
+          "reward": -1.0,
+          "mock": false,
+          "degraded": false
+        },
+        {
+          "task_id": "T0039",
+          "real_task_id": "2087003240998846466",
+          "status": "query_error",
+          "fidelity": null,
+          "step": 64,
+          "reward": -1.0,
+          "mock": false,
+          "degraded": false
+        },
+        {
+          "task_id": "T0041",
+          "real_task_id": "2087003272229634050",
+          "status": "query_error",
+          "fidelity": null,
+          "step": 66,
+          "reward": -1.0,
+          "mock": false,
+          "degraded": false
+        }
+      ]
+    },
+    {
+      "seed": 42,
+      "policy": "sjf",
+      "total_reward": 2461.9354,
+      "steps": 220,
+      "elapsed_seconds": 49.2,
+      "real_tasks_submitted": 5,
+      "real_tasks_completed": 0,
+      "real_records": [
+        {
+          "task_id": "T0031",
+          "real_task_id": "2087003350599737345",
+          "status": "query_error",
+          "fidelity": null,
+          "step": 55,
+          "reward": -1.0,
+          "mock": false,
+          "degraded": false
+        },
+        {
+          "task_id": "T0037",
+          "real_task_id": "2087003387316674562",
+          "status": "query_error",
+          "fidelity": null,
+          "step": 60,
+          "reward": -1.0,
+          "mock": false,
+          "degraded": false
+        },
+        {
+          "task_id": "T0038",
+          "real_task_id": "2087003403310022658",
+          "status": "query_error",
+          "fidelity": null,
+          "step": 61,
+          "reward": -1.0,
+          "mock": false,
+          "degraded": false
+        },
+        {
+          "task_id": "T0039",
+          "real_task_id": "2087003447878696962",
+          "status": "query_error",
+          "fidelity": null,
+          "step": 64,
+          "reward": -1.0,
+          "mock": false,
+          "degraded": false
+        },
+        {
+          "task_id": "T0041",
+          "real_task_id": "2087003478979461122",
+          "status": "query_error",
+          "fidelity": null,
+          "step": 66,
+          "reward": -1.0,
+          "mock": false,
+          "degraded": false
+        }
+      ]
+    },
+    {
+      "seed": 123,
+      "policy": "ppo",
+      "total_reward": 3829.7882,
+      "steps": 317,
+      "elapsed_seconds": 18.47,
+      "real_tasks_submitted": 1,
+      "real_tasks_completed": 0,
+      "real_records": [
+        {
+          "task_id": "T0019",
+          "real_task_id": "2087003556913823745",
+          "status": "query_error",
+          "fidelity": null,
+          "step": 26,
+          "reward": -1.0,
+          "mock": false,
+          "degraded": false
+        }
+      ]
+    },
+    {
+      "seed": 123,
+      "policy": "fcfs",
+      "total_reward": 5142.9006,
+      "steps": 500,
+      "elapsed_seconds": 12.07,
+      "real_tasks_submitted": 0,
+      "real_tasks_completed": 0,
+      "real_records": []
+    },
+    {
+      "seed": 123,
+      "policy": "sjf",
+      "total_reward": 4558.6743,
+      "steps": 500,
+      "elapsed_seconds": 13.33,
+      "real_tasks_submitted": 0,
+      "real_tasks_completed": 0,
+      "real_records": []
+    },
+    {
+      "seed": 456,
+      "policy": "ppo",
+      "total_reward": 6231.3205,
+      "steps": 500,
+      "elapsed_seconds": 12.15,
+      "real_tasks_submitted": 0,
+      "real_tasks_completed": 0,
+      "real_records": []
+    },
+    {
+      "seed": 456,
+      "policy": "fcfs",
+      "total_reward": 4763.5132,
+      "steps": 500,
+      "elapsed_seconds": 11.95,
+      "real_tasks_submitted": 0,
+      "real_tasks_completed": 0,
+      "real_records": []
+    },
+    {
+      "seed": 456,
+      "policy": "sjf",
+      "total_reward": 4978.0068,
+      "steps": 500,
+      "elapsed_seconds": 11.94,
+      "real_tasks_submitted": 0,
+      "real_tasks_completed": 0,
+      "real_records": []
+    }
+  ]
+}

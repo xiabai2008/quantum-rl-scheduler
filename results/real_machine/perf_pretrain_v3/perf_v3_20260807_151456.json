@@ -1,0 +1,455 @@
+{
+  "experiment": "real_performance_pretrain_v3",
+  "timestamp": "2026-08-07T15:14:56.147753",
+  "config": {
+    "seeds": [
+      42,
+      123,
+      456
+    ],
+    "policies": [
+      "ppo",
+      "fcfs",
+      "sjf"
+    ],
+    "episode_horizon": 500,
+    "cap_per_seed": 30,
+    "real_submit_probability": 0.3,
+    "shots": 32,
+    "feedback_mode": "result_aware",
+    "machine": "tianyan176",
+    "circuit": "H Q1\nM Q1",
+    "model": "ppo_best_model_16dim.zip"
+  },
+  "results": [
+    {
+      "seed": 42,
+      "policy": "ppo",
+      "total_reward": 6544.4919,
+      "steps": 500,
+      "elapsed_seconds": 27.4,
+      "real_tasks_submitted": 3,
+      "real_tasks_completed": 0,
+      "real_records": [
+        {
+          "task_id": "T0001",
+          "real_task_id": "2085624437508620289",
+          "status": "query_error",
+          "fidelity": null,
+          "step": 3,
+          "reward": -1.0,
+          "mock": false,
+          "degraded": false
+        },
+        {
+          "task_id": "T0031",
+          "real_task_id": "2085624474506108929",
+          "status": "query_error",
+          "fidelity": null,
+          "step": 45,
+          "reward": -1.0,
+          "mock": false,
+          "degraded": false
+        },
+        {
+          "task_id": "T0032",
+          "real_task_id": "2085624511273377793",
+          "status": "query_error",
+          "fidelity": null,
+          "step": 54,
+          "reward": -1.0,
+          "mock": false,
+          "degraded": false
+        }
+      ]
+    },
+    {
+      "seed": 42,
+      "policy": "fcfs",
+      "total_reward": 2467.8728,
+      "steps": 220,
+      "elapsed_seconds": 48.31,
+      "real_tasks_submitted": 5,
+      "real_tasks_completed": 1,
+      "real_records": [
+        {
+          "task_id": "T0031",
+          "real_task_id": "2085624550184402946",
+          "status": "completed",
+          "fidelity": 0.981046,
+          "step": 55,
+          "reward": 4.905228,
+          "mock": false,
+          "degraded": false
+        },
+        {
+          "task_id": "T0037",
+          "real_task_id": "2085624583168409601",
+          "status": "query_error",
+          "fidelity": null,
+          "step": 60,
+          "reward": -1.0,
+          "mock": false,
+          "degraded": false
+        },
+        {
+          "task_id": "T0038",
+          "real_task_id": "2085624599039188994",
+          "status": "query_error",
+          "fidelity": null,
+          "step": 61,
+          "reward": -1.0,
+          "mock": false,
+          "degraded": false
+        },
+        {
+          "task_id": "T0039",
+          "real_task_id": "2085624643578503170",
+          "status": "query_error",
+          "fidelity": null,
+          "step": 64,
+          "reward": -1.0,
+          "mock": false,
+          "degraded": false
+        },
+        {
+          "task_id": "T0041",
+          "real_task_id": "2085624674549710850",
+          "status": "query_error",
+          "fidelity": null,
+          "step": 66,
+          "reward": -1.0,
+          "mock": false,
+          "degraded": false
+        }
+      ]
+    },
+    {
+      "seed": 42,
+      "policy": "sjf",
+      "total_reward": 2467.1779,
+      "steps": 220,
+      "elapsed_seconds": 44.66,
+      "real_tasks_submitted": 5,
+      "real_tasks_completed": 1,
+      "real_records": [
+        {
+          "task_id": "T0031",
+          "real_task_id": "2085624753200832514",
+          "status": "query_error",
+          "fidelity": null,
+          "step": 55,
+          "reward": -1.0,
+          "mock": false,
+          "degraded": false
+        },
+        {
+          "task_id": "T0037",
+          "real_task_id": "2085624790333005825",
+          "status": "query_error",
+          "fidelity": null,
+          "step": 60,
+          "reward": -1.0,
+          "mock": false,
+          "degraded": false
+        },
+        {
+          "task_id": "T0038",
+          "real_task_id": "2085624806565429250",
+          "status": "query_error",
+          "fidelity": null,
+          "step": 61,
+          "reward": -1.0,
+          "mock": false,
+          "degraded": false
+        },
+        {
+          "task_id": "T0039",
+          "real_task_id": "2085624851029245954",
+          "status": "query_error",
+          "fidelity": null,
+          "step": 64,
+          "reward": -1.0,
+          "mock": false,
+          "degraded": false
+        },
+        {
+          "task_id": "T0041",
+          "real_task_id": "2085624882381201409",
+          "status": "completed",
+          "fidelity": 0.848485,
+          "step": 66,
+          "reward": 4.242424,
+          "mock": false,
+          "degraded": false
+        }
+      ]
+    },
+    {
+      "seed": 123,
+      "policy": "ppo",
+      "total_reward": 3831.8027,
+      "steps": 317,
+      "elapsed_seconds": 45.61,
+      "real_tasks_submitted": 5,
+      "real_tasks_completed": 1,
+      "real_records": [
+        {
+          "task_id": "T0019",
+          "real_task_id": "2085624940510060546",
+          "status": "query_error",
+          "fidelity": null,
+          "step": 26,
+          "reward": -1.0,
+          "mock": false,
+          "degraded": false
+        },
+        {
+          "task_id": "T0021",
+          "real_task_id": "2085624983883825153",
+          "status": "completed",
+          "fidelity": 1.0,
+          "step": 30,
+          "reward": 5.0,
+          "mock": false,
+          "degraded": false
+        },
+        {
+          "task_id": "T0045",
+          "real_task_id": "2085625005664845825",
+          "status": "query_error",
+          "fidelity": null,
+          "step": 83,
+          "reward": -1.0,
+          "mock": false,
+          "degraded": false
+        },
+        {
+          "task_id": "T0047",
+          "real_task_id": "2085625050518732801",
+          "status": "query_error",
+          "fidelity": null,
+          "step": 86,
+          "reward": -1.0,
+          "mock": false,
+          "degraded": false
+        },
+        {
+          "task_id": "T0049",
+          "real_task_id": "2085625093883174913",
+          "status": "query_error",
+          "fidelity": null,
+          "step": 90,
+          "reward": -1.0,
+          "mock": false,
+          "degraded": false
+        }
+      ]
+    },
+    {
+      "seed": 123,
+      "policy": "fcfs",
+      "total_reward": 5139.9006,
+      "steps": 500,
+      "elapsed_seconds": 27.97,
+      "real_tasks_submitted": 3,
+      "real_tasks_completed": 0,
+      "real_records": [
+        {
+          "task_id": "T0023",
+          "real_task_id": "2085625131858870274",
+          "status": "query_error",
+          "fidelity": null,
+          "step": 40,
+          "reward": -1.0,
+          "mock": false,
+          "degraded": false
+        },
+        {
+          "task_id": "T0048",
+          "real_task_id": "2085625168390791169",
+          "status": "query_error",
+          "fidelity": null,
+          "step": 95,
+          "reward": -1.0,
+          "mock": false,
+          "degraded": false
+        },
+        {
+          "task_id": "T0112",
+          "real_task_id": "2085625211717951490",
+          "status": "query_error",
+          "fidelity": null,
+          "step": 241,
+          "reward": -1.0,
+          "mock": false,
+          "degraded": false
+        }
+      ]
+    },
+    {
+      "seed": 123,
+      "policy": "sjf",
+      "total_reward": 4555.6743,
+      "steps": 500,
+      "elapsed_seconds": 27.87,
+      "real_tasks_submitted": 3,
+      "real_tasks_completed": 0,
+      "real_records": [
+        {
+          "task_id": "T0023",
+          "real_task_id": "2085625249290526721",
+          "status": "query_error",
+          "fidelity": null,
+          "step": 40,
+          "reward": -1.0,
+          "mock": false,
+          "degraded": false
+        },
+        {
+          "task_id": "T0048",
+          "real_task_id": "2085625285659336706",
+          "status": "query_error",
+          "fidelity": null,
+          "step": 95,
+          "reward": -1.0,
+          "mock": false,
+          "degraded": false
+        },
+        {
+          "task_id": "T0083",
+          "real_task_id": "2085625328978108417",
+          "status": "query_error",
+          "fidelity": null,
+          "step": 155,
+          "reward": -1.0,
+          "mock": false,
+          "degraded": false
+        }
+      ]
+    },
+    {
+      "seed": 456,
+      "policy": "ppo",
+      "total_reward": 6228.3205,
+      "steps": 500,
+      "elapsed_seconds": 28.34,
+      "real_tasks_submitted": 3,
+      "real_tasks_completed": 0,
+      "real_records": [
+        {
+          "task_id": "T0017",
+          "real_task_id": "2085625365636792322",
+          "status": "query_error",
+          "fidelity": null,
+          "step": 12,
+          "reward": -1.0,
+          "mock": false,
+          "degraded": false
+        },
+        {
+          "task_id": "T0021",
+          "real_task_id": "2085625409076731906",
+          "status": "query_error",
+          "fidelity": null,
+          "step": 19,
+          "reward": -1.0,
+          "mock": false,
+          "degraded": false
+        },
+        {
+          "task_id": "T0042",
+          "real_task_id": "2085625446234071041",
+          "status": "query_error",
+          "fidelity": null,
+          "step": 52,
+          "reward": -1.0,
+          "mock": false,
+          "degraded": false
+        }
+      ]
+    },
+    {
+      "seed": 456,
+      "policy": "fcfs",
+      "total_reward": 4760.5132,
+      "steps": 500,
+      "elapsed_seconds": 28.0,
+      "real_tasks_submitted": 3,
+      "real_tasks_completed": 0,
+      "real_records": [
+        {
+          "task_id": "T0006",
+          "real_task_id": "2085625484683722754",
+          "status": "query_error",
+          "fidelity": null,
+          "step": 12,
+          "reward": -1.0,
+          "mock": false,
+          "degraded": false
+        },
+        {
+          "task_id": "T0016",
+          "real_task_id": "2085625521643462658",
+          "status": "query_error",
+          "fidelity": null,
+          "step": 17,
+          "reward": -1.0,
+          "mock": false,
+          "degraded": false
+        },
+        {
+          "task_id": "T0052",
+          "real_task_id": "2085625558314262530",
+          "status": "query_error",
+          "fidelity": null,
+          "step": 100,
+          "reward": -1.0,
+          "mock": false,
+          "degraded": false
+        }
+      ]
+    },
+    {
+      "seed": 456,
+      "policy": "sjf",
+      "total_reward": 4975.0068,
+      "steps": 500,
+      "elapsed_seconds": 29.68,
+      "real_tasks_submitted": 3,
+      "real_tasks_completed": 0,
+      "real_records": [
+        {
+          "task_id": "T0006",
+          "real_task_id": "2085625602501255170",
+          "status": "query_error",
+          "fidelity": null,
+          "step": 12,
+          "reward": -1.0,
+          "mock": false,
+          "degraded": false
+        },
+        {
+          "task_id": "T0016",
+          "real_task_id": "2085625639210270722",
+          "status": "query_error",
+          "fidelity": null,
+          "step": 17,
+          "reward": -1.0,
+          "mock": false,
+          "degraded": false
+        },
+        {
+          "task_id": "T0052",
+          "real_task_id": "2085625677579763713",
+          "status": "query_error",
+          "fidelity": null,
+          "step": 100,
+          "reward": -1.0,
+          "mock": false,
+          "degraded": false
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,32 @@
+{
+  "experiment": "real_performance_pretrain_v3",
+  "timestamp": "2026-08-07T14:38:16.469594",
+  "config": {
+    "seeds": [
+      42
+    ],
+    "policies": [
+      "fcfs"
+    ],
+    "episode_horizon": 500,
+    "cap_per_seed": 30,
+    "real_submit_probability": 0.3,
+    "shots": 512,
+    "feedback_mode": "result_aware",
+    "machine": "tianyan176",
+    "circuit": "H Q1\nM Q1",
+    "model": "ppo_best_model_16dim.zip"
+  },
+  "results": [
+    {
+      "seed": 42,
+      "policy": "fcfs",
+      "total_reward": 4488.793,
+      "steps": 423,
+      "elapsed_seconds": 0.09,
+      "real_tasks_submitted": 0,
+      "real_tasks_completed": 0,
+      "real_records": []
+    }
+  ]
+}

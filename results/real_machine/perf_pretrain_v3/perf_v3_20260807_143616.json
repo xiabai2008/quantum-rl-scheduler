@@ -1,0 +1,85 @@
+{
+  "experiment": "real_performance_pretrain_v3",
+  "timestamp": "2026-08-07T14:36:16.404576",
+  "config": {
+    "seeds": [
+      42,
+      123
+    ],
+    "policies": [
+      "ppo",
+      "fcfs",
+      "sjf"
+    ],
+    "episode_horizon": 500,
+    "cap_per_seed": 30,
+    "real_submit_probability": 0.3,
+    "shots": 512,
+    "feedback_mode": "result_aware",
+    "machine": "tianyan-287",
+    "circuit": "H Q1\nM Q1",
+    "model": "ppo_best_model_16dim.zip"
+  },
+  "results": [
+    {
+      "seed": 42,
+      "policy": "ppo",
+      "total_reward": 3120.0526,
+      "steps": 288,
+      "elapsed_seconds": 0.6,
+      "real_tasks_submitted": 0,
+      "real_tasks_completed": 0,
+      "real_records": []
+    },
+    {
+      "seed": 42,
+      "policy": "fcfs",
+      "total_reward": 4488.793,
+      "steps": 423,
+      "elapsed_seconds": 0.09,
+      "real_tasks_submitted": 0,
+      "real_tasks_completed": 0,
+      "real_records": []
+    },
+    {
+      "seed": 42,
+      "policy": "sjf",
+      "total_reward": 4488.793,
+      "steps": 423,
+      "elapsed_seconds": 0.09,
+      "real_tasks_submitted": 0,
+      "real_tasks_completed": 0,
+      "real_records": []
+    },
+    {
+      "seed": 123,
+      "policy": "ppo",
+      "total_reward": 6373.3403,
+      "steps": 500,
+      "elapsed_seconds": 0.52,
+      "real_tasks_submitted": 0,
+      "real_tasks_completed": 0,
+      "real_records": []
+    },
+    {
+      "seed": 123,
+      "policy": "fcfs",
+      "total_reward": 5483.4729,
+      "steps": 500,
+      "elapsed_seconds": 0.1,
+      "real_tasks_submitted": 0,
+      "real_tasks_completed": 0,
+      "real_records": []
+    },
+    {
+      "seed": 123,
+      "policy": "sjf",
+      "total_reward": 5808.7192,
+      "steps": 500,
+      "elapsed_seconds": 0.11,
+      "real_tasks_submitted": 0,
+      "real_tasks_completed": 0,
+      "real_records": []
+    }
+  ]
+}
