@@ -115,7 +115,7 @@ class ColoredDivider(Flowable):
 class CodeBlock(Flowable):
     """代码块"""
 
-    def __init__(self, text, width, font_name="Courier", font_size=9, padding=10):
+    def __init__(self, text, width, font_name="CJK", font_size=9, padding=10):
         Flowable.__init__(self)
         self.text = text
         self._width = width
@@ -373,8 +373,8 @@ def inline_format(text):
     text = re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", text)
     # 斜体 *text*
     text = re.sub(r"\*(.+?)\*", r"<i>\1</i>", text)
-    # 行内代码 `code`
-    text = re.sub(r"`(.+?)`", r'<font face="Courier" size="9" backColor="#edf2f7">\1</font>', text)
+    # 行内代码 `code`（用 CJK 字体避免中文注释渲染为乱码方块）
+    text = re.sub(r"`(.+?)`", r'<font face="CJK" size="9" backColor="#edf2f7">\1</font>', text)
     # 上标
     text = text.replace("⁻", "<super>-</super>")
     return text
