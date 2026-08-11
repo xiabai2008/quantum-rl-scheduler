@@ -921,8 +921,21 @@ def prepare_submission(manifest_path: str, project_root: str = ".") -> None:
 
 
 def _is_excluded(rel: str, exclude_list: list[str]) -> bool:
-    """判断相对路径是否命中 exclude 前缀列表"""
-    return any(rel == exc or rel.startswith(exc + "/") for exc in exclude_list)
+    """判断相对路径是否命中 exclude 列表。
+
+    8.11 修复：除顶层前缀匹配外，支持任意路径段匹配（如 exclude "__pycache__"
+    可排除 src/__pycache__/x.pyc 等嵌套路径）；以 "/" 结尾的 exclude 项按目录段匹配。
+    """
+    parts = rel.split("/")
+    for exc in exclude_list:
+        exc = exc.rstrip("/")
+        if not exc:
+            continue
+        if rel == exc or rel.startswith(exc + "/"):
+            return True
+        if exc in parts:  # 嵌套路径段匹配（目录名/文件名）
+            return True
+    return False
 
 
 def _add_zip_entry(
@@ -1015,6 +1028,16 @@ def package_submission(
     output_file = output_dir / f"submission_{version}_{date_str}.zip"
     output_resolved = output_file.resolve()
 
+    # 8.11 修复：外层包也应用 CODE_ARCHIVE 的 exclude 规则，
+    # 防止 docs/award_roadmap.md 等内部文档泄漏进外层 zip
+    code_archive_excludes: list[str] = []
+    for item in validator.manifest["items"]:
+        if item["id"] == "CODE_ARCHIVE":
+            code_archive_excludes = [
+                exc.rstrip("/") for exc in item.get("requirements", {}).get("exclude", [])
+            ]
+            break
+
     # 创建 ZIP 文件
     with zipfile.ZipFile(output_file, "w", zipfile.ZIP_DEFLATED) as zipf:
         for item in validator.manifest["items"]:
@@ -1025,12 +1048,18 @@ def package_submission(
             path = Path(project_root) / item["path"]
             if path.exists():
                 if path.is_file():
+                    rel = item["path"].replace("\\", "/")
+                    if _is_excluded(rel, code_archive_excludes):
+                        print(f"  ⏭️ 跳过(内部文档): {item['path']}")
+                        continue
                     zipf.write(path, item["path"])
                     print(f"  ✅ 添加: {item['path']}")
                 elif path.is_dir():
                     for file in path.rglob("*"):
                         if file.is_file() and file.resolve() != output_resolved:
                             arcname = str(file.relative_to(project_root)).replace("\\", "/")
+                            if _is_excluded(arcname, code_archive_excludes):
+                                continue
                             zipf.write(file, arcname)
                     print(f"  ✅ 添加目录: {item['path']}")
 

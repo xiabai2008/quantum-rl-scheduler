@@ -40,6 +40,10 @@ items:
         - "docs/dual_empowerment_asymmetry_analysis.md"
         - "docs/code_freeze.md"
         - "docs/代码冻结操作手册.md"
+        - "docs/award_sprint_issues/"
+        - "docs/defense_qa_handbook.md"
+        - "docs/defense_ppt_outline.md"
+        - "docs/demo_video_final_script.md"
       include:
         - "src/"
         - "tests/"
