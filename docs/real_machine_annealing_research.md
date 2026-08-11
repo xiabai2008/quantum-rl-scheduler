@@ -143,7 +143,7 @@ result = platform.query_experiment(query_id=query_id, max_wait_time=120, sleep_t
 | 检验方法 | Wilcoxon 秩和检验 | `head_only_validation.md` |
 | p 值 | **0.190**（>0.05，不显著） | n=5 样本量小 |
 | 效应量 | Cliff's delta = **0.40**（中等效应） | >0.33 阈值 |
-| 50k 步奖励提升 | **+6.4%** | 1659.01 vs 1558.86 |
+| 50k 步奖励提升 | **+6.4%**（已废弃，5seed 旧口径） | 1659.01 vs 1558.86 |
 | 训练时间开销 | **+74.5%** | 95.89s vs 54.97s |
 
 **20seed 权威结论**：最终 50k checkpoint 奖励变化 **-5.6%**（Wilcoxon p=0.9430 不显著，方向逆转）；

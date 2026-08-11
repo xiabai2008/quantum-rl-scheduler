@@ -119,7 +119,7 @@ graph TB
 
 ```
 quantum-rl-scheduler/
-├── src/                      # 源代码（68 文件）
+├── src/                      # 源代码（72 文件）
 │   ├── exceptions.py         # 统一异常体系（8 类）
 │   ├── scheduler/            # RL调度引擎（env + agent + parser + marl + multi_objective_env）
 │   ├── api/                  # 天衍云API封装（Mock/真实/cqlib 三模式 + 熔断器）
@@ -132,8 +132,8 @@ quantum-rl-scheduler/
 │   └── cli.py                # Click 统一命令行入口
 ├── docs/                     # 团队文档（上手指南、Git规范、分工、协同开发）
 ├── config/                   # 系统配置（config.yaml + .env.example）
-├── results/reports/          # 实验数据固化报告（73份）
-├── .github/workflows/        # CI/CD 9 Job 流水线 + PR 自动化
+├── results/reports/          # 实验数据固化报告（75份）
+├── .github/workflows/        # CI/CD 7 Job 流水线（矩阵展开 9 个） + PR 自动化
 ├── .devcontainer/            # VS Code 开发容器
 ├── pyproject.toml            # 统一配置（ruff/mypy/bandit/pytest/coverage）
 ├── mypy.ini                  # 类型检查（8项严格配置）
@@ -334,7 +334,7 @@ TIANYAN_API_KEY=你的真实API密钥
 | 真机可用性验证 | 315次SDK调用100%成功，全链路验证 | 已完成 |
 | Web可视化 | FastAPI + Vue3 + Echarts + WebSocket | 已验证 |
 | 可观测性 | Prometheus /metrics 端点 | 已验证 |
-| CI/CD | 9 Job流水线 + Codecov + Dependabot | 已配置 |
+| CI/CD | 7 Job流水线（矩阵展开 9 个） + Codecov + Dependabot | 已配置 |
 | Docker部署 | 一键容器化部署 | 已配置 |
 
 ## 实验成果

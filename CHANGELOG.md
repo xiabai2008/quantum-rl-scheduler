@@ -12,14 +12,14 @@
 ### P1 修复（数字口径）
 - **SJF vs FCFS**：p=0.2827（错误值）→ 权威 2.28e-60（strategy_comparison/statistical_validation 快照标注）
 - **退火 5seed 旧口径**：real_machine_annealing_research 加废弃横幅（+6.4%/p=0.190/Cliff's delta=0.40 → 20seed 权威 -5.6%）；deployment/technical_bottlenecks 混搭修正
-- **双向赋能基线表述**：bidirectional L19/novelty L16 "+20.2% vs Hybrid-Default"错误表述修正（+20.2% 是 vs 真实 FCFS；+123.4% 才是 vs Hybrid-Default）；bidirectional L259 退火混搭修正
-- **defense_qa Q57**：+20.2%/+123.4% 基线混淆修正
+- **双向赋能基线表述**：bidirectional L19/novelty L16 "+20.2% vs 旧弱基线"错误表述修正（+20.2% 是 vs 真实 FCFS；旧弱基线对应 +123.4% 已废弃）；bidirectional L259 退火混搭修正
+- **defense_qa Q57**：+20.2%/旧弱基线 混淆修正
 - **sota_comparison 8.4/8.6 矛盾**：话术统一（+20.2% 对比观测感知 FCFS）；L340/341 旧 p 值更新（3.02e-118/1.11e-70）
 - **statistics.yaml ppo_vs_dqn**：1.315e-77 → 3.02e-118（与 ppo_vs_random 一致，重算确认）
 
 ### P2
 - requirements.txt torch 上界 <2.8.0 → <2.9.0（与 lock ==2.8.0 对齐）
-- CHANGELOG v9.1.0 条目 +123.4% 权威记载更正为 +20.2%（见下）
+- CHANGELOG v9.1.0 条目旧弱基线权威记载更正为 +20.2%（见下）
 - 审计轨迹 46 条 task_id 入库（30 条 v2 权威 + 1 smoke + 15 条 176 扩充）
 
 ## [2026-08-10] - 外部审查修复 + 项目本身升级批次

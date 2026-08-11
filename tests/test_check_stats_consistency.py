@@ -189,11 +189,11 @@ class TestNewDeprecatedValuesPositive:
     """8.7-v2 新增：提交物文档残留旧口径的 BLACKLIST 正例"""
 
     def test_mappo_reward_improvement_863_triggers(self) -> None:
-        """将 +86.3% 直接表述为'奖励提升'应触发（权威协同优势为 +4.0%）。"""
+        """将 +86.3% 直接表述为'奖励提升'应触发（权威协同优势为 +36.5% N=20）。"""
         text = "MAPPO 多智能体协同调度，奖励提升 86.3%\n"
         violations = _run_blacklist_check_on_text(text)
-        assert any("+4.0%" in msg for _pat, msg in violations), (
-            "直接表述'奖励提升86.3%'应被BLACKLIST捕获并提示权威+4.0%"
+        assert any("+36.5%" in msg for _pat, msg in violations), (
+            "直接表述'奖励提升86.3%'应被BLACKLIST捕获并提示权威+36.5%"
         )
 
     def test_p_less_than_1e66_triggers(self) -> None:
@@ -226,9 +226,9 @@ class TestNewDeprecatedValuesNegative:
 
     def test_863_as_total_vs_single_machine_not_triggered(self) -> None:
         """+86.3% 作为'总提升 vs 单机'的诚实拆解不应触发。"""
-        text = "协同优势 +4.0%；叠加规模扩展效应后总提升 vs 单机 +86.3%\n"
+        text = "协同优势 +36.5%；叠加规模扩展效应后总提升 vs 单机 +86.3%\n"
         violations = _run_blacklist_check_on_text(text)
-        assert not any("+4.0%" in msg for _pat, msg in violations), (
+        assert not any("+36.5%" in msg for _pat, msg in violations), (
             "诚实拆解为总提升vs单机的+86.3%不应被误判"
         )
 
