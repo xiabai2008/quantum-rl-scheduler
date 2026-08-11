@@ -10,8 +10,15 @@
 |:--|:--|--:|--:|:--|
 | 账号1 | 探测 | — | — | 密钥 Login failed（无效或未激活） |
 | 账号2 | 高参与率实验（预注册，首次执行） | 19 | 0 | 链路完整（PPO+真机提交），176 执行全失败 |
-| 账号3 | 低频窗口实验（round3 v4 模式） | ~30+ | 0 | 探测持续失败，窗口未出现 |
-| 账号4 | 噪声分布扩充（MBS 测量） | ~30+ | 0 | 同上 |
+| 账号3 | 低频窗口实验（round3 v4 模式） | ~40+ | 0 | 1 次窗口（seed 53 PPO），真机任务仍 failed |
+| 账号4 | 噪声分布扩充（MBS 测量） | ~100+ | 1 | mbs=0.947（11:11 窗口，物理合理） |
+
+## 最终结果（全部入库）
+
+- `results/real_machine/perf_pretrain_v3/`：高参与率实验 12 批（8/7 pilot 9 + 8/11 正式 3）
+- `results/real_machine/round3_expansion_20260811_key3.json`：低频 1/30
+- `results/real_machine/mbs_expansion_20260810.json`：**16 点重建**（审计轨迹恢复 15 + 新 1）
+- 使用记录：`results/reports/real_machine_quota_usage_8.11.md`
 
 ## 关键发现
 
