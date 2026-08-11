@@ -79,7 +79,7 @@ quantum-rl-scheduler/
 ├── CONTRIBUTING.md               # 贡献指南
 ├── Dockerfile + docker-compose.yml  # 一键部署
 
-├── src/                          # 源代码（64 个 .py 文件）
+├── src/                          # 源代码（72 个 .py 文件）
 │   ├── exceptions.py             # 统一异常体系（8类）
 │   ├── config/                   # 配置管理（settings.py, schema.py）
 │   ├── scheduler/                # 调度引擎（核心模块，~23文件）
