@@ -7,6 +7,13 @@
 > **检验方法**: Wilcoxon signed-rank 检验（配对非参数检验）
 > **显著性水平**: α = 0.05
 > **生成时间**: 2026-08-03T20:04:52.772267+08:00
+>
+> **⚠️ 数据来源披露（8.12 补充）**：本实验的 **standard 条件（无噪声）数据与权威 N=250 评估
+> （`results/multiseed_evaluation/rewards_multiseed.json` 的 PPO 数据）同源**（相同 seeds、相同
+> 环境配置，250 个值逐位一致）——standard 臂为权威评估数据的配对复用；**distnoise 条件
+> （噪声注入）为独立运行**（与 standard 同 seed 配对，逐值不同）。配对检验的成立性不受影响
+> （同 seed 双条件对照有效），但 standard 臂数据不构成"独立更大样本"，本实验的增量证据
+> 在 distnoise 条件与配对结构。诚实披露：不宣称"独立 50 seeds 重新评估"。
 
 ## 一、为什么需要 N≥20 seeds 配对检验
 
