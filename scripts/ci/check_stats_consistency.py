@@ -353,8 +353,8 @@ def check_authoritative_coverage(stats: dict[str, Any]) -> list[str]:
         (
             "real_machine_10seed_v2",
             "ppo_vs_fcfs",
-            0.001,
-            "真机 10seeds v2 实验（p<0.001）",
+            5.84e-07,
+            "真机 10seeds v2 实验（8.11 复核精确值；此前 p<0.001 截断）",
         ),
         (
             "simulation_8strategy_50seed",

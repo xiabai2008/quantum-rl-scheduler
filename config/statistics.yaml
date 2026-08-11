@@ -372,37 +372,37 @@ real_machine_10seed_v2:
   ppo_vs_fcfs:
     test_method: "Welch t"
     statistic: 11.92
-    p_value: 0.001  # p<0.001
+    p_value: 5.84e-07  # 精确值（8.11 复核；此前 p<0.001 截断）
     effect_size_type: "Cohen's d"
     effect_size: 5.33
     mean_diff: 1353.32
-    ci_95: [1097.83, 1608.82]
+    ci_95: [1130.71, 1575.93]  # 8.11 复核修正（此前 ddof 混用）
     improvement_pct: 353.4
     n: 10
     significant: true  # Bonferroni校正后显著
-    applicable_condition: "PPO vs FCFS 真机环境，10seed v2实验，N=10 per group"
+    applicable_condition: "PPO vs FCFS 真机环境，10seed v2实验，N=10 per group（96步中仅1步涉及真机，性能差异主要由仿真动力学驱动，非真机性能证据）"
 
   ppo_vs_sjf:
     test_method: "Welch t"
-    statistic: 9.05
-    p_value: 0.001  # p<0.001
+    statistic: 8.58  # 8.11 复核修正（此前 9.05 混用总体 std）
+    p_value: 1.16e-06
     effect_size_type: "Cohen's d"
-    effect_size: 4.04
+    effect_size: 3.84  # 8.11 复核修正（此前 4.04 为 ddof 混用）
     mean_diff: 1160.99
-    ci_95: [911.78, 1410.20]
+    ci_95: [895.79, 1426.19]  # 8.11 复核修正
     n: 10
     significant: true
 
   sjf_vs_fcfs:
     test_method: "Welch t"
-    statistic: 2.40
-    p_value: 0.080
+    statistic: 2.51  # 8.11 复核修正（此前 2.40 系 5seed 旧值误入）
+    p_value: 0.0316  # 8.11 复核修正（此前 0.080 为 5seed 值）
     effect_size_type: "Cohen's d"
-    effect_size: 1.13
+    effect_size: 1.12  # 8.11 复核修正（此前 1.13）
     mean_diff: 192.33
-    ci_95: [-38.82, 423.48]
+    ci_95: [41.89, 342.77]  # 8.11 复核修正（此前 [-38.82, 423.48] 系 5seed 值误入；正确 CI 不含 0）
     n: 10
-    significant: false
+    significant: false  # 未校正 p=0.032 显著；Bonferroni α=0.0167 下边缘不显著 → 方向性支持
 
 # =============================================================================
 # 实验3: 退火消融实验 (20seeds, 权威)
