@@ -17,8 +17,8 @@ gymnasium>=0.28.0,<2.0.0
 stable-baselines3>=2.0.0,<2.10.0
 sb3-contrib>=2.0.0,<2.10.0
 # torch 版本直接影响 PPO.load 反序列化兼容性（8.4 审查：2.13.x SIGSEGV）
-# 8.7-v4：上限保持 <2.8.0（已验证 2.7.1 OK；8.4 实测 2.13.x SIGSEGV）
-torch>=2.0.0,<2.8.0
+# 8.8 升版：与 requirements.lock 对齐 torch==2.8.0（sb3 2.9.0 交付模型验证通过；2.13.x SIGSEGV 仍不可用）
+torch>=2.0.0,<2.9.0
 tensorboard>=2.14.0,<3.0.0
 
 # === 量子计算 ===

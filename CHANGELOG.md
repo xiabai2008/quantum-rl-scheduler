@@ -2,6 +2,38 @@
 
 本文件记录项目的所有重要变更，按日期倒序排列。
 
+## [2026-08-11] - 评委视角深度审计修复批次（第十轮外部审查）
+
+### P0 修复
+- **MAPPO 口径统一**：权威升级为 N=20（+500.1% vs FCFS / +36.5% vs 独立PPO，配对 Wilcoxon p=0.024 显著）；`results/mappo_strict_comparison_result.json` 入库（此前缺失）；statistics.yaml + 门禁断言同步；N=10 旧口径（+396.7%/+4.0%）标记废弃
+- **真机 v2 统计重算**：PPO vs SJF t=9.05→8.58（ddof 混用）、SJF vs FCFS p=0.080→0.0316（5seed 旧值误入）、CI 修正、p<0.001→精确值 5.84e-07
+- **打包泄漏修复**：`_is_excluded` 支持嵌套路径段匹配（.pyc 205→0）；外层包应用 CODE_ARCHIVE exclude（award_roadmap 不再泄漏）；排除 award_sprint_issues/答辩准备材料
+
+### P1 修复（数字口径）
+- **SJF vs FCFS**：p=0.2827（错误值）→ 权威 2.28e-60（strategy_comparison/statistical_validation 快照标注）
+- **退火 5seed 旧口径**：real_machine_annealing_research 加废弃横幅（+6.4%/p=0.190/Cliff's delta=0.40 → 20seed 权威 -5.6%）；deployment/technical_bottlenecks 混搭修正
+- **双向赋能基线表述**：bidirectional L19/novelty L16 "+20.2% vs Hybrid-Default"错误表述修正（+20.2% 是 vs 真实 FCFS；+123.4% 才是 vs Hybrid-Default）；bidirectional L259 退火混搭修正
+- **defense_qa Q57**：+20.2%/+123.4% 基线混淆修正
+- **sota_comparison 8.4/8.6 矛盾**：话术统一（+20.2% 对比观测感知 FCFS）；L340/341 旧 p 值更新（3.02e-118/1.11e-70）
+- **statistics.yaml ppo_vs_dqn**：1.315e-77 → 3.02e-118（与 ppo_vs_random 一致，重算确认）
+
+### P2
+- requirements.txt torch 上界 <2.8.0 → <2.9.0（与 lock ==2.8.0 对齐）
+- CHANGELOG v9.1.0 条目 +123.4% 权威记载更正为 +20.2%（见下）
+- 审计轨迹 46 条 task_id 入库（30 条 v2 权威 + 1 smoke + 15 条 176 扩充）
+
+## [2026-08-10] - 外部审查修复 + 项目本身升级批次
+
+### 项目本身升级
+- **等待时间 -14.0% 显著性检验**（N=250 配对 t p=8.917e-06 极显著，Wilcoxon 8.928e-06，seed 聚合 p=0.0174）→ statistics.yaml wait_time_significance 段 + 白皮书/PDF 同步
+- **编译层尾部稳健性证据**：SABRE>40 区间 PPO 20/20 全胜（p=0.000088）；25-40 区间 13/13（p=0.0002）→ statistics.yaml compilation_tail_robustness 段
+- **跨机器噪声异质性**：176 上 15 点 MBS（0.957±0.030）vs 287 10 seeds（0.886±0.092），Mann-Whitney p=0.018 显著 → cross_machine_noise_analysis
+- **真机审计轨迹重建**：46 条真实 task_id 替换 131 行空壳模板
+- **利用率 -3.3% 显著性**：配对 t p=0.090 不显著（95% CI 含 0），定性为外生指标噪声 → 白皮书/PPT 同步
+
+### 外部审查修复
+- README 数字同步（18页/16章/73份/627KB）、manifest 排除红队报告/.archive、打包命名固化（--rename-final）
+
 ## [2026-08-01] - 四审修复批次：熔断器泄漏/audit编码/白皮书LSTM/锁补全/聚合测试
 
 ### P0 修复（四审发现）
