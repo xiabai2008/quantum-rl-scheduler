@@ -118,12 +118,16 @@ def main() -> int:
         "timestamp": datetime.now().isoformat(),
         "success_count": len(results),
         "target": args.target,
+        # 8.11 修复：结果文件带时间戳（此前固定文件名会被后续运行覆盖丢失历史数据）
         "results": results,
     }
     RESULTS_PATH.parent.mkdir(parents=True, exist_ok=True)
-    with open(RESULTS_PATH, "w", encoding="utf-8") as f:
+    ts_path = RESULTS_PATH.with_name(
+        f"mbs_expansion_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+    )
+    with open(ts_path, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
-    print(f"结果已保存: {RESULTS_PATH}（成功 {len(results)}/{args.target}）", flush=True)
+    print(f"结果已保存: {ts_path}（成功 {len(results)}/{args.target}）", flush=True)
     return 0 if len(results) >= args.target else 2
 
 

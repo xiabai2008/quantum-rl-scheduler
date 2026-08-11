@@ -1,0 +1,156 @@
+{
+  "experiment": "mbs_expansion_20260810_rebuilt",
+  "machine": "tianyan176",
+  "shots": 1024,
+  "qcis": "H Q1\nM Q1",
+  "timestamp": "2026-08-11",
+  "success_count": 16,
+  "target": 16,
+  "note": "8/11 重建：原文件被新实验覆盖丢失，从审计轨迹恢复 15 条 + 新 1 条；task_id 与 MBS 值保留",
+  "results": [
+    {
+      "task_id": "2086691216871866369",
+      "tag": "mbs#0",
+      "mbs": 0.9648,
+      "p0": 0.5176,
+      "p1": 0.4824,
+      "fidelity": 0.9648,
+      "source": "round5-D 8/10 (audit trail)"
+    },
+    {
+      "task_id": "2086691324787113985",
+      "tag": "mbs#1",
+      "mbs": 0.949708,
+      "p0": 0.525146,
+      "p1": 0.474854,
+      "fidelity": 0.949708,
+      "source": "round5-D 8/10 (audit trail)"
+    },
+    {
+      "task_id": "2086691556329005057",
+      "tag": "mbs#2",
+      "mbs": 0.996392,
+      "p0": 0.501804,
+      "p1": 0.498196,
+      "fidelity": 0.996392,
+      "source": "round5-D 8/10 (audit trail)"
+    },
+    {
+      "task_id": "2086691899289321473",
+      "tag": "mbs#3",
+      "mbs": 0.949708,
+      "p0": 0.525146,
+      "p1": 0.474854,
+      "fidelity": 0.949708,
+      "source": "round5-D 8/10 (audit trail)"
+    },
+    {
+      "task_id": "2086692006894190594",
+      "tag": "mbs#4",
+      "mbs": 0.893652,
+      "p0": 0.553174,
+      "p1": 0.446826,
+      "fidelity": 0.893652,
+      "source": "round5-D 8/10 (audit trail)"
+    },
+    {
+      "task_id": "2086692113978499074",
+      "tag": "mbs#5",
+      "mbs": 0.919524,
+      "p0": 0.540238,
+      "p1": 0.459762,
+      "fidelity": 0.919524,
+      "source": "round5-D 8/10 (audit trail)"
+    },
+    {
+      "task_id": "2086692194911789057",
+      "tag": "mbs#6",
+      "mbs": 0.947552,
+      "p0": 0.526224,
+      "p1": 0.473776,
+      "fidelity": 0.947552,
+      "source": "round5-D 8/10 (audit trail)"
+    },
+    {
+      "task_id": "2086692426366066690",
+      "tag": "mbs#7",
+      "mbs": 0.989924,
+      "p0": 0.505038,
+      "p1": 0.494962,
+      "fidelity": 0.989924,
+      "source": "round5-D 8/10 (audit trail)"
+    },
+    {
+      "task_id": "2086692775018053634",
+      "tag": "mbs#8",
+      "mbs": 0.960488,
+      "p0": 0.519756,
+      "p1": 0.480244,
+      "fidelity": 0.960488,
+      "source": "round5-D 8/10 (audit trail)"
+    },
+    {
+      "task_id": "2086694541243662338",
+      "tag": "mbs#9",
+      "mbs": 0.977945,
+      "p0": 0.511027,
+      "p1": 0.488972,
+      "fidelity": 0.977945,
+      "source": "round5-D 8/10 (audit trail)"
+    },
+    {
+      "task_id": "2086694887860477953",
+      "tag": "mbs#10",
+      "mbs": 0.995042,
+      "p0": 0.502479,
+      "p1": 0.497521,
+      "fidelity": 0.995042,
+      "source": "round5-D 8/10 (audit trail)"
+    },
+    {
+      "task_id": "2086695003115757569",
+      "tag": "mbs#11",
+      "mbs": 0.973671,
+      "p0": 0.513165,
+      "p1": 0.486835,
+      "fidelity": 0.973671,
+      "source": "round5-D 8/10 (audit trail)"
+    },
+    {
+      "task_id": "2086695435016290306",
+      "tag": "mbs#12",
+      "mbs": 0.960848,
+      "p0": 0.519576,
+      "p1": 0.480424,
+      "fidelity": 0.960848,
+      "source": "round5-D 8/10 (audit trail)"
+    },
+    {
+      "task_id": "2086696263143399425",
+      "tag": "mbs#13",
+      "mbs": 0.911694,
+      "p0": 0.544153,
+      "p1": 0.455847,
+      "fidelity": 0.911694,
+      "source": "round5-D 8/10 (audit trail)"
+    },
+    {
+      "task_id": "2086696852951089153",
+      "tag": "mbs#14",
+      "mbs": 0.962985,
+      "p0": 0.518508,
+      "p1": 0.481492,
+      "fidelity": 0.962985,
+      "source": "round5-D 8/10 (audit trail)"
+    },
+    {
+      "task_id": "2087017985147617282",
+      "tag": "mbs#15",
+      "mbs": 0.946985,
+      "p0": 0.526507,
+      "p1": 0.473493,
+      "fidelity": 0.946985,
+      "source": "8/11 key4"
+    }
+  ]
+}
