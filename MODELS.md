@@ -85,3 +85,12 @@ python scripts/evaluation/ablation_ppo_variants.py
 - 如需重新训练并替换权威模型：使用对应训练脚本训练后将模型复制至 `deliverable_models/` 并同步更新本文件
 - `run_simulation.py` 默认加载 `deliverable_models/ppo_best_model_16dim.zip`
 - `models/` 目录（.gitignore忽略）存放训练过程中的临时checkpoint，不作为交付物
+
+## 噪声反馈实验模型（8.11 补入库）
+
+- models/noise_feedback_v2/：**48 对 (standard, noise) 模型**（交叉评估复用，96 个 zip）
+- 用途：
+oise_robustness_cross_eval（48×6 格子交叉评估）+ 
+oise_training_stability（稳健性分析）
+- 训练：scripts/training/train_noise_feedback_v2.py（500K 步，真实噪声分布注入）
+- 8.11 审查补：此前 models/ 被 gitignore 未入库，评审无法复现交叉评估 → 已补入 48 对代表模型
