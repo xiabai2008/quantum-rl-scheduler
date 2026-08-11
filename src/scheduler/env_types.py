@@ -40,7 +40,7 @@ OBS_AVG_CONNECTIVITY = 13  # 量子比特平均连通度 = 平均连接数 / max
 OBS_CROSSTALK_RISK = 14  # 串扰风险（基于空间并发的任务密度）
 OBS_ARRIVAL_RATE_MA = 15  # 任务到达率滑动平均（流量突发感知）
 
-OBS_DIM = 16  # 状态空间维度（从15扩展到16）
+OBS_DIM = 16  # 状态空间维度（从14扩展到16，v9 交付标准）
 
 # Issue #588: 公平性观测（可选第17维，不影响默认 OBS_DIM=16）
 OBS_FAIRNESS_INDEX = 16  # 索引16，仅在 include_fairness_obs=True 时使用
