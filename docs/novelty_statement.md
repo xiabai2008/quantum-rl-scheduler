@@ -29,7 +29,7 @@
 **效果如何**：
 - 16维状态空间覆盖从基础资源到物理噪声到并发时序的完整特征集
 - +20.2%权威结论基于**16维交付模型 + 新奖励参数**的N=250实验（config/statistics.yaml）；v9.1+已完成N=250多seed评估验证（Issue #559/#530）
-- 多机器协同消融实验（同训练量收敛严格对比）显示协同优势 +4.0%（MAPPO vs 独立PPO，见 `mappo_strict_strict_comparison`）；旧 +84.6%（5000 步未收敛 + 训练量不均等）已废弃，叠加规模扩展的总提升 vs 单机 +86.3% 须拆解呈现
+- 多机器协同消融实验（同训练量收敛严格对比）显示协同优势 +36.5%（N=20）（MAPPO vs 独立PPO，见 `mappo_strict_strict_comparison`）；旧 +84.6%（5000 步未收敛 + 训练量不均等）已废弃，叠加规模扩展的总提升 vs 单机 +86.3% 须拆解呈现
 - 2D网格对比线性链：SWAP门减少62%，图直径从15降至6
 - 消融实验证实MLP与LSTM架构收敛到相同策略，MLP训练效率更高
 - 数据来源：`src/scheduler/env_observation.py`、`src/quantum/compilation_env.py`

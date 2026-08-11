@@ -16,7 +16,7 @@
 |------|-------------------|----------|------|----------|
 | **PPO（16维MLP）** | `deliverable_models/ppo_best_model_16dim.zip` | 16维原生环境，100K steps，标准PPO(MLP)，seed=42，use_lstm=False | ~282 KB | 调度层PPO（权威实验见statistics.yaml） |
 | **PPO公平感知（17维）** | `deliverable_models/ppo_fairness17dim.zip` | 17维原生环境（include_fairness_obs=True + 租户偏斜 80/10/10），100K steps，标准PPO(MLP)，seed=42 | ~285 KB | 不公平负载消融：效率 +5.0%（Jain -0.012，权衡非双赢，8.3 审查修正）；公平观测维实时反映 Jain 完成率公平指数 |
-| **MAPPO 多智能体** | `deliverable_models/mappo/mappo.pt` | 3 机协同 MAPPO（共享 Critic 投票仲裁），50K steps，seed=42 | ~323 KB | 权威口径（同训练量收敛严格对比，mappo_strict_strict_comparison）：4588.7 vs 独立PPO 4412.2（协同优势+4.0%）vs 同环境 FCFS 923.9（+396.7%）。⚠️ FCFS 923.9 为固定 hybrid 基线（非真实 FCFS），+396.7% 仅作同 wrapper 严格对比，不对外作为权威性能提升；旧 +84.6%（p=0.019）为未收敛(5000步)+训练量不均等的探索值，已废弃。3 独立 PPO（independent_ppo_m0/1/2.zip，各 16K 步单机训练）随附 |
+| **MAPPO 多智能体** | `deliverable_models/mappo/mappo.pt` | 3 机协同 MAPPO（共享 Critic 投票仲裁），50K steps，seed=42 | ~323 KB | 权威口径（同训练量收敛严格对比，mappo_strict_strict_comparison）：5507.7 vs 独立PPO 4033.6（协同优势+36.5%，N=20，配对 Wilcoxon p=0.024）vs 同环境 FCFS 917.7（+500.1%）。⚠️ FCFS 923.9 为固定 hybrid 基线（非真实 FCFS），+500.1% 仅作同 wrapper 严格对比，不对外作为权威性能提升；旧 +84.6%（p=0.019）为未收敛(5000步)+训练量不均等的探索值，已废弃。3 独立 PPO（independent_ppo_m0/1/2.zip，各 16K 步单机训练）随附 |
 | **PPO编译优化Agent** | `deliverable_models/ppo_compilation_agent.zip` | 量子比特映射任务专用PPO Agent，4×4 2D网格训练200k steps | ~160 KB | 公平对比v2：全60电路+16.5%（p=8.40e-01不显著）；**深电路N=80扩充实验（2026-08-02, Issue #559）：+38.5%（Wilcoxon p=2.75e-02, t检验p=2.49e-03, 95%CI[+23.2%,+73.6%]），规模化效应：sabre>=10子集+63.2%（p=8.44e-08）——深电路优于SABRE（事后子集方向性提示，因系事后选择构造，整体不构成定论）** |
 
 ## 训练配置（复现前提）
