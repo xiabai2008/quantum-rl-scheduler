@@ -33,6 +33,11 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
+# 8.12 封板审查修复：Windows 中文控制台（GBK）无法输出 emoji，
+# 导致 click.echo 抛 UnicodeEncodeError、脚本 exit 1。强制 UTF-8 输出。
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+
 import click
 import numpy as np
 

@@ -612,9 +612,16 @@ class CqlibTianyanClient(QuantumHardwareBackend):
             if isinstance(result, list) and len(result) > 0:
                 data = result[0]
                 if isinstance(data, dict):
-                    has_result = "resultStatus" in data or "probability" in data
+                    # 8.12 封板审查修复：此前"查键不查值"，resultStatus/probability 键
+                    # 存在但值为空（null/""/[]/{}）时误判 completed，空结果被当真机数据消费。
+                    # 改为判值非空；空结果交由下方 resultStatus 兜底或返回 running。
                     probability = data.get("probability")
                     counts = data.get("counts")
+                    has_result = bool(
+                        data.get("resultStatus")
+                        or (isinstance(probability, (dict, str)) and probability)
+                        or counts
+                    )
                     # 8.9 修复：cqlib 真机返回的 probability 是 JSON 字符串
                     # （如 '{"0":0.527,"1":0.473}'），不是 dict。字符串形式若被
                     # 丢弃会导致 wait_for_task().probability 恒空，误判所有任务失败。

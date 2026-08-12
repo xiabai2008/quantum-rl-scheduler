@@ -3,7 +3,29 @@
     "model": "deliverable_models/mappo/mappo.pt",
     "episodes": 20,
     "seed_base": 42,
-    "num_seeds": 10
+    "num_seeds": 20,
+    "seeds": [
+      42,
+      43,
+      44,
+      45,
+      46,
+      47,
+      48,
+      49,
+      50,
+      51,
+      52,
+      53,
+      54,
+      55,
+      56,
+      57,
+      58,
+      59,
+      60,
+      61
+    ]
   },
   "mappo": {
     "mean_reward": 5507.731683721505,

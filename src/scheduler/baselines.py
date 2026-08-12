@@ -847,9 +847,11 @@ def run_baseline_comparison(
 
         while not done:
             action = env_scheduler.select_action(obs, env)
-            obs, reward, terminated, truncated, _info = env.step(action)
+            obs, reward, terminated, truncated, info = env.step(action)
             total_reward += float(reward)
-            completed += 1
+            # 8.12 封板审查修复：此前无条件按步自增，throughput 恒为 1.0；
+            # 改用环境 info 中真实的累计调度任务数（total_scheduled）
+            completed = int(info.get("total_scheduled", completed))
             done = terminated or truncated
 
         env_results[env_scheduler.name] = {
@@ -1308,7 +1310,7 @@ class EnvBasedQAOAScheduler(EnvBasedScheduler):
         gamma = self._GAMMA
         beta = self._BETA
         z_expectations = -np.sin(2.0 * beta) * np.sin(2.0 * gamma * energies)
-        return int(np.argmin(z_expectations))
+        return int(np.argmax(z_expectations))
 
     def select_action(self, observation: np.ndarray, env: Any) -> int:
         """根据 QAOA 启发式选择动作（Issue #599）。

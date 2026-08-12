@@ -432,14 +432,18 @@ class SchedulerAgent:
         episode_rewards = []
         episode_success_rates = []
 
+        # 8.12 封板审查修复（P1-8）：此前直接复用 self.env（训练环境），评估 episode
+        # 的 reset/step 会污染训练环境状态；与 PPOAgent.evaluate 对齐，使用独立评估环境。
+        eval_env: gym.Env[Any, Any] = self._create_eval_env()
+
         for _ep in range(num_episodes):
-            obs, info = self.env.reset()
+            obs, info = eval_env.reset()
             total_reward = 0.0
             done = False
 
             while not done:
                 action = self.predict(obs, deterministic=deterministic)
-                obs, reward, terminated, truncated, info = self.env.step(action)
+                obs, reward, terminated, truncated, info = eval_env.step(action)
                 total_reward += float(reward)
                 done = terminated or truncated
 

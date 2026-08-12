@@ -14,11 +14,14 @@ scipy>=1.10.0,<2.0.0
 # === 强化学习 ===
 # SB3/Gymnasium 大版本升级常伴随 API breaking change，锁定主版本上限
 gymnasium>=0.28.0,<2.0.0
-stable-baselines3>=2.0.0,<2.10.0
-sb3-contrib>=2.0.0,<2.10.0
+# 8.12 封板审查收紧：交付模型以 sb3 2.9.0 保存，跨小版本反序列化不保证兼容，
+# 下限从 2.0.0 提到 >=2.9.0（避免 pip 解析到 2.3.x 导致 PPO.load 失败）
+stable-baselines3>=2.9.0,<2.10.0
+sb3-contrib>=2.9.0,<2.10.0
 # torch 版本直接影响 PPO.load 反序列化兼容性（8.4 审查：2.13.x SIGSEGV）
 # 8.8 升版：与 requirements.lock 对齐 torch==2.8.0（sb3 2.9.0 交付模型验证通过；2.13.x SIGSEGV 仍不可用）
-torch>=2.0.0,<2.9.0
+# 8.12 审查：sb3 2.9.0 要求 torch>=2.8.0（Requires-Dist: torch<3.0,>=2.8），下限对齐
+torch>=2.8.0,<2.9.0
 tensorboard>=2.14.0,<3.0.0
 
 # === 量子计算 ===

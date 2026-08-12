@@ -27,6 +27,11 @@ import sys
 from pathlib import Path
 from typing import Any
 
+# 8.12 封板审查修复：Windows 中文控制台（GBK）无法输出 emoji，
+# 导致 click.echo 抛 UnicodeEncodeError、脚本 exit 1。强制 UTF-8 输出。
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
@@ -154,7 +159,7 @@ def _generate_markdown_report(
             imp_ci_str = "N/A"
         else:
             imp_ci_str = f"[{imp_lo:+.1f}%, {imp_hi:+.1f}%]"
-        sig = "✅ 是" if info["significant"] else "❌ 否"
+        sig = "[SIG] 是" if info["significant"] else "[NS] 否"
         lines.append(
             f"| {pair} | {info['test']} | {info['statistic']:.4f} | "
             f"{info['p_value']:.4g} | {sig} | "
@@ -276,7 +281,7 @@ def _print_summary(results: dict[str, dict[str, Any]], alpha: float) -> None:
     )
     click.echo("")
     for pair, info in results.items():
-        sig = "✅" if info["significant"] else "❌"
+        sig = "[SIG]" if info["significant"] else "[NS]"
         click.echo(
             f"  {sig} {pair}: {info['test']}, "
             f"p={info['p_value']:.4g}, {info['effect_size_type']}={info['effect_size']:.4f}"

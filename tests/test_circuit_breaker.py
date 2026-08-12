@@ -595,13 +595,19 @@ class TestOnSuccess(unittest.TestCase):
         self.assertEqual(cb.failure_count, 0)
 
     def test_resets_from_open(self):
-        """OPEN 状态下 on_success 也应强制转为 CLOSED（与原实现一致）。"""
+        """OPEN 状态下 on_success 不改变状态（8.12 审查修复：对齐 call() 成功路径）。
+
+        此前无条件重置 CLOSED 存在多线程竞态——线程 B 的失败可被线程 A 的成功覆盖，
+        熔断器无法正确触发。OPEN 状态应保持 OPEN，等待 recovery_timeout 自动转
+        HALF_OPEN 或手动 reset()（正常调用路径中 before_request 已在 OPEN 下抛异常，
+        on_success 不会被触发）。
+        """
         cb = CircuitBreaker()
         cb.state = CircuitState.OPEN
         cb.failure_count = 5
         cb.on_success()
-        self.assertEqual(cb.state, CircuitState.CLOSED)
-        self.assertEqual(cb.failure_count, 0)
+        self.assertEqual(cb.state, CircuitState.OPEN)
+        self.assertEqual(cb.failure_count, 5)
 
 
 class TestOnFailure(unittest.TestCase):

@@ -5,7 +5,7 @@
 > Version: 9.1.0
 
 [![CI](https://github.com/xiabai2008/quantum-rl-scheduler/actions/workflows/ci.yml/badge.svg)](https://github.com/xiabai2008/quantum-rl-scheduler/actions/workflows/ci.yml)
-[![Python](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/)
+[![Python](https://img.shields.io/badge/Python-3.10-3.12-blue.svg)](https://www.python.org/)
 [![mypy](https://img.shields.io/badge/mypy-strict-green.svg)](https://github.com/xiabai2008/quantum-rl-scheduler/actions)
 [![Coverage](https://img.shields.io/badge/coverage-80%25%2B-yellowgreen.svg)](https://github.com/xiabai2008/quantum-rl-scheduler/actions)
 [![Code Style](https://img.shields.io/badge/code%20style-ruff-black.svg)](https://github.com/astral-sh/ruff)
@@ -182,17 +182,13 @@ python -m venv .venv
 source .venv/Scripts/activate   # Windows
 # source .venv/bin/activate     # macOS/Linux
 
-pip install -r requirements.txt
+pip install -r requirements.lock   # 推荐：锁定版本（torch 2.8.0 / numpy 2.2.5 / sb3 2.9.0，保证交付模型可加载）
+# 或：pip install -r requirements.txt  # 宽松范围，需手动确认 sb3>=2.9.0 与 torch 2.7-2.8 组合
 pip install -e .                # 将 src/ 注册为可导入包，任意目录运行脚本不报 No module named 'src'
 cp .env.example .env            # Mock 模式默认开启
 ```
 
-> **可复现性提示（Issue #383）**：`requirements.txt` 已为核心依赖添加主版本上限约束，避免大版本变化破坏实验复现性。如需完全可复现的环境，可在干净虚拟环境中执行：
-> ```bash
-> pip install -r requirements.txt
-> pip freeze > requirements.lock
-> # 后续使用 pip install -r requirements.lock 安装完全一致的版本
-> ```
+> **可复现性提示（Issue #383 / #906）**：`requirements.lock` 是经验证可加载全部交付模型的锁定环境（Python 3.10-3.12）。若使用 `requirements.txt` 宽松范围安装，请确认 `stable-baselines3>=2.9.0`（交付模型以 sb3 2.9.0 保存，跨小版本反序列化不保证兼容）与 `torch>=2.8.0,<2.9.0`（sb3 2.9.0 要求 torch>=2.8）。切勿在 Python 3.13 下安装依赖——cloudpickle 序列化的模型权重跨解释器版本加载会崩溃（PPO.load SIGSEGV）。
 
 ### 方式四：VS Code Dev Container
 
@@ -280,7 +276,7 @@ TIANYAN_API_KEY=你的真实API密钥
 
 | 层级 | 技术 | 用途 |
 |------|------|------|
-| 语言 | Python 3.10+ | 全部开发 |
+| 语言 | Python 3.10-3.12 | 全部开发（Issue #906：3.13 下模型加载存在 ABI 兼容问题，请使用 3.10-3.12） |
 | RL框架 | Stable-Baselines3 | PPO + DQN + MAPPO |
 | RL环境 | Gymnasium | 标准化调度环境 |
 | 深度学习 | PyTorch 2.0+ | 神经网络 |

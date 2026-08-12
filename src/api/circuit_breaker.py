@@ -395,8 +395,15 @@ class CircuitBreaker:
         with self._lock:
             self._half_open_trial_in_progress = False
             self._trial_started_at = None
-            self.failure_count = 0
-            self.state = CircuitState.CLOSED
+            # 8.12 封板审查修复：与 call() 成功路径对齐——仅 HALF_OPEN 试探通过时
+            # 转 CLOSED，仅 CLOSED 时清零失败计数。此前无条件重置，多线程下
+            # 线程 B 的失败可被线程 A 的成功覆盖，熔断器无法正确触发。
+            if self.state == CircuitState.HALF_OPEN:
+                self.state = CircuitState.CLOSED
+                self.failure_count = 0
+                self.last_failure_time = 0.0
+            elif self.state == CircuitState.CLOSED:
+                self.failure_count = 0
 
     def release_trial(self) -> None:
         """释放 HALF_OPEN 试探名额（不改状态/计数）。

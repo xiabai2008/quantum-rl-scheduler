@@ -37,6 +37,10 @@ simulation_8strategy_50seed:
     每episode 200步，泊松到达λ=0.5，量子任务占比70%，
     PPO模型: ppo_best_model_16dim.zip（16维，Actor-Critic），
     DQN模型: 无（v9已删除，DQN策略位使用Random替代，仅供策略完整性对比）
+    （8.12 封板审查披露）独立性说明：同一 seed 下 5 个 episode 共享模型权重（推理模式），
+    仅任务到达序列重新采样，episode 间存在簇内相关性，保守估计有效独立单元 ≈ 50 seeds。
+    p 值极小（Welch p=7.56e-12），即使以 seed 聚合（N=50）重算仍显著；利用率 -3.3%
+    （p=0.090）本就不显著，结论方向不变。
   alpha: 0.05
   bonferroni_alpha: 0.0018
   num_comparisons: 28
@@ -71,6 +75,10 @@ simulation_8strategy_50seed:
   strategy_summary:
     # 8.5 审查统一：PPO 为 N=250 真实 FCFS(1648.91) 基线下的 1982.69（+20.24%），
     # 旧 2348.91/+123.4% 为 vs Hybrid-Default(恒action=2) 弱基线，已废弃（见 legacy_hybrid_default_baseline）。
+    # 8.12 审查注记：std_reward 均为总体标准差（ddof=0，numpy std 默认），与
+    # results/multiseed_evaluation/rewards_multiseed.json 原始数据逐位一致
+    # （如 PPO 557.25 对应 JSON 重算 std_pop=557.2512）；样本标准差（ddof=1）会
+    # 得到 558.37 等稍大数值，属口径差异非数据漂移。
     PPO:
       mean_reward: 1982.69
       std_reward: 557.25
@@ -198,16 +206,17 @@ simulation_8strategy_50seed:
 # =============================================================================
 # 实验1b: MAPPO 同训练量收敛严格对比（8.7-v4 红队审查 P0-2 口径统一）
 # 数据源: results/reports/mappo_strict_comparison_report.md
-# 权威口径: 同 wrapper 同种子严格对比（MultiAgentEnvWrapper 同实例、seed=42..51）
+# 权威口径: 同 wrapper 同种子严格对比（MultiAgentEnvWrapper 同实例、seed=42..61，20 seeds，8.11 升级）
 # 模型: models/mappo.pt（50K 收敛）；FCFS 每 agent 固定 hybrid（action=2）
 # -----------------------------------------------------------------------------
-# ⚠️ 口径纪律（8.7-v4 红队审查 P0-2"选择性报告"修复）：
+# ⚠️ 口径纪律（8.7-v4 红队审查 P0-2"选择性报告"修复 + 8.11 N=20 升级）：
 #   对外（演示视频/PPT/novelty/答辩手册）一律使用本块权威值：
-#     - MAPPO vs 独立PPO（同训练量、收敛）= +4.0%
-#     - MAPPO vs 同环境 FCFS = +396.7%
+#     - MAPPO vs 独立PPO（同训练量、收敛）= +36.5%（N=20，配对 Wilcoxon p=0.024）
+#     - MAPPO vs 同环境 FCFS = +500.1%
 #   旧 "+84.6%" 来自 multi_machine_comparison_report.md 的 5000 步（未收敛）+
 #   训练量不均等（独立PPO 仅 1666 步/机 ≈ MAPPO 的 1/3）早期探索实验，
 #   已被同训练量收敛严格对比取代，仅作历史探索记录，禁止作为权威/对外呈现。
+#   旧 N=10 口径（+396.7%/+4.0%）亦已废弃（8.11 升级为 N=20）。
 # =============================================================================
 mappo_strict_strict_comparison:
   experiment_name: "MAPPO 同训练量收敛严格双基线对比（权威）"
@@ -276,6 +285,9 @@ mappo_strict_strict_comparison:
 # =============================================================================
 # 实验2: 多seed真机对比 (N=5 per group)
 # 数据源: results/reports/multiseed_real_machine_report.md
+# 8.12 封板审查修正：原 data_source 文件缺失（历史未入库），该实验已被
+# real_machine_10seed_v2 取代（supersedes），数据源指向现有 v2 报告；如需
+# N=5 原始数据请参照 v2 报告中的迭代历史说明。
 # =============================================================================
 real_machine_5seed:
   experiment_name: "天衍-287多seed真机实验"
@@ -287,7 +299,7 @@ real_machine_5seed:
   alpha: 0.05
   bonferroni_alpha: 0.0167
   num_comparisons: 3
-  data_source: "results/reports/multiseed_real_machine_report.md"
+  data_source: "results/reports/multiseed_real_machine_report_10seeds_v2.md"
 
   strategy_summary:
     PPO:
