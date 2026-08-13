@@ -657,6 +657,10 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
         # 实测 PPO 不输出 action=3，不影响权威数字。
         if action == ACTION_QUANTUM_QEM:
             action = ACTION_CLASSICAL
+        # 8.13 round9 审查 P3：非法 action（-1/4/999/None）此前静默走 mismatch 或
+        # HYBRID 奖励分支，扭曲统计且难排查。调用方传入非法值属 bug，显式拒绝。
+        if action not in (ACTION_CLASSICAL, ACTION_QUANTUM, ACTION_HYBRID):
+            raise ValueError(f"非法调度动作: {action!r}（合法值 0/1/2/3）")
 
         # Issue #577: 推进噪声感知奖励状态到当前步（激活新触发值、执行指数衰减）
         advance_noise_aware_to_next_step(self)

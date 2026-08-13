@@ -35,6 +35,8 @@ items:
         - "docs/award_roadmap.md"
         - "docs/PR审核日志.md"
         - "docs/PR审核日志_934.md"
+        # 8.13 round9 审查：历轮审查报告（roundN_*）为内部审计产物，不得入包
+        - "docs/round*_审查报告.md"
         - "docs/项目记忆_给AI.md"
         - "docs/defense_narrative_v1.md"
         - "docs/dual_empowerment_asymmetry_analysis.md"

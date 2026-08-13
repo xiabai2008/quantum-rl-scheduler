@@ -436,6 +436,11 @@ async def get_ppo_comparison(_auth: None = Depends(verify_api_key)) -> dict:
         "ppo_rank": ppo_rank,
         "total_strategies": len(strategies),
         "data_source": json_files[0],
+        # 8.13 round9 审查 P2：面板展示的是最近一次演示运行（demo run）结果，
+        # 非 statistics.yaml 权威 N=250 口径（PPO 1982.69 vs FCFS 1648.91, +20.2%）。
+        # 显式标注防止评委将演示数字与权威结论混淆。
+        "is_authoritative": False,
+        "authoritative_note": "面板数据来自最近一次演示运行（simulation_results_*），非权威 N=250 口径；权威结论见 statistics.yaml（PPO +20.2%, p=7.56e-12）",
     }
 
 
@@ -525,6 +530,9 @@ async def ppo_stats(_auth: None = Depends(verify_api_key)) -> dict:
         "vs_random": round(
             ppo_data.get("avg_reward", 0) - data.get("Random", {}).get("avg_reward", 0), 1
         ),
+        # 8.13 round9 审查 P2：标注演示数据非权威口径（同 /api/ppo/comparison）
+        "is_authoritative": False,
+        "authoritative_note": "面板数据来自最近一次演示运行，非权威 N=250 口径；权威结论见 statistics.yaml",
     }
 
 

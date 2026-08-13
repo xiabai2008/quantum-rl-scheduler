@@ -843,12 +843,14 @@ def run_baseline_comparison(
         obs = env.reset(seed=seed)[0]
         total_reward = 0.0
         completed = 0
+        steps = 0
         done = False
 
         while not done:
             action = env_scheduler.select_action(obs, env)
             obs, reward, terminated, truncated, info = env.step(action)
             total_reward += float(reward)
+            steps += 1
             # 8.12 封板审查修复：此前无条件按步自增，throughput 恒为 1.0；
             # 改用环境 info 中真实的累计调度任务数（total_scheduled）
             completed = int(info.get("total_scheduled", completed))
@@ -858,7 +860,9 @@ def run_baseline_comparison(
             "total_reward": total_reward,
             "completed_tasks": completed,
             "avg_wait_time": 0.0,
-            "throughput": completed / max_steps if max_steps > 0 else 0.0,
+            # 8.13 round9 审查 P3：episode 经 idle 提前终止时实际步数 < max_steps，
+            # 按实际执行步数归一，避免 throughput 系统性低估
+            "throughput": completed / steps if steps > 0 else 0.0,
             "comparison_mode": "env_based",
         }
 

@@ -16,6 +16,7 @@ Usage:
     python scripts/cli.py demo
 """
 
+import os
 import sys
 from pathlib import Path
 
@@ -128,6 +129,20 @@ def simulate(
 ):
     """运行仿真对比实验"""
     from scripts.evaluation.run_simulation import run_simulation
+
+    # 8.13 round9 审查 P2：默认 PPO 模型路径为相对路径，非项目根 cwd 运行时
+    # os.path.isfile() 为 False → PPO 整策略被静默跳过、结果表无 PPO 行。
+    # 按 PROJECT_ROOT 解析相对路径，保证任意 cwd 下可加载交付模型。
+    if ppo_model_path and not os.path.isfile(ppo_model_path):
+        resolved = Path(__file__).resolve().parent.parent / ppo_model_path
+        if resolved.is_file():
+            ppo_model_path = str(resolved)
+        else:
+            click.echo(
+                f"[警告] PPO 模型不存在（{ppo_model_path}，按项目根解析亦未找到），"
+                "结果将不包含 PPO 策略",
+                err=True,
+            )
 
     run_simulation(
         episodes=episodes,

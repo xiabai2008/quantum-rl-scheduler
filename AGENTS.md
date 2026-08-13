@@ -294,7 +294,7 @@ quantum-rl-scheduler/
 | 五维消融        | D1算法+20.2% > D4多机+86.3% > D5退火-5.6%（20seed权威，p=0.9430不显著，旧+6.4%已废弃） > D2状态+2.1%                                             |
 | 压力测试        | 4场景PPO综合稳定性最强；量子波动场景PPO +91.4%（历史探索数据，诚实化前旧 FCFS 基线，权威 stress 数据待重跑核定）                                                              |
 | 真机验证        | **可用性验证**：315次SDK调用100%成功，全链路验证通过                                                           |
-| **多seed真机** | **小样本策略对比**（N=10/组，v2权威）：PPO d=5.33 vs FCFS, p=6.83e-04, Bonferroni显著（小样本探索性结果，效应量异常大，待更多seeds验证） |
+| **多seed真机** | **小样本策略对比**（N=10/组，v2权威，8.11 复核修正）：PPO vs FCFS d=5.33, p=5.84e-07, Bonferroni显著；PPO vs SJF d=3.84；SJF vs FCFS p=0.0316（Bonferroni 下边缘）（小样本探索性结果，效应量异常大，待更多seeds验证） |
 
 > **⚠️ 真机验证结论边界（Issue #128）**
 >
@@ -314,6 +314,7 @@ quantum-rl-scheduler/
 > **真机平台**：天衍-287（实际回退至 tianyan176），96步/episode，泊松到达λ=0.5
 > **统计方法**：Cohen's d + 95% CI（效应量决策范式），Bonferroni校正
 > **⚠️ 边界说明**：真机任务成功完成（30/30, mock=false），但真机 reward 占总 reward 比例极低（1/96步），策略间差异主要由仿真 reward 驱动
+> **⚠️ 数据源（8.13 round9 审查标注）**：本表权威数据源为 `results/real_machine/tianyan287_multiseed/multiseed_data_20260727_005558.json`（unified_protocol=true, tianyan-287, 30/30 完成）；`multiseed_data_10seeds_merged.json` / `multiseed_analysis_10seeds.json` 含 `invalid_for_formal_comparison=true`（混合机器+混合shots+real_tasks_completed=0），**不得作为权威引用**，仅保留审计轨迹。
 
 |    策略   |  N  |        均值       |     标准差    |     min     |     max     |
 | :-----: | :-: | :-------------: | :--------: | :---------: | :---------: |
@@ -323,9 +324,11 @@ quantum-rl-scheduler/
 
 |      比较     | Cohen's d | 效应等级 |         95% CI         |    p值    | Bonferroni |   判定   |
 | :---------: | :-------: | :--: | :--------------------: | :------: | :--------: | :----: |
-| PPO vs FCFS |    5.33   |  大效应 | [1097.83, 1608.82] | p<0.001 |     显著     | **支持** |
-|  PPO vs SJF |    4.04   |  大效应 | [911.78, 1410.20]  | p<0.001 |     显著     | **支持** |
-| SJF vs FCFS |    1.13   |  大效应 |  [-38.82, 423.48]  |   0.080  |     不显著    |   不支持  |
+| PPO vs FCFS |    5.33   |  大效应 | [1130.71, 1575.93] | p<0.001（精确 5.84e-07） |     显著     | **支持** |
+|  PPO vs SJF |    3.84   |  大效应 | [895.79, 1426.19]  | p<0.001 |     显著     | **支持** |
+| SJF vs FCFS |    1.12   |  大效应 |  [41.89, 342.77]  |   0.0316  |     边缘     |   方向性支持  |
+
+> 8.11 复核修正注：旧表 CI [1097.83,1608.82] / d=4.04 / p=0.080 系 ddof 混用与 5seed 旧值误抄，已按报告 v2 修正（`results/reports/multiseed_real_machine_report_10seeds_v2.md` §6.1-6.3）。
 
 | 版本 | 样本量 | PPO均值 / FCFS均值 | Cohen's d | 对外使用 |
 | :--- | :----: | :-----------------: | :-------: | :------: |

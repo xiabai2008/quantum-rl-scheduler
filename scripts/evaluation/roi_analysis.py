@@ -37,15 +37,15 @@ SIM_EFFECT_SIZE = (
 SIM_EFFECT_SIZE_TYPE = "rank-biserial"
 SIM_N = 250  # 50 seeds × 5 episodes
 
-# 多seed真机权威数字（multiseed_real_machine_report_20260724.md，N=5）
-# 注意：真机实验定位为可用性验证，非性能基准；N=5 为探索性统计（Issue #662 恢复原始计算值 d=5.64）。
-REAL_PPO_MEAN = 1665.22
-REAL_PPO_STD = 324.51
-REAL_FCFS_MEAN = 353.22
-REAL_FCFS_STD = 53.33
-REAL_COHEN_D = 5.64
-REAL_P_VALUE = 6.83e-04  # Welch t, Bonferroni 校正后显著
-REAL_N_SEEDS = 5
+# 多seed真机权威数字（multiseed_real_machine_report_10seeds_v2.md，N=10 v2 权威，8.11 复核修正）
+# 注意：真机实验定位为可用性验证，非性能基准；N=10 为小样本探索性统计（效应量异常大，待更多seeds验证）。
+REAL_PPO_MEAN = 1736.32
+REAL_PPO_STD = 355.78
+REAL_FCFS_MEAN = 383.00
+REAL_FCFS_STD = 49.13
+REAL_COHEN_D = 5.33
+REAL_P_VALUE = 5.84e-07  # Welch t, Bonferroni 校正后显著（8.11 复核修正；旧 6.83e-04 为 N=5 旧值）
+REAL_N_SEEDS = 10
 
 # 经济模型假设参数（可在命令行覆盖）
 DEFAULT_DAILY_MACHINE_HOURS = 100  # 日均机时成本 ¥

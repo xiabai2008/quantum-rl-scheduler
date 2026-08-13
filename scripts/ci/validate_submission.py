@@ -1063,6 +1063,36 @@ def package_submission(
                             zipf.write(file, arcname)
                     print(f"  ✅ 添加目录: {item['path']}")
 
+        # 8.13 round9 审查 P2：外层 zip 无任何指引，评委解压后找不到代码（代码在
+        # 嵌套的 dist/quantum-rl-scheduler-v9.1.zip 内）。顶层添加"先读我"说明。
+        readme_first = (
+            "量子RL驱动的天衍云平台智能调度系统 - 提交包说明\n"
+            "==================================================\n"
+            "\n"
+            "本压缩包为完整参赛提交物，目录结构如下：\n"
+            "\n"
+            "  docs/                      参赛总结报告 / 参赛报名表 / 技术白皮书(PDF) 等\n"
+            "  deliverable_models/        答辩PPT + 权威模型（PPO 16维 / 编译层 / 公平17维 / MAPPO）\n"
+            "  dist/quantum-rl-scheduler-v9.1.zip   源代码压缩包（需再解压一层）\n"
+            "  results/reports/           实验报告（策略对比 / 消融 / 统计显著性 / 真机验证等）\n"
+            "  演示视频_量子RL调度系统.mp4  演示视频\n"
+            "\n"
+            "快速开始：\n"
+            "  1. 解压 dist/quantum-rl-scheduler-v9.1.zip 得到源代码\n"
+            "  2. 环境要求：Python 3.10-3.12\n"
+            "  3. 安装依赖：pip install -r requirements.lock（推荐）或 pip install -r requirements.txt\n"
+            "  4. 运行演示：python scripts/cli.py simulate --episodes 5\n"
+            "\n"
+            "核心结论（权威口径见源代码内 config/statistics.yaml）：\n"
+            "  - PPO 综合调度奖励 vs 真实 FCFS 提升 +20.2%（N=250, Welch t p=7.56e-12）\n"
+            "  - 等待时间 -14.0%（N=250 配对检验 p=8.9e-06）\n"
+            "  - 真机 SDK 调用 315 次 100% 成功（可用性验证）\n"
+            "\n"
+            "更多信息见源代码内 README.md。\n"
+        )
+        zipf.writestr("README_先读我.txt", readme_first)
+        print("  ✅ 添加: README_先读我.txt（外层指引）")
+
     print(f"\n✅ 打包完成: {output_file}")
     print(f"   文件大小: {output_file.stat().st_size / (1024 * 1024):.1f}MB")
     return output_file
