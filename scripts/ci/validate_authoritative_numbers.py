@@ -44,11 +44,18 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
+try:
+    import yaml
+except ImportError:
+    yaml = None
+
 _PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 # 权威数字（16维交付模型 50seed 仿真, N=250, v9.1+）
 # 8.5 基线诚实化：PPO vs 真实 FCFS（EnvBasedFCFSScheduler, 量子路由），
 # 旧 2348.91/+123.4% 为 vs Hybrid-Default(恒action=2) 弱基线，已废弃。
+# 8.12 封板审查修复（P1-2 双重事实源）：默认值仅作回退，运行期优先从
+# config/statistics.yaml（单一权威源）动态加载，避免 yaml 更新后本脚本漂移。
 AUTHORITATIVE = {
     "ppo_mean": "1982.69",
     "ppo_std": "557.25",
@@ -61,6 +68,56 @@ AUTHORITATIVE = {
     "n": "250",
     "improvement": "+20.24%",
 }
+
+_SIM_BLOCK_KEYS = ("simulation_8strategy_50seed", "simulation_50seed", "simulation_8strategy")
+
+
+def _load_authoritative_from_yaml() -> dict[str, str]:
+    """从 config/statistics.yaml 加载权威数字（单一权威源，8.12 修复）。
+
+    找不到时回退到模块级 AUTHORITATIVE 硬编码，保证脚本在缺依赖时仍可用。
+    """
+    if yaml is None:
+        return dict(AUTHORITATIVE)
+    stats_path = _PROJECT_ROOT / "config" / "statistics.yaml"
+    try:
+        with open(stats_path, encoding="utf-8") as f:
+            data = yaml.safe_load(f)
+    except (OSError, yaml.YAMLError):
+        return dict(AUTHORITATIVE)
+
+    block = None
+    for key in _SIM_BLOCK_KEYS:
+        if isinstance(data, dict) and isinstance(data.get(key), dict):
+            block = data[key]
+            break
+    if block is None:
+        return dict(AUTHORITATIVE)
+
+    out = dict(AUTHORITATIVE)
+    ss = block.get("strategy_summary") or {}
+    ppo = ss.get("PPO") or {}
+    fcfs = ss.get("FCFS") or {}
+    if ppo.get("mean_reward") is not None:
+        out["ppo_mean"] = str(ppo["mean_reward"])
+    if ppo.get("std_reward") is not None:
+        out["ppo_std"] = str(ppo["std_reward"])
+    if fcfs.get("mean_reward") is not None:
+        out["fcfs_mean"] = str(fcfs["mean_reward"])
+    if fcfs.get("std_reward") is not None:
+        out["fcfs_std"] = str(fcfs["std_reward"])
+    if ppo.get("n") is not None:
+        out["n"] = str(ppo["n"])
+    if ppo.get("improvement_vs_fcfs_pct") is not None:
+        out["improvement"] = f"+{ppo['improvement_vs_fcfs_pct']}%"
+
+    sim = block.get("baseline_revision") or {}
+    if sim.get("ppo_vs_real_fcfs_p_value") is not None:
+        out["p_value"] = str(sim["ppo_vs_real_fcfs_p_value"])
+    return out
+
+
+AUTHORITATIVE = _load_authoritative_from_yaml()
 
 # 旧数字模式 → 应替换为的权威值
 # (编译后的正则, 旧数字描述, 应替换为的权威值)

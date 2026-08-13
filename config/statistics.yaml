@@ -553,8 +553,17 @@ quantum_noise_paired_feedback:
     检验方法: Wilcoxon signed-rank 检验（配对非参数检验，单侧 H1: Standard > DistNoise）。
   alpha: 0.05
   n: 25  # 配对样本数
-  data_source: "results/reports/quantum_noise_paired_25seeds_20260729_095336.md"
+  data_source: "results/quantum_ai/noise_paired_25seeds_20260813_090648.json"
   supersedes: "10seeds 探索性实验（无统计检验，已废弃）"
+  reproducibility_note: >
+    （8.13 补库）本实验 per-seed 原始数据由当前代码重跑生成并入库
+    （`python scripts/evaluation/quantum_noise_paired_20seeds.py --seeds 25 --episodes 5`）。
+    重跑复核：Wilcoxon W=325, p=2.98e-08 与权威值完全一致（25 对全正差 → 2^-25 恒等）；
+    相对下降 -12.30%（Bootstrap 95% CI [-18.02%, -6.38%]）与权威 -12.43% 一致；
+    seed 平均奖励绝对值（2001.45/1755.26）低于 7/29 原始实验（2408.30/2109.02），
+    差异源于 8 月初 env 修复（crosstalk 双重扣减 #783/#784 等奖励路径变更），
+    方向、显著性、结论不变。权威引用值（-12.43%/p=2.98e-08）维持不变，
+    复算复现性以本 JSON 为准。
 
   strategy_summary:
     Standard:
