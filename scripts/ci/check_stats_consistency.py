@@ -304,6 +304,12 @@ BLACKLIST_PATTERNS: list[tuple[str, str]] = [
         r"(?<!\d)4\.0%的协同优势|协同优势.*4\.0%",
         "BLACKLIST: MAPPO 协同优势 +4.0% 为 N=10 旧口径（8.11 已升级 N=20）；权威为 +36.5%",
     ),
+    # 8.13 审查补强（round8 A5 盲区）：无"+"号、无"协同优势"上下文（如"提升了 4.0%"）可绕过
+    # 上述两条模式；demo_video_final_script.md 曾以"提升了 4.0%"残留。补上下文泛化模式。
+    (
+        r"提升(了|过|至)?\s*4\.0%",
+        "BLACKLIST: MAPPO 协同优势 +4.0% 为 N=10 旧口径（8.11 已升级 N=20）；权威为 +36.5%（N=20，50K，p=0.024）",
+    ),
     (
         r"(?<!\d)6\.4%(?!%)",
         "BLACKLIST: 退火 +6.4% 为 5seed 旧方向，20seed 权威方向为 -5.6%（p=0.9430 不显著）；不得在展示时当作正向成果，须以'已废弃/探索性'限定",
@@ -859,7 +865,8 @@ _KNOWN_LEGIT_P_VALUES: tuple[float, ...] = (
     2.49e-03,  # 编译深电路
     2.75e-02,  # 编译深电路子集
     8.52e-03,  # 编译深电路 seed=7 交叉验证（technical_whitepaper §11.2）
-    2.621e-10,  # DQN vs SJF
+    2.621e-10,  # DQN vs SJF（8.13 重算前旧值；重算后 p=0.1184，见下条）
+    0.1184,  # DQN vs SJF / Random vs SJF（8.13 8 策略重算后新值，statistical_validation.md；旧 2.621e-10 随 SJF/DQN 均值变化失效）
     8.44e-08,  # PPO 编译优化 Agent
     # 8.11 新增：跨机器噪声异质性（真机 vs 仿真机）与噪声训练稳定性
     0.0197,  # 跨机器噪声异质性 Mann-Whitney（真机 vs 仿真机，N=104，cross_machine_noise_simulators）

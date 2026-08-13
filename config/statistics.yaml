@@ -120,13 +120,13 @@ simulation_8strategy_50seed:
       improvement_vs_fcfs_pct: -96.2
     Quantum-Only:
       mean_reward: -826.59
-      std_reward: 263.63
+      std_reward: 263.10
       stderr: 16.67
       n: 250
       improvement_vs_fcfs_pct: -150.1
     Classical-Only:
       mean_reward: -1075.49
-      std_reward: 75.04
+      std_reward: 74.89
       stderr: 4.75
       n: 250
       improvement_vs_fcfs_pct: -165.2

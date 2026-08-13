@@ -222,10 +222,10 @@ quantum-rl-scheduler/
 
 | 层级   | 技术                                          | 用途                                                       |
 | ---- | ------------------------------------------- | -------------------------------------------------------- |
-| 语言   | Python 3.10+                                | 全部                                                       |
+| 语言   | Python 3.10-3.12                           | 全部（Issue #906：3.13 下模型加载存在 ABI 兼容问题）               |
 | RL   | Stable-Baselines3 (PPO/DQN/MAPPO)           | 双算法 + 多智能体                                               |
 | RL   | Gymnasium                                   | 环境封装                                                     |
-| DL   | PyTorch ≥2.0                                | 神经网络                                                     |
+| DL   | PyTorch ≥2.8                                | 神经网络（sb3 2.9.0 要求 torch>=2.8，交付模型验证组合 torch==2.8.0）  |
 | 量子   | 天衍云 cqlib SDK                               | 105数据比特+182耦合比特超导处理器（可选，requirements-quantum.txt）        |
 | 量子   | D-Wave dimod / dwave-neal                   | 量子启发式退火（QUBO+模拟退火，**探索性功能，默认关闭**，requirements.txt已注释为可选） |
 | Web  | FastAPI + Uvicorn                           | 监控界面（routes.py含/metrics）                                 |
@@ -282,8 +282,8 @@ quantum-rl-scheduler/
 |  4  | DQN（Random占位） |    697.40   |  288.25 |   -57.7%   |
 |  5  | Random         |    697.40   |  288.25 |   -57.7%   |
 |  6  | Greedy         |    62.72   |  537.68 |   -96.2%  |
-|  7  | Quantum-Only   |   -826.59   |  263.63 |   -150.1%  |
-|  8  | Classical-Only |   -1075.49  |  75.04  |   -165.2%  |
+|  7  | Quantum-Only   |   -826.59   |  263.10 |   -150.1%  |
+|  8  | Classical-Only |   -1075.49  |  74.89  |   -165.2%  |
 
 > 注：v9 已删除 DQN 模型，DQN 策略位使用 Random 策略占位（见 `config/statistics.yaml` strategy_summary.DQN.note）。
 

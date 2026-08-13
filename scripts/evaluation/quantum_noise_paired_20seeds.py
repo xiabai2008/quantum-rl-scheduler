@@ -64,7 +64,7 @@ MBS_VALUES_10SEEDS: list[float] = [
 
 
 def _make_noisy_step_factory(
-    env: "QuantumSchedulingEnv",
+    env: QuantumSchedulingEnv,
     orig_step,
     mbs_values: list[float],
     rng: np.random.Generator,

@@ -183,7 +183,7 @@ source .venv/Scripts/activate   # Windows
 # source .venv/bin/activate     # macOS/Linux
 
 pip install -r requirements.lock   # 推荐：锁定版本（torch 2.8.0 / numpy 2.2.5 / sb3 2.9.0，保证交付模型可加载）
-# 或：pip install -r requirements.txt  # 宽松范围，需手动确认 sb3>=2.9.0 与 torch 2.7-2.8 组合
+# 或：pip install -r requirements.txt  # 宽松范围，需手动确认 sb3>=2.9.0 与 torch>=2.8.0,<2.9.0（sb3 2.9.0 要求 torch>=2.8） 组合
 pip install -e .                # 将 src/ 注册为可导入包，任意目录运行脚本不报 No module named 'src'
 cp .env.example .env            # Mock 模式默认开启
 ```

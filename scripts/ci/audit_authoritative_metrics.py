@@ -84,7 +84,7 @@ FORBIDDEN_PATTERNS = (
 AUDIT_EXEMPT_MARKER = "<!-- audit-exempt:"
 
 CANONICAL_RANKING = (
-    # v9.1+ 排名顺序：8.5 基线诚实化后，真实 FCFS（1648.91）高于 SJF（774.86），
+    # v9.1+ 排名顺序：8.5 基线诚实化后，真实 FCFS（1648.91）高于 SJF（748.48），
     # 故 FCFS 排第 2、SJF 排第 3；DQN 模型已删除，策略位使用 Random 替代，奖励与
     # Random 相同，排名第 4（与 Random 并列）。顺序与 strategy_comparison.md 权威报告一致。
     "PPO",

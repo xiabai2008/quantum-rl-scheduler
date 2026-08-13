@@ -187,6 +187,9 @@ class QuantumSchedulingEnv(gym.Env[Any, Any]):
         """初始化量子任务调度环境（参数详见子模块文档）。"""
         super().__init__()
 
+        # 8.13 审查 P3：max_steps 未校验正数，step() 中 1.0/max_steps 有除零风险
+        if max_steps < 1:
+            raise ValueError(f"max_steps must be >= 1, got {max_steps}")
         self.max_steps = max_steps
         self.max_qubits = max_qubits
         self.render_mode = render_mode
