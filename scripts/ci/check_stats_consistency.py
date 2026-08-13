@@ -105,6 +105,15 @@ EXCLUDE_PATHS = {
     "results/reports/real_machine_boundary_statement.md",
     "results/reports/roi_analysis.md",
     "results/reports/utilization_multiseed_report.md",
+    # 8.13 round10 审查：statistical_validation.md 是统计脚本自动生成的权威报告
+    # （statistics.yaml 实验1 的 data_source），内含全部 28 组两两对比的精确 p 值，
+    # 每个值均有 scipy 出处；门禁 p 值比对基于 statistics.yaml 的权威/废弃集合，
+    # 将该生成物与"派生文档"同等对待会误报其自身输出。与 multiseed_real_machine_report 同处理。
+    "results/reports/statistical_validation.md",
+    # 时间戳快照同源（statistical_significance.py 每次运行生成的存档，与上述同性质）
+    "results/reports/statistical_validation_20260729_094616.md",
+    "results/reports/statistical_validation_20260805_141716.md",
+    "results/reports/statistical_validation_20260813_114124.md",
     # 历史实验报告（14维旧模型口径，已加废弃横幅冻结，禁止直接引用）
     "results/reports/ablation_report.md",
     "results/reports/issue_457_105_qubits_validation_report.md",
@@ -810,22 +819,34 @@ def _check_p_value_origin(
     if not (0.0 < val <= 1.0):
         return []
     # 精确匹配已知权威/废弃 p 值 → 合规
+    # 8.13 round10 审查（P2-2 门禁盲区）：对 <1e-12 的极小 p 值，abs_tol=1e-15 兜底
+    # 使任意两个极小值都"匹配"（|4.289e-73 − 3.02e-118| < 1e-15 恒成立），
+    # 导致 pairwise p 值过期也无法被门禁抓到。极小值改用有效数字+指数严格比对。
     for known_val, _ctx in register:
-        if math.isclose(val, known_val, rel_tol=1e-6, abs_tol=1e-15):
+        if val < 1e-12:
+            if _sig_parts(val) == _sig_parts(known_val):
+                return []
+        elif math.isclose(val, known_val, rel_tol=1e-6, abs_tol=1e-15):
             return []
     # 属于已登记的合法辅助实验 p 值（编译层/噪声/真机等，详见 _KNOWN_LEGIT_P_VALUES）→ 合规
     for known_val in _KNOWN_LEGIT_P_VALUES:
-        if math.isclose(val, known_val, rel_tol=1e-6, abs_tol=1e-15):
+        if val < 1e-12:
+            if _sig_parts(val) == _sig_parts(known_val):
+                return []
+        elif math.isclose(val, known_val, rel_tol=1e-6, abs_tol=1e-15):
             return []
-    # 权威值拼写笔误检测：同 3 位有效数字但指数不同（如 7.560e-12 → 7.56e-62）
-    unknown_mant, unknown_exp = _sig_parts(val)
-    for known_val, ctx in register:
-        known_mant, known_exp = _sig_parts(known_val)
-        if unknown_mant == known_mant and unknown_exp != known_exp:
-            return [
-                f"  {raw}: 疑似权威 {ctx} 的拼写笔误（有效数字 {unknown_mant} 与权威一致，"
-                f"指数 {unknown_exp} ≠ {known_exp}）"
-            ]
+    # 权威值拼写笔误检测：同 3 位有效数字但指数不同（如 7.560e-12 → 7.56e-62）。
+    # 8.13 round10 审查修复：仅对极小 p 值（<1e-12）做笔误检测——普通 0.x 值（如真机
+    # 探索性 p=0.4286）与权威极小值（4.289e-73）有效数字撞车（4.29）会被误判为笔误。
+    if val < 1e-12:
+        unknown_mant, unknown_exp = _sig_parts(val)
+        for known_val, ctx in register:
+            known_mant, known_exp = _sig_parts(known_val)
+            if unknown_mant == known_mant and unknown_exp != known_exp:
+                return [
+                    f"  {raw}: 疑似权威 {ctx} 的拼写笔误（有效数字 {unknown_mant} 与权威一致，"
+                    f"指数 {unknown_exp} ≠ {known_exp}）"
+                ]
     # 孤儿 p 值：既非权威也非废弃、非合法辅助值、非诚实披露上下文 → 无出处告警
     if not _is_honest_disclosure(line):
         return [f"  {raw}: 孤儿 p 值，未在 statistics.yaml 权威/废弃集合中登记（无出处，请核验）"]
@@ -852,6 +873,15 @@ _KNOWN_LEGIT_P_VALUES: tuple[float, ...] = (
     0.2235,  # SOTA 16维 PPO vs 观测感知 FCFS（N=50，sota_comparison）
     0.25,  # 量子噪声影响
     2.28e-60,  # SJF vs FCFS 仿真（8.8 修正权威；旧 0.2827 为错误值已废弃）
+    5.870e-61,  # SJF vs FCFS 仿真（8.13 重算权威；旧 2.28e-60 为 8.8 值）
+    4.289e-73,  # PPO vs Random/DQN（8.13 重算权威，Mann-Whitney；旧 Welch 3.02e-118 已废弃）
+    3.713e-71,  # PPO vs SJF（8.13 重算权威，Mann-Whitney；旧 1.11e-70 已废弃）
+    1.009e-64,  # DQN(Random) vs FCFS（8.13 重算权威，Mann-Whitney；旧 Welch 2.79e-98 已废弃）
+    8.882e-16,  # canonical N=50 噪声配对 Wilcoxon（bidirectional/defense_qa 引用，权威 N=25 为 2.98e-08）
+    8.88e-16,  # canonical N=50 噪声配对（同上，3 位有效数字写法）
+    7.066e-18,  # PPO vs HEFT（sota_comparison，10 篇论文对比表）
+    1.519e-19,  # PPO vs MinMin（sota_comparison）
+    1.538e-80,  # PPO vs Greedy（8.13 重算，strategy_comparison §2.2）
     0.344,  # 真机 vs 仿真对比
     0.3942,  # 退火独立检验
     0.020,  # 噪声派单率（generate_defense_ppt 用 0.020，与 0.0203 同源）

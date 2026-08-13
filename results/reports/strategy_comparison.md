@@ -19,16 +19,16 @@
 |:--:|:--|:--:|:--:|:--:|:--:|:--:|:--:|
 | 1 | **PPO (16维)** | **1982.69** | 557.25 | 35.24 | **+20.2%** | [+14.3%, +26.7%] | ✅ p=7.56e-12 |
 | 2 | FCFS | 1648.91 | 502.95 | 31.81 | 基线 | — | — |
-| 3 | SJF | 748.48 | 304.86 | 19.28 | -54.6% | — | ✅ p=2.28e-60（显著劣于 FCFS） |
-| 4 | DQN (Random 替代) | 697.40 | 288.25 | 18.23 | -57.7% | — | ✅ p=2.79e-98 |
-| 5 | Random | 697.40 | 288.25 | 18.23 | -57.7% | — | ✅ p=2.79e-98 |
+| 3 | SJF | 748.48 | 304.86 | 19.28 | -54.6% | — | ✅ p=5.870e-61（显著劣于 FCFS） |
+| 4 | DQN (Random 替代) | 697.40 | 288.25 | 18.23 | -57.7% | — | ✅ p=1.009e-64 |
+| 5 | Random | 697.40 | 288.25 | 18.23 | -57.7% | — | ✅ p=1.009e-64 |
 | 6 | Greedy | 62.72 | 537.68 | 34.00 | -96.2% | — | n/a |
 | 7 | Quantum-Only | -826.59 | 263.10 | 16.67 | -150.1% | — | n/a |
 | 8 | Classical-Only | -1075.49 | 74.89 | 4.75 | -165.2% | — | n/a |
 
 > 注：v9 已删除 DQN 模型，DQN 策略位使用 Random 替代，仅供策略完整性对比。
-> SJF 与 FCFS 差异显著（p=2.28e-60，8.8 修正；旧 p=0.2827 为错误值已废弃），SJF 显著劣于 FCFS（-54.6%）。
-> PPO 排名第一，且与各基线差异显著（vs 真实 FCFS p=7.56e-12，vs SJF p=1.11e-70，vs Random/DQN 占位 p=3.02e-118）。
+> SJF 与 FCFS 差异显著（p=5.870e-61，8.13 重算；旧 2.28e-60 为 8.8 值、0.2827 为错误值已废弃），SJF 显著劣于 FCFS（-54.6%）。
+> PPO 排名第一，且与各基线差异显著（vs 真实 FCFS p=7.56e-12，vs SJF p=3.713e-71，vs Random/DQN 占位 p=4.289e-73）。
 >
 > **FCFS 基线说明（8.5 诚实化）**：本实验的 FCFS 为**真实 FCFS（量子路由）**（EnvBasedFCFSScheduler：
 > 量子任务→量子机、经典任务→经典机，与 RL 同协议同种子）。8.5 前旧口径"FCFS=Hybrid-Default
@@ -54,15 +54,17 @@
 | 对比项 | 提升值 | 提升比例 | 显著性 | 效应量 |
 |:--|:--:|:--:|:--:|:--:|
 | PPO vs FCFS | +333.78 | +20.2% | ✅ p=7.56e-12 | rank-biserial=-0.3642 |
-| PPO vs Random | +1457.38 | +163.5% | ✅ p=3.02e-118 | Cohen's d=-2.2581 |
-| PPO vs SJF | +1288.61 | +121.5% | ✅ p=1.11e-70 | rank-biserial=-0.8583 |
-| PPO vs Greedy | +2483.09 | n/a（基线为负） | n/a | n/a |
-| PPO vs DQN(Random) | +1457.38 | +163.5% | ✅ p=3.02e-118 | Cohen's d=-2.2581 |
+| PPO vs Random | +1285.29 | +184.3% | ✅ p=4.289e-73 | rank-biserial=-0.9348 |
+| PPO vs SJF | +1234.22 | +164.9% | ✅ p=3.713e-71 | rank-biserial=-0.9220 |
+| PPO vs Greedy | +1919.98 | n/a（基线为负） | ✅ p=1.538e-80 | rank-biserial=-0.9824 |
+| PPO vs DQN(Random) | +1285.29 | +184.3% | ✅ p=4.289e-73 | rank-biserial=-0.9348 |
+
+> 注：本表 8.13 随 8 策略重算更新（旧 +163.5%/+121.5%/d=-2.2581 等为 14 维/8.8 过期值）。
 
 ### 2.3 启发式基线对比
 
-- **SJF vs FCFS**: 差异显著（p=2.28e-60，8.8 修正；旧 p=0.2827 为错误值已废弃），SJF 显著劣于 FCFS（-54.6%）
-- **FCFS vs Random**: 显著（p=2.79e-98，Cohen's d=-0.7102，中效应量），FCFS 比随机高 +15.2%
+- **SJF vs FCFS**: 差异显著（p=5.870e-61，8.13 重算；旧 2.28e-60 为 8.8 值、0.2827 为错误值已废弃），SJF 显著劣于 FCFS（-54.6%）
+- **FCFS vs Random**: 显著（p=1.009e-64，rank-biserial=-0.8781，大效应量），FCFS 比随机高 +136.4%
 - **Quantum-Only vs Classical-Only**: 显著，仅量子策略优于仅经典策略
 
 ---
@@ -114,4 +116,4 @@ python scripts/evaluation/statistical_significance.py \
 
 ---
 
-*报告生成时间: 2026-07-29 | 数据源: results/multiseed_evaluation/rewards_multiseed_16dim.json | 统计方法: SciPy + Bootstrap + Bonferroni校正 | 模型: ppo_best_model_16dim.zip (OBS_DIM=16)*
+*报告生成时间: 2026-07-29（8.13 更新 §2.2/§2.3 至当前口径）| 数据源: results/multiseed_evaluation/rewards_multiseed.json | 统计方法: SciPy + Bootstrap + Bonferroni校正 | 模型: ppo_best_model_16dim.zip (OBS_DIM=16)*

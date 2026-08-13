@@ -49,11 +49,20 @@ jobs:
           python -m pytest tests/ \
             -v \
             --ignore=tests/test_performance_benchmarks.py \
+            --ignore=tests/test_marl.py \
             --cov=src \
             --cov-report=term-missing \
             --cov-fail-under=80 \
             --timeout=120 \
             -W ignore::DeprecationWarning
+
+      # 8.13 round10 审查（P1-4）：与 ci.yml 对齐——MAPPO 训练测试（test_marl.py）
+      # 耗时长（>120s），此前在 release.yml 全量套件中 --timeout=120 导致 Quality Gate
+      # 超时变红（ci.yml 将其独立串行 600s）。此处同处理。
+      - name: Run MAPPO training tests (serial)
+        shell: bash
+        run: |
+          python -m pytest tests/test_marl.py -v --timeout=600 -W ignore::DeprecationWarning
 
       - name: Run submission validation
         shell: bash
@@ -138,7 +147,7 @@ jobs:
           echo "### 权威数字" >> release_notes.md
           echo "" >> release_notes.md
           echo "- PPO (16维) vs FCFS: **+20.2%** (50 seed 统计显著, 8.5 基线诚实化 vs 真实 FCFS, Welch t p=7.56e-12)" >> release_notes.md
-          echo "- 量子占比敏感性: 50% 时 PPO 提升最高 **+94.1%**" >> release_notes.md
+          echo "- 等待时间: **-14.0%** (PPO 25.46 vs FCFS 29.61 步, N=250 配对检验 p=8.9e-06)" >> release_notes.md
           echo "" >> release_notes.md
           echo "### CI 检查结果" >> release_notes.md
           echo "" >> release_notes.md

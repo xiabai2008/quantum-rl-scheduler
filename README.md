@@ -188,7 +188,7 @@ pip install -e .                # 将 src/ 注册为可导入包，任意目录�
 cp .env.example .env            # Mock 模式默认开启
 ```
 
-> **可复现性提示（Issue #383 / #906）**：`requirements.lock` 是经验证可加载全部交付模型的锁定环境（Python 3.10-3.12）。若使用 `requirements.txt` 宽松范围安装，请确认 `stable-baselines3>=2.9.0`（交付模型以 sb3 2.9.0 保存，跨小版本反序列化不保证兼容）与 `torch>=2.8.0,<2.9.0`（sb3 2.9.0 要求 torch>=2.8）。切勿在 Python 3.13 下安装依赖——cloudpickle 序列化的模型权重跨解释器版本加载会崩溃（PPO.load SIGSEGV）。
+> **可复现性提示（Issue #383 / #906）**：`requirements.lock` 是经验证可加载全部交付模型的锁定环境（Python 3.10-3.12）。若使用 `requirements.txt` 宽松范围安装，请确认 `stable-baselines3>=2.9.0`（交付模型以 sb3 2.9.0 保存，跨小版本反序列化不保证兼容）与 `torch>=2.8.0,<2.9.0`（sb3 2.9.0 要求 torch>=2.8）。切勿在 Python 3.13 下安装依赖——交付模型在 3.13 下加载存在 ABI 兼容问题（PPO.load 硬崩溃）。8.13 已重存交付模型：学习率调度改用常数形式（SB3 原生 ConstantSchedule，无 cloudpickle 函数字节码），Python 3.10/3.11/3.12 均已实测可加载。
 
 ### 方式四：VS Code Dev Container
 

@@ -154,52 +154,52 @@ simulation_8strategy_50seed:
       旧值 t=-4.2334/CI[-439.7,-227.9]/Cohen's d=-2.1353 为 8.5 前弱基线（Hybrid-Default）口径，已废弃并删除。
       禁止与真机实验 p 值(p<0.001, 10seed v2)或其他实验条件的 p 值混用。
 
-  # 其他关键两两对比
+  # 其他关键两两对比（8.13 round10 审查：SJF/DQN/Random/Greedy 随行为修复重算后，
+  # 本块 5 个 pairwise 值已用当前 rewards_multiseed.json 重新生成，与
+  # results/reports/statistical_validation.md 权威报告逐位一致）
   ppo_vs_dqn:
-    test_method: "Welch t"
-    # 8.11 复核修正：从 rewards_multiseed.json 重算（旧 1.315e-77 为过期值，正确为 3.02e-118，
-    # 与 ppo_vs_random 一致——DQN 位使用 Random 数据占位）
-    p_value: 3.02e-118
-    effect_size_type: "Cohen's d"
-    effect_size: -2.2581
+    test_method: "Mann-Whitney U"
+    # DQN 位使用 Random 数据占位，与 ppo_vs_random 等价
+    p_value: 4.289e-73
+    effect_size_type: "rank-biserial"
+    effect_size: -0.9348
     n: 250
-    note: "DQN 位使用 Random 替代，故与 ppo_vs_random 等价（p 均为 3.02e-118）"
+    note: "DQN 位使用 Random 替代，故与 ppo_vs_random 等价（8.13 重算：MW p=4.289e-73, rb=-0.9348）"
 
   ppo_vs_sjf:
     test_method: "Mann-Whitney U"
-    # 8.8 修复：从 rewards_multiseed.json 重算（旧 6.511e-62 为过期值，正确为 1.11e-70）
-    p_value: 1.11e-70
+    # 8.13 重算（SJF 均值 774.86→748.48 后）
+    p_value: 3.713e-71
     effect_size_type: "rank-biserial"
-    effect_size: -0.9188
+    effect_size: -0.9220
     n: 250
 
   ppo_vs_random:
-    test_method: "Welch t"
-    # 8.8 修复：从 rewards_multiseed.json 重算（旧 1.315e-77 为过期值，正确为 3.02e-118）
-    p_value: 3.02e-118
-    effect_size_type: "Cohen's d"
-    effect_size: 3.1636
+    test_method: "Mann-Whitney U"
+    # 8.13 重算（Random 均值 602.37→697.40 后；旧 Welch 3.02e-118/d=3.1636 为 8.8 过期值）
+    p_value: 4.289e-73
+    effect_size_type: "rank-biserial"
+    effect_size: -0.9348
     n: 250
     note: >
-      v9.1+ 16维模型: p=3.02e-118, Cohen's d=3.1636（8.8 重算）。
-      旧 14 维模型 p=4.92e-55 已废弃。
+      v9.1+ 16维模型 8.13 重算：MW p=4.289e-73, rb=-0.9348（与 statistical_validation.md 一致）。
+      旧 Welch p=3.02e-118/d=3.1636 已随 Random 重算过期。
 
   dqn_vs_fcfs:
-    test_method: "Welch t"
-    # 8.8 修复：从 rewards_multiseed.json 重算（旧 5.681e-14 为过期值，正确为 2.79e-98；
-    # DQN 位与 Random 完全同数组，故与 random_vs_fcfs 等价）
-    p_value: 2.79e-98
-    effect_size_type: "Cohen's d"
-    effect_size: -2.6044
+    test_method: "Mann-Whitney U"
+    # 8.13 重算（DQN 位与 Random 完全同数组，故与 random_vs_fcfs 等价）
+    p_value: 1.009e-64
+    effect_size_type: "rank-biserial"
+    effect_size: 0.8781
     n: 250
-    note: "DQN 位使用 Random 替代，故与 random_vs_fcfs 等价"
+    note: "DQN 位使用 Random 替代，故与 random_vs_fcfs 等价（8.13 重算：MW p=1.009e-64, rb=0.8781）"
 
   fcfs_vs_sjf:
     test_method: "Mann-Whitney U"
-    # 8.8 修复：从 rewards_multiseed.json 重算（旧 0.2827 为错误值，差 60 个数量级）
-    p_value: 2.28e-60
+    # 8.13 重算（SJF 均值 774.86→748.48 后；旧 2.28e-60 为 8.8 值）
+    p_value: 5.870e-61
     effect_size_type: "rank-biserial"
-    effect_size: -0.8472
+    effect_size: -0.8515
     n: 250
     significant: true
 

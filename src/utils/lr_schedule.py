@@ -41,10 +41,62 @@ __all__ = [
     "SUPPORTED_SCHEDULE_TYPES",
     "LRScheduleType",
     "compute_lr_at_progress",
+    "constant_lr_fn",
+    "cosine_lr_fn",
     "create_lr_schedule",
+    "linear_lr_fn",
 ]
 
 SUPPORTED_SCHEDULE_TYPES: tuple[str, ...] = ("linear", "cosine", "constant")
+
+
+def constant_lr_fn(base_lr: float) -> Callable[[float], float]:
+    """恒定学习率调度函数工厂（模块级具名函数，可被 cloudpickle 稳定序列化）。
+
+    Args:
+        base_lr: 恒定学习率。
+
+    Returns:
+        恒返回 ``base_lr`` 的调度函数。
+    """
+
+    def fn(progress_remaining: float) -> float:
+        return float(base_lr)
+
+    return fn
+
+
+def linear_lr_fn(base_lr: float) -> Callable[[float], float]:
+    """线性衰减学习率调度函数工厂（模块级具名函数，可被 cloudpickle 稳定序列化）。
+
+    Args:
+        base_lr: 初始学习率。
+
+    Returns:
+        调度函数：``lr = base_lr * max(progress_remaining, 0.0)``。
+    """
+
+    def fn(progress_remaining: float) -> float:
+        return float(base_lr * max(progress_remaining, 0.0))
+
+    return fn
+
+
+def cosine_lr_fn(base_lr: float) -> Callable[[float], float]:
+    """余弦退火学习率调度函数工厂（模块级具名函数，可被 cloudpickle 稳定序列化）。
+
+    Args:
+        base_lr: 初始学习率。
+
+    Returns:
+        调度函数：``lr = base_lr * 0.5 * (1 + cos(pi * progress))``。
+    """
+
+    def fn(progress_remaining: float) -> float:
+        progress = 1.0 - max(min(progress_remaining, 1.0), 0.0)
+        return float(base_lr * 0.5 * (1.0 + np.cos(np.pi * progress)))
+
+    return fn
 
 
 def create_lr_schedule(
@@ -71,23 +123,23 @@ def create_lr_schedule(
             f"不支持的 schedule_type={schedule_type!r}，可选: {SUPPORTED_SCHEDULE_TYPES}"
         )
 
+    # 8.13 round10 审查（P1-3）：此前返回内联 lambda（constant/linear 分支），
+    # cloudpickle 序列化 lambda 字节码嵌入模型 zip，跨 Python 版本反序列化
+    # 触发 SIGSEGV（3.11 实测 0xC0000005）。改用模块级具名函数工厂——
+    # 具名函数按"模块路径+函数名"序列化，跨版本安全。行为完全不变。
     if schedule_type == "constant":
-        return lambda progress_remaining: base_lr
+        return constant_lr_fn(base_lr)
 
     if schedule_type == "linear":
         # 线性衰减：lr = base_lr * progress_remaining
         # progress_remaining: 1.0 → 0.0，lr: base_lr → 0
-        return lambda progress_remaining: float(base_lr * max(progress_remaining, 0.0))
+        return linear_lr_fn(base_lr)
 
     # cosine: 余弦退火
     # progress = 1 - progress_remaining (0 → 1)
     # lr = base_lr * 0.5 * (1 + cos(pi * progress))
     # progress=0: lr = base_lr, progress=1: lr = 0
-    def cosine_fn(progress_remaining: float) -> float:
-        progress = 1.0 - max(min(progress_remaining, 1.0), 0.0)
-        return float(base_lr * 0.5 * (1.0 + np.cos(np.pi * progress)))
-
-    return cosine_fn
+    return cosine_lr_fn(base_lr)
 
 
 def compute_lr_at_progress(

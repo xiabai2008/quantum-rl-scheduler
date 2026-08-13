@@ -337,8 +337,8 @@
 | 比较 | 检验方法 | p 值 | 效应量 | Bonferroni 校正后 |
 |:----:|:--------:|:----:|:-----------------------:|:-----------------:|
 | PPO vs FCFS | Welch t | 7.56e-12 | rank-biserial=-0.3642（中效应） | 显著 |
-| PPO vs DQN | Welch t | 3.02e-118 | Cohen's d=-2.2581（大效应） | 显著 |
-| PPO vs SJF | Mann-Whitney U | 1.11e-70 | rank-biserial=-0.8583（大效应） | 显著 |
+| PPO vs DQN | Mann-Whitney U | 4.289e-73 | rank-biserial=-0.9348（大效应） | 显著 |
+| PPO vs SJF | Mann-Whitney U | 3.713e-71 | rank-biserial=-0.9220（大效应） | 显著 |
 
 **结论**：PPO 在所有 pairwise 比较中均达到统计显著（p<0.001），效应量为大效应（|Cohen's d|≥0.8 或 |rank-biserial|≥0.5），证明性能优势非偶然。
 
