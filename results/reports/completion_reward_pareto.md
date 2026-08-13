@@ -34,7 +34,7 @@
  :-- :--: :--: :--: :--: :--: :--: :-- 
   PPO **[Pareto]**   100.0   1982.69   557.25   [1913.6, 2051.8]   -   -   statistics.yaml 8策略50seed (N=250，权威口径，8.5 基线诚实化)  
   PPO (3策略实验)   100.0   2966.17   1124.59   [2654.4, 3277.9]   55.35   42.5%   dqn_ppo_fcfs_comparison.json (N=50，独立实验)  
-  DQN(已skip,实为Random)   100.0   602.37   262.09   [569.9, 634.9]   -   -   statistics.yaml 8策略50seed (N=250, DQN模型v9已删除,策略位使用Random替代)  
+  DQN(已skip,实为Random)   100.0   697.40   288.25   [569.9, 634.9]   -   -   statistics.yaml 8策略50seed (N=250, DQN模型v9已删除,策略位使用Random替代)  
   FCFS   100.0   1648.91   502.95   [1586.6, 1711.2]   -   -   statistics.yaml 8策略50seed (N=250，真实 FCFS 量子路由基线)  
   PPO(q=10%)   100.0   2742.62   560.10   [2395.5, 3089.8]   -   -   quantum_ratio_sensitivity (ratio=10%)  
   PPO(q=30%)   100.0   2760.27   459.83   [2475.3, 3045.3]   -   -   quantum_ratio_sensitivity (ratio=30%)  

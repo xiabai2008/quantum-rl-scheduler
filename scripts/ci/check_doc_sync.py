@@ -113,6 +113,8 @@ def get_pytest_count() -> int | None:
             cwd=_PROJECT_ROOT,
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=120,
             check=False,
         )
@@ -145,6 +147,8 @@ def get_gh_open_count(kind: str) -> int | None:
             cwd=_PROJECT_ROOT,
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=30,
             check=False,
         )

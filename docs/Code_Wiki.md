@@ -1111,8 +1111,8 @@ PYTHONUTF8=1 python -m mypy src
 pytest tests/benchmarks/test_annealing_benchmark.py --benchmark-only
 
 # 8 策略对比（多 Seed 权威结果，16维交付模型）
-# 排名：PPO(1982.69) > FCFS(1648.91) > SJF(774.86) > DQN/Random(602.37)
-#       > Greedy(80.71) > Quantum-Only(-826.59) > Classical-Only(-1075.49)
+# 排名：PPO(1982.69) > FCFS(1648.91) > SJF(748.48) > DQN/Random(697.40)
+#       > Greedy(62.72) > Quantum-Only(-826.59) > Classical-Only(-1075.49)
 ```
 
 ---

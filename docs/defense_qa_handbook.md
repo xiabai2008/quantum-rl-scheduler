@@ -46,7 +46,7 @@
 ### Q2: PPO 相比 DQN 在你们这个调度场景下为什么更优？超参数怎么调的？
 
 **核心答案**：
-PPO 在异质化调度环境中显著优于 DQN 位（PPO 1982.69、DQN 策略位为 Random 占位 602.37，平均奖励高 1380.32；数据来源 `config/statistics.yaml`）。原因是：PPO 使用**策略梯度方法**，直接优化调度策略，适合连续动作空间和稀疏奖励；DQN 在 v9 已删除，DQN 策略位使用 Random 替代占位（`config/statistics.yaml` 注明），因此 DQN 位的结果反映的是 Random 策略性能（-63.47% vs FCFS），非 DQN 算法本身表现。PPO vs DQN(Random) 统计检验：Welch t, p=1.315e-77, Cohen's d=-2.2581（大效应量）。超参数通过网格搜索确定：学习率 3e-4、clip range 0.2、GAE λ=0.95、batch size 64。
+PPO 在异质化调度环境中显著优于 DQN 位（PPO 1982.69、DQN 策略位为 Random 占位 697.40，平均奖励高 1380.32；数据来源 `config/statistics.yaml`）。原因是：PPO 使用**策略梯度方法**，直接优化调度策略，适合连续动作空间和稀疏奖励；DQN 在 v9 已删除，DQN 策略位使用 Random 替代占位（`config/statistics.yaml` 注明），因此 DQN 位的结果反映的是 Random 策略性能（-57.7% vs FCFS），非 DQN 算法本身表现。PPO vs DQN(Random) 统计检验：Welch t, p=1.315e-77, Cohen's d=-2.2581（大效应量）。超参数通过网格搜索确定：学习率 3e-4、clip range 0.2、GAE λ=0.95、batch size 64。
 
 **支撑数据**：
 - 8 策略对比：`results/reports/strategy_comparison.md`
@@ -963,7 +963,7 @@ Jain's Fairness Index 是网络资源分配公平性的标准度量，取值 [0,
 
 **风险提示**：
 - 追问：为什么DQN没有出现完美分离？
-- 回答：DQN在v9已删除，策略位使用Random替代占位（均值602.37，-63.5% vs FCFS 1648.91），分布与FCFS有重叠但均值明显更低。这是因为Random策略无学习能力，随机分配任务导致性能低于FCFS。PPO使用16维原生环境，通过策略学习获得+20.2%提升（p=7.56e-12）。
+- 回答：DQN在v9已删除，策略位使用Random替代占位（均值697.40，-57.7% vs FCFS 1648.91），分布与FCFS有重叠但均值明显更低。这是因为Random策略无学习能力，随机分配任务导致性能低于FCFS。PPO使用16维原生环境，通过策略学习获得+20.2%提升（p=7.56e-12）。
 
 ---
 

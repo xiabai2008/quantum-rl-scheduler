@@ -88,11 +88,11 @@ simulation_8strategy_50seed:
       improvement_ci_95: [14.3, 26.7]
       baseline: "真实 FCFS (EnvBasedFCFSScheduler, 1648.91)"
     SJF:
-      mean_reward: 774.86
-      std_reward: 275.74
-      stderr: 17.44
+      mean_reward: 748.48
+      std_reward: 304.86
+      stderr: 19.28
       n: 250
-      improvement_vs_fcfs_pct: -53.0
+      improvement_vs_fcfs_pct: -54.6
     FCFS:
       mean_reward: 1648.91
       std_reward: 502.95
@@ -100,24 +100,24 @@ simulation_8strategy_50seed:
       n: 250
       improvement_vs_fcfs_pct: 0.0  # 基线（8.5 修正：真实 FCFS 量子路由；旧 1051.59 为 Hybrid-Default 恒action=2）
     DQN:
-      mean_reward: 602.37
-      std_reward: 262.09
-      stderr: 16.57
+      mean_reward: 697.40
+      std_reward: 288.25
+      stderr: 18.23
       n: 250
-      improvement_vs_fcfs_pct: -63.47
-      note: "8.5 审查：DQN 模型已删除，行数据与 Random 完全相同（602.37）= Random 策略占位，非独立 DQN 结果"
+      improvement_vs_fcfs_pct: -57.7
+      note: "8.5 审查：DQN 模型已删除，行数据与 Random 完全相同（697.40）= Random 策略占位，非独立 DQN 结果；8.13 随行为修复重算"
     Random:
-      mean_reward: 602.37
-      std_reward: 262.09
-      stderr: 16.57
+      mean_reward: 697.40
+      std_reward: 288.25
+      stderr: 18.23
       n: 250
-      improvement_vs_fcfs_pct: -63.47
+      improvement_vs_fcfs_pct: -57.7
     Greedy:
-      mean_reward: 80.71
-      std_reward: 549.12
-      stderr: 34.72
+      mean_reward: 62.72
+      std_reward: 537.68
+      stderr: 34.00
       n: 250
-      improvement_vs_fcfs_pct: -95.1
+      improvement_vs_fcfs_pct: -96.2
     Quantum-Only:
       mean_reward: -826.59
       std_reward: 263.63
@@ -553,19 +553,24 @@ quantum_noise_paired_feedback:
     检验方法: Wilcoxon signed-rank 检验（配对非参数检验，单侧 H1: Standard > DistNoise）。
   alpha: 0.05
   n: 25  # 配对样本数
-  data_source: "results/quantum_ai/noise_paired_25seeds_20260813_090648.json"
+  data_source: "results/quantum_ai/noise_paired_25seeds_20260813_113531.json"
   supersedes: "10seeds 探索性实验（无统计检验，已废弃）"
   reproducibility_note: >
-    （8.13 补库）本实验 per-seed 原始数据由当前代码重跑生成并入库
+    （8.13 补库 + 方法学修正）本实验 per-seed 原始数据由当前代码重跑生成并入库
     （`python scripts/evaluation/quantum_noise_paired_20seeds.py --seeds 25 --episodes 5`）。
     重跑复核：Wilcoxon W=325, p=2.98e-08 与权威值完全一致（25 对全正差 → 2^-25 恒等）；
-    相对下降 -12.30%（Bootstrap 95% CI [-18.02%, -6.38%]）与权威 -12.43% 一致；
-    seed 平均奖励绝对值（2001.45/1755.26）低于 7/29 原始实验（2408.30/2109.02），
-    差异源于 8 月初 env 修复（crosstalk 双重扣减 #783/#784 等奖励路径变更），
-    方向、显著性、结论不变。权威引用值（-12.43%/p=2.98e-08）维持不变，
-    复算复现性以本 JSON 为准。
+    相对下降 -12.23%（Bootstrap 95% CI 见 JSON）与权威 -12.43% 一致；
+    seed 平均奖励绝对值（2001.45/1756.76）低于 7/29 原始实验（2408.30/2109.02），
+    差异源于 8 月初 env 修复（crosstalk 双重扣减 #783/#784 等奖励路径变更）。
+    （8.13 审查 P1-2 方法学修正）噪声注入由"reward>5 阈值"改为"量子执行计数增量判断"：
+    旧阈值会把 MBS 噪声误乘到纯经典执行奖励上；修正后仅对路由到量子机的步骤注入，
+    结论不变（p=2.98e-08 恒等），DistNoise 臂均值微调（1755.26→1756.76，-12.30%→-12.23%）。
+    权威引用值（-12.43%/p=2.98e-08）维持不变，复算复现性以本 JSON 为准。
 
   strategy_summary:
+    # 注（8.13 审查 P1-1）：本块为 7/29 原始实验值（对外权威引用口径）；
+    # 当前代码复现复核值（2001.45/1756.76, -12.23%）见 data_source JSON，
+    # 差异源于 8 月初 env 修复与噪声注入方法学修正，详见上方 reproducibility_note。
     Standard:
       mean_reward: 2408.3025
       std_reward: 353.5771
@@ -576,6 +581,8 @@ quantum_noise_paired_feedback:
       n: 25
 
   paired_test:
+    # 注（8.13 审查 P1-1）：本块为 7/29 原始实验统计值（对外权威引用口径）；
+    # 当前代码复现复核值（d_z≈7.99, diff≈246.2, -12.23%）见 data_source JSON。
     test_method: "Wilcoxon signed-rank"
     statistic: 325.0
     p_value: 2.98e-08

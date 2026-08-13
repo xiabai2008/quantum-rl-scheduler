@@ -63,13 +63,21 @@ MBS_VALUES_10SEEDS: list[float] = [
 ]
 
 
-def _make_noisy_step_factory(orig_step, mbs_values: list[float], rng: np.random.Generator):
+def _make_noisy_step_factory(
+    env: "QuantumSchedulingEnv",
+    orig_step,
+    mbs_values: list[float],
+    rng: np.random.Generator,
+):
     """构造注入真机噪声分布的 step 函数。
 
-    量子任务奖励 > 5 时，按 MBS 分布随机抽样一个保真度系数相乘，
-    模拟真实硬件在不同次运行中的噪声波动。
+    仅对**量子执行**的步骤注入 MBS 保真度噪声：通过对比 step 前后 env 的
+    quantum_success 计数增量判断本步是否路由到量子机器执行（而非用
+    `reward > 5` 阈值——该阈值无法区分任务类型，会把 MBS 噪声误乘到
+    纯经典执行奖励上，8.13 审查 P1-2 修复）。
 
     Args:
+        env: 调度环境实例（用于读取执行计数）
         orig_step: 原始 env.step 方法
         mbs_values: 真机 MBS 值列表（保真度分布）
         rng: numpy 随机数生成器（保证可复现）
@@ -80,11 +88,17 @@ def _make_noisy_step_factory(orig_step, mbs_values: list[float], rng: np.random.
 
     def noisy_step(action):
         """注入真机噪声的 step 函数。"""
+        q_before = env._quantum_success
+        h_before = env._hybrid_success
         obs, reward, terminated, truncated, info = orig_step(action)
-        if reward > 5:  # 量子任务奖励阈值
-            noise_factor = float(rng.choice(mbs_values))
-            noise_factor = float(np.clip(noise_factor, 0.5, 1.0))
-            reward *= noise_factor
+        if reward > 0:
+            q_after = env._quantum_success
+            h_after = env._hybrid_success
+            is_quantum_exec = q_after > q_before or h_after > h_before
+            if is_quantum_exec:
+                noise_factor = float(rng.choice(mbs_values))
+                noise_factor = float(np.clip(noise_factor, 0.5, 1.0))
+                reward *= noise_factor
         return obs, reward, terminated, truncated, info
 
     return noisy_step
@@ -117,7 +131,7 @@ def _run_single_seed_condition(
 
     if noise_condition == "DistNoise":
         orig_step = env.step
-        env.step = _make_noisy_step_factory(orig_step, mbs_values, rng)
+        env.step = _make_noisy_step_factory(env, orig_step, mbs_values, rng)
 
     ep_rewards: list[float] = []
     strategy = PPOStrategy(ppo_model)
