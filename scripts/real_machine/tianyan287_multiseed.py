@@ -566,6 +566,14 @@ def main() -> None:
         action="store_true",
         help="正式模式（10 seeds × 3 策略 × 1 真机任务 = 30 次）",
     )
+    # 2026-08-14 平台时序适配：任务完成前查询返回 query_error，自动冒烟门槛
+    # 会被误判失败（Issue #58 纪律触发）。冒烟已用 patch_query_error_results.py
+    # 实质验证通过后，正式运行可跳过自动冒烟（--skip-smoke）。
+    parser.add_argument(
+        "--skip-smoke",
+        action="store_true",
+        help="跳过正式前的自动冒烟门槛（仅当冒烟已另行验证时使用；默认 False）",
+    )
     args = parser.parse_args()
 
     seeds = args.seeds
@@ -633,27 +641,33 @@ def main() -> None:
         return
 
     # Issue #58：正式实验前先执行冒烟（防止浪费配额）
-    logger.info("正式实验前先执行冒烟验证...")
-    smoke_result = run_smoke_test(client, actual_machine)
-    if not smoke_result["passed"]:
-        smoke_file = (
-            OUTPUT_DIR / f"smoke_pre_formal_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
-        )
-        OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-        with smoke_file.open("w", encoding="utf-8") as f:
-            json.dump(smoke_result, f, ensure_ascii=False, indent=2, default=str)
-        logger.error(
-            f"❌ 冒烟未通过: status={smoke_result.get('status')}, "
-            f"prob={smoke_result.get('probability')}. "
-            f"按 Issue #58：禁止正式 30 次提交，保留失败 pilot 记录，PR #57 停止。"
-        )
-        sys.exit(1)
-    logger.info("✅ 冒烟通过，开始正式 30 次提交")
-
-    # 运行正式实验
-    all_results = [smoke_result]  # 包含冒烟结果作为第一条记录
-    total_start = time.time()
-    submitted_count = 1  # 冒烟已用 1 次配额
+    # 2026-08-14 适配：--skip-smoke 时跳过自动冒烟（冒烟已另行实质验证，
+    # 提交+补录闭环打通；见 patch_query_error_results.py 与 pilot 记录）。
+    if not args.skip_smoke:
+        logger.info("正式实验前先执行冒烟验证...")
+        smoke_result = run_smoke_test(client, actual_machine)
+        if not smoke_result["passed"]:
+            smoke_file = (
+                OUTPUT_DIR / f"smoke_pre_formal_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+            )
+            OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+            with smoke_file.open("w", encoding="utf-8") as f:
+                json.dump(smoke_result, f, ensure_ascii=False, indent=2, default=str)
+            logger.error(
+                f"❌ 冒烟未通过: status={smoke_result.get('status')}, "
+                f"prob={smoke_result.get('probability')}. "
+                f"按 Issue #58：禁止正式 30 次提交，保留失败 pilot 记录，PR #57 停止。"
+            )
+            sys.exit(1)
+        logger.info("✅ 冒烟通过，开始正式 30 次提交")
+        all_results = [smoke_result]  # 包含冒烟结果作为第一条记录
+        total_start = time.time()
+        submitted_count = 1  # 冒烟已用 1 次配额
+    else:
+        logger.info("⚠️ --skip-smoke：跳过自动冒烟（冒烟已另行验证），直接开始正式实验")
+        all_results = []
+        total_start = time.time()
+        submitted_count = 0
 
     for seed in seeds:
         for strategy_name in STRATEGIES:

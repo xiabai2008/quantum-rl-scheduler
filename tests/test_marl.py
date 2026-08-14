@@ -662,9 +662,15 @@ class TestWrapperRefreshAndCompatibility(unittest.TestCase):
         env._machines[0].name = "renamed_machine"
         # 直接修改 wrapper 的 machine_names 以模拟变化检测
         wrapper.machine_names = ["renamed_machine", wrapper.machine_names[1]]
-        # 行为验证：不崩溃即可
+        # 8.13 round11 审查：原断言 assertTrue(True) 零验证；改为验证检测机制生效
+        # （refresh 后 wrapper 的 machine_names 与 env 实际机器名一致）
         wrapper.refresh_machines()
-        self.assertTrue(True)
+        actual_names = [m.name for m in env._machines]
+        self.assertEqual(sorted(wrapper.machine_names), sorted(actual_names))
+        # 检测到变化后各 agent 局部观测仍与机器数一致（不崩溃且状态自洽）
+        obs, _ = wrapper.reset(seed=82)
+        self.assertIsInstance(obs, dict)
+        self.assertEqual(len(obs), len(env._machines))
 
     def test_machine_can_handle_offline_returns_false(self):
         """离线机器 _machine_can_handle 应返回 False。"""

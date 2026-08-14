@@ -89,14 +89,19 @@ export interface RewardComparison {
   gap: number
 }
 
-/** 配额状态（来自即将新增的 /api/quota） */
+/** 配额状态（/api/quota 实际契约，8.13 round11 审查对齐后端嵌套结构） */
 export interface QuotaStatus {
-  total_quota: number
-  used_quota: number
-  remaining_quota: number
-  reset_at?: string
-  daily_limit?: number
-  daily_used?: number
+  available: boolean
+  total: Record<string, number>
+  used: Record<string, number>
+  remaining: Record<string, number>
+  usage_ratio: Record<string, number>
+  warning_threshold: number
+  critical_threshold: number
+  warning_level: string
+  estimated_exhaustion_time: string
+  daily_history_count: number
+  message?: string
 }
 
 /** 资源历史趋势单点（来自即将新增的 /api/resource-history） */

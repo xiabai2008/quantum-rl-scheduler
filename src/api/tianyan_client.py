@@ -15,6 +15,7 @@ import threading
 import time
 from collections.abc import Callable, Iterator, Mapping
 from contextlib import contextmanager
+from pathlib import Path
 from time import monotonic
 from typing import Any, TypeVar, cast
 
@@ -393,8 +394,30 @@ class TianyanClient:
             # Mock 模式：创建 Mock 客户端并委托所有 API 调用
             from src.api.mock_client import MockTianyanClient
 
+            # 8.13 round11 审查（P2-1）：mock_delay 此前仅读 env（默认 1.0），
+            # 与 config.yaml tianyan.mock_delay: 90.0（真机实测均值）及 .env.example 三源矛盾。
+            # 统一为：env 优先 → config.yaml tianyan.mock_delay → 默认 90.0。
+            mock_delay = 90.0  # 与 config.yaml tianyan.mock_delay 及 .env.example 对齐
+            mock_delay_env = os.getenv("TIANYAN_MOCK_DELAY")
+            if mock_delay_env:
+                mock_delay = float(mock_delay_env)
+            else:
+                try:
+                    import yaml as _yaml
+
+                    # 项目根 = src/api/ 上三级
+                    _cfg_path = (
+                        Path(__file__).resolve().parent.parent.parent / "config" / "config.yaml"
+                    )
+                    if _cfg_path.is_file():
+                        _cfg = _yaml.safe_load(_cfg_path.read_text(encoding="utf-8"))
+                        _cfg_delay = (_cfg.get("tianyan") or {}).get("mock_delay")
+                        if _cfg_delay:
+                            mock_delay = float(_cfg_delay)
+                except Exception:  # noqa: BLE001 - 配置读取失败不阻断，用默认值
+                    pass
             self._mock_client = MockTianyanClient(
-                mock_delay=float(os.getenv("TIANYAN_MOCK_DELAY", "1.0")),
+                mock_delay=mock_delay,
                 mock_failure_rate=float(os.getenv("TIANYAN_MOCK_FAILURE_RATE", "0.0")),
             )
             logger.info("✅ 使用 Mock 模式（不依赖真实平台）")

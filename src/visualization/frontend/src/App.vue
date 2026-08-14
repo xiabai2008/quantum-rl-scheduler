@@ -49,6 +49,19 @@ const tasks = ref<Task[]>([])
 const quota = ref<QuotaStatus | null>(null)
 const selectedStrategy = ref('DQN-Reward')
 
+// 8.13 round11 审查（P2-4）：/api/quota 返回嵌套结构 {total:{...},used:{...}}，
+// 聚合各维度配额展示（如 time/volume/executions 等维度求和）
+const quotaTotal = () => {
+  const t = quota.value?.total
+  if (!t) return '--'
+  return typeof t === 'object' ? String(Object.values(t).reduce((a, b) => a + (Number(b) || 0), 0)) : String(t)
+}
+const quotaTotalUsed = () => {
+  const u = quota.value?.used
+  if (!u) return '--'
+  return typeof u === 'object' ? String(Object.values(u).reduce((a, b) => a + (Number(b) || 0), 0)) : String(u)
+}
+
 const newTask = reactive<NewTaskForm>({
   user_id: 'user_001',
   task_type: 'quantum',
@@ -199,17 +212,24 @@ const handleWSMessage = (msg: WSMessage) => {
   }
 }
 
-const switchStrategy = () => {
-  if (!wsConnected.value || !ws.value) {
-    showToast('WebSocket 未连接，无法切换策略', 'error')
-    return
+const switchStrategy = async () => {
+  // 8.13 round11 审查（P1-1）：此前通过 WebSocket 发送 switch_strategy，
+  // 但服务端 websocket_handler 无此分支 → 按钮静默失效。改为 REST POST /api/strategy
+  //（与 fallback_template 一致，后端 routes.py:337 已实现）。
+  try {
+    const res = await fetch(
+      '/api/strategy?strategy=' + encodeURIComponent(selectedStrategy.value),
+      { method: 'POST' }
+    )
+    const data = await res.json()
+    if (!res.ok || data.success === false) {
+      showToast(data.message || '切换策略失败（HTTP ' + res.status + '）', 'error')
+      return
+    }
+    showToast('策略已切换为 ' + selectedStrategy.value, 'success')
+  } catch (e) {
+    showToast('切换策略失败：' + (e instanceof Error ? e.message : String(e)), 'error')
   }
-  ws.value.send(
-    JSON.stringify({
-      action: 'switch_strategy',
-      strategy: selectedStrategy.value
-    })
-  )
 }
 
 const submitTask = async () => {
@@ -430,8 +450,10 @@ defineExpose({
       <div class="panel">
         <div class="panel-header">
           <h2>控制面板</h2>
-          <span v-if="quota" class="badge">
-            配额: {{ quota.used_quota }}/{{ quota.total_quota }}
+          <span v-if="quota && quota.available !== false" class="badge">
+            <!-- 8.13 round11 审查（P2-4）：后端 /api/quota 返回嵌套结构
+                 {total:{...}, used:{...}}，此前前端按扁平字段取值为 undefined。 -->
+            配额: {{ quotaTotalUsed() }}/{{ quotaTotal() }}
           </span>
         </div>
         <div class="panel-body">

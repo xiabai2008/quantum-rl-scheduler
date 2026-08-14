@@ -461,7 +461,7 @@ async def ppo_predict(_auth: None = Depends(verify_api_key)) -> dict:
         action, _states = await asyncio.to_thread(model.predict, obs, deterministic=True)
         eval_env.close()
 
-        action_map = {0: "经典资源", 1: "量子资源", 2: "混合执行"}
+        action_map = {0: "经典资源", 1: "量子资源", 2: "混合执行", 3: "QEM"}
         return {
             "action": int(action),
             "action_name": action_map.get(int(action), "未知"),

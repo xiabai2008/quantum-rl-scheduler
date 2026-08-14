@@ -210,6 +210,9 @@ items:
     type: md
     path: "docs/award_roadmap.md"
     must_exist: true
+    # 8.13 round11 审查注：本项校验"仓库内存在"；文件同时列于 CODE_ARCHIVE exclude
+    # （含战略路线与内部口径，属内部文档不进提交包，与 8.11 审查结论一致）——
+    # 两项声明不矛盾：must_exist=仓库完整性校验，exclude=提交包边界。
 
   - id: CROSS_HARDWARE_DOC
     name: 跨硬件兼容性文档

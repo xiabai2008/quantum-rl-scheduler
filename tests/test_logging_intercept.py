@@ -146,8 +146,19 @@ class TestInstallInterceptHandler(unittest.TestCase):
             std_logger.warning("warn via standard logging")
             std_logger.error("error via standard logging")
 
-        # 不抛异常即通过
-        self.assertTrue(True)
+        # 8.13 round11 审查：原 assertTrue(True) 零验证；loguru 拦截器接管标准
+        # logging 后，输出经 loguru sink 直接写底层 stderr（绕过 StringIO 重定向），
+        # 无法用 buf 断言。改为验证拦截器确实已安装（root logger 处理器为 loguru
+        # 的 InterceptHandler）且日志记录不抛异常。
+        import logging as _logging
+
+        root_handlers = _logging.getLogger().handlers
+        self.assertTrue(
+            any(
+                type(h).__name__ in ("_InterceptHandler", "InterceptHandler") for h in root_handlers
+            ),
+            f"root logger 应安装 loguru 拦截 handler，实际: {[type(h).__name__ for h in root_handlers]}",
+        )
 
 
 if __name__ == "__main__":

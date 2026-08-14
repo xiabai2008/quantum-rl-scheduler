@@ -649,7 +649,7 @@ python scripts/demo_one_click.py
 | PPO vs FCFS | +333.78 | [+14.3%, +26.7%] | 7.56e-12 | rank-biserial=-0.3642（中） | ✅ 显著 |
 | PPO vs SJF | +1207.83 | — | 3.713e-71 | rank-biserial=-0.9220（大） | ✅ 显著（8.8 重算，旧 6.511e-62 为过期值） |
 | PPO vs Greedy | +1901.98 | — | 8.60e-151 | Cohen's d=3.43（大） | ✅ 显著 |
-| PPO vs Random | +1380.32 | — | 4.289e-73 | rank-biserial=-0.9348（大） | ✅ 显著（8.8 重算，旧 1.315e-77 为过期值） |
+| PPO vs Random | +1285.29 | — | 4.289e-73 | rank-biserial=-0.9348（大） | ✅ 显著（8.8 重算，旧 1.315e-77 为过期值） |
 | DQN 占位 vs FCFS | -1046.54 | — | 1.009e-64 | rank-biserial=0.8781（大） | ⚠️ DQN 已删除（Random 占位）（8.8 重算，旧 5.681e-14 为过期值） |
 | FCFS vs SJF | +874.05 | — | 5.870e-61 | rank-biserial=-0.8515（大） | ✅ 显著（2026-08-08 重算，旧 0.2827 为错误值） |
 

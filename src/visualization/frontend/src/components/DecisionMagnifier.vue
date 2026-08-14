@@ -23,7 +23,7 @@ const maxValue = computed(() => {
 
 const actionLabel = computed(() => {
   if (!latest.value) return '-'
-  const map: Record<number, string> = { 0: '经典资源', 1: '量子资源', 2: '混合执行' }
+  const map: Record<number, string> = { 0: '经典资源', 1: '量子资源', 2: '混合执行', 3: 'QEM' }
   return map[latest.value.action] || latest.value.action_label || '-'
 })
 

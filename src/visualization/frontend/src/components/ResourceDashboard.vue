@@ -19,9 +19,12 @@ const fetchHistory = async () => {
   try {
     const res = await fetch('/api/resource-history')
     if (!res.ok) return
-    const data = (await res.json()) as ResourceHistoryPoint[]
-    if (Array.isArray(data)) {
-      history.value = data
+    const payload = (await res.json()) as Record<string, unknown>
+    // 8.13 round11 审查（P2-3）：后端返回 {"history": [...]}，前端此前用
+    // Array.isArray(data) 判断导致历史数据从不填充。兼容两种形态。
+    const list = (Array.isArray(payload) ? payload : payload.history) as ResourceHistoryPoint[]
+    if (Array.isArray(list)) {
+      history.value = list
     }
   } catch (err) {
     // 接口可能尚未实现，静默忽略

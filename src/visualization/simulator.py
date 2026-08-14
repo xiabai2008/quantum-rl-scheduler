@@ -261,7 +261,7 @@ async def simulate_scheduler() -> None:
 
         # 记录决策日志（Issue #22：决策过程回放）
         if action >= 0:
-            action_label_map = {0: "经典", 1: "量子", 2: "混合"}
+            action_label_map = {0: "经典", 1: "量子", 2: "混合", 3: "QEM"}
             log_entry = {
                 "step": status["current_step"],
                 "task_id": f"task_{status['current_step']}",

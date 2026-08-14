@@ -45,9 +45,13 @@ const fetchComparison = async () => {
   try {
     const res = await fetch('/api/machines-comparison')
     if (!res.ok) return
-    const data = (await res.json()) as MachineComparisonItem[]
-    if (Array.isArray(data)) {
-      comparisonData.value = data
+    const payload = (await res.json()) as Record<string, unknown>
+    // 8.13 round11 审查（P2-2）：后端返回 {"machines": [...]}，前端此前用
+    // Array.isArray(data) 判断导致数据永不消费（多机器对比视图恒为空）。
+    // 兼容两种形态：data.machines（后端契约）或裸数组（防御）。
+    const list = (Array.isArray(payload) ? payload : payload.machines) as MachineComparisonItem[]
+    if (Array.isArray(list)) {
+      comparisonData.value = list
     }
   } catch (err) {
     console.debug('machines-comparison 接口暂不可用:', err)
