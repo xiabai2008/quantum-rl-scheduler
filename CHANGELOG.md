@@ -2,6 +2,28 @@
 
 本文件记录项目的所有重要变更，按日期倒序排列。
 
+## [2026-08-14] - 冻结终检收口（阶段1+2）+ 编译层N=200规模化 + 真机v3权威全仓同步
+
+### 阶段1 冻结收口（commit 5a7fa2d，tag v9.1-submission 重指）
+- **补录脚本 3 处修复**：`patch_query_error_results.py` 平台查询 ID 改用 `real_task_id`（此前用内部 task_id 导致查询失败）、遍历 `real_records` 全部条目（此前只取 [0] 漏后续）、嵌套结构状态统计
+- 回归三连全绿（reproduce exit 0 / check_stats --strict exit 0 / pytest）+ `validate_submission.py --check` 0 错误 0 警告；dist zip 重打包
+
+### 阶段2 编译层深电路 N=200 规模化（commit ad13842）
+- **SWAP 减少 +52.1%**（Wilcoxon p=2.30e-10 高度显著，d_z=0.54，Bootstrap CI [+43.9%, +72.1%]；配对 t 检验 p=6.26e-13）——N=80 的 +38.5%（p=2.75e-02 边缘）规模化后显著增强并确认，效应量回归正常化
+- tier 稳健性：sabre≥3/5/10 → N=166/146/132，p=1.14e-16/2.34e-20/1.21e-21（改善 +60.3%/+64.8%/+67.5%）——PPO 编译优势随电路复杂度增大而增强
+- 诚实披露保留：全 60 电路 p=8.40e-01 不显著，浅/中电路无优势（不延伸至全电路池）
+- `statistics.yaml` 新增 `compilation_deep_scale_n200` 权威段 + AGENTS/README 同步
+
+### 阶段2 真机 v3 权威（N=20）全仓口径同步（commit b9248dd + 5c15e44）
+- 真机多seed权威升级 v3（8.14 扩样，N=20/组）：PPO=1632.26±326.49 vs FCFS=782.94±467.61，**d=2.11，p=1.22e-07**（Bonferroni 显著）；v2 的 d=5.33 为小样本高估已回归正常化；**v2 的 SJF vs FCFS 边缘支持（p=0.0316）在 N=20 下消失并反转（p=0.16），判定为小样本噪声，禁止引用**
+- `roi_analysis.py` 升级 v3 常数并合并 v2+扩样两数据文件验证（✅ 一致）；README + 13 份 docs 的 v2 残留清零；历史报告（boundary_statement/performance/closed_loop）加 v3 取代声明
+- `check_stats_consistency.py` 黑名单提示升级 v3（1632.26/782.94）+ 12 处测试断言同步；答辩 PPT 生成器 v3 化
+- 白皮书 §14.2 编译层升级 N=200 权威 + PDF 重生成（618KB）+ 答辩 PPT 第 11 页真机表 v3 化（1632.26/607.54/782.94，N=20）
+- `award_roadmap` 验证严谨性 75→78（N=20 达标 N≥18 功效线），综合 ~78→~79
+
+### 决策记录
+- **EXP1（真机高占比闭环）选 B 放弃实跑**（2026-08-14）：v3（N=20/组）已达标 N≥18 功效线，真机策略对比证据缺口已收窄；当日真机平台 ~30% 真实失败率且仅支持单比特 H 电路，实跑引入新口径不一致的风险高于收益。预注册方案与执行手册**保留为可恢复预案**（`docs/prereg_real_machine_high_ratio_20260814.md` / `docs/runbook_high_ratio_exp1_20260814.md`），恢复条件见预案文档。
+
 ## [2026-08-11] - 评委视角深度审计修复批次（第十轮外部审查）
 
 ### P0 修复
