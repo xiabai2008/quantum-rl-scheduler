@@ -127,13 +127,18 @@ EXCLUDE_PATHS = {
     "results/reports/real_machine_closed_loop.md",
     "results/reports/real_machine_validation.md",
     "results/reports/tradeoff_analysis.md",
+    # 8.14 第五轮审查 P3：预注册方案为内部流程文档（"禁止行为"表内 p=0.06/0.054/0.05
+    # 为规则示例值而非统计结果），纳入豁免（与 code_freeze 等内部流程文档同源）
+    "results/reports/real_machine_preregistration.md",
 }
 
 # 排除的文件名模式（内部协作文档，不提交到仓库，不需检查）
 EXCLUDE_PATTERNS = [
     "teammate_",  # docs/teammate_*.md
     "PR审查",  # PR审查临时报告
-    "_pr",  # PR审查临时报告前缀
+    # 8.14 第五轮审查 P3：原 "_pr" 子串误伤 annealing_precision_comparison.md /
+    # real_machine_preregistration.md（使其静默跳过门禁），已移除；PR 临时报告
+    # 由 pr_patrol_ 与 PR审查 覆盖。
     "pr_patrol_",  # docs/pr_patrol_*.md
     "project_dashboard_",  # docs/project_dashboard_*.html
     # 8.7-v3 红队审查：对抗审查报告为内部审计文档（会原文引用已废弃旧口径作
@@ -911,6 +916,9 @@ _KNOWN_LEGIT_P_VALUES: tuple[float, ...] = (
     6.26e-13,  # 编译深电路 N=200 配对 t 检验（results/compilation/deep_scale_summary.json ttest_p_value，8.14 规模化权威）
     8.52e-03,  # 编译深电路 seed=7 交叉验证（technical_whitepaper §11.2）
     2.621e-10,  # DQN vs SJF（8.13 重算前旧值；重算后 p=0.1184，见下条）
+    1.449e-66,  # 8.5 前弱基线（Hybrid-Default）废弃 p 值（8.14 第五轮审查：登记避免
+    # "p 值为 1.449e-66" 等历史替换表述在 CHANGELOG 等文档中被误报孤儿；BLACKLIST 仍
+    # 拦截其作为权威呈现）
     0.1184,  # DQN vs SJF / Random vs SJF（8.13 8 策略重算后新值，statistical_validation.md；旧 2.621e-10 随 SJF/DQN 均值变化失效）
     8.44e-08,  # PPO 编译优化 Agent
     # 8.11 新增：跨机器噪声异质性（真机 vs 仿真机）与噪声训练稳定性
