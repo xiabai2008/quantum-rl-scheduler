@@ -665,6 +665,10 @@ def main() -> None:
         submitted_count = 1  # 冒烟已用 1 次配额
     else:
         logger.info("⚠️ --skip-smoke：跳过自动冒烟（冒烟已另行验证），直接开始正式实验")
+        # 2026-08-14 修复：skip-smoke 分支必须初始化 smoke_result，
+        # 供保存 JSON 时写入 smoke_passed 字段（此前 UnboundLocalError 导致
+        # 30 个任务数据随进程崩溃丢失——json.dump 的 dict 构造在 open("w") 截断之后）。
+        smoke_result = {"passed": None, "skipped": True}
         all_results = []
         total_start = time.time()
         submitted_count = 0

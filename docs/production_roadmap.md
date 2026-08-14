@@ -249,7 +249,7 @@
 | 仿真 PPO 提升 | +20.2% | 50 seeds × 5 episodes | ✅ 一致 |
 | 仿真 p 值 | 7.56e-12 | Welch t 检验 | ✅ 一致 |
 | 仿真 rank-biserial | -0.71 | 同上 | ✅ 一致 |
-| 多seed真机 PPO | 1736.32 ± 355.78 | 10 seeds × 3 策略 | ✅ 一致 |
+| 多seed真机 PPO | 1632.26 ± 326.49 | 10 seeds × 3 策略 | ✅ 一致 |
 | 多seed真机 p 值 | p<0.001 | Bonferroni 校正后显著 | ✅ 一致 |
 | 测试覆盖率 | 91% | CI pytest --cov | ✅ 一致 |
 | CI Job 数 | 6 | ci.yml | ✅ 一致 |

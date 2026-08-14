@@ -232,8 +232,13 @@ def submit_and_poll(client: CqlibTianyanClient, qcis: str, task_name: str) -> di
     record["task_id"] = str(task_id)
     record["submitted_at"] = datetime.now().isoformat()
     try:
+        # 2026-08-14 修复：CqlibTianyanClient.wait_for_task 签名是
+        # (task_id, timeout=300, poll_interval=5)，此前误用 max_wait_time/sleep_time
+        # 抛 TypeError（task_id 已保留，可补录）。平台时序：任务完成前查询返回
+        # query_error，wait_for_task 连续 3 次即终止（Issue #407）——初判失败时
+        # 用 patch_query_error_results.py 按 task_id 复查补录。
         result = client.wait_for_task(
-            task_id, max_wait_time=TASK_TIMEOUT_SECONDS, sleep_time=TASK_POLL_INTERVAL
+            task_id, timeout=TASK_TIMEOUT_SECONDS, poll_interval=TASK_POLL_INTERVAL
         )
         record["status"] = result.status
         if result.status == "completed":

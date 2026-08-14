@@ -116,6 +116,7 @@ def generate_qcis_circuit(
     seed: int | None = None,
     two_qubit_gates: bool = False,
     circuit_type: str = "random",
+    qubit_offset: int = 0,
 ) -> str:
     """根据任务参数生成适合真机执行的 QCIS 电路。
 
@@ -129,12 +130,17 @@ def generate_qcis_circuit(
     注意：天衍-176 真机上两比特门（CNOT/CZ）不稳定，Bell 态有失败率。
     默认 two_qubit_gates=False 仅生成单比特门电路，确保高成功率。
 
+    8.14 真机适配（qubit_offset）：天衍-287 物理比特为 Q1～Q105（无 Q0），
+    env 自动提交路径传 qubit_offset=1（Q1 起）；默认 0 保持向后兼容
+    （既有测试断言 Q0 起编号）。
+
     Args:
         task            : 任务对象（含 qubit_count, priority, task_id 等）
         max_qubits      : 真机最大比特数限制（默认 287）
         seed            : 可选的随机种子（用于可复现测试）
         two_qubit_gates : 是否包含两比特纠缠门（默认 False，真机稳定模式）
         circuit_type    : 电路模板（random / bell / ghz3，默认 random）
+        qubit_offset    : 物理比特起始编号偏移（默认 0；天衍-287 传 1）
 
     Returns:
         QCIS 格式的电路字符串，每行一条指令
@@ -149,6 +155,8 @@ def generate_qcis_circuit(
         raise ValueError("max_qubits must be positive")
     if circuit_type not in {"random", "bell", "ghz3"}:
         raise ValueError("circuit_type must be one of: random, bell, ghz3")
+    if qubit_offset < 0:
+        raise ValueError("qubit_offset must be non-negative")
 
     template_qubits = {"bell": 2, "ghz3": 3}
     if circuit_type in template_qubits:
@@ -159,8 +167,15 @@ def generate_qcis_circuit(
                 f"but max_qubits={max_qubits}"
             )
         if circuit_type == "bell":
-            return "H Q0\nCNOT Q0 Q1\nM Q0 Q1"
-        return "H Q0\nCNOT Q0 Q1\nCNOT Q1 Q2\nM Q0 Q1 Q2"
+            return (
+                f"H Q{0 + qubit_offset}\nCNOT Q{0 + qubit_offset} Q{1 + qubit_offset}\n"
+                f"M Q{0 + qubit_offset} Q{1 + qubit_offset}"
+            )
+        return (
+            f"H Q{0 + qubit_offset}\nCNOT Q{0 + qubit_offset} Q{1 + qubit_offset}\n"
+            f"CNOT Q{1 + qubit_offset} Q{2 + qubit_offset}\n"
+            f"M Q{0 + qubit_offset} Q{1 + qubit_offset} Q{2 + qubit_offset}"
+        )
 
     rng = random.Random(seed if seed is not None else _stable_task_id_hash(task.task_id))
 
@@ -178,24 +193,24 @@ def generate_qcis_circuit(
         if gate in ("RX", "RY", "RZ"):
             # 参数化旋转门：随机角度
             angle = round(rng.uniform(0, 2 * math.pi), 4)
-            lines.append(f"{gate} Q{q},{angle}")
+            lines.append(f"{gate} Q{q + qubit_offset},{angle}")
         else:
-            lines.append(f"{gate} Q{q}")
+            lines.append(f"{gate} Q{q + qubit_offset}")
 
     # ── 第 2 层（可重复）：纠缠层（仅当 two_qubit_gates=True）──
     if two_qubit_gates:
         for _ in range(depth_factor):
             for q in range(0, n_qubits - 1, 2):
                 gate = rng.choice(_TWO_QUBIT_GATES)
-                lines.append(f"{gate} Q{q} Q{q + 1}")
+                lines.append(f"{gate} Q{q + qubit_offset} Q{q + 1 + qubit_offset}")
             # 交错对：覆盖奇数起始的比特对
             for q in range(1, n_qubits - 1, 2):
                 gate = rng.choice(_TWO_QUBIT_GATES)
-                lines.append(f"{gate} Q{q} Q{q + 1}")
+                lines.append(f"{gate} Q{q + qubit_offset} Q{q + 1 + qubit_offset}")
 
     # ── 第 3 层：测量 ──
     for q in range(n_qubits):
-        lines.append(f"M Q{q}")
+        lines.append(f"M Q{q + qubit_offset}")
 
     return "\n".join(lines)
 
@@ -732,6 +747,9 @@ def submit_to_real_machine(
                 machine.total_qubits,
                 getattr(env, "real_machine_max_qubits", FREE_TIER_MAX_QUBITS),
             ),
+            # 8.14 真机适配：天衍-287 物理比特 Q1～Q105（无 Q0），
+            # env 自动提交电路必须 Q1 起，否则平台秒拒（"运行失败"）
+            qubit_offset=1,
         )
 
     try:

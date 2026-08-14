@@ -74,8 +74,6 @@
 | 32 | [award_roadmap.md](./award_roadmap.md) | - | 冲奖路线图 | ✅ |
 | 33 | [production_roadmap.md](./production_roadmap.md) | - | 生产落地路线图 | ✅ |
 | **历史记录** ||||
-| 34 | [issue_patrol_2026-07-22.md](./issue_patrol_2026-07-22.md) | - | 7月22日Issue巡检（历史快照） | 📦 历史 |
-| 35 | [autonomous_findings_20260725.md](./autonomous_findings_20260725.md) | - | 7月25日自主巡查发现（历史快照） | 📦 历史 |
 | **ADR（架构决策记录）** ||||
 | 36 | [adr/ADR-001-use-ppo-as-primary-rl-algorithm.md](./adr/ADR-001-use-ppo-as-primary-rl-algorithm.md) | - | PPO选型决策 | ✅ |
 | 37 | [adr/ADR-002-14-dimensional-observation-space.md](./adr/ADR-002-14-dimensional-observation-space.md) | - | 16维观测空间决策 | ✅ |

@@ -434,7 +434,7 @@ python scripts/ci/validate_submission.py --pack
 | [**技术白皮书PDF**](docs/technical_whitepaper.pdf) | **评审交付物**（16章完整内容，627KB） |
 | [技术白皮书源文件](docs/technical_whitepaper.md) | Markdown源文件（修改后需重新生成PDF） |
 | [多场景压力测试报告](results/reports/multiscenario_benchmark.md) | 5场景×6策略压力测试+场景-算法决策树 |
-| [Demo演示脚本](docs/demo_script.md) | 3分钟演示脚本+旁白 |
+| [Demo演示脚本](docs/demo_video_final_script.md) | 3分钟演示脚本+旁白 |
 
 ### 开发与文档
 

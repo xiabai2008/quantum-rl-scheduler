@@ -245,7 +245,11 @@ class TestRealSubmissionBudget:
             QuantumSchedulingEnv(real_machine_max_qubits=0)
 
     def test_submission_uses_configured_real_machine_qubit_limit(self):
-        """动态生成的提交电路应遵守显式真机比特上限。"""
+        """动态生成的提交电路应遵守显式真机比特上限。
+
+        8.14 适配：env 自动提交电路 Q1 起（天衍-287 无 Q0），
+        max_qubits=2 → 参与比特 Q1/Q2，上限断言为 Q3 不存在。
+        """
         env, client, machine, _task = self._make_env()
         env.real_machine_max_qubits = 2
         task = Task(task_id="configured", task_type="quantum", qubit_count=5)
@@ -253,7 +257,7 @@ class TestRealSubmissionBudget:
         submit_to_real_machine(env, machine, task)
 
         assert len(client.calls) == 1
-        assert "Q2" not in client.calls[0]["qcis"]
+        assert "Q3" not in client.calls[0]["qcis"]
 
     def test_hard_limit_survives_reset_and_uses_configured_shots(self):
         env, client, machine, task = self._make_env()

@@ -167,7 +167,8 @@ def get_observation(env: "QuantumSchedulingEnv") -> NDArray[Any]:
 
     # 8.13 round9 审查 P3：np.clip 不处理 NaN/Inf，个别损坏状态（如噪声注入异常）
     # 会把 NaN 传播进观测链，污染 RL 决策。出口统一清洗。
-    return np.nan_to_num(obs, nan=0.0, posinf=1.0, neginf=0.0)
+    cleaned = np.nan_to_num(obs, nan=0.0, posinf=1.0, neginf=0.0)
+    return np.asarray(cleaned, dtype=obs.dtype)
 
 
 def get_info(env: "QuantumSchedulingEnv") -> dict[str, Any]:

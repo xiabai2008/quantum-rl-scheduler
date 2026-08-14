@@ -135,8 +135,13 @@ def run_smoke(client: CqlibTianyanClient, machine_name: str) -> dict[str, Any]:
         )
         if task_id is None:
             return {"passed": False, "error": "submit 返回 None（机器不可用）"}
+        # 2026-08-14 修复：CqlibTianyanClient.wait_for_task 签名是
+        # (task_id, timeout=300, poll_interval=5)，此前误用 max_wait_time/sleep_time
+        # 导致 TypeError（任务已提交但等待失败）。另外平台时序：任务完成前查询返回
+        # query_error，wait_for_task 连续 3 次即终止（Issue #407）——冒烟若因时序
+        # 失败，用 patch_query_error_results.py 按 task_id 复查补录判定。
         result = client.wait_for_task(
-            task_id, max_wait_time=TASK_TIMEOUT_SECONDS, sleep_time=TASK_POLL_INTERVAL
+            task_id, timeout=TASK_TIMEOUT_SECONDS, poll_interval=TASK_POLL_INTERVAL
         )
         ok = result.status == "completed" and bool(result.probability)
         return {

@@ -417,6 +417,88 @@ real_machine_10seed_v2:
     ci_95: [41.89, 342.77]  # 8.11 复核修正（此前 [-38.82, 423.48] 系 5seed 值误入；正确 CI 不含 0）
     n: 10
     significant: false  # 未校正 p=0.032 显著；Bonferroni α=0.0167 下边缘不显著 → 方向性支持
+    # 8.14 v3 扩样注：N=20 下本结论失效（p=0.16 不显著且方向反转），见 real_machine_20seed_v3
+
+# =============================================================================
+# 实验2c: 多seed真机对比 v3 (N=20 per group, 8.14 扩样权威版)
+# 数据源: results/reports/multiseed_real_machine_report_20seeds_v3.md
+# 替代 real_machine_10seed_v2（N=10 效应量 d=5.33 为小样本高估；N=20 下 d=2.11
+# 回归正常化，SJF vs FCFS 边缘支持消失——v2 该结论判定为小样本噪声）
+# =============================================================================
+real_machine_20seed_v3:
+  experiment_name: "天衍-287多seed真机实验 v3（N=20 扩样权威版）"
+  applicable_condition: >
+    天衍-287（287 总比特：105 数据 + 182 耦合），v2 权威 10 seeds + 8/14 扩样 10 seeds
+    合并 = N=20/策略（PPO/SJF/FCFS），每 seed 1 episode，96 步/episode。
+    真机任务 100% 完成（60/60），shots=32，电路 H Q1/M Q1，unified_protocol=true。
+    8/14 平台时序适配：任务完成前查询返回 query_error，已用
+    patch_query_error_results.py 复查补录（29/29 补录 completed，task_id 100% 留档）。
+    真机 reward 占总 reward 比例仍低（1 真机步/96 步），策略间差异仍主要由仿真动力学
+    驱动（与 v2 相同边界，诚实披露）。
+  alpha: 0.05
+  bonferroni_alpha: 0.0167
+  num_comparisons: 3
+  data_source: "results/reports/multiseed_real_machine_report_20seeds_v3.md"
+  supersedes: "real_machine_10seed_v2（N=10；v2 的 PPO vs FCFS d=5.33 为小样本高估，N=20 下 d=2.11；v2 的 SJF vs FCFS 边缘支持（p=0.0316）在 N=20 下消失并反转（p=0.16），判定为小样本噪声）"
+
+  strategy_summary:
+    PPO:
+      mean_reward: 1632.26
+      std_reward: 326.49
+      n: 20
+    SJF:
+      mean_reward: 607.54
+      std_reward: 279.50
+      n: 20
+    FCFS:
+      mean_reward: 782.94
+      std_reward: 467.61
+      n: 20
+
+  ppo_vs_fcfs:
+    test_method: "Welch t"
+    statistic: 6.66
+    p_value: 1.22e-07
+    effect_size_type: "Cohen's d"
+    effect_size: 2.11
+    mean_diff: 849.32
+    ci_95: [590.15, 1108.49]
+    improvement_pct: 108.5
+    n: 20
+    significant: true
+    note: >
+      N=20 扩样权威（8/14）：d=2.11 较 v2（d=5.33）回归正常化，p=1.22e-07 仍极显著——
+      v2 结论方向稳健（非幸存者偏差），效应量小样本高估已修正。对外引用以本段为准。
+  ppo_vs_sjf:
+    test_method: "Welch t"
+    statistic: 10.6628
+    p_value: 7.45e-13
+    effect_size_type: "Cohen's d"
+    effect_size: 3.37
+    mean_diff: 1024.72
+    ci_95: [830.02, 1219.42]
+    n: 20
+    significant: true
+    note: "d=3.37 仍异常大（预注册检查项），报告附效应量异常分析（真机 reward 占比 1/96 机制）"
+  sjf_vs_fcfs:
+    test_method: "Welch t"
+    statistic: -1.4399
+    p_value: 0.16
+    effect_size_type: "Cohen's d"
+    effect_size: -0.46
+    mean_diff: -175.40
+    ci_95: [-423.83, 73.03]
+    n: 20
+    significant: false
+    note: >
+      N=20 下 v2 的 SJF vs FCFS 边缘支持消失且方向反转（-175.4，p=0.16 不显著）——
+      判定 v2 该结论为小样本噪声；对外口径：SJF 不优于 FCFS（以 v3 为准）。
+  paired_sensitivity:
+    test_method: "配对 t（同 seed PPO vs FCFS）"
+    statistic: 5.8842
+    p_value: 1.149e-05
+    n: 20
+    significant: true
 
 # =============================================================================
 # 实验3: 退火消融实验 (20seeds, 权威)

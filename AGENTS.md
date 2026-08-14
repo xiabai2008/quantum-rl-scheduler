@@ -1,4 +1,4 @@
-﻿# AGENTS.md — 量子RL调度系统项目通用记忆
+# AGENTS.md — 量子RL调度系统项目通用记忆
 
 > 此文件供所有 AI Agent（CodeBuddy / TRAE / Claude / Cursor 等）读取，以快速理解项目全貌。
 > 每次重要变更后请更新本文档的"最后更新"日期和对应章节。
@@ -294,7 +294,7 @@ quantum-rl-scheduler/
 | 五维消融        | D1算法+20.2% > D4多机+86.3% > D5退火-5.6%（20seed权威，p=0.9430不显著，旧+6.4%已废弃） > D2状态+2.1%                                             |
 | 压力测试        | 4场景PPO综合稳定性最强；量子波动场景PPO +91.4%（历史探索数据，诚实化前旧 FCFS 基线，权威 stress 数据待重跑核定）                                                              |
 | 真机验证        | **可用性验证**：315次SDK调用100%成功，全链路验证通过                                                           |
-| **多seed真机** | **小样本策略对比**（N=10/组，v2权威，8.11 复核修正）：PPO vs FCFS d=5.33, p=5.84e-07, Bonferroni显著；PPO vs SJF d=3.84；SJF vs FCFS p=0.0316（Bonferroni 下边缘）（小样本探索性结果，效应量异常大，待更多seeds验证） |
+| **多seed真机** | **N=20/组 v3 权威（8.14 扩样）**：PPO vs FCFS d=2.11, p=1.22e-07（Bonferroni 显著；效应量较 v2 的 5.33 回归正常化）；PPO vs SJF d=3.37；**SJF vs FCFS p=0.16 不显著（v2 的 0.0316 边缘支持为小样本噪声，禁止引用）**。真机 reward 占比仍低（1/96 步），差异主要由仿真动力学驱动 |
 
 > **⚠️ 真机验证结论边界（Issue #128）**
 >
@@ -306,15 +306,42 @@ quantum-rl-scheduler/
 >
 > 详见 `docs/real_machine_verification_boundary.md`
 
-### 多seed真机实验 v2（2026-07-27 权威版，N=10 per group，supersedes N=5）
+### 多seed真机实验 v2（2026-07-27，N=10 per group，supersedes N=5；**已被 v3 取代**）
 
-> ⚠️ **真机版本选择规则（团队通用）**：对外答辩/报告/PPT 一律使用本节 N=10 v2 权威数值；旧版 N=5 表格仅用于解释数据迭代历史，严禁作为性能基准引用。
+> ⚠️ **真机版本选择规则（团队通用）**：对外答辩/报告/PPT 一律使用 **N=20 v3 权威数值**
+> （8.14 扩样，`results/reports/multiseed_real_machine_report_20seeds_v3.md` /
+> `statistics.yaml real_machine_20seed_v3`：PPO vs FCFS d=2.11、p=1.22e-07，效应量较
+> v2（d=5.33）回归正常化；**v2 的 SJF vs FCFS 边缘支持（p=0.0316）在 N=20 下消失并反转
+> （p=0.16），判定为小样本噪声，禁止引用**）；下表 N=10 v2 表格仅用于解释数据迭代历史，
+> 严禁作为性能基准引用；旧版 N=5 表格同理。
 
-> **实验配置**：10 seeds × 3策略 \[PPO,FCFS,SJF] × 1真机任务/run = 30次运行
-> **真机平台**：天衍-287（实际回退至 tianyan176），96步/episode，泊松到达λ=0.5
-> **统计方法**：Cohen's d + 95% CI（效应量决策范式），Bonferroni校正
-> **⚠️ 边界说明**：真机任务成功完成（30/30, mock=false），但真机 reward 占总 reward 比例极低（1/96步），策略间差异主要由仿真 reward 驱动
-> **⚠️ 数据源（8.13 round9 审查标注）**：本表权威数据源为 `results/real_machine/tianyan287_multiseed/multiseed_data_20260727_005558.json`（unified_protocol=true, tianyan-287, 30/30 完成）；`multiseed_data_10seeds_merged.json` / `multiseed_analysis_10seeds.json` 含 `invalid_for_formal_comparison=true`（混合机器+混合shots+real_tasks_completed=0），**不得作为权威引用**，仅保留审计轨迹。
+### 多seed真机实验 v3（2026-08-14 权威版，N=20 per group，supersedes v2）
+
+> **实验配置**：20 seeds（v2 的 10 + 8/14 扩样 10）× 3策略 \[PPO,FCFS,SJF] × 1真机任务/run = 60次运行
+> **真机平台**：天衍-287（unified_protocol=true，shots=32，H Q1/M Q1），96步/episode，泊松到达λ=0.5
+> **统计方法**：Welch t + 95% CI + Bonferroni（3 比较 α=0.0167）+ Cohen's d
+> **⚠️ 边界说明**：真机任务 60/60 完成（task_id 100% 留档），但真机 reward 占总 reward 比例极低（1/96步），策略间差异主要由仿真 reward 驱动
+> **数据源**：`results/real_machine/tianyan287_multiseed/multiseed_data_20260727_005558.json`（v2 的 10 seeds）+ `multiseed_data_20260814_103336_patched.json`（扩样 10 seeds）；详见 `results/reports/multiseed_real_machine_report_20seeds_v3.md`
+
+|    策略   |  N  |        均值       |     标准差    |     min     |     max     |
+| :-----: | :-: | :-------------: | :--------: | :---------: | :---------: |
+| **PPO** |  20 | **1632.26** | 326.49 | 1074.21 | 2293.18 |
+|   SJF   |  20 |    607.54   | 279.50 |  53.91  |  1232.78 |
+|   FCFS  |  20 |    782.94   | 467.61 |  288.77 |  1694.73 |
+
+|      比较     | Cohen's d | 效应等级 |         95% CI         |    p值    | Bonferroni |   判定   |
+| :---------: | :-------: | :--: | :--------------------: | :------: | :--------: | :----: |
+| PPO vs FCFS |    2.11   |  大效应 | [590.15, 1108.49] | p<0.001（精确 1.22e-07） |     显著     | **支持** |
+|  PPO vs SJF |    3.37   |  大效应 | [830.02, 1219.42]  | 7.45e-13 |     显著     | **支持** |
+| SJF vs FCFS |   -0.46   |  小效应 |  [-423.83, 73.03]  |   0.16   |     不显著    |   不支持  |
+
+> 8.14 v3 注：效应量较 v2（d=5.33）回归正常化（N=20 消除小样本高估）；v2 的 SJF vs FCFS
+> 边缘支持（p=0.0316）在 N=20 下消失并反转（p=0.16），判定为小样本噪声；v2 核心方向
+> 结论（PPO 显著优于 FCFS/SJF）稳健。
+
+### 多seed真机实验 v2（2026-07-27 历史版，N=10 per group，已被 v3 取代）
+
+> ⚠️ 下表为 **N=10 v2 历史迭代数据**，仅用于解释数据迭代历史，**严禁作为性能基准引用**；对外一律使用上方 v3 权威数值。
 
 |    策略   |  N  |        均值       |     标准差    |     min     |     max     |
 | :-----: | :-: | :-------------: | :--------: | :---------: | :---------: |
@@ -328,14 +355,14 @@ quantum-rl-scheduler/
 |  PPO vs SJF |    3.84   |  大效应 | [895.79, 1426.19]  | p<0.001 |     显著     | **支持** |
 | SJF vs FCFS |    1.12   |  大效应 |  [41.89, 342.77]  |   0.0316  |     边缘     |   方向性支持  |
 
-> 8.11 复核修正注：旧表 CI [1097.83,1608.82] / d=4.04 / p=0.080 系 ddof 混用与 5seed 旧值误抄，已按报告 v2 修正（`results/reports/multiseed_real_machine_report_10seeds_v2.md` §6.1-6.3）。
+> 8.11 复核修正注：旧表 CI [1097.83,1608.82] / d=4.04 / p=0.080 系 ddof 混用与 5seed 旧值误抄，已按报告 v2 修正（`results/reports/multiseed_real_machine_report_10seeds_v2.md` §6.1-6.3）。v3 扩样后本表仅作历史追溯。
 
 | 版本 | 样本量 | PPO均值 / FCFS均值 | Cohen's d | 对外使用 |
 | :--- | :----: | :-----------------: | :-------: | :------: |
-| N=5 旧版 | 5/组 | 1665.22 / 353.22 | 5.33 | ❌ 仅用于历史追溯 |
-| **N=10 v2 权威** | **10/组** | **1736.32 / 383.00** | **5.33** | ✅ 答辩/报告唯一标准 |
+| N=5 旧版 | 5/组 | 1665.22 / 353.22 | 5.64 | ❌ 仅用于历史追溯 |
+| **N=20 v3 权威** | **20/组** | **1632.26 / 782.94** | **2.11** | ✅ 答辩/报告唯一标准 |
 
-详见 `results/reports/multiseed_real_machine_report.md`。
+详见 `results/reports/multiseed_real_machine_report_20seeds_v3.md`。
 
 详见 `results/reports/` 目录（共18份报告，含统计显著性检验报告、多seed真机实验报告、公平调度报告、D3奖励消融报告、高负载公平调度报告）。
 

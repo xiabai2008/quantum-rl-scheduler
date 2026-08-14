@@ -104,8 +104,10 @@ def patch_record(record: dict[str, Any], review: dict[str, Any]) -> bool:
     if record.get("submitted_at"):
         with __import__("contextlib").suppress(ValueError, TypeError):
             record["elapsed_seconds"] = round(
-                (datetime.fromisoformat(record["completed_at"])
-                 - datetime.fromisoformat(str(record["submitted_at"]))).total_seconds(),
+                (
+                    datetime.fromisoformat(record["completed_at"])
+                    - datetime.fromisoformat(str(record["submitted_at"]))
+                ).total_seconds(),
                 2,
             )
     return True
@@ -113,7 +115,9 @@ def patch_record(record: dict[str, Any], review: dict[str, Any]) -> bool:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="真机 query_error 记录复查补录（实验③配套）")
-    parser.add_argument("json_path", type=Path, help="实验 JSON（multiseed_data_<ts>.json 或 smoke JSON）")
+    parser.add_argument(
+        "json_path", type=Path, help="实验 JSON（multiseed_data_<ts>.json 或 smoke JSON）"
+    )
     args = parser.parse_args()
 
     if not args.json_path.exists():
@@ -122,13 +126,28 @@ def main() -> int:
     data = json.loads(args.json_path.read_text(encoding="utf-8"))
 
     # 收集待复查记录（smoke 单条结构 or multiseed results 列表）
-    records: list[dict[str, Any]] = []
+    # multiseed 格式：task_id/status 在 real_records[0]（嵌套），顶层只有 metrics
+    # 8.14 修复：平台查询 ID 是 real_task_id（2088...），task_id 是内部符号（T0001）
+    records: list[tuple[dict[str, Any], dict[str, Any], str]] = []  # (宿主, 待补录, 查询ID)
     if "results" in data:
-        records = [r for r in data["results"] if r.get("task_id") and r.get("status") != "completed"]
+        for r in data["results"]:
+            if r.get("task_id"):
+                qid = str(r.get("real_task_id") or r.get("task_id"))
+                records.append((r, r, qid))
+            else:
+                rr = r.get("real_records") or []
+                if rr and rr[0].get("task_id") and rr[0].get("status") != "completed":
+                    qid = str(rr[0].get("real_task_id") or rr[0].get("task_id"))
+                    records.append((r, rr[0], qid))
     elif data.get("task_id"):
-        records = [data]
+        qid = str(data.get("real_task_id") or data.get("task_id"))
+        records.append((data, data, qid))
+    elif isinstance(data.get("result"), dict) and data["result"].get("task_id"):
+        # prereg_high_ratio smoke 嵌套结构: {experiment, result:{task_id, status,...}}
+        qid = str(data["result"].get("real_task_id") or data["result"].get("task_id"))
+        records.append((data, data["result"], qid))
 
-    pending = [r for r in records if r.get("task_id")]
+    pending = [pair for pair in records if pair[2]]
     if not pending:
         print("✅ 无待复查记录（全部 completed 或无 task_id）")
         return 0
@@ -137,40 +156,56 @@ def main() -> int:
     if not api_key:
         print("❌ 未设置 TIANYAN_API_KEY")
         return 1
-    client = CqlibTianyanClient(login_key=api_key, machine_name=TARGET_MACHINE,
-                                auto_retry_machine=False)
+    client = CqlibTianyanClient(
+        login_key=api_key, machine_name=TARGET_MACHINE, auto_retry_machine=False
+    )
     if getattr(client, "machine_name", TARGET_MACHINE) != TARGET_MACHINE:
         print("❌ 客户端机器不一致（禁止回退）")
         return 1
 
     print(f"待复查: {len(pending)} 条（query_error/失败记录）")
     patched = 0
-    for i, rec in enumerate(pending):
-        task_id = str(rec["task_id"])
-        review = review_task(client, task_id)
+    for i, (host, rec, qid) in enumerate(pending):
+        review = review_task(client, qid)
         if patch_record(rec, review):
             patched += 1
-            print(f"  [{i+1}/{len(pending)}] task {task_id}: 补录 completed "
-                  f"(prob={review['probability']})")
+            # multiseed 宿主记录同步：metrics.real_tasks_completed 与 avg_measurement_balance_score
+            if "metrics" in host and host.get("real_records"):
+                host["metrics"]["real_tasks_completed"] = 1
+                score = rec.get("measurement_balance_score")
+                if score is not None:
+                    host["metrics"]["avg_measurement_balance_score"] = score
+            print(
+                f"  [{i + 1}/{len(pending)}] task {qid}: 补录 completed "
+                f"(prob={review['probability']})"
+            )
         else:
-            print(f"  [{i+1}/{len(pending)}] task {task_id}: 仍为 {review['status']}"
-                  f"（{str(review.get('error'))[:60]}）")
+            print(
+                f"  [{i + 1}/{len(pending)}] task {qid}: 仍为 {review['status']}"
+                f"（{str(review.get('error'))[:60]}）"
+            )
 
     # 保存修正副本
     out_path = args.json_path.with_name(args.json_path.stem + "_patched.json")
-    out_path.write_text(json.dumps(data, ensure_ascii=False, indent=2, default=str),
-                        encoding="utf-8")
+    out_path.write_text(
+        json.dumps(data, ensure_ascii=False, indent=2, default=str), encoding="utf-8"
+    )
     print(f"\n补录完成: {patched}/{len(pending)} | 修正副本: {out_path}")
 
     # 汇总（对齐 analyze_multiseed_v3 审计口径）
     if "results" in data:
         all_recs = [r for r in data["results"] if not r.get("smoke_test")]
-        completed = sum(1 for r in all_recs if r.get("metrics", {}).get("real_tasks_completed", 0))
+        # 8.12 round12 审查：completed 变量此前仅计数未消费（ruff F841），改为并入状态统计
         # 冒烟/单条结构下 metrics 不存在，直接按 status 统计
         status_counts: dict[str, int] = {}
         for r in data["results"]:
             s = r.get("status") or r.get("metrics", {}).get("real_tasks_completed", 0) or "unknown"
             status_counts[str(s)] = status_counts.get(str(s), 0) + 1
+        _completed_audit = sum(
+            1 for r in all_recs if r.get("metrics", {}).get("real_tasks_completed", 0)
+        )
+        if _completed_audit > 0:
+            status_counts["real_completed"] = _completed_audit
         print("记录状态分布:", status_counts)
     return 0
 

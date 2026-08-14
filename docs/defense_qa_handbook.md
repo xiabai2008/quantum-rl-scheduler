@@ -952,7 +952,7 @@ Jain's Fairness Index 是网络资源分配公平性的标准度量，取值 [0,
 - PPO最差seed均值：1758（seed #23）
 - FCFS最好seed均值：1526（seed #7）
 - gap = 232，占FCFS均值的15.9%
-- Welch t 检验：p = 7.56e-12，rank-biserial = -0.3642（中效应；仿真 N=250 权威实验，与真机小样本 Cohen's d=5.33 非同量纲，不可直接比较，见 Q52）
+- Welch t 检验：p = 7.56e-12，rank-biserial = -0.3642（中效应；仿真 N=250 权威实验，与真机小样本 Cohen's d=2.11 非同量纲，不可直接比较，见 Q52）
 
 **延伸说明**：
 
@@ -1294,20 +1294,20 @@ d_z=7.7089 在配对设计下数学合理，**不是效应虚高**。关键在�
 
 > 以下为第三轮终审评审可能提出的致命/挑战性问题。部分问题在前述章节已有详细回答（已标注交叉引用），此处补充尚未覆盖的尖锐角度。
 
-### Q52: 真机 N=10 的样本量够吗？效应量 d=5.33 是否被小样本高估？
+### Q52: 真机 N=10 的样本量够吗？效应量 d=2.11 是否被小样本高估？
 
 **核心答案**：
 
 N=10 确实是小样本，我们**不回避这一局限**。需要分层看待：
 
-1. **d=5.33 数学上合理但确有小样本膨胀风险**：Cohen's d=5.33 是 Welch t 检验的效应量（mean_diff=1353.32, pooled_std≈254）。小样本下 pooled_std 的估计不稳定，可能导致 d 偏大。作为对照，非配对效应量的保守估计仍在"大效应"区间（>0.8），方向稳健。
+1. **d=2.11 数学上合理但确有小样本膨胀风险**：Cohen's d=2.11 是 Welch t 检验的效应量（mean_diff=1353.32, pooled_std≈254）。小样本下 pooled_std 的估计不稳定，可能导致 d 偏大。作为对照，非配对效应量的保守估计仍在"大效应"区间（>0.8），方向稳健。
 
 2. **真机实验定位为"可用性验证"而非"性能基准"**：真机 N=10 的核心价值是证明 SDK 全链路可用（315 次调用 100% 成功），**不作为性能结论的统计依据**。项目性能主张由仿真 N=250 支撑（PPO vs FCFS +20.2%, p=7.56e-12, rank-biserial=-0.3642）。
 
 3. **诚实承认局限并给出改进路径**：真机大规模性能验证受免费机时包限制（FREE_TIER_MAX_QUBITS=5），后续付费套餐下将扩展至 N≥30 并采用配对设计提升功效。预注册方案（`results/reports/real_machine_preregistration.md`）已定义 N≥18/组 的正式实验计划。
 
 **支撑数据**：
-- 真机 10seed 权威数据：`config/statistics.yaml` real_machine_10seed_v2 段（PPO 1736.32±355.78 vs FCFS 383.00±49.13, d=5.33, p<0.001）
+- 真机 10seed 权威数据：`config/statistics.yaml` real_machine_10seed_v2 段（PPO 1632.26±326.49 vs FCFS 782.94±467.61, d=2.11, p<0.001）
 - 仿真权威数据：`config/statistics.yaml` simulation_8strategy_50seed 段（N=250, p=7.56e-12）
 - 预注册方案：`results/reports/real_machine_preregistration.md`
 

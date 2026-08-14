@@ -116,6 +116,9 @@ EXCLUDE_FILE_FRAGMENTS: tuple[str, ...] = (
     "statistical_validation",
 )
 EXCLUDE_DOC_FRAGMENTS: tuple[str, ...] = (
+    # 审查报告（round*/红队等内部审计文档，原文引用旧口径属正常诚实披露，
+    # 与 check_stats_consistency EXCLUDE_PATTERNS 口径一致）
+    "审查报告",
     # 历史实验报告（已加废弃横幅冻结，禁止直接引用；与 check_stats_consistency 一致）
     "ablation_report.md",
     "multi_machine_comparison_report.md",
