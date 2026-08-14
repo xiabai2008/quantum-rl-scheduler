@@ -35,7 +35,7 @@
 | 真机调用成功率 | **100%** | 315次调用全部成功（认证/提交/查询/获取） | 同上 | SDK全链路可用性验证 |
 | H门单比特保真度 | **0.976** | tianyan-287 H门1024 shots校准 | `results/reports/quantum_noise_calibration_*.md` | 单seed校准值 |
 | MBS保真度范围 | **[0.671, 0.994]** | 10seeds测量的MBS分布（均值0.8863±0.0874） | `results/reports/quantum_noise_10seeds_*.md` | 噪声分布实验值 |
-| "真机+353%"边界 | **真机参与率验证** | PPO=1632 vs FCFS=783（N=20 v3），混合评估环境，96步含1步真机，Cohen's d=2.11（N=20 v3 权威，效应量异常大需验证） | `results/reports/multiseed_real_machine_report_10seeds_v2.md` §8 | ⚠️ **不可宣称纯真机性能提升+353%**；性能提升主要由仿真驱动，权威仿真结论为+20.2%。**注意**：旧值 Cohen's d=5.64 已废弃，统一为 5.33 |
+| "真机+353%"边界 | **真机参与率验证** | PPO=1632 vs FCFS=783（N=20 v3 权威，8.14 扩样），混合评估环境，96步含1步真机，Cohen's d=2.11（v3 权威；v2 的 d=5.33 为小样本高估已回归正常化） | `results/reports/multiseed_real_machine_report_20seeds_v3.md` §6 | ⚠️ **不可宣称纯真机性能提升+353%**（v2 N=10 口径已废弃；v3 提升为 +108.5%）；性能提升主要由仿真驱动，权威仿真结论为+20.2%。**注意**：旧值 Cohen's d=5.64（N=5）/ 5.33（N=10 v2）均已废弃，统一为 v3 的 d=2.11 |
 
 ---
 

@@ -30,9 +30,9 @@
 
 | 验证项 | 结果 | 统计支撑 | 边界说明 |
 |:--|:--|:--|:--|
-| 多seed策略对比 (PPO vs FCFS) | PPO=1632.26±326.49 vs FCFS=782.94±467.61 | p<0.001, d=2.11（小样本探索性结果，效应量异常大需验证）, Bonferroni校正后显著 | N=20/组（10seed v2）；真机任务成功完成（15/15, mock=false），但真机 reward 占比极低（1/96步） |
-| 多seed策略对比 (PPO vs SJF) | PPO=1632.26±326.49 vs SJF=607.54±279.50 | p<0.001, d=3.37（8.11 复核修正，此前 4.04 为 ddof 混用）, Bonferroni校正后显著 | 同上 |
-| 多seed策略对比 (SJF vs FCFS) | SJF=607.54±279.50 vs FCFS=782.94±467.61 | p=0.16, d=-0.46（8.11 复核修正，此前 p=0.080 系 5seed 旧值误入；未校正显著、Bonferroni 后边缘） | N=20/组，功效不足 |
+| 多seed策略对比 (PPO vs FCFS) | PPO=1632.26±326.49 vs FCFS=782.94±467.61 | p=1.22e-07, d=2.11（N=20 v3 权威；v2 的 d=5.33 为小样本高估）, Bonferroni校正后显著 | N=20/组（v3：v2 10seed + 8.14 扩样 10seed）；真机任务 60/60 完成，但真机 reward 占比极低（1/96步） |
+| 多seed策略对比 (PPO vs SJF) | PPO=1632.26±326.49 vs SJF=607.54±279.50 | p=7.45e-13, d=3.37, Bonferroni校正后显著 | 同上 |
+| 多seed策略对比 (SJF vs FCFS) | SJF=607.54±279.50 vs FCFS=782.94±467.61 | p=0.16, d=-0.46（N=20 v3 权威：不显著且方向反转；v2 的 p=0.0316 边缘支持为小样本噪声，禁止引用） | N=20/组，功效不足 |
 
 ### 1.3 不显著结论（❌ 不可宣称性能差异）
 
@@ -179,7 +179,7 @@ p=0.344 来自 Issue #164 真机闭环训练实验中的 mixed_real（混合真�
 
 1. **可用性验证（已达成）**：系统完成天衍云平台全链路接入，315次调用 100% 成功，包括 SDK 认证、任务提交、状态轮询、结果获取。
 
-2. **小样本策略对比（部分达成）**：在 10 seeds × 3 策略的对比中，PPO 在仿真奖励上优于 FCFS（p<0.001, d=2.11，小样本探索性结果，效应量异常大需验证，Bonferroni 校正后显著）。但需说明：真机任务成功完成（15/15, mock=false），但真机 reward 占总 reward 比例极低（1/96步），因此 p 值主要反映策略在多 seed 下的鲁棒性，不是真机执行性能差异。
+2. **多seed策略对比（v3 权威，部分达成）**：在 20 seeds × 3 策略（8.14 扩样）的对比中，PPO 在仿真奖励上优于 FCFS（p=1.22e-07, d=2.11，v3 权威，Bonferroni 校正后显著；v2 的 d=5.33 为小样本高估已回归正常化）。但需说明：真机任务 60/60 完成，但真机 reward 占总 reward 比例极低（1/96步），因此 p 值主要反映策略在多 seed 下的鲁棒性，不是真机执行性能差异；SJF vs FCFS 在 N=20 下不显著（p=0.16）。
 
 3. **性能提升的主要证据来自仿真实验**：50 seeds × 5 episodes = 250 runs, PPO vs FCFS +20.2%, p=7.56e-12, rank-biserial=-0.3642。
 
@@ -242,7 +242,7 @@ p=0.344 来自 Issue #164 真机闭环训练实验中的 mixed_real（混合真�
 | 真机闭环报告 | `results/reports/real_machine_closed_loop.md` | Issue #164 闭环实验 |
 | 真机消融报告 | `results/reports/real_machine_ablation.md` | Issue #165 消融实验 |
 | 统计显著性报告 | `results/reports/real_machine_statistical_significance.md` | p=0.344 详细分析 |
-| 多seed真机报告 | `results/reports/multiseed_real_machine_report.md` | 10 seeds × 3 策略 |
+| 多seed真机报告（v3 权威） | `results/reports/multiseed_real_machine_report_20seeds_v3.md` | 20 seeds × 3 策略（8.14 扩样；v2 见 `multiseed_real_machine_report_10seeds_v2.md`） |
 | 预注册方案 | `results/reports/real_machine_preregistration.md` | 后续实验预注册 |
 | 边界声明（Issue #204） | `results/reports/real_machine_boundary_statement.md` | 原始边界声明 |
 | 真机验证报告 | `results/reports/real_machine_validation.md` | 综合验证报告 |

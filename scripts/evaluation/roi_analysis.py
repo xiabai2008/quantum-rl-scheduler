@@ -5,7 +5,9 @@
 
 数据来源：
   - 仿真权威数字（8.5 基线诚实化）：PPO=1982.69±557.25 vs FCFS=1648.91±502.95（真实 FCFS）
-  - 真机多seed数据：results/real_machine/tianyan287_multiseed/multiseed_data_20260724_105757.json
+  - 真机多seed权威 v3（N=20/组，8.14 扩样）：results/real_machine/tianyan287_multiseed/
+    multiseed_data_20260727_005558.json（v2 10seeds）+ multiseed_data_20260814_103336_patched.json（扩样 10seeds）
+    （合并口径见 results/reports/multiseed_real_machine_report_20seeds_v3.md）
 
 用法：
   python scripts/evaluation/roi_analysis.py
@@ -37,15 +39,17 @@ SIM_EFFECT_SIZE = (
 SIM_EFFECT_SIZE_TYPE = "rank-biserial"
 SIM_N = 250  # 50 seeds × 5 episodes
 
-# 多seed真机权威数字（multiseed_real_machine_report_10seeds_v2.md，N=10 v2 权威，8.11 复核修正）
-# 注意：真机实验定位为可用性验证，非性能基准；N=10 为小样本探索性统计（效应量异常大，待更多seeds验证）。
-REAL_PPO_MEAN = 1736.32
-REAL_PPO_STD = 355.78
-REAL_FCFS_MEAN = 383.00
-REAL_FCFS_STD = 49.13
-REAL_COHEN_D = 5.33
-REAL_P_VALUE = 5.84e-07  # Welch t, Bonferroni 校正后显著（8.11 复核修正；旧 6.83e-04 为 N=5 旧值）
-REAL_N_SEEDS = 10
+# 多seed真机权威数字（v3 权威：N=20/组，8.14 扩样；multiseed_real_machine_report_20seeds_v3.md /
+# statistics.yaml real_machine_20seed_v3。v2 的 N=10 值 1736.32/383.00/d=5.33/p=5.84e-07 已被取代）
+# 注意：真机实验定位为可用性+混合环境验证，非纯真机性能基准；真机 reward 占比 1/96 步，
+# 差异主要由仿真动力学驱动。
+REAL_PPO_MEAN = 1632.26
+REAL_PPO_STD = 326.49
+REAL_FCFS_MEAN = 782.94
+REAL_FCFS_STD = 467.61
+REAL_COHEN_D = 2.11
+REAL_P_VALUE = 1.22e-07  # Welch t, Bonferroni 校正后显著（v3 权威；v2 的 5.84e-07 为 N=10 旧值）
+REAL_N_SEEDS = 20
 
 # 经济模型假设参数（可在命令行覆盖）
 DEFAULT_DAILY_MACHINE_HOURS = 100  # 日均机时成本 ¥
@@ -70,16 +74,30 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 
 def load_real_machine_data() -> dict[str, Any] | None:
-    """加载最新的多seed真机实验数据。"""
+    """加载多seed真机实验数据（v3 权威 = v2 10seeds + 8.14 扩样 10seeds，合并后 N=20/组）。"""
     data_path = PROJECT_ROOT / "results" / "real_machine" / "tianyan287_multiseed"
+    v2_file = data_path / "multiseed_data_20260727_005558.json"
     json_files = sorted(data_path.glob("multiseed_data_*.json"), reverse=True)
-    if not json_files:
+    latest = json_files[0] if json_files else None
+    if latest is None or not latest.exists():
         print(f"[WARN] 未找到真机数据文件: {data_path}")
         return None
-    latest = json_files[0]
-    print(f"[INFO] 加载真机数据: {latest.name}")
-    with open(latest, encoding="utf-8") as f:
-        return json.load(f)
+    merged: dict[str, Any] = {"results": []}
+    for f in (v2_file, latest):
+        if f is None or not f.exists():
+            continue
+        print(f"[INFO] 合并真机数据: {f.name}")
+        with open(f, encoding="utf-8") as fh:
+            d = json.load(fh)
+        merged["results"].extend(d.get("results", []))
+        for k in ("total_submitted", "total_elapsed_seconds"):
+            if k in d and d[k] is not None:
+                merged[k] = merged.get(k, 0) + d[k]
+    if not merged["results"]:
+        print(f"[WARN] 真机数据为空: {data_path}")
+        return None
+    merged["merged_n20_v3"] = True  # v2 10seeds + 扩样 10seeds
+    return merged
 
 
 def extract_real_machine_rewards(data: dict[str, Any]) -> dict[str, list[float]]:
@@ -314,7 +332,7 @@ def generate_report(
             "",
             "1. **性能结论**: 所有提升百分比由仿真实验支撑（N=250），真机实验为可用性+统计显著性验证",
             "2. **经济估算**: 基于假设条件的估算，标注'低'置信度，实际落地效果需规模化验证",
-            "3. **真机范围**: 284 次真机调用为平台可用性验证，5-seed 多seed实验为统计显著性验证",
+            "3. **真机范围**: 315 次真机调用为平台可用性验证，多seed v3 实验（N=20/组，混合环境，真机参与 1/96 步）为统计显著性验证；性能结论以仿真 N=250 为准",
             "",
             "---",
             "",
@@ -325,9 +343,9 @@ def generate_report(
             f"| PPO 仿真均值 | {SIM_PPO_MEAN} | AGENTS.md | ✅ 锁定 |",
             f"| FCFS 仿真均值 | {SIM_FCFS_MEAN} | AGENTS.md | ✅ 锁定 |",
             f"| 仿真 p 值（Welch t 检验） | {SIM_P_VALUE} | 仿真统计验证 | ✅ 锁定 |",
-            f"| PPO 真机均值 | {REAL_PPO_MEAN} | multiseed_real_machine_report_20260724.md | {'✅ 验证通过' if verification_passed else '⚠️ 待验证'} |",
-            f"| FCFS 真机均值 | {REAL_FCFS_MEAN} | multiseed_real_machine_report_20260724.md | {'✅ 验证通过' if verification_passed else '⚠️ 待验证'} |",
-            f"| 真机 p 值 | {REAL_P_VALUE} | multiseed_real_machine_report_20260724.md | ✅ 锁定 |",
+            f"| PPO 真机均值 | {REAL_PPO_MEAN} | multiseed_real_machine_report_20seeds_v3.md | {'✅ 验证通过' if verification_passed else '⚠️ 待验证'} |",
+            f"| FCFS 真机均值 | {REAL_FCFS_MEAN} | multiseed_real_machine_report_20seeds_v3.md | {'✅ 验证通过' if verification_passed else '⚠️ 待验证'} |",
+            f"| 真机 p 值 | {REAL_P_VALUE} | multiseed_real_machine_report_20seeds_v3.md | ✅ 锁定 |",
             "",
             "> 注：仿真 p 值使用 Welch t 检验（p=7.56e-12，8.5 权威口径），与 config/statistics.yaml 权威口径一致。",
             "",
@@ -346,6 +364,9 @@ def generate_report(
 
 
 def main() -> int:
+    # GBK 控制台下 ✅/❌ 输出兼容（Windows 默认编码）
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     parser = argparse.ArgumentParser(description="ROI 自动化分析（Issue #138）")
     parser.add_argument(
         "--output",

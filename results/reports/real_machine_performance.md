@@ -5,6 +5,12 @@
 > **关联Issue**: #92, #124, #244
 > **数据文件**: `results/real_machine/tianyan287_multiseed/multiseed_data_20260727_005558.json`
 
+> **⚠️ 历史报告声明（2026-08-14）**：本报告为 v2（N=10）实验记录，已被 **N=20 v3 权威**取代
+> （`results/reports/multiseed_real_machine_report_20seeds_v3.md` / `config/statistics.yaml real_machine_20seed_v3`：
+> PPO=1632.26±326.49 vs FCFS=782.94±467.61, **d=2.11, p=1.22e-07**, Bonferroni 显著；v2 的 d=5.33 为
+> 小样本高估，v2 的 SJF vs FCFS p=0.0316 边缘支持在 N=20 下消失并反转（p=0.16））。本报告数字仅作
+> 数据迭代历史追溯，**严禁作为对外性能基准引用**。
+
 ---
 
 ## 实验配置
