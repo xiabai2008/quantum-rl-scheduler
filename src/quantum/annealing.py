@@ -177,10 +177,15 @@ class QuantumAnnealingOptimizer:
             int(_cfg_random_state) if _cfg_random_state is not None else None
         )
         # Issue #391: 当 random_state 提供时，同步全局随机源（Python/numpy/torch）
+        # 8.14 第二轮审查 P2 修复：不再在构造器调用全局 set_seed（会污染进程内其他
+        # 模块的全局 RNG 状态）；退火结果可复现性由局部 RNG 保证——模拟退火路径使用
+        # np.random.default_rng(self.random_state) + random.Random(self.random_state)
+        # （见 solve_simulation），cqlib 采样路径显式传 sample_kwargs["seed"]。
         if self.random_state is not None:
-            from src.utils.seeds import set_seed
-
-            set_seed(self.random_state)
+            logger.debug(
+                f"QUBOAnnealingOptimizer(random_state={self.random_state})："
+                "结果可复现性由局部 RNG 保证，不再同步全局随机源"
+            )
 
         # 检查比特编码精度，过低则发出警告
         if self.n_bits_per_weight < 4:

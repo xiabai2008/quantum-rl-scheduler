@@ -143,9 +143,9 @@ EXCLUDE_PATTERNS = [
     "审查报告",
 ]
 
-# p值正则模式：匹配 p=0.031, p=1.032e-42, p<0.001, p=3.04×10⁻¹¹ 等
+# p值正则模式：匹配 p=0.031, p=1.032e-42, p<0.001, p=3.04×10⁻¹¹ 及中文"p 值：0.127"（8.14 第二轮审查 P2-3 盲区）
 P_VALUE_PATTERN = re.compile(
-    r"p\s*[=<>]\s*"
+    r"(?:p\s*[=<>]\s*|p\s*值\s*[:：]?\s*)"
     r"(?:"
     r"(?:\d+\.?\d*(?:[eE][+-]?\d+)?)"  # 标准科学计数法: 1.032e-42
     r"|"
@@ -909,6 +909,7 @@ _KNOWN_LEGIT_P_VALUES: tuple[float, ...] = (
     # 8.11 新增：跨机器噪声异质性（真机 vs 仿真机）与噪声训练稳定性
     0.0197,  # 跨机器噪声异质性 Mann-Whitney（真机 vs 仿真机，N=104，cross_machine_noise_simulators）
     0.127,  # issue192 mixed_real vs simulation（校准价值量化，calibration_value_quantification）
+    0.127118,  # issue192 mixed_real vs simulation 全精度（real_machine_validation.md "p 值：0.127118"，与 0.127 同源）
     0.024,  # MAPPO vs 独立PPO N=20 配对 Wilcoxon（mappo_strict_strict_comparison，权威）
     0.0876,  # 噪声训练稳定性 Wilcoxon（std -7.4% 方向性，N=48 对，noise_training_stability）
 )

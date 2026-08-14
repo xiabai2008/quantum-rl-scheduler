@@ -816,17 +816,21 @@ class TestNumpySimulatedAnnealing(unittest.TestCase):
 # Issue #354: set_seed 接入测试
 # ============================================================
 class TestSetSeedIntegration(unittest.TestCase):
-    """Issue #354: 验证 QuantumAnnealingOptimizer 在 random_state 给定时
-    会调用 src.utils.seeds.set_seed 统一全局随机源（消除死代码）。
+    """Issue #354/#391: QuantumAnnealingOptimizer 的种子语义。
+
+    8.14 第二轮审查 P2 修复后：random_state 只通过局部 RNG
+    （np.random.default_rng / random.Random，见 solve_simulation）保证退火
+    结果可复现，**不再调用全局 set_seed**——构造器零全局副作用（不污染
+    进程内其他模块的全局 RNG 状态）。
     """
 
-    def test_random_state_given_invokes_set_seed(self) -> None:
-        """传入非 None random_state 时应调用 set_seed 同步全局随机源。"""
+    def test_random_state_given_does_not_invoke_global_set_seed(self) -> None:
+        """传入非 None random_state 时不应调用全局 set_seed（避免全局污染）。"""
         from unittest.mock import patch as _patch
 
         with _patch("src.utils.seeds.set_seed") as mock_set_seed:
             QuantumAnnealingOptimizer(random_state=12345)
-            mock_set_seed.assert_called_once_with(12345)
+            mock_set_seed.assert_not_called()
 
     def test_random_state_none_does_not_invoke_set_seed(self) -> None:
         """random_state=None 时不应调用 set_seed（保持原行为）。"""
@@ -836,16 +840,29 @@ class TestSetSeedIntegration(unittest.TestCase):
             QuantumAnnealingOptimizer(random_state=None)
             mock_set_seed.assert_not_called()
 
-    def test_global_numpy_rng_seeded_after_init(self) -> None:
-        """random_state 给定后，np.random 全局 RNG 应被同步播种。"""
+    def test_global_numpy_rng_not_polluted_after_init(self) -> None:
+        """构造器不应改变全局 np.random 状态（零副作用，RNG 序列延续）。"""
+        np.random.seed(99)
+        _ = np.random.rand()  # 99 序列第 1 个值（消耗）
+        expected = np.random.rand()  # 99 序列第 2 个值（基准）
+        np.random.seed(99)
+        _ = np.random.rand()  # 99 序列第 1 个值
         QuantumAnnealingOptimizer(random_state=42)
-        # set_seed(42) 后 np.random.rand() 第一次应等于已知值
-        # 不直接断言具体数值（依赖 numpy 版本），但验证 seed 已生效
-        np.random.seed(42)
-        expected = np.random.rand()
-        QuantumAnnealingOptimizer(random_state=42)
-        actual = np.random.rand()
-        self.assertAlmostEqual(actual, expected, places=9)
+        after = np.random.rand()  # 未污染则应为 99 序列第 2 个值
+        self.assertAlmostEqual(after, expected, places=9)
+
+    def test_simulation_result_reproducible_with_local_rng(self) -> None:
+        """同 random_state 下模拟退火结果可复现（局部 RNG 保证）。"""
+        rng = np.random.default_rng(7)
+        n = 5
+        q = rng.integers(-2, 3, size=(n, n)).astype(float)
+        q = (q + q.T) / 2.0
+        opt_a = QuantumAnnealingOptimizer(random_state=123)
+        opt_b = QuantumAnnealingOptimizer(random_state=123)
+        self.assertEqual(
+            opt_a.numpy_simulated_annealing(q.copy()),
+            opt_b.numpy_simulated_annealing(q.copy()),
+        )
 
 
 # ============================================================

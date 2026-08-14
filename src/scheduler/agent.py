@@ -215,7 +215,17 @@ class SchedulerAgent:
             quantum_task_ratio=env.quantum_task_ratio,
             real_submit_probability=env.real_submit_probability,
             use_real_machine=False,  # 评估环境不使用真机
+            noise_profile=env.noise_profile,
+            # 8.14 第二轮审查 P2：评估环境必须透传训练环境的观测配置，
+            # 否则 DQN 在非默认观测配置（公平感知/租户偏斜/噪声校准）下 eval 与训练不一致
+            include_fairness_obs=getattr(env, "_include_fairness_obs", False),
+            tenant_weights=getattr(env, "_tenant_weights", None),
         )
+        if getattr(env, "_include_fairness_obs", False) and env._fairness_tracker is not None:
+            try:
+                eval_env.set_fairness_tracker(copy.deepcopy(env._fairness_tracker))
+            except (TypeError, AttributeError, RecursionError):
+                logger.warning("评估环境 fairness_tracker 深拷贝失败，公平维恒 0")
         return Monitor(eval_env)
 
     def _build_model(self) -> DQN:

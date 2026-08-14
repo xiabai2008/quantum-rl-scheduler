@@ -43,7 +43,7 @@
 
 | 指标 | 值 | 实验配置 | 数据源 |
 |------|-----|----------|--------|
-| 多机协同调度提升 | **+86.3%** | 单机→三台机器，PPO零成本复用 | `results/reports/ablation_report.md` |
+| 多机协同调度提升 | **+86.3%**（须拆解：同资源协同优势 +36.5%（N=20，配对 Wilcoxon p=0.024，mappo_strict_strict_comparison）+ 资源扩展效应；旧 +84.6% 已废弃） | 单机→三台机器，PPO零成本复用 | `results/reports/ablation_report.md` |
 | VQE行业场景提升 | **+89.6%** | 10分子×100任务，N=50 案例展示（非权威统计证据） | `results/reports/industry_case_vqe_*.md` |
 | 退火消融（20seeds） | p=0.9430，统计不显著 | 有退火 vs 无退火，实为经典模拟退火效应 | `results/reports/annealing_ablation_20seeds_report.md` |
 | 编译层深电路（N=200 规模化，8.14） | 全60电路不显著(p=8.40e-01)；深电路N=200 +52.1%(Wilcoxon p=2.30e-10, d_z=0.54, CI[+43.9%,+72.1%]) | 深电路子集强证据；不延伸至浅/中电路；原N=80 +38.5%为事后方向性已被取代 | `results/reports/compilation_deep_scale_report.md` |

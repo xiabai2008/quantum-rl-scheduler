@@ -64,6 +64,7 @@ items:
         - ".pre-commit-config.yaml"
         - ".editorconfig"
         - "deliverable_models/"
+        - "CHANGELOG.md"  # 8.14 第二轮审查 P3：变更日志纳入内层代码包
 
   # 文档部分
   - id: WHITEPAPER
@@ -242,6 +243,12 @@ items:
     name: 多seed真机实验报告 v3（N=20 权威，8.14 扩样）
     type: md
     path: "results/reports/multiseed_real_machine_report_20seeds_v3.md"
+    must_exist: true
+
+  - id: EXP_SIMULATION_RAW_DATA
+    name: 调度权威实验原始数据（N=250，+20.2% 出处）
+    type: json
+    path: "results/multiseed_evaluation/rewards_multiseed.json"
     must_exist: true
 
   - id: EXP_REAL_AUDIT

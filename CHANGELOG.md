@@ -2,6 +2,36 @@
 
 本文件记录项目的所有重要变更，按日期倒序排列。
 
+## [2026-08-14] - AgentTeams 第二轮冻结终检 + P2 修复收口
+
+### 四路审查（第二轮，HEAD 966c717）
+- **统计复核（t1）**：yaml 改动回归全绿；ddof 口径核对（仿真 ddof=0/真机 v3 ddof=1 均正确）；+20.2% 与编译 CI 可复现；**p 值登记全量覆盖扫描 175 文件 948 记号 0 未登记**；中文"p 值 X"措辞盲区确认
+- **代码验证（t2）**：8.13 遗留 10 项逐项判定（4 项已修/2 项 P2/4 项 P3）；新代码 7 文件抽查无真 bug；全量 pytest 3704 passed + ruff 全绿
+- **环境审计（t3）**：修复落盘全对；zip 中文名 UTF-8+flag0x800 合规（Linux/mac 不乱码）；tag/HEAD/dist 同步
+- **红队评委（t4）**：第一轮 P1/P2 修复全验证落地；46 份 docs 盲区交叉审讯——主权威家族全部一致；五维 86/84/84/70/90 ≈ **83**（较一轮 +1）
+
+### P2 修复（7 项）
+1. **ablation_report.md 废弃口径**：+84.6%（N=10）→ +36.5%（N=20 权威，配对 Wilcoxon p=0.024）+ 报告顶部口径横幅（含退火 -5.6%/旧 +6.4% 废弃说明）
+2. **+20.2% 原始数据随包**：manifest 新增 `results/multiseed_evaluation/rewards_multiseed.json`（N=250 权威出处入外层包）
+3. **编译段 Bootstrap CI 口径注记**：statistics.yaml 注明 CI 基于 sabre>0 子集（n=179）重采样、点估计基于全 200 条（两口径均不含 0，结论稳健）
+4. **噪声段双轨闭环**：statistics.yaml improvement_pct 补"7/29 引用值 -12.43% / 当前复算 -12.23%"注记；technical_bottlenecks.md 噪声 -12.43% 从"等待时间"行改标"噪声奖励影响"行并补等待 -14.0% 权威行
+5. **中文 p 值盲区**：check_stats P_VALUE_PATTERN 扩展匹配"p 值[:：]X"；登记 0.127118（issue192 全精度）
+6. **DQN eval env 透传**（src/scheduler/agent.py）：镜像 ppo_agent 模式，评估环境透传 noise_profile/include_fairness_obs/tenant_weights + fairness_tracker 深拷贝（非默认观测配置下 eval 与训练一致）
+7. **annealing 全局种子副作用**（src/quantum/annealing.py）：构造器不再调用全局 set_seed（零污染）；可复现性由局部 RNG（default_rng/random.Random）保证；测试改写为断言零污染 + 局部可复现（TestSetSeedIntegration 4 用例）
+
+### P3 顺手修复（文档级）
+- CHANGELOG.md 纳入内层代码包（CODE_ARCHIVE include）
+- +86.3% 拆解补注：authoritative_numbers.md / cross_hardware.md（同资源协同 +36.5% + 规模扩展；旧 +84.6% 已废弃）
+- statistics.yaml MAPPO 段补 std_ddof: 0 声明
+
+### P3 记录（不修，冻结后处理）
+- env.py 队列满任务静默丢弃（无计数无日志）；tenant_weights 负值崩溃（无前置校验）
+- tianyan_cqlib probability list 形式误判 running；_result_status_to_counts 双份实现
+- env_real_machine 测量缓存无界（TTL-on-read）；validate_authoritative_numbers 硬编码回退值
+
+### 待人工项（不变）
+- 盖章版报名表 / 实拍演示视频（当前占位版黑屏 690KB，P1 级但需人工）/ PPT 团队页实名
+
 ## [2026-08-14] - AgentTeams 四路冻结终检 + P0/P1/P2 修复收口
 
 ### 四路审查（stats-verifier / code-verifier / env-auditor / red-team-judge，均独立实跑）

@@ -227,6 +227,7 @@ mappo_strict_strict_comparison:
     8.11 升级：N=10 → N=20 并补配对统计检验（此前仅聚合均值无法检验）。
   alpha: 0.05
   n: 20
+  std_ddof: 0  # 8.14 第二轮审查注：MAPPO 段 std 为总体标准差 ddof=0（与 simulation 段一致）
   data_source: "results/mappo_strict_comparison_result.json"
   supersedes: "multi_machine_comparison_report.md 的 +84.6%（5000 步未收敛，独立PPO 训练量仅 1/3）；N=10 旧口径 +396.7%/+4.0%"
 
@@ -678,6 +679,8 @@ quantum_noise_paired_feedback:
     significant: true
     post_hoc_power: 1.0
     improvement_pct: -12.43
+    # 8.14 第二轮审查注：-12.43% 为 7/29 权威引用值（对外口径）；当前代码复算 -12.23%
+    # （8/13 方法学修正后，data_source JSON）——双轨均已披露，引用时须附"引用值"说明。
     improvement_pct_ci_95: [-19.49, -4.69]
     applicable_condition: "Wilcoxon signed-rank 配对检验，N=25 seeds，单侧 H1: Standard > DistNoise"
     non_paired_cohens_d: 0.8910  # Issue #641: 非配对效应量对照（pooled_std≈335.88），仍属大效应
@@ -936,6 +939,9 @@ compilation_deep_scale_n200:
       N=200 规模化验证（8.14）：改善 +52.1%（p=2.30e-10 高度显著），较 N=80
       （+38.5%，p=0.027 边缘）显著增强；d_z=0.54 中效应。诚实披露：全 60 电路
       主检验（fair_v2，p=8.40e-01）不显著——深电路子集优势不延伸至浅/中电路。
+      8.14 第二轮审查注：Bootstrap CI 基于 sabre>0 子集（n=179）重采样
+      （sabre=0 电路无 SWAP 可减、改善恒为 0，纳入会稀释分布）；点估计基于
+      全部 200 条——两种口径下 CI 均不含 0，结论稳健。
   tier_robustness:
     sabre_ge_3: {n: 166, improvement_pct: 60.3, p_value: 1.14e-16, significant: true}
     sabre_ge_5: {n: 146, improvement_pct: 64.8, p_value: 2.34e-20, significant: true}
