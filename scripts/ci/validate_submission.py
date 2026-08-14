@@ -13,6 +13,7 @@ M5 最终提交物一键打包与版本校验脚本
 """
 
 import argparse
+import fnmatch
 import json
 import shutil
 import subprocess
@@ -925,6 +926,8 @@ def _is_excluded(rel: str, exclude_list: list[str]) -> bool:
 
     8.11 修复：除顶层前缀匹配外，支持任意路径段匹配（如 exclude "__pycache__"
     可排除 src/__pycache__/x.pyc 等嵌套路径）；以 "/" 结尾的 exclude 项按目录段匹配。
+    8.14 第三轮审查 P2：支持 fnmatch 通配符（如 exclude "docs/round*_审查报告.md"），
+    此前 "*" 被当字面字符导致该规则为死规则（日后新增审查报告会静默入包）。
     """
     parts = rel.split("/")
     for exc in exclude_list:
@@ -935,6 +938,12 @@ def _is_excluded(rel: str, exclude_list: list[str]) -> bool:
             return True
         if exc in parts:  # 嵌套路径段匹配（目录名/文件名）
             return True
+        if any(ch in exc for ch in "*?["):
+            # fnmatch 通配：全路径匹配 / 目录通配（exc/* 下所有文件） / 路径段通配
+            if fnmatch.fnmatch(rel, exc) or fnmatch.fnmatch(rel, exc + "/*"):
+                return True
+            if any(fnmatch.fnmatch(p, exc) for p in parts):
+                return True
     return False
 
 

@@ -2,6 +2,30 @@
 
 本文件记录项目的所有重要变更，按日期倒序排列。
 
+## [2026-08-14] - AgentTeams 第三轮冻结终检 + P2 修复收口
+
+### 四路审查（第三轮，HEAD 3e9b8e4）
+- **统计复核（t1）**：门禁回归全绿；口径终局检查全自洽（improvement_pct↔mean 逐位一致、CI 方向↔p 显著性一致、n 全对）；9 测试文件 456 passed 无假绿；发现门禁中文系动词盲区（P2）
+- **代码验证（t2）**：第二轮 P2 修复验证全过（agent.py 透传/annealing 去种子）；src 6 模块深挖无 P0/P1/P2（5 处 P3 边界项）；pytest 3705 passed + ruff + bandit 全绿
+- **环境审计（t3）**：32 条目包 CRC/SHA/内容全过；发现 manifest 排除规则死规则（P2）；json 类型仅存在性校验（P3）；目录 rglob 依赖 exclude 完备（P3）
+- **红队评委（t4）**：PPT 18 页 + 白皮书 27 页逐数字核对零漂移；rewards_multiseed.json 独立重算逐位对上；**宣布边际效益已到**；五维 86/84/84/70/92 ≈ 83
+
+### P2 修复（2 项）
+1. **manifest 排除通配符死规则**（scripts/ci/validate_submission.py `_is_excluded`）：新增 fnmatch 通配支持（`docs/round*_审查报告.md` 从死规则变为有效规则，防日后审查报告静默入包）；8 用例单测全过
+2. **门禁中文系动词盲区**（check_stats P_VALUE_PATTERN）：前缀扩展 `(?:[:：]|为|是)?`——"p 值为 1.449e-66"/"p 值是 7.56e-12"等伪装写法不再漏网；新增 4 个回归测试（37 passed）
+
+### P3 顺手修复
+- PPT 第 18 页预置 Q&A"真机 N=10 小样本"→ N=20 v3 口径（generate_defense_ppt.py + PPTX 重生成）
+- mappo_vs_fcfs `p_wilcoxon: 0.0000`→`1.9e-06`、`p_paired_t: 0.0000`→`3.94e-17`（原始 JSON 精确值，消除四舍五入失真）
+- PR审核日志.md 纳入门禁豁免（内部日志）
+- ruff format check_stats_consistency.py（第二轮冲突对行格式）
+
+### P3 记录（不修，冻结后处理）
+- 4 处"无异常即通过"无断言测试分支（callbacks×2、env_real_machine×2）；AnnealingCallback 宽 except 静默（退火默认关闭）；helpers.calculate_reward max_wait_time=0 未防护；multi_objective_env 权重无边界校验；tenant._get_tenant 空 dict StopIteration；validate_submission type:json 无专用校验分支
+
+### 人工待办（不变）
+- 盖章版报名表 / 实拍演示视频 / PPT 团队页实名
+
 ## [2026-08-14] - AgentTeams 第二轮冻结终检 + P2 修复收口
 
 ### 四路审查（第二轮，HEAD 966c717）

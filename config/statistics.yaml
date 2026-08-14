@@ -250,8 +250,8 @@ mappo_strict_strict_comparison:
     n: 20
     applicable_condition: "MAPPO(5507.7) vs 同环境 FCFS(917.7)，50K 收敛严格对比"
     paired_test:
-      p_wilcoxon: 0.0000
-      p_paired_t: 0.0000
+      p_wilcoxon: 1.9e-06  # 8.14 第三轮审查 P3：原写 0.0000（四舍五入失真），精确值 1.907e-06（mappo_strict_comparison_result.json）
+      p_paired_t: 3.94e-17  # 精确值（同上 JSON）；原 0.0000 同样失真
       mean_diff: 4590.0
       ci_95: [4277.3, 4902.7]
       significant: true
