@@ -438,6 +438,7 @@ real_machine_20seed_v3:
   alpha: 0.05
   bonferroni_alpha: 0.0167
   num_comparisons: 3
+  std_ddof: 1  # v3 std 为样本标准差 ddof=1（8.14 冻结终检 t1 复核注记；simulation 段为 ddof=0，口径各自声明）
   data_source: "results/reports/multiseed_real_machine_report_20seeds_v3.md"
   supersedes: "real_machine_10seed_v2（N=10；v2 的 PPO vs FCFS d=5.33 为小样本高估，N=20 下 d=2.11；v2 的 SJF vs FCFS 边缘支持（p=0.0316）在 N=20 下消失并反转（p=0.16），判定为小样本噪声）"
 
@@ -922,7 +923,7 @@ compilation_deep_scale_n200:
   data_source: "results/compilation/deep_scale_summary.json"
   protocol: "与 compilation_fair_v2 同池配对，固定种子 seed=42，deterministic 推理"
   main_test:
-    test_method: "Wilcoxon signed-rank（配对，单侧 PPO<SABRE）"
+    test_method: "Wilcoxon signed-rank（配对，双侧；scipy 默认双侧返回，单侧恰为其半）"
     improvement_pct: 52.1
     p_value: 2.30e-10
     effect_size_type: "Cohen's d_z"

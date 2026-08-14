@@ -1,0 +1,37 @@
+{
+  "n_pairs": 200,
+  "mean_sabre_swap": 30.875,
+  "mean_ppo_swap": 14.79,
+  "mean_diff": 16.085,
+  "std_diff": 29.543729193745445,
+  "improvement_pct": 52.09716599190284,
+  "wilcoxon_statistic": 4732.5,
+  "p_value": 2.2963841694193854e-10,
+  "ttest_t_statistic": -7.69964583739382,
+  "ttest_p_value": 6.261225833952729e-13,
+  "significant_p05": true,
+  "significant_p01": true,
+  "cohens_dz": 0.5444471784355942,
+  "bootstrap_ci_low_pct": 43.945921288966126,
+  "bootstrap_ci_high_pct": 72.10090251255758,
+  "tier_robustness": {
+    "sabre>=3": {
+      "n": 166,
+      "improvement_pct": 60.34118602761982,
+      "p_value": 1.1423831087739752e-16,
+      "significant": true
+    },
+    "sabre>=5": {
+      "n": 146,
+      "improvement_pct": 64.80052536529305,
+      "p_value": 2.3443747051377e-20,
+      "significant": true
+    },
+    "sabre>=10": {
+      "n": 132,
+      "improvement_pct": 67.48538011695906,
+      "p_value": 1.2132817619553218e-21,
+      "significant": true
+    }
+  }
+}

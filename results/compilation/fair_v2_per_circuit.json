@@ -1,0 +1,644 @@
+{
+  "config": {
+    "seed": 42,
+    "model_path": "deliverable_models/ppo_compilation_agent.zip",
+    "n_circuits": 60
+  },
+  "per_circuit": [
+    {
+      "index": 0,
+      "category": "shallow",
+      "qubits": 5,
+      "depth": 9,
+      "gates": 20,
+      "sabre_swap": 0,
+      "ppo_swap": 2,
+      "diff_sabre_minus_ppo": -2
+    },
+    {
+      "index": 1,
+      "category": "shallow",
+      "qubits": 6,
+      "depth": 7,
+      "gates": 17,
+      "sabre_swap": 0,
+      "ppo_swap": 2,
+      "diff_sabre_minus_ppo": -2
+    },
+    {
+      "index": 2,
+      "category": "shallow",
+      "qubits": 5,
+      "depth": 9,
+      "gates": 17,
+      "sabre_swap": 1,
+      "ppo_swap": 0,
+      "diff_sabre_minus_ppo": 1
+    },
+    {
+      "index": 3,
+      "category": "shallow",
+      "qubits": 5,
+      "depth": 8,
+      "gates": 21,
+      "sabre_swap": 0,
+      "ppo_swap": 2,
+      "diff_sabre_minus_ppo": -2
+    },
+    {
+      "index": 4,
+      "category": "shallow",
+      "qubits": 7,
+      "depth": 9,
+      "gates": 22,
+      "sabre_swap": 3,
+      "ppo_swap": 2,
+      "diff_sabre_minus_ppo": 1
+    },
+    {
+      "index": 5,
+      "category": "shallow",
+      "qubits": 8,
+      "depth": 8,
+      "gates": 18,
+      "sabre_swap": 0,
+      "ppo_swap": 4,
+      "diff_sabre_minus_ppo": -4
+    },
+    {
+      "index": 6,
+      "category": "shallow",
+      "qubits": 8,
+      "depth": 7,
+      "gates": 18,
+      "sabre_swap": 0,
+      "ppo_swap": 4,
+      "diff_sabre_minus_ppo": -4
+    },
+    {
+      "index": 7,
+      "category": "shallow",
+      "qubits": 6,
+      "depth": 6,
+      "gates": 24,
+      "sabre_swap": 1,
+      "ppo_swap": 0,
+      "diff_sabre_minus_ppo": 1
+    },
+    {
+      "index": 8,
+      "category": "shallow",
+      "qubits": 8,
+      "depth": 8,
+      "gates": 26,
+      "sabre_swap": 1,
+      "ppo_swap": 2,
+      "diff_sabre_minus_ppo": -1
+    },
+    {
+      "index": 9,
+      "category": "shallow",
+      "qubits": 8,
+      "depth": 8,
+      "gates": 30,
+      "sabre_swap": 11,
+      "ppo_swap": 6,
+      "diff_sabre_minus_ppo": 5
+    },
+    {
+      "index": 10,
+      "category": "shallow",
+      "qubits": 6,
+      "depth": 6,
+      "gates": 15,
+      "sabre_swap": 0,
+      "ppo_swap": 0,
+      "diff_sabre_minus_ppo": 0
+    },
+    {
+      "index": 11,
+      "category": "shallow",
+      "qubits": 7,
+      "depth": 10,
+      "gates": 32,
+      "sabre_swap": 5,
+      "ppo_swap": 4,
+      "diff_sabre_minus_ppo": 1
+    },
+    {
+      "index": 12,
+      "category": "shallow",
+      "qubits": 8,
+      "depth": 9,
+      "gates": 28,
+      "sabre_swap": 0,
+      "ppo_swap": 4,
+      "diff_sabre_minus_ppo": -4
+    },
+    {
+      "index": 13,
+      "category": "shallow",
+      "qubits": 7,
+      "depth": 5,
+      "gates": 12,
+      "sabre_swap": 0,
+      "ppo_swap": 2,
+      "diff_sabre_minus_ppo": -2
+    },
+    {
+      "index": 14,
+      "category": "shallow",
+      "qubits": 7,
+      "depth": 7,
+      "gates": 20,
+      "sabre_swap": 2,
+      "ppo_swap": 0,
+      "diff_sabre_minus_ppo": 2
+    },
+    {
+      "index": 15,
+      "category": "shallow",
+      "qubits": 8,
+      "depth": 7,
+      "gates": 19,
+      "sabre_swap": 0,
+      "ppo_swap": 2,
+      "diff_sabre_minus_ppo": -2
+    },
+    {
+      "index": 16,
+      "category": "shallow",
+      "qubits": 7,
+      "depth": 9,
+      "gates": 21,
+      "sabre_swap": 0,
+      "ppo_swap": 4,
+      "diff_sabre_minus_ppo": -4
+    },
+    {
+      "index": 17,
+      "category": "shallow",
+      "qubits": 5,
+      "depth": 7,
+      "gates": 9,
+      "sabre_swap": 0,
+      "ppo_swap": 0,
+      "diff_sabre_minus_ppo": 0
+    },
+    {
+      "index": 18,
+      "category": "shallow",
+      "qubits": 6,
+      "depth": 5,
+      "gates": 20,
+      "sabre_swap": 0,
+      "ppo_swap": 0,
+      "diff_sabre_minus_ppo": 0
+    },
+    {
+      "index": 19,
+      "category": "shallow",
+      "qubits": 5,
+      "depth": 9,
+      "gates": 22,
+      "sabre_swap": 2,
+      "ppo_swap": 0,
+      "diff_sabre_minus_ppo": 2
+    },
+    {
+      "index": 20,
+      "category": "medium",
+      "qubits": 14,
+      "depth": 18,
+      "gates": 81,
+      "sabre_swap": 8,
+      "ppo_swap": 12,
+      "diff_sabre_minus_ppo": -4
+    },
+    {
+      "index": 21,
+      "category": "medium",
+      "qubits": 14,
+      "depth": 14,
+      "gates": 89,
+      "sabre_swap": 41,
+      "ppo_swap": 12,
+      "diff_sabre_minus_ppo": 29
+    },
+    {
+      "index": 22,
+      "category": "medium",
+      "qubits": 14,
+      "depth": 14,
+      "gates": 108,
+      "sabre_swap": 0,
+      "ppo_swap": 12,
+      "diff_sabre_minus_ppo": -12
+    },
+    {
+      "index": 23,
+      "category": "medium",
+      "qubits": 11,
+      "depth": 18,
+      "gates": 132,
+      "sabre_swap": 0,
+      "ppo_swap": 8,
+      "diff_sabre_minus_ppo": -8
+    },
+    {
+      "index": 24,
+      "category": "medium",
+      "qubits": 11,
+      "depth": 11,
+      "gates": 71,
+      "sabre_swap": 0,
+      "ppo_swap": 8,
+      "diff_sabre_minus_ppo": -8
+    },
+    {
+      "index": 25,
+      "category": "medium",
+      "qubits": 11,
+      "depth": 13,
+      "gates": 49,
+      "sabre_swap": 12,
+      "ppo_swap": 8,
+      "diff_sabre_minus_ppo": 4
+    },
+    {
+      "index": 26,
+      "category": "medium",
+      "qubits": 12,
+      "depth": 17,
+      "gates": 66,
+      "sabre_swap": 4,
+      "ppo_swap": 8,
+      "diff_sabre_minus_ppo": -4
+    },
+    {
+      "index": 27,
+      "category": "medium",
+      "qubits": 11,
+      "depth": 11,
+      "gates": 39,
+      "sabre_swap": 1,
+      "ppo_swap": 10,
+      "diff_sabre_minus_ppo": -9
+    },
+    {
+      "index": 28,
+      "category": "medium",
+      "qubits": 12,
+      "depth": 17,
+      "gates": 80,
+      "sabre_swap": 19,
+      "ppo_swap": 8,
+      "diff_sabre_minus_ppo": 11
+    },
+    {
+      "index": 29,
+      "category": "medium",
+      "qubits": 10,
+      "depth": 18,
+      "gates": 55,
+      "sabre_swap": 0,
+      "ppo_swap": 11,
+      "diff_sabre_minus_ppo": -11
+    },
+    {
+      "index": 30,
+      "category": "medium",
+      "qubits": 11,
+      "depth": 18,
+      "gates": 85,
+      "sabre_swap": 5,
+      "ppo_swap": 6,
+      "diff_sabre_minus_ppo": -1
+    },
+    {
+      "index": 31,
+      "category": "medium",
+      "qubits": 11,
+      "depth": 19,
+      "gates": 86,
+      "sabre_swap": 35,
+      "ppo_swap": 6,
+      "diff_sabre_minus_ppo": 29
+    },
+    {
+      "index": 32,
+      "category": "medium",
+      "qubits": 10,
+      "depth": 17,
+      "gates": 82,
+      "sabre_swap": 0,
+      "ppo_swap": 6,
+      "diff_sabre_minus_ppo": -6
+    },
+    {
+      "index": 33,
+      "category": "medium",
+      "qubits": 9,
+      "depth": 19,
+      "gates": 101,
+      "sabre_swap": 12,
+      "ppo_swap": 4,
+      "diff_sabre_minus_ppo": 8
+    },
+    {
+      "index": 34,
+      "category": "medium",
+      "qubits": 13,
+      "depth": 10,
+      "gates": 64,
+      "sabre_swap": 2,
+      "ppo_swap": 10,
+      "diff_sabre_minus_ppo": -8
+    },
+    {
+      "index": 35,
+      "category": "medium",
+      "qubits": 13,
+      "depth": 18,
+      "gates": 77,
+      "sabre_swap": 4,
+      "ppo_swap": 10,
+      "diff_sabre_minus_ppo": -6
+    },
+    {
+      "index": 36,
+      "category": "medium",
+      "qubits": 11,
+      "depth": 17,
+      "gates": 95,
+      "sabre_swap": 6,
+      "ppo_swap": 6,
+      "diff_sabre_minus_ppo": 0
+    },
+    {
+      "index": 37,
+      "category": "medium",
+      "qubits": 13,
+      "depth": 16,
+      "gates": 60,
+      "sabre_swap": 0,
+      "ppo_swap": 12,
+      "diff_sabre_minus_ppo": -12
+    },
+    {
+      "index": 38,
+      "category": "medium",
+      "qubits": 12,
+      "depth": 16,
+      "gates": 58,
+      "sabre_swap": 0,
+      "ppo_swap": 12,
+      "diff_sabre_minus_ppo": -12
+    },
+    {
+      "index": 39,
+      "category": "medium",
+      "qubits": 9,
+      "depth": 12,
+      "gates": 34,
+      "sabre_swap": 0,
+      "ppo_swap": 6,
+      "diff_sabre_minus_ppo": -6
+    },
+    {
+      "index": 40,
+      "category": "deep",
+      "qubits": 15,
+      "depth": 27,
+      "gates": 125,
+      "sabre_swap": 25,
+      "ppo_swap": 15,
+      "diff_sabre_minus_ppo": 10
+    },
+    {
+      "index": 41,
+      "category": "deep",
+      "qubits": 15,
+      "depth": 29,
+      "gates": 149,
+      "sabre_swap": 2,
+      "ppo_swap": 13,
+      "diff_sabre_minus_ppo": -11
+    },
+    {
+      "index": 42,
+      "category": "deep",
+      "qubits": 14,
+      "depth": 28,
+      "gates": 235,
+      "sabre_swap": 54,
+      "ppo_swap": 10,
+      "diff_sabre_minus_ppo": 44
+    },
+    {
+      "index": 43,
+      "category": "deep",
+      "qubits": 15,
+      "depth": 26,
+      "gates": 174,
+      "sabre_swap": 74,
+      "ppo_swap": 13,
+      "diff_sabre_minus_ppo": 61
+    },
+    {
+      "index": 44,
+      "category": "deep",
+      "qubits": 14,
+      "depth": 26,
+      "gates": 135,
+      "sabre_swap": 23,
+      "ppo_swap": 12,
+      "diff_sabre_minus_ppo": 11
+    },
+    {
+      "index": 45,
+      "category": "deep",
+      "qubits": 14,
+      "depth": 26,
+      "gates": 173,
+      "sabre_swap": 22,
+      "ppo_swap": 10,
+      "diff_sabre_minus_ppo": 12
+    },
+    {
+      "index": 46,
+      "category": "deep",
+      "qubits": 15,
+      "depth": 24,
+      "gates": 116,
+      "sabre_swap": 3,
+      "ppo_swap": 15,
+      "diff_sabre_minus_ppo": -12
+    },
+    {
+      "index": 47,
+      "category": "deep",
+      "qubits": 14,
+      "depth": 23,
+      "gates": 100,
+      "sabre_swap": 1,
+      "ppo_swap": 12,
+      "diff_sabre_minus_ppo": -11
+    },
+    {
+      "index": 48,
+      "category": "deep",
+      "qubits": 16,
+      "depth": 29,
+      "gates": 287,
+      "sabre_swap": 31,
+      "ppo_swap": 15,
+      "diff_sabre_minus_ppo": 16
+    },
+    {
+      "index": 49,
+      "category": "deep",
+      "qubits": 14,
+      "depth": 29,
+      "gates": 123,
+      "sabre_swap": 2,
+      "ppo_swap": 12,
+      "diff_sabre_minus_ppo": -10
+    },
+    {
+      "index": 50,
+      "category": "deep",
+      "qubits": 16,
+      "depth": 23,
+      "gates": 178,
+      "sabre_swap": 57,
+      "ppo_swap": 23,
+      "diff_sabre_minus_ppo": 34
+    },
+    {
+      "index": 51,
+      "category": "deep",
+      "qubits": 14,
+      "depth": 24,
+      "gates": 120,
+      "sabre_swap": 20,
+      "ppo_swap": 12,
+      "diff_sabre_minus_ppo": 8
+    },
+    {
+      "index": 52,
+      "category": "deep",
+      "qubits": 14,
+      "depth": 26,
+      "gates": 171,
+      "sabre_swap": 0,
+      "ppo_swap": 10,
+      "diff_sabre_minus_ppo": -10
+    },
+    {
+      "index": 53,
+      "category": "deep",
+      "qubits": 16,
+      "depth": 30,
+      "gates": 221,
+      "sabre_swap": 13,
+      "ppo_swap": 16,
+      "diff_sabre_minus_ppo": -3
+    },
+    {
+      "index": 54,
+      "category": "deep",
+      "qubits": 15,
+      "depth": 24,
+      "gates": 141,
+      "sabre_swap": 1,
+      "ppo_swap": 13,
+      "diff_sabre_minus_ppo": -12
+    },
+    {
+      "index": 55,
+      "category": "deep",
+      "qubits": 16,
+      "depth": 23,
+      "gates": 161,
+      "sabre_swap": 65,
+      "ppo_swap": 16,
+      "diff_sabre_minus_ppo": 49
+    },
+    {
+      "index": 56,
+      "category": "deep",
+      "qubits": 15,
+      "depth": 20,
+      "gates": 97,
+      "sabre_swap": 0,
+      "ppo_swap": 15,
+      "diff_sabre_minus_ppo": -15
+    },
+    {
+      "index": 57,
+      "category": "deep",
+      "qubits": 14,
+      "depth": 28,
+      "gates": 165,
+      "sabre_swap": 13,
+      "ppo_swap": 10,
+      "diff_sabre_minus_ppo": 3
+    },
+    {
+      "index": 58,
+      "category": "deep",
+      "qubits": 16,
+      "depth": 25,
+      "gates": 121,
+      "sabre_swap": 1,
+      "ppo_swap": 20,
+      "diff_sabre_minus_ppo": -19
+    },
+    {
+      "index": 59,
+      "category": "deep",
+      "qubits": 14,
+      "depth": 29,
+      "gates": 129,
+      "sabre_swap": 1,
+      "ppo_swap": 10,
+      "diff_sabre_minus_ppo": -9
+    }
+  ],
+  "categories": {
+    "shallow": {
+      "qubits": [
+        5,
+        8
+      ],
+      "gates": [
+        5,
+        10
+      ],
+      "label": "浅电路"
+    },
+    "medium": {
+      "qubits": [
+        9,
+        14
+      ],
+      "gates": [
+        10,
+        20
+      ],
+      "label": "中电路"
+    },
+    "deep": {
+      "qubits": [
+        14,
+        16
+      ],
+      "gates": [
+        20,
+        30
+      ],
+      "label": "深电路"
+    }
+  }
+}

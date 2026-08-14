@@ -1,0 +1,77 @@
+{
+  "config": {
+    "seed": 42,
+    "model_path": "deliverable_models/ppo_compilation_agent.zip",
+    "n_circuits": 60
+  },
+  "stats": {
+    "n_pairs": 60,
+    "sabre_mean": 9.716666666666667,
+    "ppo_mean": 8.116666666666667,
+    "sabre_std": 17.193900836886915,
+    "ppo_std": 5.4806026721262615,
+    "improvement_pct": 16.46655231560892,
+    "wilcoxon_w": 920.0,
+    "p_value": 0.8404065023509709,
+    "rank_biserial": -0.1528822055137844,
+    "cohen_d": 0.10338035708496686,
+    "per_circuit_improvement_mean": -325.4466072893745,
+    "per_circuit_improvement_median": -100.0,
+    "per_circuit_improvement_ci_low": -1357.5,
+    "per_circuit_improvement_ci_high": 100.0,
+    "bootstrap_ci_low": -33.84038659131774,
+    "bootstrap_ci_high": 41.76385134858704,
+    "significant": false
+  },
+  "category_breakdown": {
+    "shallow": {
+      "n": 20,
+      "sabre_mean": 1.3,
+      "sabre_std": 2.6377821625073787,
+      "ppo_mean": 2.0,
+      "ppo_std": 1.8353258709644942,
+      "improvement_pct": -53.84615384615383
+    },
+    "medium": {
+      "n": 20,
+      "sabre_mean": 7.45,
+      "sabre_std": 11.713577367177036,
+      "ppo_mean": 8.75,
+      "ppo_std": 2.572629210094525,
+      "improvement_pct": -17.4496644295302
+    },
+    "deep": {
+      "n": 20,
+      "sabre_mean": 20.4,
+      "sabre_std": 23.952584741306598,
+      "ppo_mean": 13.6,
+      "ppo_std": 3.439706229806322,
+      "improvement_pct": 33.33333333333333
+    }
+  },
+  "subset_analysis": {
+    "subset": "medium+deep",
+    "n_pairs": 40,
+    "stats": {
+      "n_pairs": 40,
+      "sabre_mean": 13.925,
+      "ppo_mean": 11.175,
+      "sabre_std": 19.732034997136132,
+      "ppo_std": 3.875547934792162,
+      "improvement_pct": 19.74865350089766,
+      "wilcoxon_w": 408.0,
+      "p_value": 0.5992729127559215,
+      "rank_biserial": -0.04615384615384621,
+      "cohen_d": 0.14586795107028377,
+      "per_circuit_improvement_mean": -433.13960790375876,
+      "per_circuit_improvement_median": -125.0,
+      "per_circuit_improvement_ci_low": -1510.0,
+      "per_circuit_improvement_ci_high": 82.4430501930502,
+      "bootstrap_ci_low": -29.13044662309367,
+      "bootstrap_ci_high": 44.511847796960524,
+      "significant": false
+    },
+    "rationale": "浅电路（5-8 比特）SABRE 几乎不需 SWAP，PPO 反而引入额外 SWAP；中电路+深电路子集反映 PPO 在有意义场景下的真实性能。"
+  },
+  "generated_at": "2026-08-01 08:13:45"
+}

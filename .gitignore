@@ -97,6 +97,9 @@ tensorboard_logs/
 results/**/*.json
 # 3) 但 results/reports/ 下的 JSON 报告文件允许入库（覆盖上方 results/**/*.json）
 !results/reports/**/*.json
+# 3b) 编译层 N=200 规模化原始数据（8.14 权威 +52.1% 的逐电路出处，体积小，必须入库+入包）
+!results/compilation/
+!results/compilation/**
 # 4) Pareto 前沿分析图（Issue #142），白皮书/PPT 引用图，体积小
 !results/completion_reward_pareto.png
 results/raw/
