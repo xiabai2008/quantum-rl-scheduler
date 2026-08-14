@@ -136,9 +136,11 @@ def main() -> int:
                 records.append((r, r, qid))
             else:
                 rr = r.get("real_records") or []
-                if rr and rr[0].get("task_id") and rr[0].get("status") != "completed":
-                    qid = str(rr[0].get("real_task_id") or rr[0].get("task_id"))
-                    records.append((r, rr[0], qid))
+                # 8.14 修复：遍历 real_records 全部条目（此前只取 [0] 漏掉后续记录）
+                for rec in rr:
+                    if rec.get("task_id") and rec.get("status") != "completed":
+                        qid = str(rec.get("real_task_id") or rec.get("task_id"))
+                        records.append((r, rec, qid))
     elif data.get("task_id"):
         qid = str(data.get("real_task_id") or data.get("task_id"))
         records.append((data, data, qid))
@@ -193,20 +195,20 @@ def main() -> int:
     print(f"\n补录完成: {patched}/{len(pending)} | 修正副本: {out_path}")
 
     # 汇总（对齐 analyze_multiseed_v3 审计口径）
+    # 8.14 修复：对嵌套结构（prereg_high_ratio）按 real_records 实际状态统计，
+    # 此前按顶层 status/metrics 统计对嵌套格式输出不准（unknown）
+    status_counts: dict[str, int] = {}
     if "results" in data:
-        all_recs = [r for r in data["results"] if not r.get("smoke_test")]
-        # 8.12 round12 审查：completed 变量此前仅计数未消费（ruff F841），改为并入状态统计
-        # 冒烟/单条结构下 metrics 不存在，直接按 status 统计
-        status_counts: dict[str, int] = {}
         for r in data["results"]:
-            s = r.get("status") or r.get("metrics", {}).get("real_tasks_completed", 0) or "unknown"
-            status_counts[str(s)] = status_counts.get(str(s), 0) + 1
-        _completed_audit = sum(
-            1 for r in all_recs if r.get("metrics", {}).get("real_tasks_completed", 0)
-        )
-        if _completed_audit > 0:
-            status_counts["real_completed"] = _completed_audit
-        print("记录状态分布:", status_counts)
+            rr = r.get("real_records") or []
+            if rr:
+                for rec in rr:
+                    s = rec.get("status") or "pending"
+                    status_counts[str(s)] = status_counts.get(str(s), 0) + 1
+            else:
+                s = r.get("status") or "no_real_records"
+                status_counts[str(s)] = status_counts.get(str(s), 0) + 1
+    print("记录状态分布:", status_counts)
     return 0
 
 
