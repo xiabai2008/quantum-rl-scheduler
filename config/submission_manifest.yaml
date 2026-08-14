@@ -226,6 +226,24 @@ items:
     path: "results/reports/compilation_fair_v2_report.md"
     must_exist: true
 
+  - id: EXP_COMPILATION_DEEP_SCALE_REPORT
+    name: 编译层深电路规模化报告（N=200 权威，8.14）
+    type: md
+    path: "results/reports/compilation_deep_scale_report.md"
+    must_exist: true
+
+  - id: EXP_COMPILATION_DEEP_SCALE_DATA
+    name: 编译层N=200规模化原始数据（逐电路 JSON，+52.1% 权威出处）
+    type: directory
+    path: "results/compilation/"
+    must_exist: true
+
+  - id: EXP_REAL_MULTISEED_V3
+    name: 多seed真机实验报告 v3（N=20 权威，8.14 扩样）
+    type: md
+    path: "results/reports/multiseed_real_machine_report_20seeds_v3.md"
+    must_exist: true
+
   - id: EXP_REAL_AUDIT
     name: 真机审计轨迹
     type: md
