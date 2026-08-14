@@ -47,3 +47,37 @@ t2: 实验②smoke预检A/B（真机4任务）。命令：
 ## 执行前需确认（v5 口径）
 - v5 team.json 中 t1 == completed（等待中，exp1 正在跑成本评估）
 - 若 A 失败（平台拒绝多比特/CNOT）→ 实验②终止，记录平台能力边界，t2 仍标 completed（带终止结论）
+
+## 执行结果（2026-08-14 12:08-12:09，真机 tianyan-287）—— 实验② 终止（平台能力边界）
+- captain 已批准启动 t2（06cff...08e，ts=1786680360565）。wait_for_task 参数 bug 已由 captain 修复（timeout/poll_interval），脚本正常。
+- --check-a：A1_cz_chain_4q (task_id=None, QCIS 预校验失败)、A2_cnot_pair (task_id=None, QCIS 预校验失败)
+  → results/real_machine/compilation_real_smoke_20260814_120833.json；预检 A ❌ 失败
+- --check-b：B1_near_Q1_Q2 (task_id=None, QCIS 预校验失败)、B2_far_Q1_Q3 (task_id=None, QCIS 预校验失败)
+  → results/real_machine/compilation_real_smoke_20260814_120951.json；预检 B ❌ 失败
+- 因无 task_id，无需/无法 patch 补录。
+
+### 决定性取证：qcis_check_regular 平台 QCIS 校验（直接探针，12:09）
+| 电路 | 有效? |
+|---|---|
+| A1 cz 链 (H Q1..4, CZ Q1Q2/Q2Q3/Q3Q4, M) | False |
+| A2 cnot (H Q1 Q2, CNOT Q1Q2, M) | False |
+| A2b CZ Q1Q2 (直连) | False |
+| A2c CZ Q1Q2 + H Q2 (circuit_templates H-CZ-H 风格) | False |
+| single_H2q (H Q1, H Q2, M) | True |
+| single_H1q (H Q1, M) | True |
+| RX Q1 0.5 (参数门) | True |
+
+控制隔离：唯一差异是插入 "CZ Q1 Q2" 行（single_H2q True → A2b False），证明拒绝源于 CZ 2量子门本身（CNOT 同理）。
+
+### 结论
+tianyan-287 平台 qcis_check_regular（平台 QCIS 校验）**拒绝所有含 CZ/CNOT（2量子纠缠门）电路**；单比特门（H 等）与参数门 RX/RY/RZ 通过。
+→ 实验②（编译层 PPO/SABRE 电路 → 真机保真度对比）所需的多比特门电路**无法在本平台执行**，实验② 终止。平台能力边界已记录。
+
+## 复核性复跑（2026-08-14 12:14，wait_for_task 修复后，captain 批准）
+- captain 已修复 compilation_real_smoke.py wait_for_task 参数 bug（max_wait_time/sleep_time → timeout/poll_interval，与 CqlibTianyanClient 签名一致，py_compile 通过）。
+- --check-a 复跑：A1_cz_chain_4q / A2_cnot_pair 均 status=failed, task_id=None, "QCIS 预校验失败"
+  → results/real_machine/compilation_real_smoke_20260814_121408.json（预检 A ❌）
+- --check-b 复跑：B1_near_Q1_Q2 / B2_far_Q1_Q3 均 status=failed, task_id=None, "QCIS 预校验失败"
+  → results/real_machine/compilation_real_smoke_20260814_121420.json（预检 B ❌）
+- 判定：修复 wait_for_task 后结果与初跑（12:08/12:09）一致——失败发生在提交前平台 QCIS 预校验（qcis_check_regular 拒绝 CZ/CNOT），未产生 task_id，非 TypeError/时序/query_error，亦无可补录。
+- 确认：平台能力边界结论稳健，实验②终止。相同结论在两次独立运行中复现。

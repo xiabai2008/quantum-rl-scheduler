@@ -69,7 +69,12 @@ def main() -> int:
                 # 仅真机 platform id（数字长串），跳过内部 T0001 等符号 id
                 if tid and str(tid).isdigit():
                     tasks.append(
-                        {"seed": seed, "strategy": strat, "task_name": rr.get("task_id"), "tid": str(tid)}
+                        {
+                            "seed": seed,
+                            "strategy": strat,
+                            "task_name": rr.get("task_id"),
+                            "tid": str(tid),
+                        }
                     )
     else:
         print("❌ 非预期的 JSON 结构（无 results 列表）")
@@ -95,9 +100,11 @@ def main() -> int:
         st = None
         try:
             st = client.get_task_status(t["tid"])
-        except Exception as e:  # noqa: BLE001
-            print(f"  [{i + 1}/{len(tasks)}] {t['seed']}/{t['strategy']} "
-                  f"{t['task_name']} real_task={t['tid']} → EXC:{str(e)[:90]}")
+        except Exception as e:
+            print(
+                f"  [{i + 1}/{len(tasks)}] {t['seed']}/{t['strategy']} "
+                f"{t['task_name']} real_task={t['tid']} → EXC:{str(e)[:90]}"
+            )
             other += 1
             continue
         status = str(st.get("status", "unknown"))
