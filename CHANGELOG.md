@@ -2,6 +2,27 @@
 
 本文件记录项目的所有重要变更，按日期倒序排列。
 
+## [2026-08-14] - AgentTeams 四路冻结终检 + P0/P1/P2 修复收口
+
+### 四路审查（stats-verifier / code-verifier / env-auditor / red-team-judge，均独立实跑）
+- **统计终检（t1）**：六项权威数字（+20.2% / 等待-14.0% / 利用率-3.3% / MAPPO+36.5% / 退火-5.6% / 噪声-12.43%）+ 8.14 新增两段（真机 v3 N=20、编译 N=200）全部从原始 JSON 独立复现；无 v2 残留；无 P0/P1
+- **代码验证（t2）**：8.14 五个新提交逐项验证全 ✓（roi_analysis v3 常数+合并载入、check_stats 黑名单 v3、PPTX v3、补录脚本三修复、白皮书 N=200）；8.12/8.13 高风险抽查（QEM action=3 归一化、env seed 回落、熔断器、check_doc_sync GBK）全 ✓；全量 pytest **3704 passed / 27 skipped / 0 failed**；ruff 全绿
+- **环境终检（t3）**：tag/HEAD/工作树全干净；dist CRC/条目/数字/字节全过；validate 0 错误 0 警告
+- **红队终审（t4）**：无伪造/无经典冒充量子/无密钥入包；五维 86/82/84/70/88（均权 ~82）；名次二等~一等 → 修复后锁一等冲特等
+
+### 审查发现修复
+- **P1-1**：编译层 N=200 +52.1%（p=2.30e-10）提交包内自相矛盾清零——PPT P3/P7、参赛总结报告 P2/P3、答辩 QA 手册 6 处、novelty_statement、bidirectional_empowerment、dual_empowerment、observation_dim_standard、MODELS、authoritative_numbers、项目记忆、defense_ppt_outline、defense_narrative、compilation_fair_v2 横幅共 15 文件统一为 N=200 权威（保留全 60 电路不显著诚实披露）；PPT/总结报告 PDF 重生成
+- **P1-2**：`docs/真机性能补强交付文档_20260807.md` 本机路径脱敏（D:\tools\Python 3.12.9 / C:\Users\HZR\... → Python 3.12 环境 / %TEMP%）
+- **P2-1**：编译 N=200 逐电路原始 JSON 解除 .gitignore 排除并入库（5 文件）+ manifest 新增编译 N=200 报告/原始数据目录/v3 真机报告条目——提交包 24→31 条目，+52.1% 与 N=20 权威的原始出处随包可见
+- **t1 注记**：statistics.yaml 编译段"单侧"标签修正为"双侧"；真机 v3 段补 std_ddof: 1 声明
+- **门禁加固**：check_stats_consistency 新增 +38.5%/+52.1% 文件级冲突检测、登记 6.26e-13（编译 N=200 配对 t）、"取代"入诚实披露关键词
+- **t3 P2**：比赛命名 zip 选题名称补内嵌空格（"量子+AI 双向赋能"，与官方榜题逐字一致）
+
+### 待人工项（不占 P0-P3，9/15 提交前必须）
+- 盖章版报名表替换占位件（方案 L273-281 硬性要求）
+- 演示视频实拍替换占位版（当前 0.66MB 黑屏提示文字）
+- PPT 团队页实名/照片/指导老师填充、总结报告"参赛单位"栏确认
+
 ## [2026-08-14] - 冻结终检收口（阶段1+2）+ 编译层N=200规模化 + 真机v3权威全仓同步
 
 ### 阶段1 冻结收口（commit 5a7fa2d，tag v9.1-submission 重指）
