@@ -521,8 +521,14 @@ annealing_ablation_head_only:
   with_vs_without_annealing:
     test_method: "Wilcoxon"
     p_value: 0.9430
+    # 8.14 外部终检注记：p=0.9430 为单侧（alternative='greater'，即"退火有益"方向）；
+    # 双侧 p=0.123。两种口径下均不显著，结论不变（负向/不显著），口径在此显式声明。
+    p_value_side: "单侧（alternative='greater'，退火有益方向）；双侧 p=0.123"
     effect_size_type: "Cliff's delta"
     effect_size: 0.40
+    # 8.14 外部终检注记：Cliff's delta 0.40 为绝对值口径（分布重叠度量），
+    # 方向以 improvement_pct=-5.6 为准（负向）；paired rank-biserial 为 -0.4（负方向）。
+    # 两处符号表述以负方向为准，正号仅表分布重叠程度，不得作为正向证据。
     improvement_pct: -5.6  # 20seed 权威方向：负向（50k checkpoint），正负号含方向
     significant: false
     applicable_condition: "退火消融，20seeds权威验证，n=20"
