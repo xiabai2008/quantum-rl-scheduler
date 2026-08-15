@@ -162,7 +162,7 @@ def generate_report(
 
 ---
 
-> **⚠️ 重要说明（数据一致性）**：本报告 PPO 相对 FCFS 提升 **{ppo_fcfs["improvement_pct"]:+.1f}%**（14维原生观测，{total_runs} runs），权权威数字 **+123.4%**（16维交付模型，N=250）存在差异。差异源于观测维度（14维 vs 16维）权样本量（{total_runs} vs 250 runs）不同；两套实验均显示 PPO 显著优于 FCFS，策略排名一致。详见 §3.3。
+> **⚠️ 重要说明（数据一致性）**：本报告 PPO 相对 FCFS 提升 **{ppo_fcfs["improvement_pct"]:+.1f}%**（14维原生观测，{total_runs} runs），权威数字 **+20.2%**（16维交付模型，N=250，vs 真实 FCFS；旧 +123.4% 为 vs Hybrid-Default 弱基线，已废弃）存在差异。差异源于观测维度（14维 vs 16维）权样本量（{total_runs} vs 250 runs）不同；两套实验均显示 PPO 显著优于 FCFS，策略排名一致。详见 §3.3。
 
 ---
 
@@ -215,14 +215,14 @@ PPO（Proximal Policy Optimization）和 DQN（Deep Q-Network）在调度问题�
 - DQN 的 reward clipping [-1, 1] 压缩了奖励信号，可能导致 Q 值估计偏差
 - DQN 的量子动作（action=1）使用率极低（<1%），说明模型主要依赖经典/混合执行路径
 
-### 3.3 权权威数字对比
+### 3.3 权威数字对比
 
 | 数据源 | PPO 均值 | FCFS 均值 | PPO 提升 | p 值 |
 |--------|--------:|--------:|--------:|-----:|
 | 本报告（14维, {total_runs} runs） | {ppo["mean_reward"]:.2f} | {fcfs["mean_reward"]:.2f} | {ppo_fcfs["improvement_pct"]:+.1f}% | {ppo_fcfs["p_value"]:.2e} |
 | 权威8策略（16维, 250 runs） | 1982.69 | 1648.91 | +20.2% | 7.56e-12 |
 
-> **⚠️ 数据一致性说明**：本报告 PPO 提升 {ppo_fcfs["improvement_pct"]:+.1f}% 权权威数字 +20.2% 存在差异，原因如下：
+> **⚠️ 数据一致性说明**：本报告 PPO 提升 {ppo_fcfs["improvement_pct"]:+.1f}% 权威数字 +20.2% 存在差异，原因如下：
 > 1. **观测维度不同**：本报告使用 14 维原生观测，权威 8 策略实验使用 16 维交付模型（ppo_best_model_16dim.zip）
 > 2. **seed 数量不同**：本报告 {total_runs} runs（10 seeds），权威实验 250 runs（50 seeds）
 > 3. **任务配置相同**：均使用 200 tasks/episode, 泊松到达 λ=0.5
