@@ -353,21 +353,21 @@ class TestPValueChineseCopulaPattern:
         return [v for _, v in extract_p_values_from_line(text)]
 
     def test_p_value_wei_extracted(self) -> None:
-        """"p 值为 1.449e-66"（废弃值中文伪装）应被提取。"""
+        """ "p 值为 1.449e-66"（废弃值中文伪装）应被提取。"""
         vals = self._extract("该实验 p 值为 1.449e-66，显著")
         assert any(v == "1.449e-66" for v in vals), f"应提取 p 值为 1.449e-66，got {vals}"
 
     def test_p_value_shi_extracted(self) -> None:
-        """"p 值是 7.56e-12"应被提取。"""
+        """ "p 值是 7.56e-12"应被提取。"""
         vals = self._extract("权威 p 值是 7.56e-12（Welch t）")
         assert any(v == "7.56e-12" for v in vals), f"应提取 p 值是 7.56e-12，got {vals}"
 
     def test_p_value_colon_extracted(self) -> None:
-        """"p 值：0.127118"（冒号变体）应被提取（第二轮修复回归）。"""
+        """ "p 值：0.127118"（冒号变体）应被提取（第二轮修复回归）。"""
         vals = self._extract("检验结果：p 值：0.127118，不显著")
         assert any(v == "0.127118" for v in vals), f"应提取 p 值：0.127118，got {vals}"
 
     def test_p_value_plain_equals_extracted(self) -> None:
-        """"p=0.031"（ASCII 变体）仍应被提取（无回归）。"""
+        """ "p=0.031"（ASCII 变体）仍应被提取（无回归）。"""
         vals = self._extract("Welch t p=0.031，不显著")
         assert any(v == "0.031" for v in vals), f"应提取 p=0.031，got {vals}"
