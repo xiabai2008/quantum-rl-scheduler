@@ -49,8 +49,8 @@ def build_summary() -> None:
             body_style,
         )
     )
-    story.append(Paragraph("参赛单位：（待填写）", body_style))
-    story.append(Paragraph("完成时间：2026-08-08（占位版，提交前请核对）", body_style))
+    story.append(Paragraph("参赛单位：广州软件学院", body_style))
+    story.append(Paragraph("完成时间：2026-08-17", body_style))
     story.append(PageBreak())
 
     sections = [
@@ -151,7 +151,7 @@ def build_form() -> None:
         ["作品名称", "量子RL驱动的天衍云平台智能调度系统"],
         ["榜题编号", "XA-202609（量子+AI 双向赋能的研究与应用探索）"],
         ["参赛赛道", "学生赛道"],
-        ["参赛单位", "（待填写，须与报名系统一致）"],
+        ["参赛单位", "广州软件学院"],
         ["团队成员", "（待填写，不超过10人）"],
         ["指导教师", "（待填写，不超过3人）"],
         ["报名状态", "已在挑战杯官网报名系统提交（待确认）"],
