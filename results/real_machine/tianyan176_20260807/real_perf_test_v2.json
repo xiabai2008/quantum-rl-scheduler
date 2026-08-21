@@ -1,0 +1,787 @@
+{
+  "experiment": "real_machine_performance_test_v2",
+  "timestamp": "2026-08-07T16:00:28.714475",
+  "machine": "tianyan176",
+  "shots": 32,
+  "seeds": [
+    42,
+    123,
+    456
+  ],
+  "strategies": [
+    "PPO",
+    "FCFS",
+    "SJF"
+  ],
+  "smoke_test": {
+    "timestamp": "2026-08-07T15:55:33.872741",
+    "machine": "tianyan176",
+    "qcis": "H Q0\nM Q0",
+    "shots": 32,
+    "task_id": "2085635948582543361",
+    "elapsed_seconds": 42.74,
+    "probability": {
+      "0": 0.4392528424472117,
+      "1": 0.5607471575527884
+    },
+    "raw_result": {
+      "resultStatus": [
+        [
+          0
+        ],
+        [
+          1
+        ],
+        [
+          0
+        ],
+        [
+          0
+        ],
+        [
+          1
+        ],
+        [
+          0
+        ],
+        [
+          1
+        ],
+        [
+          1
+        ],
+        [
+          1
+        ],
+        [
+          0
+        ],
+        [
+          0
+        ],
+        [
+          1
+        ],
+        [
+          0
+        ],
+        [
+          1
+        ],
+        [
+          0
+        ],
+        [
+          0
+        ],
+        [
+          0
+        ],
+        [
+          0
+        ],
+        [
+          0
+        ],
+        [
+          1
+        ],
+        [
+          1
+        ],
+        [
+          1
+        ],
+        [
+          0
+        ],
+        [
+          1
+        ],
+        [
+          1
+        ],
+        [
+          0
+        ],
+        [
+          1
+        ],
+        [
+          0
+        ],
+        [
+          1
+        ],
+        [
+          1
+        ],
+        [
+          1
+        ],
+        [
+          1
+        ],
+        [
+          0
+        ]
+      ],
+      "probability": "{\"0\":0.4392528424472117,\"1\":0.5607471575527884}",
+      "experimentTaskId": 2085635948582543361
+    },
+    "fidelity": 0.9393,
+    "p0": 0.4393,
+    "p1": 0.5607
+  },
+  "episodes": [
+    {
+      "strategy": "PPO",
+      "seed": 42,
+      "machine": "tianyan176",
+      "shots": 32,
+      "max_steps": 200,
+      "real_submit_prob": 0.1,
+      "max_real_per_episode": 3,
+      "timestamp": "2026-08-07T15:56:16.616893",
+      "total_reward": 814.38,
+      "step_count": 200,
+      "real_submit_count": 3,
+      "real_tasks": [
+        {
+          "step": 6,
+          "task_id": "2085636128057278466",
+          "elapsed": 90.08,
+          "fidelity": 0.8716,
+          "probability": {
+            "0": 0.3715755278830536,
+            "1": 0.6284244721169464
+          },
+          "reward": 8.7158
+        },
+        {
+          "step": 10,
+          "task_id": "2085636505405759490",
+          "elapsed": 89.83,
+          "fidelity": 0.9592,
+          "probability": {
+            "0": 0.5407688142934488,
+            "1": 0.4592311857065512
+          },
+          "reward": 9.5923
+        },
+        {
+          "step": 14,
+          "task_id": "2085636882096201729",
+          "elapsed": 47.82,
+          "fidelity": 0.8916,
+          "probability": {
+            "0": 0.608446128857607,
+            "1": 0.39155387114239304
+          },
+          "reward": 8.9155
+        }
+      ],
+      "mean_fidelity": 0.9075,
+      "fidelity_std": 0.0375,
+      "mean_latency": 75.91,
+      "latency_std": 19.86
+    },
+    {
+      "strategy": "FCFS",
+      "seed": 42,
+      "machine": "tianyan176",
+      "shots": 32,
+      "max_steps": 200,
+      "real_submit_prob": 0.1,
+      "max_real_per_episode": 3,
+      "timestamp": "2026-08-07T16:00:04.354376",
+      "total_reward": 315.52,
+      "step_count": 200,
+      "real_submit_count": 0,
+      "real_tasks": [
+        {
+          "step": 6,
+          "error": "提交失败: {'msg': '{\"CN\":\"该量子计算机正在校准中,暂时不可用\",\"EN\":\"The quantum computer is Calibrating and is temporarily unavailable\"}', 'code': 1}"
+        },
+        {
+          "step": 10,
+          "error": "提交失败: {'msg': '{\"CN\":\"该量子计算机正在校准中,暂时不可用\",\"EN\":\"The quantum computer is Calibrating and is temporarily unavailable\"}', 'code': 1}"
+        },
+        {
+          "step": 14,
+          "error": "提交失败: {'msg': '{\"CN\":\"该量子计算机正在校准中,暂时不可用\",\"EN\":\"The quantum computer is Calibrating and is temporarily unavailable\"}', 'code': 1}"
+        },
+        {
+          "step": 15,
+          "error": "提交失败: {'msg': '{\"CN\":\"该量子计算机正在校准中,暂时不可用\",\"EN\":\"The quantum computer is Calibrating and is temporarily unavailable\"}', 'code': 1}"
+        },
+        {
+          "step": 24,
+          "error": "提交失败: {'msg': '{\"CN\":\"该量子计算机正在校准中,暂时不可用\",\"EN\":\"The quantum computer is Calibrating and is temporarily unavailable\"}', 'code': 1}"
+        },
+        {
+          "step": 36,
+          "error": "提交失败: {'msg': '{\"CN\":\"该量子计算机正在校准中,暂时不可用\",\"EN\":\"The quantum computer is Calibrating and is temporarily unavailable\"}', 'code': 1}"
+        },
+        {
+          "step": 47,
+          "error": "提交失败: {'msg': '{\"CN\":\"该量子计算机正在校准中,暂时不可用\",\"EN\":\"The quantum computer is Calibrating and is temporarily unavailable\"}', 'code': 1}"
+        },
+        {
+          "step": 48,
+          "error": "提交失败: {'msg': '{\"CN\":\"该量子计算机正在校准中,暂时不可用\",\"EN\":\"The quantum computer is Calibrating and is temporarily unavailable\"}', 'code': 1}"
+        },
+        {
+          "step": 51,
+          "error": "提交失败: {'msg': '{\"CN\":\"该量子计算机正在校准中,暂时不可用\",\"EN\":\"The quantum computer is Calibrating and is temporarily unavailable\"}', 'code': 1}"
+        },
+        {
+          "step": 70,
+          "error": "提交失败: {'msg': '{\"CN\":\"该量子计算机正在校准中,暂时不可用\",\"EN\":\"The quantum computer is Calibrating and is temporarily unavailable\"}', 'code': 1}"
+        },
+        {
+          "step": 72,
+          "error": "提交失败: {'msg': '{\"CN\":\"该量子计算机正在校准中,暂时不可用\",\"EN\":\"The quantum computer is Calibrating and is temporarily unavailable\"}', 'code': 1}"
+        },
+        {
+          "step": 88,
+          "error": "提交失败: {'msg': '{\"CN\":\"该量子计算机正在校准中,暂时不可用\",\"EN\":\"The quantum computer is Calibrating and is temporarily unavailable\"}', 'code': 1}"
+        },
+        {
+          "step": 94,
+          "error": "提交失败: {'msg': '{\"CN\":\"该量子计算机正在校准中,暂时不可用\",\"EN\":\"The quantum computer is Calibrating and is temporarily unavailable\"}', 'code': 1}"
+        },
+        {
+          "step": 98,
+          "error": "提交失败: {'msg': '{\"CN\":\"该量子计算机正在校准中,暂时不可用\",\"EN\":\"The quantum computer is Calibrating and is temporarily unavailable\"}', 'code': 1}"
+        },
+        {
+          "step": 119,
+          "error": "提交失败: {'msg': '{\"CN\":\"该量子计算机正在校准中,暂时不可用\",\"EN\":\"The quantum computer is Calibrating and is temporarily unavailable\"}', 'code': 1}"
+        },
+        {
+          "step": 142,
+          "error": "提交失败: {'msg': '{\"CN\":\"该量子计算机正在校准中,暂时不可用\",\"EN\":\"The quantum computer is Calibrating and is temporarily unavailable\"}', 'code': 1}"
+        },
+        {
+          "step": 153,
+          "error": "提交失败: {'msg': '{\"CN\":\"该量子计算机正在校准中,暂时不可用\",\"EN\":\"The quantum computer is Calibrating and is temporarily unavailable\"}', 'code': 1}"
+        },
+        {
+          "step": 157,
+          "error": "提交失败: {'msg': '{\"CN\":\"该量子计算机正在校准中,暂时不可用\",\"EN\":\"The quantum computer is Calibrating and is temporarily unavailable\"}', 'code': 1}"
+        },
+        {
+          "step": 158,
+          "error": "提交失败: {'msg': '{\"CN\":\"该量子计算机正在校准中,暂时不可用\",\"EN\":\"The quantum computer is Calibrating and is temporarily unavailable\"}', 'code': 1}"
+        },
+        {
+          "step": 197,
+          "error": "提交失败: {'msg': '{\"CN\":\"该量子计算机正在校准中,暂时不可用\",\"EN\":\"The quantum computer is Calibrating and is temporarily unavailable\"}', 'code': 1}"
+        }
+      ],
+      "mean_fidelity": 0.0,
+      "fidelity_std": 0.0,
+      "mean_latency": 0.0,
+      "latency_std": 0.0
+    },
+    {
+      "strategy": "SJF",
+      "seed": 42,
+      "machine": "tianyan176",
+      "shots": 32,
+      "max_steps": 200,
+      "real_submit_prob": 0.1,
+      "max_real_per_episode": 3,
+      "timestamp": "2026-08-07T16:00:08.736882",
+      "total_reward": 445.27,
+      "step_count": 200,
+      "real_submit_count": 0,
+      "real_tasks": [],
+      "mean_fidelity": 0.0,
+      "fidelity_std": 0.0,
+      "mean_latency": 0.0,
+      "latency_std": 0.0
+    },
+    {
+      "strategy": "PPO",
+      "seed": 123,
+      "machine": "tianyan176",
+      "shots": 32,
+      "max_steps": 200,
+      "real_submit_prob": 0.1,
+      "max_real_per_episode": 3,
+      "timestamp": "2026-08-07T16:00:08.736882",
+      "total_reward": 680.84,
+      "step_count": 200,
+      "real_submit_count": 0,
+      "real_tasks": [
+        {
+          "step": 0,
+          "error": "提交失败: {'msg': '{\"CN\":\"该量子计算机正在校准中,暂时不可用\",\"EN\":\"The quantum computer is Calibrating and is temporarily unavailable\"}', 'code': 1}"
+        },
+        {
+          "step": 1,
+          "error": "提交失败: {'msg': '{\"CN\":\"该量子计算机正在校准中,暂时不可用\",\"EN\":\"The quantum computer is Calibrating and is temporarily unavailable\"}', 'code': 1}"
+        },
+        {
+          "step": 13,
+          "error": "提交失败: {'msg': '{\"CN\":\"该量子计算机正在校准中,暂时不可用\",\"EN\":\"The quantum computer is Calibrating and is temporarily unavailable\"}', 'code': 1}"
+        },
+        {
+          "step": 25,
+          "error": "提交失败: {'msg': '{\"CN\":\"该量子计算机正在校准中,暂时不可用\",\"EN\":\"The quantum computer is Calibrating and is temporarily unavailable\"}', 'code': 1}"
+        },
+        {
+          "step": 30,
+          "error": "提交失败: {'msg': '{\"CN\":\"该量子计算机正在校准中,暂时不可用\",\"EN\":\"The quantum computer is Calibrating and is temporarily unavailable\"}', 'code': 1}"
+        },
+        {
+          "step": 33,
+          "error": "提交失败: {'msg': '{\"CN\":\"该量子计算机正在校准中,暂时不可用\",\"EN\":\"The quantum computer is Calibrating and is temporarily unavailable\"}', 'code': 1}"
+        },
+        {
+          "step": 47,
+          "error": "提交失败: {'msg': '{\"CN\":\"该量子计算机正在校准中,暂时不可用\",\"EN\":\"The quantum computer is Calibrating and is temporarily unavailable\"}', 'code': 1}"
+        },
+        {
+          "step": 59,
+          "error": "提交失败: {'msg': '{\"CN\":\"该量子计算机正在校准中,暂时不可用\",\"EN\":\"The quantum computer is Calibrating and is temporarily unavailable\"}', 'code': 1}"
+        },
+        {
+          "step": 84,
+          "error": "提交失败: {'msg': '{\"CN\":\"该量子计算机正在校准中,暂时不可用\",\"EN\":\"The quantum computer is Calibrating and is temporarily unavailable\"}', 'code': 1}"
+        },
+        {
+          "step": 110,
+          "error": "提交失败: {'msg': '{\"CN\":\"该量子计算机正在校准中,暂时不可用\",\"EN\":\"The quantum computer is Calibrating and is temporarily unavailable\"}', 'code': 1}"
+        },
+        {
+          "step": 119,
+          "error": "提交失败: {'msg': '{\"CN\":\"该量子计算机正在校准中,暂时不可用\",\"EN\":\"The quantum computer is Calibrating and is temporarily unavailable\"}', 'code': 1}"
+        },
+        {
+          "step": 130,
+          "error": "提交失败: {'msg': '{\"CN\":\"该量子计算机正在校准中,暂时不可用\",\"EN\":\"The quantum computer is Calibrating and is temporarily unavailable\"}', 'code': 1}"
+        },
+        {
+          "step": 139,
+          "error": "提交失败: {'msg': '{\"CN\":\"该量子计算机正在校准中,暂时不可用\",\"EN\":\"The quantum computer is Calibrating and is temporarily unavailable\"}', 'code': 1}"
+        },
+        {
+          "step": 149,
+          "error": "提交失败: {'msg': '{\"CN\":\"该量子计算机正在校准中,暂时不可用\",\"EN\":\"The quantum computer is Calibrating and is temporarily unavailable\"}', 'code': 1}"
+        },
+        {
+          "step": 153,
+          "error": "提交失败: {'msg': '{\"CN\":\"该量子计算机正在校准中,暂时不可用\",\"EN\":\"The quantum computer is Calibrating and is temporarily unavailable\"}', 'code': 1}"
+        },
+        {
+          "step": 159,
+          "error": "提交失败: {'msg': '{\"CN\":\"该量子计算机正在校准中,暂时不可用\",\"EN\":\"The quantum computer is Calibrating and is temporarily unavailable\"}', 'code': 1}"
+        },
+        {
+          "step": 165,
+          "error": "提交失败: {'msg': '{\"CN\":\"该量子计算机正在校准中,暂时不可用\",\"EN\":\"The quantum computer is Calibrating and is temporarily unavailable\"}', 'code': 1}"
+        },
+        {
+          "step": 178,
+          "error": "提交失败: {'msg': '{\"CN\":\"该量子计算机正在校准中,暂时不可用\",\"EN\":\"The quantum computer is Calibrating and is temporarily unavailable\"}', 'code': 1}"
+        },
+        {
+          "step": 180,
+          "error": "提交失败: {'msg': '{\"CN\":\"该量子计算机正在校准中,暂时不可用\",\"EN\":\"The quantum computer is Calibrating and is temporarily unavailable\"}', 'code': 1}"
+        },
+        {
+          "step": 183,
+          "error": "提交失败: {'msg': '{\"CN\":\"该量子计算机正在校准中,暂时不可用\",\"EN\":\"The quantum computer is Calibrating and is temporarily unavailable\"}', 'code': 1}"
+        },
+        {
+          "step": 185,
+          "error": "提交失败: {'msg': '{\"CN\":\"该量子计算机正在校准中,暂时不可用\",\"EN\":\"The quantum computer is Calibrating and is temporarily unavailable\"}', 'code': 1}"
+        },
+        {
+          "step": 190,
+          "error": "提交失败: {'msg': '{\"CN\":\"该量子计算机正在校准中,暂时不可用\",\"EN\":\"The quantum computer is Calibrating and is temporarily unavailable\"}', 'code': 1}"
+        },
+        {
+          "step": 191,
+          "error": "提交失败: {'msg': '{\"CN\":\"该量子计算机正在校准中,暂时不可用\",\"EN\":\"The quantum computer is Calibrating and is temporarily unavailable\"}', 'code': 1}"
+        },
+        {
+          "step": 194,
+          "error": "提交失败: {'msg': '{\"CN\":\"该量子计算机正在校准中,暂时不可用\",\"EN\":\"The quantum computer is Calibrating and is temporarily unavailable\"}', 'code': 1}"
+        },
+        {
+          "step": 195,
+          "error": "提交失败: {'msg': '{\"CN\":\"该量子计算机正在校准中,暂时不可用\",\"EN\":\"The quantum computer is Calibrating and is temporarily unavailable\"}', 'code': 1}"
+        }
+      ],
+      "mean_fidelity": 0.0,
+      "fidelity_std": 0.0,
+      "mean_latency": 0.0,
+      "latency_std": 0.0
+    },
+    {
+      "strategy": "FCFS",
+      "seed": 123,
+      "machine": "tianyan176",
+      "shots": 32,
+      "max_steps": 200,
+      "real_submit_prob": 0.1,
+      "max_real_per_episode": 3,
+      "timestamp": "2026-08-07T16:00:14.225668",
+      "total_reward": 291.88,
+      "step_count": 200,
+      "real_submit_count": 0,
+      "real_tasks": [
+        {
+          "step": 0,
+          "error": "提交失败: {'msg': '{\"CN\":\"该量子计算机正在校准中,暂时不可用\",\"EN\":\"The quantum computer is Calibrating and is temporarily unavailable\"}', 'code': 1}"
+        },
+        {
+          "step": 1,
+          "error": "提交失败: {'msg': '{\"CN\":\"该量子计算机正在校准中,暂时不可用\",\"EN\":\"The quantum computer is Calibrating and is temporarily unavailable\"}', 'code': 1}"
+        },
+        {
+          "step": 13,
+          "error": "提交失败: {'msg': '{\"CN\":\"该量子计算机正在校准中,暂时不可用\",\"EN\":\"The quantum computer is Calibrating and is temporarily unavailable\"}', 'code': 1}"
+        },
+        {
+          "step": 25,
+          "error": "提交失败: {'msg': '{\"CN\":\"该量子计算机正在校准中,暂时不可用\",\"EN\":\"The quantum computer is Calibrating and is temporarily unavailable\"}', 'code': 1}"
+        },
+        {
+          "step": 30,
+          "error": "提交失败: {'msg': '{\"CN\":\"该量子计算机正在校准中,暂时不可用\",\"EN\":\"The quantum computer is Calibrating and is temporarily unavailable\"}', 'code': 1}"
+        },
+        {
+          "step": 33,
+          "error": "提交失败: {'msg': '{\"CN\":\"该量子计算机正在校准中,暂时不可用\",\"EN\":\"The quantum computer is Calibrating and is temporarily unavailable\"}', 'code': 1}"
+        },
+        {
+          "step": 47,
+          "error": "提交失败: {'msg': '{\"CN\":\"该量子计算机正在校准中,暂时不可用\",\"EN\":\"The quantum computer is Calibrating and is temporarily unavailable\"}', 'code': 1}"
+        },
+        {
+          "step": 59,
+          "error": "提交失败: {'msg': '{\"CN\":\"该量子计算机正在校准中,暂时不可用\",\"EN\":\"The quantum computer is Calibrating and is temporarily unavailable\"}', 'code': 1}"
+        },
+        {
+          "step": 84,
+          "error": "提交失败: {'msg': '{\"CN\":\"该量子计算机正在校准中,暂时不可用\",\"EN\":\"The quantum computer is Calibrating and is temporarily unavailable\"}', 'code': 1}"
+        },
+        {
+          "step": 110,
+          "error": "提交失败: {'msg': '{\"CN\":\"该量子计算机正在校准中,暂时不可用\",\"EN\":\"The quantum computer is Calibrating and is temporarily unavailable\"}', 'code': 1}"
+        },
+        {
+          "step": 119,
+          "error": "提交失败: {'msg': '{\"CN\":\"该量子计算机正在校准中,暂时不可用\",\"EN\":\"The quantum computer is Calibrating and is temporarily unavailable\"}', 'code': 1}"
+        },
+        {
+          "step": 130,
+          "error": "提交失败: {'msg': '{\"CN\":\"该量子计算机正在校准中,暂时不可用\",\"EN\":\"The quantum computer is Calibrating and is temporarily unavailable\"}', 'code': 1}"
+        },
+        {
+          "step": 139,
+          "error": "提交失败: {'msg': '{\"CN\":\"该量子计算机正在校准中,暂时不可用\",\"EN\":\"The quantum computer is Calibrating and is temporarily unavailable\"}', 'code': 1}"
+        },
+        {
+          "step": 149,
+          "error": "提交失败: {'msg': '{\"CN\":\"该量子计算机正在校准中,暂时不可用\",\"EN\":\"The quantum computer is Calibrating and is temporarily unavailable\"}', 'code': 1}"
+        },
+        {
+          "step": 153,
+          "error": "提交失败: {'msg': '{\"CN\":\"该量子计算机正在校准中,暂时不可用\",\"EN\":\"The quantum computer is Calibrating and is temporarily unavailable\"}', 'code': 1}"
+        },
+        {
+          "step": 159,
+          "error": "提交失败: {'msg': '{\"CN\":\"该量子计算机正在校准中,暂时不可用\",\"EN\":\"The quantum computer is Calibrating and is temporarily unavailable\"}', 'code': 1}"
+        },
+        {
+          "step": 165,
+          "error": "提交失败: {'msg': '{\"CN\":\"该量子计算机正在校准中,暂时不可用\",\"EN\":\"The quantum computer is Calibrating and is temporarily unavailable\"}', 'code': 1}"
+        },
+        {
+          "step": 178,
+          "error": "提交失败: {'msg': '{\"CN\":\"该量子计算机正在校准中,暂时不可用\",\"EN\":\"The quantum computer is Calibrating and is temporarily unavailable\"}', 'code': 1}"
+        },
+        {
+          "step": 180,
+          "error": "提交失败: {'msg': '{\"CN\":\"该量子计算机正在校准中,暂时不可用\",\"EN\":\"The quantum computer is Calibrating and is temporarily unavailable\"}', 'code': 1}"
+        },
+        {
+          "step": 183,
+          "error": "提交失败: {'msg': '{\"CN\":\"该量子计算机正在校准中,暂时不可用\",\"EN\":\"The quantum computer is Calibrating and is temporarily unavailable\"}', 'code': 1}"
+        },
+        {
+          "step": 185,
+          "error": "提交失败: {'msg': '{\"CN\":\"该量子计算机正在校准中,暂时不可用\",\"EN\":\"The quantum computer is Calibrating and is temporarily unavailable\"}', 'code': 1}"
+        },
+        {
+          "step": 190,
+          "error": "提交失败: {'msg': '{\"CN\":\"该量子计算机正在校准中,暂时不可用\",\"EN\":\"The quantum computer is Calibrating and is temporarily unavailable\"}', 'code': 1}"
+        },
+        {
+          "step": 191,
+          "error": "提交失败: {'msg': '{\"CN\":\"该量子计算机正在校准中,暂时不可用\",\"EN\":\"The quantum computer is Calibrating and is temporarily unavailable\"}', 'code': 1}"
+        },
+        {
+          "step": 194,
+          "error": "提交失败: {'msg': '{\"CN\":\"该量子计算机正在校准中,暂时不可用\",\"EN\":\"The quantum computer is Calibrating and is temporarily unavailable\"}', 'code': 1}"
+        },
+        {
+          "step": 195,
+          "error": "提交失败: {'msg': '{\"CN\":\"该量子计算机正在校准中,暂时不可用\",\"EN\":\"The quantum computer is Calibrating and is temporarily unavailable\"}', 'code': 1}"
+        }
+      ],
+      "mean_fidelity": 0.0,
+      "fidelity_std": 0.0,
+      "mean_latency": 0.0,
+      "latency_std": 0.0
+    },
+    {
+      "strategy": "SJF",
+      "seed": 123,
+      "machine": "tianyan176",
+      "shots": 32,
+      "max_steps": 200,
+      "real_submit_prob": 0.1,
+      "max_real_per_episode": 3,
+      "timestamp": "2026-08-07T16:00:19.472112",
+      "total_reward": 443.15,
+      "step_count": 200,
+      "real_submit_count": 0,
+      "real_tasks": [],
+      "mean_fidelity": 0.0,
+      "fidelity_std": 0.0,
+      "mean_latency": 0.0,
+      "latency_std": 0.0
+    },
+    {
+      "strategy": "PPO",
+      "seed": 456,
+      "machine": "tianyan176",
+      "shots": 32,
+      "max_steps": 200,
+      "real_submit_prob": 0.1,
+      "max_real_per_episode": 3,
+      "timestamp": "2026-08-07T16:00:19.472112",
+      "total_reward": 710.53,
+      "step_count": 200,
+      "real_submit_count": 0,
+      "real_tasks": [
+        {
+          "step": 13,
+          "error": "提交失败: {'msg': '{\"CN\":\"该量子计算机正在校准中,暂时不可用\",\"EN\":\"The quantum computer is Calibrating and is temporarily unavailable\"}', 'code': 1}"
+        },
+        {
+          "step": 26,
+          "error": "提交失败: {'msg': '{\"CN\":\"该量子计算机正在校准中,暂时不可用\",\"EN\":\"The quantum computer is Calibrating and is temporarily unavailable\"}', 'code': 1}"
+        },
+        {
+          "step": 37,
+          "error": "提交失败: {'msg': '{\"CN\":\"该量子计算机正在校准中,暂时不可用\",\"EN\":\"The quantum computer is Calibrating and is temporarily unavailable\"}', 'code': 1}"
+        },
+        {
+          "step": 44,
+          "error": "提交失败: {'msg': '{\"CN\":\"该量子计算机正在校准中,暂时不可用\",\"EN\":\"The quantum computer is Calibrating and is temporarily unavailable\"}', 'code': 1}"
+        },
+        {
+          "step": 45,
+          "error": "提交失败: {'msg': '{\"CN\":\"该量子计算机正在校准中,暂时不可用\",\"EN\":\"The quantum computer is Calibrating and is temporarily unavailable\"}', 'code': 1}"
+        },
+        {
+          "step": 53,
+          "error": "提交失败: {'msg': '{\"CN\":\"该量子计算机正在校准中,暂时不可用\",\"EN\":\"The quantum computer is Calibrating and is temporarily unavailable\"}', 'code': 1}"
+        },
+        {
+          "step": 57,
+          "error": "提交失败: {'msg': '{\"CN\":\"该量子计算机正在校准中,暂时不可用\",\"EN\":\"The quantum computer is Calibrating and is temporarily unavailable\"}', 'code': 1}"
+        },
+        {
+          "step": 68,
+          "error": "提交失败: {'msg': '{\"CN\":\"该量子计算机正在校准中,暂时不可用\",\"EN\":\"The quantum computer is Calibrating and is temporarily unavailable\"}', 'code': 1}"
+        },
+        {
+          "step": 77,
+          "error": "提交失败: {'msg': '{\"CN\":\"该量子计算机正在校准中,暂时不可用\",\"EN\":\"The quantum computer is Calibrating and is temporarily unavailable\"}', 'code': 1}"
+        },
+        {
+          "step": 78,
+          "error": "提交失败: {'msg': '{\"CN\":\"该量子计算机正在校准中,暂时不可用\",\"EN\":\"The quantum computer is Calibrating and is temporarily unavailable\"}', 'code': 1}"
+        },
+        {
+          "step": 92,
+          "error": "提交失败: {'msg': '{\"CN\":\"该量子计算机正在校准中,暂时不可用\",\"EN\":\"The quantum computer is Calibrating and is temporarily unavailable\"}', 'code': 1}"
+        },
+        {
+          "step": 100,
+          "error": "提交失败: {'msg': '{\"CN\":\"该量子计算机正在校准中,暂时不可用\",\"EN\":\"The quantum computer is Calibrating and is temporarily unavailable\"}', 'code': 1}"
+        },
+        {
+          "step": 114,
+          "error": "提交失败: {'msg': '{\"CN\":\"该量子计算机正在校准中,暂时不可用\",\"EN\":\"The quantum computer is Calibrating and is temporarily unavailable\"}', 'code': 1}"
+        },
+        {
+          "step": 129,
+          "error": "提交失败: {'msg': '{\"CN\":\"该量子计算机正在校准中,暂时不可用\",\"EN\":\"The quantum computer is Calibrating and is temporarily unavailable\"}', 'code': 1}"
+        },
+        {
+          "step": 131,
+          "error": "提交失败: {'msg': '{\"CN\":\"该量子计算机正在校准中,暂时不可用\",\"EN\":\"The quantum computer is Calibrating and is temporarily unavailable\"}', 'code': 1}"
+        },
+        {
+          "step": 137,
+          "error": "提交失败: {'msg': '{\"CN\":\"该量子计算机正在校准中,暂时不可用\",\"EN\":\"The quantum computer is Calibrating and is temporarily unavailable\"}', 'code': 1}"
+        },
+        {
+          "step": 138,
+          "error": "提交失败: {'msg': '{\"CN\":\"该量子计算机正在校准中,暂时不可用\",\"EN\":\"The quantum computer is Calibrating and is temporarily unavailable\"}', 'code': 1}"
+        },
+        {
+          "step": 139,
+          "error": "提交失败: {'msg': '{\"CN\":\"该量子计算机正在校准中,暂时不可用\",\"EN\":\"The quantum computer is Calibrating and is temporarily unavailable\"}', 'code': 1}"
+        },
+        {
+          "step": 160,
+          "error": "提交失败: {'msg': '{\"CN\":\"该量子计算机正在校准中,暂时不可用\",\"EN\":\"The quantum computer is Calibrating and is temporarily unavailable\"}', 'code': 1}"
+        },
+        {
+          "step": 161,
+          "error": "提交失败: {'msg': '{\"CN\":\"该量子计算机正在校准中,暂时不可用\",\"EN\":\"The quantum computer is Calibrating and is temporarily unavailable\"}', 'code': 1}"
+        },
+        {
+          "step": 196,
+          "error": "提交失败: {'msg': '{\"CN\":\"该量子计算机正在校准中,暂时不可用\",\"EN\":\"The quantum computer is Calibrating and is temporarily unavailable\"}', 'code': 1}"
+        }
+      ],
+      "mean_fidelity": 0.0,
+      "fidelity_std": 0.0,
+      "mean_latency": 0.0,
+      "latency_std": 0.0
+    },
+    {
+      "strategy": "FCFS",
+      "seed": 456,
+      "machine": "tianyan176",
+      "shots": 32,
+      "max_steps": 200,
+      "real_submit_prob": 0.1,
+      "max_real_per_episode": 3,
+      "timestamp": "2026-08-07T16:00:23.964918",
+      "total_reward": 309.15,
+      "step_count": 200,
+      "real_submit_count": 0,
+      "real_tasks": [
+        {
+          "step": 13,
+          "error": "提交失败: {'msg': '{\"CN\":\"该量子计算机正在校准中,暂时不可用\",\"EN\":\"The quantum computer is Calibrating and is temporarily unavailable\"}', 'code': 1}"
+        },
+        {
+          "step": 26,
+          "error": "提交失败: {'msg': '{\"CN\":\"该量子计算机正在校准中,暂时不可用\",\"EN\":\"The quantum computer is Calibrating and is temporarily unavailable\"}', 'code': 1}"
+        },
+        {
+          "step": 37,
+          "error": "提交失败: {'msg': '{\"CN\":\"该量子计算机正在校准中,暂时不可用\",\"EN\":\"The quantum computer is Calibrating and is temporarily unavailable\"}', 'code': 1}"
+        },
+        {
+          "step": 44,
+          "error": "提交失败: {'msg': '{\"CN\":\"该量子计算机正在校准中,暂时不可用\",\"EN\":\"The quantum computer is Calibrating and is temporarily unavailable\"}', 'code': 1}"
+        },
+        {
+          "step": 45,
+          "error": "提交失败: {'msg': '{\"CN\":\"该量子计算机正在校准中,暂时不可用\",\"EN\":\"The quantum computer is Calibrating and is temporarily unavailable\"}', 'code': 1}"
+        },
+        {
+          "step": 53,
+          "error": "提交失败: {'msg': '{\"CN\":\"该量子计算机正在校准中,暂时不可用\",\"EN\":\"The quantum computer is Calibrating and is temporarily unavailable\"}', 'code': 1}"
+        },
+        {
+          "step": 57,
+          "error": "提交失败: {'msg': '{\"CN\":\"该量子计算机正在校准中,暂时不可用\",\"EN\":\"The quantum computer is Calibrating and is temporarily unavailable\"}', 'code': 1}"
+        },
+        {
+          "step": 68,
+          "error": "提交失败: {'msg': '{\"CN\":\"该量子计算机正在校准中,暂时不可用\",\"EN\":\"The quantum computer is Calibrating and is temporarily unavailable\"}', 'code': 1}"
+        },
+        {
+          "step": 77,
+          "error": "提交失败: {'msg': '{\"CN\":\"该量子计算机正在校准中,暂时不可用\",\"EN\":\"The quantum computer is Calibrating and is temporarily unavailable\"}', 'code': 1}"
+        },
+        {
+          "step": 78,
+          "error": "提交失败: {'msg': '{\"CN\":\"该量子计算机正在校准中,暂时不可用\",\"EN\":\"The quantum computer is Calibrating and is temporarily unavailable\"}', 'code': 1}"
+        },
+        {
+          "step": 92,
+          "error": "提交失败: {'msg': '{\"CN\":\"该量子计算机正在校准中,暂时不可用\",\"EN\":\"The quantum computer is Calibrating and is temporarily unavailable\"}', 'code': 1}"
+        },
+        {
+          "step": 100,
+          "error": "提交失败: {'msg': '{\"CN\":\"该量子计算机正在校准中,暂时不可用\",\"EN\":\"The quantum computer is Calibrating and is temporarily unavailable\"}', 'code': 1}"
+        },
+        {
+          "step": 114,
+          "error": "提交失败: {'msg': '{\"CN\":\"该量子计算机正在校准中,暂时不可用\",\"EN\":\"The quantum computer is Calibrating and is temporarily unavailable\"}', 'code': 1}"
+        },
+        {
+          "step": 129,
+          "error": "提交失败: {'msg': '{\"CN\":\"该量子计算机正在校准中,暂时不可用\",\"EN\":\"The quantum computer is Calibrating and is temporarily unavailable\"}', 'code': 1}"
+        },
+        {
+          "step": 131,
+          "error": "提交失败: {'msg': '{\"CN\":\"该量子计算机正在校准中,暂时不可用\",\"EN\":\"The quantum computer is Calibrating and is temporarily unavailable\"}', 'code': 1}"
+        },
+        {
+          "step": 137,
+          "error": "提交失败: {'msg': '{\"CN\":\"该量子计算机正在校准中,暂时不可用\",\"EN\":\"The quantum computer is Calibrating and is temporarily unavailable\"}', 'code': 1}"
+        },
+        {
+          "step": 138,
+          "error": "提交失败: {'msg': '{\"CN\":\"该量子计算机正在校准中,暂时不可用\",\"EN\":\"The quantum computer is Calibrating and is temporarily unavailable\"}', 'code': 1}"
+        },
+        {
+          "step": 139,
+          "error": "提交失败: {'msg': '{\"CN\":\"该量子计算机正在校准中,暂时不可用\",\"EN\":\"The quantum computer is Calibrating and is temporarily unavailable\"}', 'code': 1}"
+        },
+        {
+          "step": 160,
+          "error": "提交失败: {'msg': '{\"CN\":\"该量子计算机正在校准中,暂时不可用\",\"EN\":\"The quantum computer is Calibrating and is temporarily unavailable\"}', 'code': 1}"
+        },
+        {
+          "step": 161,
+          "error": "提交失败: {'msg': '{\"CN\":\"该量子计算机正在校准中,暂时不可用\",\"EN\":\"The quantum computer is Calibrating and is temporarily unavailable\"}', 'code': 1}"
+        },
+        {
+          "step": 196,
+          "error": "提交失败: {'msg': '{\"CN\":\"该量子计算机正在校准中,暂时不可用\",\"EN\":\"The quantum computer is Calibrating and is temporarily unavailable\"}', 'code': 1}"
+        }
+      ],
+      "mean_fidelity": 0.0,
+      "fidelity_std": 0.0,
+      "mean_latency": 0.0,
+      "latency_std": 0.0
+    },
+    {
+      "strategy": "SJF",
+      "seed": 456,
+      "machine": "tianyan176",
+      "shots": 32,
+      "max_steps": 200,
+      "real_submit_prob": 0.1,
+      "max_real_per_episode": 3,
+      "timestamp": "2026-08-07T16:00:28.714475",
+      "total_reward": 449.42,
+      "step_count": 200,
+      "real_submit_count": 0,
+      "real_tasks": [],
+      "mean_fidelity": 0.0,
+      "fidelity_std": 0.0,
+      "mean_latency": 0.0,
+      "latency_std": 0.0
+    }
+  ]
+}
